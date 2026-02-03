@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>אודות - LOOKLI</title>
+  <style>
+    :root{
+      --bg:#f8f9fa;
+      --text:#787878;
+      --muted:#787878;
+      --accent:#e0a1c0;
+      --accent-light:#d191b0;
+      --accent-dark:#c48cb3;
+      --border:#e5e7eb;
+      --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%)
+    }
+    *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit;text-decoration:none}
+    
+    .header{background:var(--header-gradient);padding:0;position:sticky;top:0;z-index:100}
+    .header-inner{max-width:1200px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:14px}
+    .logo img{height:48px;width:auto}
+    .header-nav{display:flex;gap:20px}
+    .header-nav a{color:#fff;font-weight:600;font-size:14px;padding:8px 16px;border-radius:8px;transition:background .2s}
+    .header-nav a:hover{background:rgba(255,255,255,.2)}
+    .mobile-menu-btn{display:none;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;padding:8px}
+    
+    @media(max-width:768px){
+      .header-inner{padding:12px 16px}
+      .logo img{height:36px}
+      .header-nav{display:none}
+      .header-nav.open{display:flex;position:absolute;top:100%;right:0;left:0;background:var(--header-gradient);flex-direction:column;padding:16px}
+      .mobile-menu-btn{display:block}
+    }
+    
+    .hero{background:var(--header-gradient);padding:60px 24px;text-align:center;color:#fff}
+    .hero h1{font-size:42px;font-weight:700;margin:0 0 16px;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    .hero p{font-size:18px;opacity:.9;max-width:600px;margin:0 auto}
+    @media(max-width:768px){
+      .hero{padding:40px 16px}
+      .hero h1{font-size:28px}
+      .hero p{font-size:15px}
+    }
+    
+    .content{max-width:900px;margin:0 auto;padding:60px 24px}
+    @media(max-width:768px){.content{padding:30px 16px}}
+    
+    .section{background:#fff;border-radius:8px;padding:40px;margin-bottom:30px}
+    @media(max-width:768px){.section{padding:24px 20px;margin-bottom:20px}}
+    .section h2{font-size:24px;font-weight:700;margin:0 0 20px;color:var(--accent-dark);display:flex;align-items:center;gap:12px;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    @media(max-width:768px){.section h2{font-size:20px}}
+    .section h2 .icon{width:32px;height:32px;background:var(--header-gradient);border-radius:8px;display:flex;align-items:center;justify-content:center}
+    .section h2 .icon svg{width:18px;height:18px;color:#fff}
+    .section p{font-size:15px;line-height:1.8;color:#555;margin:0 0 16px}
+    .section ul{margin:16px 0;padding-right:20px}
+    .section li{font-size:15px;line-height:1.8;color:#555;margin-bottom:10px}
+    
+    .features{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:40px}
+    @media(max-width:700px){.features{grid-template-columns:1fr;gap:16px}}
+    .feature{background:#fff;border-radius:8px;padding:30px;text-align:center}
+    @media(max-width:768px){.feature{padding:24px}}
+    .feature .icon{width:64px;height:64px;background:var(--header-gradient);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+    .feature .icon svg{width:32px;height:32px;color:#fff}
+    .feature h3{font-size:18px;font-weight:700;margin:0 0 10px;color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    .feature p{font-size:14px;color:var(--muted);margin:0;line-height:1.6}
+    
+    .cta-box{background:var(--header-gradient);border-radius:8px;padding:40px;text-align:center;color:#fff;margin-top:40px}
+    @media(max-width:768px){.cta-box{padding:30px 20px}}
+    .cta-box h3{font-size:24px;font-weight:700;margin:0 0 12px;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    .cta-box p{font-size:15px;opacity:.9;margin:0 0 24px}
+    .cta-btn{display:inline-block;background:#fff;color:var(--accent-dark);padding:14px 32px;border-radius:8px;font-weight:700;font-size:15px;transition:transform .2s}
+    .cta-btn:hover{transform:translateY(-2px)}
+    
+    #faq{scroll-margin-top:100px}
+    .faq-item{border-bottom:1px solid var(--border);padding:20px 0}
+    .faq-item:last-child{border-bottom:none}
+    .faq-q{font-weight:700;font-size:16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;color:var(--text)}
+    .faq-q::after{content:"▼";font-size:12px;color:var(--muted);transition:transform .2s}
+    .faq-item.open .faq-q::after{transform:rotate(180deg)}
+    .faq-a{display:none;padding-top:14px;font-size:14px;line-height:1.7;color:#555}
+    .faq-item.open .faq-a{display:block}
+    
+    footer{background:#3a3a3a;color:#fff;margin-top:60px}
+    .footer-inner{max-width:1200px;margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
+    @media(max-width:700px){.footer-inner{grid-template-columns:1fr;gap:30px;padding:30px 16px}}
+    .footer-section h4{font-size:14px;font-weight:700;margin:0 0 16px;color:var(--accent-light)}
+    .footer-section a{display:block;color:rgba(255,255,255,.7);font-size:13px;margin-bottom:10px;transition:color .15s}
+    .footer-section a:hover{color:#fff}
+    .footer-brand{font-weight:900;font-size:24px;margin-bottom:12px}
+    .footer-desc{font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;margin:0}
+    .footer-bottom{border-top:1px solid rgba(255,255,255,.1);text-align:center;padding:20px 24px;font-size:12px;color:rgba(255,255,255,.5)}
+    
+    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s}
+    .whatsapp-btn:hover{transform:scale(1.1)}
+    .whatsapp-btn svg{width:28px;height:28px;color:#fff}
+    @media(max-width:768px){
+      .whatsapp-btn{bottom:16px;right:16px;width:50px;height:50px}
+      .whatsapp-btn svg{width:24px;height:24px}
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <img src="/lookli-logo.png" alt="LOOKLI"/>
+      </a>
+      <nav class="header-nav" id="mobileNav">
+        <a href="/">דף הבית</a>
+        <a href="/about.html">אודות</a>
+        <a href="/contact.html">צור קשר</a>
+      </nav>
+      <button class="mobile-menu-btn" onclick="document.getElementById('mobileNav').classList.toggle('open')">☰</button>
+    </div>
+  </header>
+  
+  <div class="hero">
+    <h1>אודות LOOKLI</h1>
+    <p>מנוע החיפוש החכם לאופנה צנועה - מרכזים את כל החנויות במקום אחד</p>
+  </div>
+  
+  <div class="content">
+    <div class="section">
+      <h2>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        מה זה LOOKLI?
+      </h2>
+      <p>LOOKLI הוא מנוע חיפוש חכם שנבנה במיוחד עבור נשים המחפשות אופנה צנועה. אנחנו מרכזים מוצרים ממגוון חנויות אופנה צנועה לאתר אחד, כדי שתוכלי למצוא בדיוק את מה שאת מחפשת - בקלות ובמהירות.</p>
+      <p>במקום לעבור בין עשרות אתרים, לזכור מה ראית איפה, ולבזבז שעות על חיפוש - עכשיו את יכולה לחפש הכל במקום אחד.</p>
+    </div>
+    
+    <div class="features">
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+        <h3>חיפוש חכם AI</h3>
+        <p>חפשי בשפה טבעית - "שמלה שחורה מידה M עד 200 ש״ח" והמערכת תבין בדיוק מה את צריכה</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></div>
+        <h3>כל החנויות במקום אחד</h3>
+        <p>מרכזים מוצרים מהחנויות המובילות לאופנה צנועה - לא צריך לעבור בין אתרים</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/></svg></div>
+        <h3>סינון מתקדם</h3>
+        <p>סנני לפי צבע, מידה, מחיר, סגנון, גיזרה, סוג בד ועוד - מצאי בדיוק מה שאת רוצה</p>
+      </div>
+    </div>
+    
+    <div class="section" style="margin-top:40px">
+      <h2>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+        למי זה מתאים?
+      </h2>
+      <p><strong>למשתמשות:</strong></p>
+      <ul>
+        <li>נשים המחפשות אופנה צנועה מכל הסוגים - יום יומי, שבת, אירועים</li>
+        <li>מי שרוצה לחסוך זמן בחיפוש בין חנויות שונות</li>
+        <li>מי שמחפשת השראה ורוצה לראות מגוון רחב של אפשרויות</li>
+      </ul>
+      <p><strong>לחנויות:</strong></p>
+      <ul>
+        <li>חנויות אופנה צנועה שרוצות להגיע ללקוחות חדשות</li>
+        <li>חנויות שרוצות חשיפה נוספת למוצרים שלהן</li>
+        <li>חנויות שרוצות להיות חלק מפלטפורמה חדשנית</li>
+      </ul>
+    </div>
+    
+    <div class="section" id="faq">
+      <h2>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        שאלות נפוצות
+      </h2>
+      
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">האם הרכישה מתבצעת באתר LOOKLI?</div>
+        <div class="faq-a">לא, LOOKLI הוא מנוע חיפוש בלבד. כשאת מוצאת מוצר שמעניין אותך, את מועברת ישירות לאתר של החנות המקורית לביצוע הרכישה.</div>
+      </div>
+      
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">האם המידע על המוצרים מעודכן?</div>
+        <div class="faq-a">אנחנו מעדכנים את המידע באופן תדיר, אבל תמיד מומלץ לבדוק את המחיר והזמינות באתר החנות עצמה לפני הרכישה.</div>
+      </div>
+      
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">איך החנות שלי יכולה להצטרף?</div>
+        <div class="faq-a">נשמח לשמוע ממך! פני אלינו דרך דף "צור קשר" ונחזור אליך בהקדם עם כל הפרטים.</div>
+      </div>
+      
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">מצאתי טעות במידע על מוצר, מה עושים?</div>
+        <div class="faq-a">תודה שהבחנת! אנא דווחי לנו דרך דף "צור קשר" ונתקן בהקדם.</div>
+      </div>
+      
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">האם השימוש באתר חינמי?</div>
+        <div class="faq-a">כן! LOOKLI הוא שירות חינמי לחלוטין למשתמשות.</div>
+      </div>
+    </div>
+    
+    <div class="cta-box">
+      <h3>רוצה להצטרף כחנות?</h3>
+      <p>הצטרפי למאות החנויות שכבר נהנות מחשיפה ללקוחות חדשות</p>
+      <a href="/contact.html?type=store" class="cta-btn">צרי קשר עכשיו</a>
+    </div>
+  </div>
+  
+  <a href="https://wa.me/972500000000?text=שלום, פניתי מאתר LOOKLI" target="_blank" class="whatsapp-btn">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+  
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-section">
+        <div class="footer-brand">LOOKLI</div>
+        <p class="footer-desc">מנוע החיפוש החכם לאופנה צנועה.<br>מוצאים את הלוק שלך במקום אחד.</p>
+      </div>
+      <div class="footer-section">
+        <h4>ניווט מהיר</h4>
+        <a href="/">דף הבית</a>
+        <a href="/about.html">אודות</a>
+        <a href="/contact.html">צור קשר</a>
+      </div>
+      <div class="footer-section">
+        <h4>לחנויות</h4>
+        <a href="/contact.html?type=store">הצטרפות לאתר</a>
+        <a href="/contact.html?type=update">עדכון פרטים</a>
+      </div>
+      <div class="footer-section">
+        <h4>עזרה</h4>
+        <a href="/contact.html?type=bug">דיווח על בעיה</a>
+        <a href="/about.html#faq">שאלות נפוצות</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 LOOKLI - כל הזכויות שמורות</span>
+    </div>
+  </footer>
+</body>
+</html>

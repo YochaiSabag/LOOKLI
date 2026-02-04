@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
-"scripts": {
-  "init-db": "node scripts/init-db.js",
-  "prestart": "node scripts/init-db.js",
-  "start": "node index.js",
-  "dev": "nodemon index.js"
-}
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "init-db": "node workers/init_db.js",
+    "scrape": "node workers/run_scrapers.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "pg": "^8.16.3"

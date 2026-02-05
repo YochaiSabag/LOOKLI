@@ -17,7 +17,7 @@ async function main() {
     process.exit(1);
   }
 
-  const schemaPath = path.resolve(process.cwd(), "schema.sql");
+  const schemaPath = path.resolve(__dirname, "schema.sql");
   if (!fs.existsSync(schemaPath)) {
     console.error(`❌ schema.sql not found at: ${schemaPath}`);
     process.exit(1);
@@ -47,3 +47,4 @@ async function main() {
 }
 
 main();
+

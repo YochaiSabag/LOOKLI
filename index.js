@@ -11,12 +11,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Database connection - supports both DATABASE_URL and individual vars
+const connStr = process.env.DATABASE_URL;
+
+const useSSL =
+  !!connStr && (connStr.includes("proxy.rlwy.net") || connStr.includes("rlwy.net"));
+
 const pool = new Pool(
-  process.env.DATABASE_URL
-    ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-      }
+  connStr
+    ? { connectionString: connStr, ssl: useSSL ? { rejectUnauthorized: false } : undefined }
     : {
         user: process.env.DB_USER || "postgres",
         host: process.env.DB_HOST || "localhost",

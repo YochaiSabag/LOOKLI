@@ -35,3 +35,4 @@ main().catch((e) => {
   console.error("init-db failed:", e.message);
   process.exit(1);
 });
+

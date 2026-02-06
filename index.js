@@ -215,6 +215,20 @@ app.get("/out/:id", async (req, res) => {
     res.redirect(p.rows[0].source_url);
   } catch (err) { res.status(500).send("Error"); }
 });
+app.get("/api/debug/db", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        current_database() AS db,
+        inet_server_addr() AS server_ip,
+        inet_server_port() AS server_port,
+        (SELECT COUNT(*) FROM public.products)::int AS products_count
+    `);
+    res.json(r.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

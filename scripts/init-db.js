@@ -1,50 +1,38 @@
 import fs from "fs";
 import path from "path";
-import pg from "pg";
+import { fileURLToPath } from "url";
+import pkg from "pg";
 
-const { Client } = pg;
+const { Client } = pkg;
 
-function needsSSL(databaseUrl) {
-  // Railway internal usually doesn't need SSL; public proxies often do.
-  // If it's not internal, prefer SSL (safe default for cloud DBs).
-  return databaseUrl && !databaseUrl.includes("railway.internal");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("❌ Missing DATABASE_URL env var");
+  process.exit(1);
 }
 
-async function main() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error("❌ DATABASE_URL is missing (env var)");
-    process.exit(1);
-  }
+const schemaPath = path.resolve(__dirname, "..", "schema.sql"); // כי init-db בתוך scripts
+const schemaSql = fs.readFileSync(schemaPath, "utf8");
 
-  const schemaPath = path.resolve(__dirname, "schema.sql");
-  if (!fs.existsSync(schemaPath)) {
-    console.error(`❌ schema.sql not found at: ${schemaPath}`);
-    process.exit(1);
-  }
+const ssl =
+  DATABASE_URL.includes("proxy.rlwy.net") || DATABASE_URL.includes("rlwy.net")
+    ? { rejectUnauthorized: false }
+    : undefined;
 
-  const schemaSql = fs.readFileSync(schemaPath, "utf8");
+const client = new Client({ connectionString: DATABASE_URL, ssl });
 
-  const client = new Client({
-    connectionString: databaseUrl,
-    ssl: needsSSL(databaseUrl) ? { rejectUnauthorized: false } : false
-  });
-
-  try {
-    console.log("🧱 init-db: connecting...");
-    await client.connect();
-
-    console.log("🧱 init-db: applying schema.sql ...");
-    await client.query(schemaSql);
-
-    console.log("✅ init-db: done");
-  } catch (err) {
-    console.error("❌ init-db failed:", err?.message || err);
-    process.exitCode = 1;
-  } finally {
-    try { await client.end(); } catch {}
-  }
+try {
+  console.log("🔌 Connecting to DB...");
+  await client.connect();
+  console.log("🧱 Running schema.sql...");
+  await client.query(schemaSql);
+  console.log("✅ DB initialized successfully");
+} catch (err) {
+  console.error("❌ init-db failed:", err?.message || err);
+  process.exit(1);
+} finally {
+  await client.end();
 }
-
-main();
-

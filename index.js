@@ -1,3 +1,4 @@
+console.log("BOOT DEBUG ROUTE VERSION 1");
 import express from "express";
 import pkg from "pg";
 import path from "path";

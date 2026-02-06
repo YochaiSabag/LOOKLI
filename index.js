@@ -11,23 +11,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Database connection - supports both DATABASE_URL and individual vars
-// Database connection - supports both DATABASE_URL and individual vars
+// Database connection (Railway/Prod MUST use DATABASE_URL)
 const connStr = process.env.DATABASE_URL;
 
-const useSSL =
-  !!connStr && (connStr.includes("proxy.rlwy.net") || connStr.includes("rlwy.net"));
+if (!connStr) {
+  // Fail fast so we never silently connect to localhost in Railway
+  throw new Error("DATABASE_URL is missing. Set it in Railway > LOOKLI > Variables.");
+}
 
-const pool = new Pool(
-  connStr
-    ? { connectionString: connStr, ssl: useSSL ? { rejectUnauthorized: false } : undefined }
-    : {
-        user: process.env.DB_USER || "postgres",
-        host: process.env.DB_HOST || "localhost",
-        database: process.env.DB_NAME || "fashion_aggregator",
-        password: process.env.DB_PASSWORD || "1423",
-        port: parseInt(process.env.DB_PORT) || 5432,
-      }
-);
+const useSSL = connStr.includes("proxy.rlwy.net") || connStr.includes("rlwy.net");
+
+const pool = new Pool({
+  connectionString: connStr,
+  ssl: useSSL ? { rejectUnauthorized: false } : undefined,
+});
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));

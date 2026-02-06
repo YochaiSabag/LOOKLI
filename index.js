@@ -9,6 +9,12 @@ const __dirname = path.dirname(__filename);
 
 const { Pool } = pkg;
 const app = express();
+app.get("/api/debug/version", (req, res) => {
+  res.json({
+    version: "v1-debug-2026-02-06-01",
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+  });
+});
 const PORT = process.env.PORT || 3000;
 
 // Database connection - supports both DATABASE_URL and individual vars

@@ -11,6 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Database connection - supports both DATABASE_URL and individual vars
+// Database connection - supports both DATABASE_URL and individual vars
 const connStr = process.env.DATABASE_URL;
 
 const useSSL =

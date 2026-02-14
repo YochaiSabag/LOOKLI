@@ -57,11 +57,7 @@
     .searchbar .btn:hover{background:var(--accent-dark);transform:translateY(-2px)}
     .searchbar .btn svg{width:24px;height:24px;color:#fff}
     
-    /* AI Analysis Box */
-    .ai-analysis{max-width:var(--container);margin:0 auto;padding:14px 24px;display:none}
-    .ai-analysis.active{display:block}
-    .ai-box{background:linear-gradient(135deg,rgba(79,70,229,.08),rgba(168,85,247,.08));border:2px solid rgba(79,70,229,.2);border-radius:12px;padding:14px 18px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:12px}
-    .ai-box .ai-icon{width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+    /* AI Analysis removed */
     
     /* ===== MAIN LAYOUT ===== */
     .wrap{display:flex;gap:0;min-height:calc(100vh - 140px)}
@@ -89,11 +85,11 @@
     .filter-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
     
     /* Store logos */
-    .store-opts{display:flex;gap:10px;flex-wrap:wrap}
-    .store-opt{width:65px;height:65px;border:2px solid var(--border);border-radius:12px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden}
+    .store-opts{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow-y:auto}
+    .store-opt{width:50px;height:50px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden;flex-shrink:0}
     .store-opt:hover{border-color:var(--accent-light)}
     .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
-    .store-opt img{max-width:85%;max-height:85%;object-fit:contain}
+    .store-opt img{width:100%;height:100%;object-fit:contain;padding:4px}
     .store-opt span{font-size:12px;font-weight:800}
     
     /* Color options */
@@ -117,6 +113,9 @@
     /* Reset button */
     .reset-btn{width:100%;padding:14px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;color:var(--muted);transition:all .15s}
     .reset-btn:hover{border-color:var(--accent);color:var(--accent)}
+    
+    /* Design filter - compact */
+    #designBoxes .filter-opt{padding:7px 12px;font-size:12px}
     
     /* ===== MOBILE STYLES ===== */
     @media(max-width:768px){
@@ -145,7 +144,7 @@
       .filter-opt{padding:8px 14px;font-size:13px;border-radius:6px}
       .color-opt{width:30px;height:30px}
       .size-opt{min-width:42px;padding:8px 12px;font-size:12px}
-      .store-opt{width:55px;height:55px;border-radius:8px}
+      .store-opt{width:42px;height:42px;border-radius:8px}
       
       .mobile-filter-btn{display:flex !important;position:fixed;bottom:80px;right:16px;width:50px;height:50px;background:var(--accent);border-radius:50%;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(224,161,192,.4);z-index:149;color:#fff;font-size:20px;border:none;cursor:pointer}
       
@@ -263,22 +262,22 @@
     .empty{padding:50px;text-align:center;color:var(--muted);border:2px dashed var(--border);border-radius:var(--radius);background:#fff;font-weight:700;font-size:15px}
     
     /* ===== MODAL ===== */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:20px;overflow:auto;backdrop-filter:blur(4px)}
-    .modal-backdrop.open{display:flex;align-items:center;justify-content:center}
-    .modal{width:min(1000px,100%);max-height:90vh;background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
-    .modal-head{padding:18px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:20px;overflow-y:auto;backdrop-filter:blur(4px)}
+    .modal-backdrop.open{display:flex;align-items:flex-start;justify-content:center;padding-top:20px;padding-bottom:20px}
+    .modal{width:min(1000px,100%);max-height:calc(100vh - 40px);background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
+    .modal-head{padding:18px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
     .modal-title{font-weight:800;font-size:17px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .close-btn{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:18px;transition:all .15s}
     .close-btn:hover{border-color:var(--accent);color:var(--accent)}
-    .modal-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 22px;overflow-y:auto;flex:1}
-    @media(max-width:800px){.modal-body{grid-template-columns:1fr}}
+    .modal-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 22px;overflow-y:auto;flex:1;min-height:0}
+    @media(max-width:800px){.modal-body{grid-template-columns:1fr;overflow-y:auto}}
     
     /* Modal Gallery */
     .gallery{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#f9f9f9}
-    .gallery-carousel{position:relative;width:100%;aspect-ratio:3/4;overflow:hidden;background:#f3f4f6}
-    .gallery-carousel-inner{display:flex;height:100%;transition:transform .3s ease}
-    .gallery-carousel-slide{min-width:100%;height:100%}
-    .gallery-carousel-slide img{width:100%;height:100%;object-fit:cover}
+    .gallery-carousel{position:relative;width:100%;overflow:hidden;background:#f3f4f6}
+    .gallery-carousel-inner{display:flex;transition:transform .3s ease}
+    .gallery-carousel-slide{min-width:100%;display:flex;align-items:center;justify-content:center}
+    .gallery-carousel-slide img{width:100%;height:auto;object-fit:contain;max-height:75vh}
     .gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;background:rgba(255,255,255,.95);border:none;border-radius:50%;cursor:pointer;font-size:18px;font-weight:bold;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#333}
     .gallery-prev{right:12px}
     .gallery-next{left:12px}
@@ -364,7 +363,8 @@
     </div>
   </div>
   
-  <div class="ai-analysis" id="aiAnalysis"><div class="ai-box"><div class="ai-icon">🤖</div><span id="aiBox"></span></div></div>
+  <!-- AI analysis removed -->
+  <span id="aiAnalysis" style="display:none"></span><span id="aiBox" style="display:none"></span>
   
   <!-- Mobile Filter Button -->
   <button class="mobile-filter-btn" onclick="toggleMobileFilters()">☰</button>
@@ -470,6 +470,16 @@
         </div>
       </div>
       
+      <div class="filter-section" id="designSection">
+        <div class="filter-header" onclick="toggleFilter('designSection')">
+          <span>עיצוב</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="designBoxes"></div>
+        </div>
+      </div>
+      
       <div class="filter-section" id="discountSection">
         <div class="filter-header" onclick="toggleFilter('discountSection')">
           <span>הנחה</span>
@@ -532,7 +542,7 @@
             <div class="desc-title">פירוט המוצר</div>
             <div class="desc" id="modalDesc"></div>
           </div>
-          <div class="buy-big"><a id="modalBuy" href="#" target="_blank">🛒 לרכישה באתר</a></div>
+          <div class="buy-big"><a id="modalBuy" href="#" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>לרכישה באתר</a></div>
         </div>
       </div>
     </div>
@@ -568,19 +578,21 @@
     </div>
     <div class="footer-bottom">
       <span>© 2025 LOOKLI - כל הזכויות שמורות</span>
+      <p style="font-size:11px;color:#999;margin:8px auto 0;line-height:1.6;max-width:800px;text-align:center">LOOKLI הוא אתר חיפוש והשוואת מוצרים בלבד. התמונות, המחירים, התיאורים וכל המידע המוצג באתר שייכים לאתרי המקור ולבעלי הזכויות שלהם. אנו אינם מוכרים מוצרים ואיננו אחראים על תוכן, זמינות, מחירים או שירות של אתרי המקור. הרכישה מתבצעת ישירות מול החנות המקורית.</p>
     </div>
   </footer>
 
 <script>
-let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="";
+let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
 let lastSearchKeywords=[];
-let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[];
+let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
 
 const storeLogos={
   'MEKIMI':'https://mekimi.co.il/wp-content/webp-express/webp-images/uploads/2022/10/logo.png.webp',
-  'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png'
+  'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
+  'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png'
 };
 
 const colorData={
@@ -588,7 +600,9 @@ const colorData={
   'נייבי':'#1E3A5F','אדום':'#DC2626','בורדו':'#800020','ירוק':'#16A34A','זית':'#556B2F',
   'חאקי':'#8B8B00','חום':'#92400E','קאמל':'#C19A6B','בז׳':'#D4B896','ניוד':'#E8BEAC',
   'אפור':'#6B7280','ורוד':'#EC4899','סגול':'#7C3AED','לילך':'#C8A2C8','צהוב':'#FACC15',
-  'חרדל':'#FFDB58','כתום':'#EA580C','זהב':'#D4AF37','כסף':'#C0C0C0'
+  'חרדל':'#FFDB58','כתום':'#EA580C','זהב':'#D4AF37','כסף':'#C0C0C0',
+  'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)','צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
+  'מנטה':'#98FFD3','אפרסק':'#FFCBA4'
 };
 
 function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
@@ -601,9 +615,14 @@ function setLoading(){document.getElementById("grid").innerHTML='<div class="car
 function toggleMobileFilters(){
   const filters=document.getElementById('filtersPanel');
   const overlay=document.getElementById('mobileOverlay');
+  const isOpening=!filters.classList.contains('open');
   filters.classList.toggle('open');
   overlay.classList.toggle('show');
   document.body.style.overflow=filters.classList.contains('open')?'hidden':'';
+  if(isOpening){
+    // גלילת הפילטרים עצמם לראש
+    filters.scrollTop=0;
+  }
 }
 
 function toggleFilter(id){
@@ -628,22 +647,25 @@ async function runAISearch(){
   const q=document.getElementById("q").value.trim();
   if(!q){document.getElementById("aiAnalysis").classList.remove("active");lastSearchKeywords=[];runRegularSearch();return}
   setLoading();
+  window.scrollTo({top:0,behavior:'smooth'});
   try{
     const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
     const data=await res.json();
     lastSearchKeywords=data.analysis.keywords||[];
-    let parts=[];
-    if(data.analysis.keywords?.length)parts.push(data.analysis.keywords.join(' '));
-    if(data.analysis.category)parts.push(data.analysis.category);
-    if(data.analysis.color)parts.push(data.analysis.color);
-    if(data.analysis.size)parts.push(formatSize(data.analysis.size));
-    if(data.analysis.maxPrice)parts.push(`עד ₪${data.analysis.maxPrice}`);
-    document.getElementById("aiBox").innerHTML=`<strong>הבנתי:</strong> ${parts.join(' • ')||'מציג הכל'}`;
-    document.getElementById("aiAnalysis").classList.add("active");
-    if(data.analysis.color){activeColor=data.analysis.color;updateColorSelection()}
-    if(data.analysis.category){activeCategory=data.analysis.category;updateCategorySelection()}
-    if(data.analysis.size){activeSize=data.analysis.size;updateSizeSelection()}
+    // סנכרון הסיידבר עם תוצאות AI
+    if(data.analysis.store){activeStore=data.analysis.store;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore))}
+    if(data.analysis.color){activeColor=data.analysis.color}
+    if(data.analysis.category){activeCategory=data.analysis.category}
+    if(data.analysis.size){activeSize=data.analysis.size}
+    if(data.analysis.style){activeStyle=data.analysis.style}
+    if(data.analysis.fit){activeFit=data.analysis.fit}
+    if(data.analysis.fabric){activeFabric=data.analysis.fabric}
+    if(data.analysis.pattern){activePattern=data.analysis.pattern}
+    if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}
     if(data.analysis.maxPrice){document.getElementById("priceRange").value=Math.min(data.analysis.maxPrice,500);document.getElementById("priceValue").textContent=Math.min(data.analysis.maxPrice,500)}
+    // רענון כל הפילטרים ויזואלית
+    renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
+    updateActiveFiltersBar();
     allProducts=data.results;currentPage=1;renderPage();
     document.getElementById("metaToolbar").textContent=`${data.count} תוצאות`;
     previousSearchQuery=q;
@@ -652,6 +674,7 @@ async function runAISearch(){
 
 async function runRegularSearch(){
   setLoading();document.getElementById("aiAnalysis").classList.remove("active");
+  window.scrollTo({top:0,behavior:'smooth'});
   const params=new URLSearchParams();
   if(lastSearchKeywords.length>0)params.set("q",lastSearchKeywords.join(' '));
   if(activeStore)params.set("store",activeStore);
@@ -662,6 +685,7 @@ async function runRegularSearch(){
   if(activeFit)params.set("fit",activeFit);
   if(activeFabric)params.set("fabric",activeFabric);
   if(activePattern)params.set("pattern",activePattern);
+  if(activeDesign)params.set("design",activeDesign);
   if(activeDiscount)params.set("minDiscount",activeDiscount);
   const maxPrice=document.getElementById("priceRange").value;
   const sliderMax=document.getElementById("priceRange").max;
@@ -779,17 +803,18 @@ function updateModalCarousel(){
 
 const allFabrics=['סריג','אריג','ג\'רסי','פיקה','שיפון','קרפ','סאטן','קטיפה','פליז','תחרה','טול','לייקרה','טריקו','רשת','ג\'ינס','קורדרוי'];
 const allPatterns=['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי','חיות'];
+const allDesigns=['צווארון V','צווארון עגול','גולף','צווארון גבוה','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','קומות','שסע','כיווצים','תיקתק','מעטפת'];
 const allDiscounts=[{val:'20',label:'20%+'},{val:'40',label:'40%+'},{val:'60',label:'60%+'}];
 
 async function initFilters(){
   const data=await(await fetch("/api/filters")).json();
-  dbCategories=data.categories||[];dbStyles=data.styles||[];dbFits=data.fits||[];dbColors=data.colors||[];dbSizes=data.sizes||[];
+  dbCategories=data.categories||[];dbStyles=data.styles||[];dbFits=data.fits||[];dbColors=data.colors||[];dbSizes=data.sizes||[];dbFabrics=data.fabrics||[];dbPatterns=data.patterns||[];dbDesigns=data.designs||[];
   
   const storeDiv=document.getElementById("storeLogos");
   storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
   (data.stores||[]).forEach(s=>{const logo=storeLogos[s];storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')">${logo?`<img src="${logo}" alt="${s}">`:`<span>${s.substring(0,3)}</span>`}</div>`});
   
-  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();
+  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
   
   const discDiv=document.getElementById("discountBoxes");
   discDiv.innerHTML=`<div class="filter-opt${activeDiscount===''?' active':''}" data-discount="" onclick="selectDiscount('')">הכל</div>`+allDiscounts.map(d=>`<div class="filter-opt" data-discount="${d.val}" onclick="selectDiscount('${d.val}')">${d.label}</div>`).join('');
@@ -801,21 +826,24 @@ function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes"
 function renderColorGrid(){const div=document.getElementById("colorGrid");div.innerHTML=`<div class="color-opt${activeColor===''?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>`<div class="color-opt${activeColor===c?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`).join('')}
 function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");div.innerHTML=`<div class="size-opt${activeSize===''?' active':''}" data-size="" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>`<div class="size-opt${activeSize===s?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`).join('')}
 function renderStyleBoxes(){const div=document.getElementById("styleBoxes");if(dbStyles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeStyle===''?' active':''}" data-style="" onclick="selectStyle('')">הכל</div>`+dbStyles.map(s=>`<div class="filter-opt${activeStyle===s?' active':''}" data-style="${escapeHtml(s)}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`).join('')}
-function renderFitBoxes(){const div=document.getElementById("fitBoxes");if(dbFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFit===''?' active':''}" data-fit="" onclick="selectFit('')">הכל</div>`+dbFits.map(f=>`<div class="filter-opt${activeFit===f?' active':''}" data-fit="${escapeHtml(f)}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
-function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");div.innerHTML=`<div class="filter-opt${activeFabric===''?' active':''}" data-fabric="" onclick="selectFabric('')">הכל</div>`+allFabrics.map(f=>`<div class="filter-opt${activeFabric===f?' active':''}" data-fabric="${escapeHtml(f)}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
-function renderPatternBoxes(){const div=document.getElementById("patternBoxes");div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" data-pattern="" onclick="selectPattern('')">הכל</div>`+allPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" data-pattern="${escapeHtml(p)}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
+function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFit===''?' active':''}" data-fit="" onclick="selectFit('')">הכל</div>`+allFits.map(f=>`<div class="filter-opt${activeFit===f?' active':''}" data-fit="${escapeHtml(f)}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
+function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFabric===''?' active':''}" data-fabric="" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>`<div class="filter-opt${activeFabric===f?' active':''}" data-fabric="${escapeHtml(f)}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
+function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" data-pattern="" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" data-pattern="${escapeHtml(p)}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
+function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" data-design="" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" data-design="${escapeHtml(d)}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
 
 function updateActiveFiltersBar(){
   const tags=[];
   if(activeStore)tags.push({type:'store',label:`חנות: ${activeStore}`,value:activeStore});
-  if(activeCategory)tags.push({type:'category',label:activeCategory,value:activeCategory});
+  if(activeCategory)tags.push({type:'category',label:`סוג: ${activeCategory}`,value:activeCategory});
   if(activeColor)tags.push({type:'color',label:`צבע: ${activeColor}`,value:activeColor});
   if(activeSize)tags.push({type:'size',label:`מידה: ${formatSize(activeSize)}`,value:activeSize});
   if(activeStyle)tags.push({type:'style',label:`סגנון: ${activeStyle}`,value:activeStyle});
   if(activeFit)tags.push({type:'fit',label:`גיזרה: ${activeFit}`,value:activeFit});
   if(activeFabric)tags.push({type:'fabric',label:`בד: ${activeFabric}`,value:activeFabric});
   if(activePattern)tags.push({type:'pattern',label:`דוגמא: ${activePattern}`,value:activePattern});
+  if(activeDesign)tags.push({type:'design',label:`עיצוב: ${activeDesign}`,value:activeDesign});
   if(activeDiscount)tags.push({type:'discount',label:`${activeDiscount}%+ הנחה`,value:activeDiscount});
+  if(lastSearchKeywords.length>0)tags.push({type:'keywords',label:`חיפוש: ${lastSearchKeywords.join(' ')}`,value:lastSearchKeywords.join(' ')});
   
   const bar=document.getElementById("activeFiltersBar");
   const tagsDiv=document.getElementById("activeFiltersTags");
@@ -831,15 +859,18 @@ function updateActiveFiltersBar(){
 function removeFilter(type){
   switch(type){
     case'store':activeStore="";document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===''));break;
-    case'category':activeCategory="";updateCategorySelection();break;
-    case'color':activeColor="";updateColorSelection();break;
-    case'size':activeSize="";updateSizeSelection();break;
-    case'style':activeStyle="";document.querySelectorAll('#styleBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.style===''));break;
-    case'fit':activeFit="";document.querySelectorAll('#fitBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.fit===''));break;
-    case'fabric':activeFabric="";document.querySelectorAll('#fabricBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.fabric===''));break;
-    case'pattern':activePattern="";document.querySelectorAll('#patternBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.pattern===''));break;
+    case'category':activeCategory="";renderCategoryBoxes();break;
+    case'color':activeColor="";renderColorGrid();break;
+    case'size':activeSize="";renderSizeBoxes();break;
+    case'style':activeStyle="";renderStyleBoxes();break;
+    case'fit':activeFit="";renderFitBoxes();break;
+    case'fabric':activeFabric="";renderFabricBoxes();break;
+    case'pattern':activePattern="";renderPatternBoxes();break;
+    case'design':activeDesign="";renderDesignBoxes();break;
     case'discount':activeDiscount="";document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));break;
+    case'keywords':lastSearchKeywords=[];document.getElementById("q").value="";break;
   }
+  updateActiveFiltersBar();
   runRegularSearch();
 }
 
@@ -849,22 +880,22 @@ function updateSizeSelection(){document.querySelectorAll('.size-opt').forEach(el
 function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
 
 function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
-function selectCategory(c){activeCategory=(activeCategory===c)?"":c;updateCategorySelection();runRegularSearch()}
-function selectColor(c){activeColor=(activeColor===c)?"":c;updateColorSelection();runRegularSearch()}
-function selectSize(s){activeSize=(activeSize===s)?"":s;updateSizeSelection();runRegularSearch()}
-function selectStyle(s){activeStyle=(activeStyle===s)?"":s;document.querySelectorAll('#styleBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.style===activeStyle));updateActiveFiltersBar();runRegularSearch()}
-function selectFit(f){activeFit=(activeFit===f)?"":f;document.querySelectorAll('#fitBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.fit===activeFit));updateActiveFiltersBar();runRegularSearch()}
-function selectFabric(f){activeFabric=(activeFabric===f)?"":f;document.querySelectorAll('#fabricBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.fabric===activeFabric));updateActiveFiltersBar();runRegularSearch()}
-function selectPattern(p){activePattern=(activePattern===p)?"":p;document.querySelectorAll('#patternBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.pattern===activePattern));updateActiveFiltersBar();runRegularSearch()}
+function selectCategory(c){activeCategory=(activeCategory===c)?"":c;renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectColor(c){activeColor=(activeColor===c)?"":c;renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
+function selectSize(s){activeSize=(activeSize===s)?"":s;renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectStyle(s){activeStyle=(activeStyle===s)?"":s;renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectFit(f){activeFit=(activeFit===f)?"":f;renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectFabric(f){activeFabric=(activeFabric===f)?"":f;renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
 
 function resetAllFiltersQuietly(){
-  activeStore="";activeCategory="";activeColor="";activeStyle="";activeFit="";activeDiscount="";activeFabric="";activePattern="";activeSize="";
+  activeStore="";activeCategory="";activeColor="";activeStyle="";activeFit="";activeDiscount="";activeFabric="";activePattern="";activeSize="";activeDesign="";
   const slider=document.getElementById("priceRange");slider.value=slider.max;document.getElementById("priceValue").textContent=slider.max;
   document.querySelectorAll(".store-opt").forEach(el=>el.classList.toggle('active',el.dataset.store===''));
-  document.querySelectorAll(".filter-opt").forEach(el=>el.classList.toggle('active',el.dataset.cat===''||el.dataset.style===''||el.dataset.fit===''||el.dataset.fabric===''||el.dataset.pattern===''||el.dataset.discount===''));
-  document.querySelectorAll(".color-opt").forEach(el=>el.classList.toggle('active',el.dataset.color===''));
-  document.querySelectorAll(".size-opt").forEach(el=>el.classList.toggle('active',el.dataset.size===''));
+  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
+  document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));
   document.getElementById("activeFiltersBar").classList.remove('show');
 }
 
@@ -882,7 +913,7 @@ async function openProduct(id){
   try{
     const p=await(await fetch("/api/product/"+id)).json();
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
-    document.getElementById("modalBuy").href=p.source_url||("/out/"+id);
+    document.getElementById("modalBuy").href="/out/"+id;
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
     document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');

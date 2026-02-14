@@ -1,13 +1,15 @@
 import { chromium } from 'playwright';
 import pkg from 'pg';
+console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
+console.log("ENV DB_HOST =", process.env.DB_HOST || "(empty)");
 const { Client } = pkg;
 
+const connStr = process.env.DATABASE_URL;
+const useSSL = connStr && (connStr.includes('rlwy.net') || connStr.includes('amazonaws.com') || connStr.includes('supabase'));
+
 const db = new Client({
-  host: 'localhost',
-  user: 'postgres',
-  password: '1423',
-  database: 'fashion_aggregator',
-  port: 5432,
+  connectionString: connStr,
+  ssl: useSSL ? { rejectUnauthorized: false } : undefined,
 });
 
 await db.connect();
@@ -53,8 +55,6 @@ const colorMap = {
   'זית': 'ירוק', 
   'khaki': 'ירוק', 
   'חאקי': 'ירוק', 
-  'mint': 'ירוק', 
-  'מנטה': 'ירוק', 
   'snake': 'ירוק',        // #6 - snake = ירוק
   'emerald': 'ירוק',
   'forest': 'ירוק',
@@ -133,8 +133,6 @@ const colorMap = {
   'orange': 'כתום', 
   'כתום': 'כתום',
   'tangerine': 'כתום',
-  'peach': 'כתום',
-  'apricot': 'כתום',
   'rust': 'כתום',
   
   // זהב
@@ -168,12 +166,30 @@ const colorMap = {
   
   // תכלת
   'turquoise': 'תכלת', 
+  'tourquise': 'תכלת',
   'תכלת': 'תכלת', 
   'טורקיז': 'תכלת',
   'aqua': 'תכלת',
   'cyan': 'תכלת',
   'skyblue': 'תכלת',
-  'sky': 'תכלת'
+  'sky': 'תכלת',
+  
+  // צבעים מיוחדים - מיפוי לפי הגיון
+  'dots': 'שחור',          // dots = נקודות, בד"כ שחור על לבן
+  'flower': 'ורוד',        // flower = פרחוני
+  'breek': 'חום',          // breek/brick = לבנה/חום
+  'brick': 'חום',
+  
+  // צבעים מיוחדים
+  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
+  // מנטה - צבע עצמאי
+  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
+  // אפרסק - צבע עצמאי
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  // בננה → צהוב
+  'בננה': 'צהוב', 'banana': 'צהוב',
+  // כסוף → כסף
+  'כסוף': 'כסף'
 };
 
 // רשימת צבעים לא מזוהים - לדיווח
@@ -185,11 +201,18 @@ const unknownColors = new Set();
 function normalizeColor(c) {
   if (!c) return null;
   const original = c;
-  const lower = c.toLowerCase().trim().replace(/[-_\s]/g, '');
+  const lower = c.toLowerCase().trim();
+  const noSpaces = lower.replace(/[-_\s]/g, '');
   
   // חיפוש ישיר
+  if (colorMap[noSpaces]) return colorMap[noSpaces];
   if (colorMap[lower]) return colorMap[lower];
-  if (colorMap[c.toLowerCase().trim()]) return colorMap[c.toLowerCase().trim()];
+  
+  // בדיקה מילה-מילה: "כחול מעושן" → כחול
+  const words = lower.split(/\s+/);
+  for (const word of words) {
+    if (colorMap[word]) return colorMap[word];
+  }
   
   // חיפוש חלקי
   for (const [key, val] of Object.entries(colorMap)) {
@@ -260,11 +283,23 @@ function normalizeSize(s) {
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
   
+  // סדר חשוב - בדיקות ספציפיות קודם
+  if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
+  if (/סוודר|sweater|סוודר/i.test(t)) return 'סוודר';
+  if (/גולף/i.test(t)) return 'גולף';  // גולף = עיצוב, אבל גם קטגוריה אם זה המוצר העיקרי
+  if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
+  if (/סרפן|pinafore/i.test(t)) return 'סרפן';
   if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
   if (/חצאית|skirt/i.test(t)) return 'חצאית';
   if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
-  if (/סריג|sweater|knit|קרדיגן|cardigan|גולף/i.test(t)) return 'סריג';
-  if (/קט|jacket|מעיל|coat|בלייזר|blazer/i.test(t)) return 'ז׳קט';
+  if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
+  if (/ז׳קט|ג׳קט|jacket/i.test(t)) return 'ז׳קט';
+  if (/וסט|vest/i.test(t)) return 'וסט';
+  if (/עליונית/i.test(t)) return 'עליונית';
+  if (/מעיל|coat/i.test(t)) return 'מעיל';
+  if (/שכמיה|cape|poncho/i.test(t)) return 'שכמיה';
+  if (/קפוצ׳ון|קפוצון|hoodie/i.test(t)) return 'קפוצ׳ון';
+  if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
   if (/מכנס|pants|trousers|ג׳ינס|jeans/i.test(t)) return 'מכנסיים';
   if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
   if (/סט|set/i.test(t)) return 'סט';
@@ -275,23 +310,163 @@ function detectCategory(title) {
 // זיהוי סגנון מכותרת ותיאור
 function detectStyle(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
-  if (/שבת|חגיג|ערב|elegant|אירוע|מיוחד|מסיבה|party|evening|formal/i.test(text)) return 'שבת';
-  if (/יום.?חול|casual|קז׳ואל|יומיומי|daily|everyday/i.test(text)) return 'יום חול';
+  
+  // ערב (כולל "שבת") - חגיגי/פורמלי
+  if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף/i.test(text)) return 'ערב';
+  // חגיגי
+  if (/חגיג|celebration|festive/i.test(text)) return 'חגיגי';
+  // אלגנטי
+  if (/אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'אלגנטי';
+  // קלאסי
+  if (/קלאסי|classic|נצחי|timeless/i.test(text)) return 'קלאסי';
+  // מינימליסטי
+  if (/מינימליסט|minimal|פשוט|נקי|clean/i.test(text)) return 'מינימליסטי';
+  // מודרני
+  if (/מודרני|modern|עכשווי|contemporary/i.test(text)) return 'מודרני';
+  // רטרו
+  if (/רטרו|retro|וינטג׳|vintage/i.test(text)) return 'רטרו';
+  // אוברסייז
+  if (/אוברסייז|oversize|oversized|רחב מאוד/i.test(text)) return 'אוברסייז';
+  // יום חול - כל הווריאציות
+  if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|יום.?יום|ליום.?יום|daily|everyday|יום-יומי|יומי/i.test(text)) return 'יום חול';
+  
   return '';
 }
 
 // זיהוי גיזרה מכותרת בלבד (לא מתיאור!)
 function detectFit(title, description = '') {
   // חשוב: מזהים גיזרה רק מהכותרת, לא מהתיאור
-  // כי בתיאור יכול להיות "משתלב עם חצאיות מקסי" שזה לא אומר שהמוצר מקסי
   const text = (title || '').toLowerCase();
   
-  // זיהוי מקסי/מידי - רק בכותרת
-  if (/מקסי|maxi|מידי|midi/i.test(text)) return 'ארוך';
+  // ישרה
+  if (/ישרה|straight/i.test(text)) return 'ישרה';
+  // A
+  if (/a.?line|איי.?ליין/i.test(text)) return 'A';
+  // מתרחבת
+  if (/מתרחב|flare|התרחבות/i.test(text)) return 'מתרחבת';
+  // רפויה / רחבה
+  if (/רפוי|רחב|loose|relaxed|wide/i.test(text)) return 'רפויה';
+  // אוברסייז
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  // מחויטת
+  if (/מחויט|tailored|מותאמ/i.test(text)) return 'מחויטת';
+  // מעטפת
+  if (/מעטפ|wrap/i.test(text)) return 'מעטפת';
+  // עפרון
+  if (/עפרון|pencil/i.test(text)) return 'עפרון';
+  // צמודה / צרה
+  if (/צמוד|tight|fitted|bodycon|צמודה|צר|narrow/i.test(text)) return 'צמודה';
+  // ארוכה (=מקסי)
+  if (/מקסי|maxi|ארוכ/i.test(text)) return 'ארוכה';
+  // מידי (=אמצע)
+  if (/מידי|midi|אמצע/i.test(text)) return 'מידי';
+  // קצרה (=מיני)
+  if (/קצר|מיני|mini|short/i.test(text)) return 'קצרה';
+  // הריון והנקה ומותן - בודקים גם בתיאור
+  const fullText = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/במותן|מותן גבוה|מותן נמוך|high.?waist|waisted/i.test(fullText)) return 'מותן';
+  if (/הריון|pregnancy|maternity/i.test(fullText)) return 'הריון';
+  if (/הנקה|nursing|breastfeed/i.test(fullText)) return 'הנקה';
   
-  if (/קצר|מיני|mini|short/i.test(text)) return 'קצר';
-  if (/מתרחב|flare|a-line|התרחבות/i.test(text)) return 'מתרחב';
-  if (/צמוד|tight|fitted|bodycon|צמודה/i.test(text)) return 'צמוד';
+  return '';
+}
+
+// ======================================================================
+// זיהוי פרטי עיצוב מכותרת ותיאור
+// ======================================================================
+function detectDesignDetails(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  const details = [];
+  
+  // צווארון
+  if (/צווארון\s*וי|צווארון\s*v|v.?neck/i.test(text)) details.push('צווארון V');
+  if (/צווארון\s*עגול|round.?neck|crew.?neck/i.test(text)) details.push('צווארון עגול');
+  if (/גולף|turtle.?neck|mock.?neck/i.test(text)) details.push('גולף');
+  if (/צווארון\s*סיני|mandarin|צווארון\s*גבוה/i.test(text)) details.push('צווארון גבוה');
+  if (/בואט|boat.?neck|סירה/i.test(text)) details.push('צווארון סירה');
+  if (/חשוף\s*כתפ|off.?shoulder|כתף\s*חשופה/i.test(text)) details.push('כתפיים חשופות');
+  
+  // כפתורים ורוכסנים
+  if (/כפתור|מכופתר|button/i.test(text)) details.push('כפתורים');
+  if (/רוכסן|zipper|zip/i.test(text)) details.push('רוכסן');
+  
+  // שרוולים
+  if (/שרוול\s*ארוך|long.?sleeve/i.test(text)) details.push('שרוול ארוך');
+  if (/שרוול\s*קצר|short.?sleeve/i.test(text)) details.push('שרוול קצר');
+  if (/שרוול\s*3\/4|שרוול\s*שלושת\s*רבעי/i.test(text)) details.push('שרוול 3/4');
+  if (/ללא\s*שרוול|sleeveless|בלי\s*שרוול/i.test(text)) details.push('ללא שרוולים');
+  if (/שרוול\s*פעמון|bell.?sleeve/i.test(text)) details.push('שרוול פעמון');
+  if (/שרוול\s*נפוח|puff.?sleeve/i.test(text)) details.push('שרוול נפוח');
+  
+  // חגורה וקשירה
+  if (/חגורה|belt/i.test(text)) details.push('חגורה');
+  if (/קשירה|tie|bow/i.test(text)) details.push('קשירה');
+  
+  // כיסים
+  if (/כיס|pocket/i.test(text)) details.push('כיסים');
+  
+  // תחרה ופרטים
+  if (/תחרה|lace/i.test(text)) details.push('תחרה');
+  if (/פפלום|peplum/i.test(text)) details.push('פפלום');
+  if (/מלמלה|ruffle|ראפל/i.test(text)) details.push('מלמלה');
+  if (/קפלים|pleat/i.test(text)) details.push('קפלים');
+  if (/שסע|slit/i.test(text)) details.push('שסע');
+  if (/קומות|tier|tiered/i.test(text)) details.push('קומות');
+  if (/כיווצ|shirring|גומי/i.test(text)) details.push('כיווצים');
+  if (/תיקתק|snap/i.test(text)) details.push('תיקתק');
+  if (/מעטפ|wrap/i.test(text)) details.push('מעטפת');
+  
+  return details;
+}
+
+// ======================================================================
+// זיהוי דוגמא/הדפס מכותרת ותיאור
+// ======================================================================
+function detectPattern(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  
+  if (/פסים|striped|stripe/i.test(text)) return 'פסים';
+  if (/פרחוני|floral|flower|פרח/i.test(text)) return 'פרחוני';
+  if (/משבצות|plaid|check|checkered/i.test(text)) return 'משבצות';
+  if (/נקודות|polka|dot|dots/i.test(text)) return 'נקודות';
+  if (/הדפס|print|printed/i.test(text)) return 'הדפס';
+  if (/אבסטרקט|abstract/i.test(text)) return 'אבסטרקטי';
+  if (/גיאומטר|geometric/i.test(text)) return 'גיאומטרי';
+  if (/חיות|animal|leopard|zebra|נמר/i.test(text)) return 'חיות';
+  
+  // חלק - בדיקה מיוחדת: לא "חלק מ..." ולא "חלק עליון" וכו'
+  if (/חלק(?!\s*(מ|מן|מה|עליון|תחתון|של|מסט|מהסט|ב|את|מאוד|ניכר))/i.test(text)) return 'חלק';
+  
+  return '';
+}
+
+// ======================================================================
+// זיהוי סוג בד מכותרת ותיאור
+// ======================================================================
+function detectFabric(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  
+  if (/סריג|knit|knitted/i.test(text)) return 'סריג';
+  if (/אריג|woven/i.test(text)) return 'אריג';
+  if (/ג׳רסי|ג'רסי|jersey/i.test(text)) return 'ג׳רסי';
+  if (/פיקה|pique/i.test(text)) return 'פיקה';
+  if (/שיפון|chiffon/i.test(text)) return 'שיפון';
+  if (/קרפ|crepe/i.test(text)) return 'קרפ';
+  if (/סאטן|satin/i.test(text)) return 'סאטן';
+  if (/קטיפה|velvet/i.test(text)) return 'קטיפה';
+  if (/פליז|fleece/i.test(text)) return 'פליז';
+  if (/תחרה|lace/i.test(text)) return 'תחרה';
+  if (/טול|tulle/i.test(text)) return 'טול';
+  if (/לייקרה|lycra|spandex/i.test(text)) return 'לייקרה';
+  if (/טריקו|tricot/i.test(text)) return 'טריקו';
+  if (/רשת|mesh|net/i.test(text)) return 'רשת';
+  if (/ג׳ינס|ג'ינס|denim|jeans/i.test(text)) return 'ג׳ינס';
+  if (/קורדרוי|corduroy/i.test(text)) return 'קורדרוי';
+  if (/כותנה|cotton/i.test(text)) return 'כותנה';
+  if (/פשתן|linen/i.test(text)) return 'פשתן';
+  if (/משי|silk/i.test(text)) return 'משי';
+  if (/צמר|wool/i.test(text)) return 'צמר';
+  
   return '';
 }
 
@@ -299,10 +474,10 @@ async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
   const categories = [
-    'https://mekimi.co.il/shop/',
+    'https://mekimi.co.il/shop/',/*
     'https://mekimi.co.il/shop/page/2/',
     'https://mekimi.co.il/shop/page/3/',
-    'https://mekimi.co.il/shop/page/4/',
+    'https://mekimi.co.il/shop/page/4/',*/
   ];
   
   for (const url of categories) {
@@ -340,6 +515,12 @@ async function scrapeProduct(page, url) {
     const data = await page.evaluate(() => {
       let title = document.querySelector('h1.product_title, h1')?.innerText?.trim() || '';
       title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
+      // הסרת קודי מוצר בפורמטים שונים
+      title = title.replace(/\s+[A-Z]?\d{3,}\s*$/g, '').trim();
+      // הסרת אות S/s בודדת בסוף - גם אם צמודה למילה העברית
+      title = title.replace(/S\s*$/gi, '').trim();
+      // הסרת אות בודדת A-Z בסוף (אחרי רווח)
+      title = title.replace(/\s+[A-Z]\s*$/g, '').trim();
       
       let price = 0;
       let originalPrice = null;
@@ -453,6 +634,9 @@ async function scrapeProduct(page, url) {
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);
     const category = detectCategory(data.title);
+    const pattern = detectPattern(data.title, data.description);
+    const fabric = detectFabric(data.title, data.description);
+    const designDetails = detectDesignDetails(data.title, data.description);
     
     // colorSizesMap שומר איזה מידות זמינות לכל צבע
     const colorSizesMap = {};
@@ -564,6 +748,9 @@ async function scrapeProduct(page, url) {
       category,
       style,
       fit,
+      pattern,
+      fabric,
+      designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
       url
@@ -579,18 +766,21 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
-         color_sizes=EXCLUDED.color_sizes, last_seen=NOW()`,
+         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
+         design_details=EXCLUDED.design_details, last_seen=NOW()`,
       ['MEKIMI', product.title, product.price || 0, product.originalPrice || null, 
        product.images[0] || '', product.images, product.sizes, product.mainColor, 
        product.colors, product.style || null, product.fit || null, product.category, 
-       product.description || null, product.url, JSON.stringify(product.colorSizes)]
+       product.description || null, product.url, JSON.stringify(product.colorSizes),
+       product.pattern || null, product.fabric || null, 
+       product.designDetails?.length ? product.designDetails : null]
     );
     console.log('  💾 saved');
   } catch (err) {

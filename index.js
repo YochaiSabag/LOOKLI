@@ -401,7 +401,7 @@ function analyzeQuery(query) {
   const fabricMap = {
     '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2'],
     '\u05d0\u05e8\u05d9\u05d2': ['\u05d0\u05e8\u05d9\u05d2'],
-    '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', 'jersey'],
+    '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', '\u05d2\u05e8\u05e1\u05d9', '\u05d2\'\u05e8\u05e1\u05d9', 'jersey'],
     '\u05e9\u05d9\u05e4\u05d5\u05df': ['\u05e9\u05d9\u05e4\u05d5\u05df', 'chiffon'],
     '\u05e7\u05e8\u05e4': ['\u05e7\u05e8\u05e4', 'crepe'],
     '\u05e1\u05d0\u05d8\u05df': ['\u05e1\u05d0\u05d8\u05df', 'satin', '\u05e1\u05d8\u05df'],
@@ -414,7 +414,12 @@ function analyzeQuery(query) {
     '\u05e8\u05e9\u05ea': ['\u05e8\u05e9\u05ea'],
     '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd'],
     '\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9': ['\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9', 'corduroy'],
-    '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique']
+    '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique'],
+    '\u05db\u05d5\u05ea\u05e0\u05d4': ['\u05db\u05d5\u05ea\u05e0\u05d4', 'cotton'],
+    '\u05e4\u05e9\u05ea\u05df': ['\u05e4\u05e9\u05ea\u05df', 'linen'],
+    '\u05de\u05e9\u05d9': ['\u05de\u05e9\u05d9', 'silk'],
+    '\u05e6\u05de\u05e8': ['\u05e6\u05de\u05e8', 'wool'],
+    '\u05e8\u05d9\u05e7\u05de\u05d4': ['\u05e8\u05d9\u05e7\u05de\u05d4', '\u05e8\u05e7\u05d5\u05de\u05d4', '\u05e8\u05e7\u05d5\u05dd', '\u05e8\u05e7\u05de\u05d4', '\u05e8\u05e7\u05de\u05d0', 'embroidery', 'embroidered']
   };
   // דוגמא
   const patternMap = {
@@ -474,6 +479,13 @@ function analyzeQuery(query) {
   for (const word of words) {
     const upper = word.toUpperCase();
     const lower = word.toLowerCase();
+    
+    // === קודם כל: דלג על מילים שנתפסו כחלק מביטוי רב-מילתי ===
+    if (usedRanges.length > 0) {
+      const wordIdx = fullText.indexOf(word);
+      if (wordIdx >= 0 && usedRanges.some(([s,e]) => wordIdx >= s && wordIdx < e)) continue;
+    }
+    
     if (sizeList.includes(upper) && !analysis.size) { analysis.size = upper; continue; }
     
     // בדיקת מידות בעברית
@@ -529,11 +541,6 @@ function analyzeQuery(query) {
       }
     }
     
-    // Skip words that were already matched as part of a multi-word phrase
-    if (!matched && usedRanges.length > 0) {
-      const wordIdx = fullText.indexOf(word);
-      if (wordIdx >= 0 && usedRanges.some(([s,e]) => wordIdx >= s && wordIdx < e)) { matched = true; }
-    }
     if (!matched && !sizeList.includes(upper) && word.length >= 2 && !stopWords.has(word)) {
       analysis.keywords.push(word);
     }

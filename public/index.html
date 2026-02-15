@@ -592,8 +592,12 @@ let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],db
 const storeLogos={
   'MEKIMI':'https://mekimi.co.il/wp-content/webp-express/webp-images/uploads/2022/10/logo.png.webp',
   'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
-  'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png'
+  'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png',
+  'AVIYAH':'https://aviyahyosef.com/wp-content/uploads/2023/09/logo-white.png'
 };
+
+// חנויות שהלוגו שלהן לבן וצריכות רקע כהה
+const darkBgStores = new Set(['AVIYAH']);
 
 const colorData={
   'שחור':'#000000','לבן':'#FFFFFF','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8',
@@ -780,7 +784,8 @@ function renderProducts(products,append=false){
       else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
     }
     
-    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo"><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+    const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
+    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
   }
 }
 
@@ -812,7 +817,7 @@ async function initFilters(){
   
   const storeDiv=document.getElementById("storeLogos");
   storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
-  (data.stores||[]).forEach(s=>{const logo=storeLogos[s];storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')">${logo?`<img src="${logo}" alt="${s}">`:`<span>${s.substring(0,3)}</span>`}</div>`});
+  (data.stores||[]).forEach(s=>{const logo=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${logo?`<img src="${logo}" alt="${s}">`:`<span>${s.substring(0,3)}</span>`}</div>`});
   
   renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
   

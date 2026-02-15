@@ -264,7 +264,7 @@ async function dismissPopups(page) {
 // ======================================================================
 // איסוף קישורי מוצרים מדף הבית של מימה (infinite scroll)
 // ======================================================================
-async function getAllProductUrls(page, maxProducts = 10) {
+async function getAllProductUrls(page, maxProducts = 25) {
   console.log('\n📂 איסוף קישורים מ-mima-shop.co.il...\n');
   
   const allUrls = new Set();

@@ -474,9 +474,9 @@ async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
   const categories = [
-    'https://mekimi.co.il/shop/',/*
+    'https://mekimi.co.il/shop/',
     'https://mekimi.co.il/shop/page/2/',
-    'https://mekimi.co.il/shop/page/3/',
+    'https://mekimi.co.il/shop/page/3/',/*
     'https://mekimi.co.il/shop/page/4/',*/
   ];
   

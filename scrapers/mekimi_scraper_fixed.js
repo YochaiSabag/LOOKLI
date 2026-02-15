@@ -448,7 +448,7 @@ function detectFabric(title, description = '') {
   
   if (/סריג|knit|knitted/i.test(text)) return 'סריג';
   if (/אריג|woven/i.test(text)) return 'אריג';
-  if (/ג׳רסי|ג'רסי|jersey/i.test(text)) return 'ג׳רסי';
+  if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
   if (/פיקה|pique/i.test(text)) return 'פיקה';
   if (/שיפון|chiffon/i.test(text)) return 'שיפון';
   if (/קרפ|crepe/i.test(text)) return 'קרפ';
@@ -466,6 +466,7 @@ function detectFabric(title, description = '') {
   if (/פשתן|linen/i.test(text)) return 'פשתן';
   if (/משי|silk/i.test(text)) return 'משי';
   if (/צמר|wool/i.test(text)) return 'צמר';
+  if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
   
   return '';
 }
@@ -474,9 +475,9 @@ async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
   const categories = [
-    'https://mekimi.co.il/shop/',
+    'https://mekimi.co.il/shop/',/*
     'https://mekimi.co.il/shop/page/2/',
-    'https://mekimi.co.il/shop/page/3/',/*
+    'https://mekimi.co.il/shop/page/3/',
     'https://mekimi.co.il/shop/page/4/',*/
   ];
   

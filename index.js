@@ -51,7 +51,8 @@ const shippingInfo = {
   'MEKIMI': { cost: 25, threshold: 300 },
   'LICHI': { cost: 30, threshold: 350 },
   'MIMA': { cost: 30, threshold: 450 },
-  'AVIYAH': { cost: 30, threshold: 500 }
+  'AVIYAH': { cost: 30, threshold: 500 },
+  'CHEMISE': { cost: 30, threshold: 350 }
 };
 
 function calculateShipping(store, price) {
@@ -441,6 +442,32 @@ function analyzeQuery(query) {
   // מילות עצירה - מילים שמופיעות בחיפוש אבל לא צריכות להיות keywords
   const stopWords = new Set(['מידה', 'מידות', 'עד', 'של', 'עם', 'בלי', 'ללא', 'או', 'גם', 'רק', 'כל', 'את', 'זה', 'זו', 'הנחה', 'מבצע', 'sale', 'לי', 'אני', 'רוצה', 'מחפשת', 'מחפש', 'צבע', 'סגנון', 'גיזרה', 'בד', 'דוגמא', 'מחיר', 'שקל', 'שקלים', 'ש"ח', 'שח', 'אורך', 'באורך', 'חנות', 'באתר', 'מאתר', 'ב', 'מ']);
 
+  // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
+  const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
+  const usedRanges = []; // track which char ranges were matched by phrases
+  
+  // Multi-word design details
+  const multiWordDesign = {
+    'שרוול ארוך': 'שרוול ארוך',
+    'שרוול קצר': 'שרוול קצר',
+    'שרוול 3/4': 'שרוול 3/4',
+    'שרוול פעמון': 'שרוול פעמון',
+    'שרוול נפוח': 'שרוול נפוח',
+    'ללא שרוולים': 'ללא שרוולים',
+    'כתפיים חשופות': 'כתפיים חשופות',
+    'צווארון עגול': 'צווארון עגול',
+    'צווארון V': 'צווארון V',
+    'צווארון סירה': 'צווארון סירה'
+  };
+  
+  for (const [phrase, designName] of Object.entries(multiWordDesign)) {
+    if (fullText.includes(phrase)) {
+      analysis.designDetails.push(designName);
+      const idx = fullText.indexOf(phrase);
+      usedRanges.push([idx, idx + phrase.length]);
+    }
+  }
+
   const text = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
   const words = text.split(/\s+/).filter(w => w.length >= 1);
 
@@ -502,6 +529,11 @@ function analyzeQuery(query) {
       }
     }
     
+    // Skip words that were already matched as part of a multi-word phrase
+    if (!matched && usedRanges.length > 0) {
+      const wordIdx = fullText.indexOf(word);
+      if (wordIdx >= 0 && usedRanges.some(([s,e]) => wordIdx >= s && wordIdx < e)) { matched = true; }
+    }
     if (!matched && !sizeList.includes(upper) && word.length >= 2 && !stopWords.has(word)) {
       analysis.keywords.push(word);
     }

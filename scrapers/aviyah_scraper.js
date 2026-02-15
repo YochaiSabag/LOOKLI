@@ -207,7 +207,7 @@ function detectFabric(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/סריג|knit/i.test(text)) return 'סריג';
   if (/אריג|woven/i.test(text)) return 'אריג';
-  if (/ג׳רסי|ג'רסי|jersey/i.test(text)) return 'ג׳רסי';
+  if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
   if (/שיפון|chiffon/i.test(text)) return 'שיפון';
   if (/קרפ|crepe/i.test(text)) return 'קרפ';
   if (/סאטן|satin/i.test(text)) return 'סאטן';
@@ -221,6 +221,7 @@ function detectFabric(title, description = '') {
   if (/משי|silk/i.test(text)) return 'משי';
   if (/צמר|wool/i.test(text)) return 'צמר';
   if (/ג׳ינס|ג'ינס|denim/i.test(text)) return 'ג׳ינס';
+  if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
   return '';
 }
 
@@ -460,7 +461,8 @@ async function scrapeProduct(page, url, isEvening = false) {
         });
       }
       
-      // אין צבעים - כל צבע מופיע בעמוד חדש
+      // אין צבעים בבורר - כל צבע מופיע בעמוד חדש
+      // ננסה לחלץ צבע מהכותרת
       const rawColors = [];
       
       return { title, price, originalPrice, images, description, rawColors, rawSizes, sizeStock };
@@ -476,9 +478,23 @@ async function scrapeProduct(page, url, isEvening = false) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
     
-    // עיבוד מידות - פשוט, אין צבעים
+    // עיבוד מידות - פשוט, אין צבעים בבורר
     const availableSizes = new Set();
     const colorSizesMap = {};
+    
+    // חילוץ צבע מהכותרת (כל צבע בעמוד נפרד)
+    // רק מילים שמתאימות בדיוק לצבעים ידועים ב-colorMap
+    let titleColor = null;
+    const titleWords = (data.title || '').split(/[\s\-–,]+/);
+    for (const word of titleWords) {
+      if (word.length < 2) continue;
+      const lower = word.toLowerCase().trim();
+      // בדיקה ישירה ב-colorMap - רק התאמה מדויקת
+      if (colorMap[lower]) { titleColor = colorMap[lower]; break; }
+    }
+    if (!titleColor) {
+      console.log(`    ⚠️ לא נמצא צבע בכותרת: "${data.title}"`);
+    }
     
     console.log(`    Raw sizes: ${data.rawSizes.join(', ') || 'none'}`);
     console.log(`    Size stock: ${JSON.stringify(data.sizeStock)}`);
@@ -497,7 +513,7 @@ async function scrapeProduct(page, url, isEvening = false) {
     const uniqueSizes = [...availableSizes];
     
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
-    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${titleColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📊 סגנון: ${style || '-'} | קטגוריה: ${category || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'} | דוגמא: ${pattern || '-'}`);
     if (isEvening) console.log(`    🌙 שמלת ערב`);
     
@@ -506,9 +522,9 @@ async function scrapeProduct(page, url, isEvening = false) {
       price: data.price,
       originalPrice: data.originalPrice,
       images: data.images,
-      colors: [],        // אין צבעים - כל צבע בעמוד נפרד
+      colors: titleColor ? [titleColor] : [],
       sizes: uniqueSizes,
-      mainColor: null,
+      mainColor: titleColor,
       category,
       style,
       fit,
@@ -571,7 +587,9 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${totalUrls} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0, idx = 0;
+  const MAX_PRODUCTS = 50;
   for (const [url, meta] of urlMap) {
+    if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     idx++;
     console.log(`\n[${idx}/${totalUrls}]`);
     const p = await scrapeProduct(page, url, meta.isEvening);

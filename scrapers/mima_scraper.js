@@ -183,11 +183,20 @@ function detectFabric(title, description = '') {
   if (/תחרה|lace/i.test(text)) return 'תחרה';
   if (/טול|tulle/i.test(text)) return 'טול';
   if (/לייקרה|lycra/i.test(text)) return 'לייקרה';
-  if (/ג׳רסי|jersey/i.test(text)) return 'ג׳רסי';
+  if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
   if (/קרפ|crepe/i.test(text)) return 'קרפ';
   if (/רשת|mesh/i.test(text)) return 'רשת';
   if (/פליז|fleece/i.test(text)) return 'פליז';
-  if (/ג׳ינס|jeans|דנים|denim/i.test(text)) return 'ג׳ינס';
+  if (/ג׳ינס|ג'ינס|jeans|דנים|denim/i.test(text)) return 'ג׳ינס';
+  if (/כותנה|cotton/i.test(text)) return 'כותנה';
+  if (/פשתן|linen/i.test(text)) return 'פשתן';
+  if (/משי|silk/i.test(text)) return 'משי';
+  if (/צמר|wool/i.test(text)) return 'צמר';
+  if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
+  if (/קורדרוי|corduroy/i.test(text)) return 'קורדרוי';
+  if (/אריג|woven/i.test(text)) return 'אריג';
+  if (/פיקה|pique/i.test(text)) return 'פיקה';
+  if (/טריקו|tricot/i.test(text)) return 'טריקו';
   return null;
 }
 
@@ -264,7 +273,7 @@ async function dismissPopups(page) {
 // ======================================================================
 // איסוף קישורי מוצרים מדף הבית של מימה (infinite scroll)
 // ======================================================================
-async function getAllProductUrls(page, maxProducts = 25) {
+async function getAllProductUrls(page, maxProducts = 10) {
   console.log('\n📂 איסוף קישורים מ-mima-shop.co.il...\n');
   
   const allUrls = new Set();

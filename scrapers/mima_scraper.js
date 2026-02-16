@@ -815,7 +815,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = 10; // מוגבל ל-10 מוצרים
+const MAX_PRODUCTS = 30; // מוגבל ל-10 מוצרים
 
 const browser = await chromium.launch({ headless: false, slowMo: 50 });
 const context = await browser.newContext({

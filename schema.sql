@@ -1,7 +1,5 @@
 -- חיפושIT - Fashion Search Engine Database Schema
-
--- Drop existing tables if needed
-DROP TABLE IF EXISTS products CASCADE;
+-- SAFE schema - never drops existing data
 
 -- Products table
 CREATE TABLE IF NOT EXISTS products (
@@ -21,22 +19,56 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   source_url TEXT UNIQUE NOT NULL,
   color_sizes JSONB,
+  fabric VARCHAR(50),
+  pattern VARCHAR(50),
+  design_details TEXT[],
   last_seen TIMESTAMP DEFAULT NOW(),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Indexes for better performance
+-- Add columns if missing (safe for existing DB)
+DO $$ BEGIN
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS fabric VARCHAR(50);
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS pattern VARCHAR(50);
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS design_details TEXT[];
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS color_sizes JSONB;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP DEFAULT NOW();
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Clicks tracking table
+CREATE TABLE IF NOT EXISTS clicks (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER,
+  store VARCHAR(50),
+  product_title TEXT,
+  source_url TEXT,
+  user_agent TEXT,
+  ip_address VARCHAR(50),
+  clicked_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes
 CREATE INDEX IF NOT EXISTS idx_products_store ON products(store);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_color ON products(color);
 CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);
-CREATE INDEX IF NOT EXISTS idx_products_title ON products USING gin(to_tsvector('hebrew', title));
 CREATE INDEX IF NOT EXISTS idx_products_colors ON products USING gin(colors);
 CREATE INDEX IF NOT EXISTS idx_products_sizes ON products USING gin(sizes);
 CREATE INDEX IF NOT EXISTS idx_products_last_seen ON products(last_seen);
+CREATE INDEX IF NOT EXISTS idx_products_fabric ON products(fabric);
+CREATE INDEX IF NOT EXISTS idx_products_pattern ON products(pattern);
+CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
 
--- Function to update updated_at timestamp
+-- Hebrew text search index
+DO $$ BEGIN
+  CREATE INDEX IF NOT EXISTS idx_products_title ON products USING gin(to_tsvector('hebrew', title));
+EXCEPTION WHEN OTHERS THEN
+  CREATE INDEX IF NOT EXISTS idx_products_title_simple ON products USING gin(to_tsvector('simple', title));
+END $$;
+
+-- Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -45,19 +77,8 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Trigger to auto-update updated_at
 DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at
     BEFORE UPDATE ON products
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-
--- Insert sample data (optional, for testing)
--- Uncomment if you want some initial data
-/*
-INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, category, source_url)
-VALUES 
-  ('MEKIMI', 'שמלה שחורה אלגנטית', 299, 399, 'https://example.com/1.jpg', ARRAY['https://example.com/1.jpg'], ARRAY['S', 'M', 'L'], 'שחור', ARRAY['שחור'], 'שמלה', 'https://example.com/product-1'),
-  ('MEKIMI', 'חולצת סריג לבנה', 149, NULL, 'https://example.com/2.jpg', ARRAY['https://example.com/2.jpg'], ARRAY['M', 'L'], 'לבן', ARRAY['לבן', 'שמנת'], 'חולצה', 'https://example.com/product-2')
-ON CONFLICT (source_url) DO NOTHING;
-*/

@@ -1,1017 +1,951 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
-	<head>
-		<meta charset="UTF-8"/>
-		<meta name="viewport" content="width=device-width,initial-scale=1"/>
-		<title>LOOKLI - מוצאים את הלוק שלך</title>
-		<style>
-			:root{
-			--bg:#fff;
-			--card:#fff;
-			--text:#787878;
-			--muted:#787878;
-			--accent:#e0a1c0;
-			--accent-light:#787878;
-			--accent-dark:#e0a1c0;
-			--border:#fff;
-			--radius:4px;
-			--shadow:0 4px 20px rgba(0,0,0,.08);
-			--shadow2:0 8px 40px rgba(0,0,0,.12);
-			--container:1600px;
-			--sidebar:280px;
-			--header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%);
-			--sale-color:#ef4444
-			}
-			*{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
-			body{margin:0;background:var(--bg);color:var(--text)}
-			a{color:inherit;text-decoration:none}
-
-			/* ===== HEADER ===== */
-			.header{background:var(--header-gradient);padding:0;position:sticky;top:0;z-index:100;box-shadow:0 4px 30px rgba(102,126,234,.3)}
-			.header-top{max-width:var(--container);margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
-			.logo{display:flex;align-items:center;gap:14px;text-decoration:none}
-			.logo img{height:48px;width:auto}
-			.header-nav{display:flex;gap:20px}
-			.header-nav a{color:#fff;font-weight:600;font-size:14px;text-decoration:none;padding:8px 16px;border-radius:8px;transition:background .2s}
-			.header-nav a:hover{background:rgba(255,255,255,.2)}
-
-			/* Active Filters Bar */
-			.active-filters-bar{display:none;background:#fff;border-bottom:1px solid var(--border);padding:10px 24px}
-			.active-filters-bar.show{display:block}
-			.active-filters-inner{max-width:var(--container);margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-			.active-filters-label{font-weight:700;font-size:13px;color:var(--muted)}
-			.active-filters-tags{display:flex;gap:8px;flex-wrap:wrap}
-			.filter-tag{display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600}
-			.filter-tag .remove-tag{cursor:pointer;font-size:14px;opacity:.8}
-			.filter-tag .remove-tag:hover{opacity:1}
-			.clear-all-btn{background:none;border:2px solid var(--border);padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s}
-			.clear-all-btn:hover{border-color:var(--accent);color:var(--accent)}
-
-			/* Search Bar */
-			.search-section{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.1)}
-			.search-inner{max-width:var(--container);margin:0 auto;padding:12px 24px}
-			.searchbar{display:flex;gap:12px;background:#fff;border-radius:14px;padding:6px;box-shadow:var(--shadow2)}
-			.searchbar input{flex:1;border:0;outline:none;font-size:16px;padding:12px 18px;background:transparent;font-weight:500}
-			.searchbar input::placeholder{color:#9ca3af}
-			.searchbar .btn{border:none;cursor:pointer;padding:14px 20px;border-radius:10px;background:var(--accent);transition:all .2s;display:flex;align-items:center;justify-content:center}
-			.searchbar .btn:hover{background:var(--accent-dark);transform:translateY(-2px)}
-			.searchbar .btn svg{width:24px;height:24px;color:#fff}
-
-			/* AI Analysis removed */
-
-			/* ===== MAIN LAYOUT ===== */
-			.wrap{display:flex;gap:0;min-height:calc(100vh - 140px)}
-			@media(max-width:1000px){.wrap{flex-direction:column}.filters{display:none}}
-
-			/* ===== SIDEBAR ===== */
-			.filters{width:var(--sidebar);background:#fff;border-left:1px solid var(--border);padding:0;flex-shrink:0;overflow-y:auto;height:calc(100vh - 136px);position:sticky;top:136px}
-			.filters::-webkit-scrollbar{width:5px}
-			.filters::-webkit-scrollbar-track{background:#f3f4f6}
-			.filters::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:3px}
-
-			/* Filter Accordion */
-			.filter-section{border-bottom:1px solid var(--border)}
-			.filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
-			.filter-header:hover{background:#f9fafb}
-			.filter-header .arrow{transition:transform .2s;color:var(--muted);font-size:12px}
-			.filter-section.open .filter-header .arrow{transform:rotate(180deg)}
-			.filter-content{display:none;padding:0 20px 18px}
-			.filter-section.open .filter-content{display:block}
-
-			/* Filter Options */
-			.filter-options{display:flex;flex-wrap:wrap;gap:8px}
-			.filter-opt{padding:10px 16px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;transition:all .15s;color:var(--muted)}
-			.filter-opt:hover{border-color:var(--accent-light);color:var(--accent)}
-			.filter-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-
-			/* Store logos */
-			.store-opts{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow-y:auto}
-			.store-opt{width:50px;height:50px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden;flex-shrink:0}
-			.store-opt:hover{border-color:var(--accent-light)}
-			.store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
-			.store-opt img{width:100%;height:100%;object-fit:contain;padding:4px}
-			.store-opt span{font-size:12px;font-weight:800}
-
-			/* Color options */
-			.color-opts{display:flex;flex-wrap:wrap;gap:10px}
-			.color-opt{width:34px;height:34px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:all .15s;box-shadow:0 2px 4px rgba(0,0,0,.15)}
-			.color-opt:hover{transform:scale(1.1)}
-			.color-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.3)}
-
-			/* Size options */
-			.size-opts{display:flex;flex-wrap:wrap;gap:8px}
-			.size-opt{min-width:48px;padding:10px 14px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;text-align:center;transition:all .15s}
-			.size-opt:hover{border-color:var(--accent-light)}
-			.size-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-
-			/* Price slider */
-			.price-section{padding:10px 0}
-			.price-display{font-size:16px;font-weight:800;color:var(--accent);text-align:center;margin-bottom:12px}
-			.price-slider input[type="range"]{width:100%;height:6px;border-radius:3px;background:linear-gradient(to left,var(--accent),var(--accent-light));outline:none;-webkit-appearance:none;cursor:pointer}
-			.price-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(144,97,249,.3)}
-
-			/* Reset button */
-			.reset-btn{width:100%;padding:14px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;color:var(--muted);transition:all .15s}
-			.reset-btn:hover{border-color:var(--accent);color:var(--accent)}
-
-			/* Design filter - compact */
-			#designBoxes .filter-opt{padding:7px 12px;font-size:12px}
-
-			/* ===== MOBILE STYLES ===== */
-			@media(max-width:768px){
-			.header-top{padding:10px 16px}
-			.logo img{height:36px}
-			.header-nav{display:none}
-			.search-inner{padding:10px 16px}
-			.searchbar{padding:4px;border-radius:10px}
-			.searchbar input{font-size:14px;padding:10px 12px}
-			.searchbar .btn{padding:10px 14px;border-radius:8px}
-			.searchbar .btn svg{width:20px;height:20px}
-
-			.active-filters-bar{padding:8px 16px}
-			.active-filters-inner{gap:8px}
-			.active-filters-label{font-size:12px}
-			.filter-tag{padding:5px 10px;font-size:11px}
-
-			.wrap{flex-direction:column}
-			.filters{display:none;position:fixed;top:0;right:0;width:85%;max-width:320px;height:100vh;z-index:200;background:#fff;transform:translateX(100%);transition:transform .3s ease}
-			.filters.open{display:block;transform:translateX(0)}
-
-			/* Mobile Sidebar Design */
-			.filter-section{border-bottom:1px solid #eee}
-			.filter-header{padding:16px 20px;font-size:14px}
-			.filter-content{padding:0 16px 16px}
-			.filter-opt{padding:8px 14px;font-size:13px;border-radius:6px}
-			.color-opt{width:30px;height:30px}
-			.size-opt{min-width:42px;padding:8px 12px;font-size:12px}
-			.store-opt{width:42px;height:42px;border-radius:8px}
-
-			.mobile-filter-btn{display:flex !important;position:fixed;bottom:80px;right:16px;width:50px;height:50px;background:var(--accent);border-radius:50%;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(224,161,192,.4);z-index:149;color:#fff;font-size:20px;border:none;cursor:pointer}
-
-			.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199}
-			.mobile-overlay.show{display:block}
-
-			.main{padding:16px}
-			.toolbar{margin-bottom:12px}
-			.meta{font-size:13px}
-
-			.grid{grid-template-columns:repeat(2,1fr);gap:10px}
-			.card{border-radius:4px}
-			.card-body{padding:10px}
-			.title{font-size:12px;min-height:32px}
-			.price{font-size:14px}
-			.price-original{font-size:11px}
-			.store{font-size:10px}
-			.card-footer{margin-top:6px}
-			.sizes{font-size:9px}
-			.shipping-badge{font-size:8px;padding:3px 6px}
-			.sale-badge{font-size:9px;padding:4px 8px;top:6px;left:6px;border-radius:2px}
-			.card-logo{width:32px;height:32px;top:6px;right:6px;border-radius:4px}
-			.card-colors{padding:3px 5px;bottom:6px;right:6px;border-radius:4px}
-			.card-color{width:12px;height:12px}
-			.img-wrap{border-radius:4px 4px 0 0}
-
-			.ads-sidebar{display:none !important}
-
-			.whatsapp-btn{bottom:16px;right:16px;width:50px;height:50px}
-			.whatsapp-btn svg{width:24px;height:24px}
-
-			.modal{width:100%;max-height:100vh;border-radius:0}
-			.modal-body{grid-template-columns:1fr;padding:12px 16px}
-			.modal-head{padding:14px 16px}
-			.modal-title{font-size:15px}
-			}
-
-			@media(max-width:400px){
-			.grid{gap:8px}
-			.card-body{padding:8px}
-			.title{font-size:11px}
-			.price{font-size:13px}
-			}
-
-			.mobile-filter-btn{display:none}
-
-			/* Mobile Menu Button */
-			.mobile-menu-btn{display:none;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;padding:8px}
-			@media(max-width:768px){
-			.mobile-menu-btn{display:block}
-			}
-
-			/* Filter close button */
-			.filter-close-btn{display:none;position:absolute;top:12px;left:12px;width:36px;height:36px;background:#fff;border:1px solid #eee;border-radius:50%;font-size:18px;cursor:pointer;z-index:10}
-			@media(max-width:768px){
-			.filter-close-btn{display:flex;align-items:center;justify-content:center}
-			.filters{position:relative}
-			}
-			.main{flex:1;padding:20px 24px;min-height:60vh}
-			.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-			.meta{color:var(--muted);font-size:14px;font-weight:700}
-
-			/* Ads area */
-			.ads-sidebar{width:180px;flex-shrink:0;padding:20px 12px;display:none}
-			@media(min-width:1300px){.ads-sidebar{display:block}}
-			.ad-placeholder{background:#f0f0f0;border:2px dashed #ccc;border-radius:12px;height:600px;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;text-align:center}
-
-			/* Product Grid - 4 columns */
-			.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
-			@media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
-			@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
-			@media(max-width:500px){.grid{grid-template-columns:1fr}}
-
-			/* Product Card */
-			.card{background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .2s,box-shadow .2s}
-			.card:hover{transform:translateY(-4px);box-shadow:var(--shadow2)}
-			.img-wrap{position:relative;width:100%;aspect-ratio:3/4;background:#f3f4f6;overflow:hidden}
-
-			/* SALE Badge */
-			.sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:800;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
-
-			/* Carousel */
-			.carousel{position:relative;width:100%;height:100%}
-			.carousel-inner{display:flex;height:100%;transition:transform .3s ease}
-			.carousel-slide{min-width:100%;height:100%}
-			.carousel-slide img{width:100%;height:100%;object-fit:cover}
-			.carousel-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px}
-			.carousel-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer;border:1px solid rgba(0,0,0,.2)}
-			.carousel-dot.active{background:#fff}
-			.carousel-nav{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;font-size:14px;font-weight:bold;display:none;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);color:#333}
-			.img-wrap:hover .carousel-nav{display:flex}
-			.carousel-prev{right:8px}
-			.carousel-next{left:8px}
-
-			/* Card elements */
-			.card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-			.card-logo img{max-width:90%;max-height:90%;object-fit:contain}
-			.card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-			.card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-			.card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
-
-			.card-body{padding:14px}
-			.title{font-size:14px;font-weight:700;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:40px;color:var(--text)}
-			.subrow{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
-			.price-wrap{display:flex;align-items:center;gap:6px}
-			.price{font-weight:900;font-size:17px}
-			.price-original{font-size:13px;color:var(--muted);text-decoration:line-through}
-			.price.sale{color:var(--sale-color)}
-			.store{font-size:12px;color:var(--muted);font-weight:600}
-			.card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:6px}
-			.sizes{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-			.shipping-badge{font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;white-space:nowrap;color:var(--accent);background:rgba(144,97,249,.1)}
-			.shipping-badge.free{color:#16a34a;background:#dcfce7}
-
-			.empty{padding:50px;text-align:center;color:var(--muted);border:2px dashed var(--border);border-radius:var(--radius);background:#fff;font-weight:700;font-size:15px}
-
-			/* ===== MODAL ===== */
-			.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:20px;overflow-y:auto;backdrop-filter:blur(4px)}
-			.modal-backdrop.open{display:flex;align-items:flex-start;justify-content:center;padding-top:20px;padding-bottom:20px}
-			.modal{width:min(1000px,100%);max-height:calc(100vh - 40px);background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
-			.modal-head{padding:18px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
-			.modal-title{font-weight:800;font-size:17px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-			.close-btn{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:18px;transition:all .15s}
-			.close-btn:hover{border-color:var(--accent);color:var(--accent)}
-			.modal-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 22px;overflow-y:auto;flex:1;min-height:0}
-			@media(max-width:800px){.modal-body{grid-template-columns:1fr;overflow-y:auto}}
-
-			/* Modal Gallery */
-			.gallery{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#f9f9f9}
-			.gallery-carousel{position:relative;width:100%;overflow:hidden;background:#f3f4f6}
-			.gallery-carousel-inner{display:flex;transition:transform .3s ease}
-			.gallery-carousel-slide{min-width:100%;display:flex;align-items:center;justify-content:center}
-			.gallery-carousel-slide img{width:100%;height:auto;object-fit:contain;max-height:75vh}
-			.gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;background:rgba(255,255,255,.95);border:none;border-radius:50%;cursor:pointer;font-size:18px;font-weight:bold;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#333}
-			.gallery-prev{right:12px}
-			.gallery-next{left:12px}
-			.gallery-dots{display:flex;gap:6px;justify-content:center;padding:12px}
-			.gallery-dot{width:9px;height:9px;border-radius:50%;background:#ddd;cursor:pointer;border:none;transition:background .15s}
-			.gallery-dot.active{background:var(--accent)}
-			.gallery-thumbs{display:flex;gap:8px;padding:10px;overflow-x:auto}
-			.gallery-thumb{width:55px;height:70px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;flex-shrink:0;background:#f3f4f6;transition:border-color .15s}
-			.gallery-thumb.active{border-color:var(--accent)}
-			.gallery-thumb img{width:100%;height:100%;object-fit:cover}
-
-			.details{border:1px solid var(--border);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
-			.kpi{display:flex;gap:8px;flex-wrap:wrap}
-			.kpi span{border:2px solid var(--border);padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px;color:var(--muted)}
-			.kpi span.sale-kpi{border-color:var(--sale-color);color:var(--sale-color);background:rgba(239,68,68,.05)}
-			.kpi span.shipping-kpi{border-color:var(--accent-light);color:var(--accent)}
-			.kpi span.shipping-kpi.free{border-color:#16a34a;color:#16a34a;background:#dcfce7}
-			.modal-colors-section{margin-top:4px}
-			.modal-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-			.modal-color{width:36px;height:36px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:transform .15s;box-shadow:0 2px 6px rgba(0,0,0,.12)}
-			.modal-color:hover{transform:scale(1.1)}
-			.desc{color:#555;font-size:13px;line-height:1.7;white-space:pre-line}
-			.desc-title{font-weight:700;font-size:14px;margin-bottom:8px;color:var(--text)}
-			.label{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase}
-			.buy-big{margin-top:auto}
-			.buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:800;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
-			.buy-big a:hover{background:var(--accent-dark)}
-
-			/* Footer */
-			footer{background:#3a3a3a;color:#fff;margin-top:40px}
-			.footer-inner{max-width:var(--container);margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
-			@media(max-width:900px){.footer-inner{grid-template-columns:1fr 1fr;gap:30px}}
-			@media(max-width:500px){.footer-inner{grid-template-columns:1fr}}
-			.footer-section h4{font-size:14px;font-weight:700;margin:0 0 16px;color:var(--accent-light)}
-			.footer-section a{display:block;color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;margin-bottom:10px;transition:color .15s}
-			.footer-section a:hover{color:#fff}
-			.footer-brand{font-weight:900;font-size:24px;margin-bottom:12px}
-			.footer-desc{font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;margin:0}
-			.footer-bottom{border-top:1px solid rgba(255,255,255,.1);text-align:center;padding:20px 24px;font-size:12px;color:rgba(255,255,255,.5)}
-
-			/* WhatsApp Button */
-			.whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s}
-			.whatsapp-btn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(196,140,179,.5)}
-			.whatsapp-btn svg{width:28px;height:28px;color:#fff}
-
-			/* Load more button */
-			#loadMoreBtn{margin:24px auto;display:block;max-width:220px;padding:14px 28px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:background .2s}
-			#loadMoreBtn:hover{background:var(--accent-dark)}
-		</style>
-	</head>
-	<body>
-		<!-- HEADER -->
-		<header class="header">
-			<div class="header-top">
-				<a href="/" class="logo">
-					<img src="/lookli-logo.png" alt="LOOKLI" onerror="this.style.display='none'"/>
-				</a>
-				<nav class="header-nav">
-					<a href="/">דף הבית</a>
-					<a href="/about.html">אודות</a>
-					<a href="/contact.html">צור קשר</a>
-				</nav>
-				<button class="mobile-menu-btn" onclick="toggleMobileFilters()">☰</button>
-			</div>
-			<div class="search-section">
-				<div class="search-inner">
-					<div class="searchbar">
-						<input id="q" placeholder='חפשי: "שמלה שחורה מידה M עד 200 ש"ח"'/>
-						<button class="btn" onclick="runAISearch()">
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-								<circle cx="11" cy="11" r="8"/>
-								<path d="m21 21-4.35-4.35"/>
-							</svg>
-						</button>
-					</div>
-				</div>
-			</div>
-		</header>
-
-		<!-- Active Filters Bar -->
-		<div class="active-filters-bar" id="activeFiltersBar">
-			<div class="active-filters-inner">
-				<span class="active-filters-label">סינון פעיל:</span>
-				<div class="active-filters-tags" id="activeFiltersTags"></div>
-				<button class="clear-all-btn" onclick="resetAll()">נקה הכל</button>
-			</div>
-		</div>
-
-		<!-- AI analysis removed -->
-		<span id="aiAnalysis" style="display:none"></span>
-		<span id="aiBox" style="display:none"></span>
-
-		<!-- Mobile Filter Button -->
-		<button class="mobile-filter-btn" onclick="toggleMobileFilters()">☰</button>
-		<div class="mobile-overlay" id="mobileOverlay" onclick="toggleMobileFilters()"></div>
-
-		<div class="wrap">
-			<!-- SIDEBAR -->
-			<aside class="filters" id="filtersPanel">
-				<button class="filter-close-btn" onclick="toggleMobileFilters()">✕</button>
-
-				<div class="filter-section open" id="storeSection">
-					<div class="filter-header" onclick="toggleFilter('storeSection')">
-						<span>חנות</span>
-						<span class="arrow">▲</span>
-					</div>
-					<div class="filter-content">
-						<div class="store-opts" id="storeLogos"></div>
-					</div>
-				</div>
-
-				<div class="filter-section open" id="categorySection">
-					<div class="filter-header" onclick="toggleFilter('categorySection')">
-						<span>סוג מוצר</span>
-						<span class="arrow">▲</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="categoryBoxes"></div>
-					</div>
-				</div>
-
-				<div class="filter-section" id="colorSection">
-					<div class="filter-header" onclick="toggleFilter('colorSection')">
-						<span>צבע</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="color-opts" id="colorGrid"></div>
-					</div>
-				</div>
-
-				<div class="filter-section" id="sizeSection">
-					<div class="filter-header" onclick="toggleFilter('sizeSection')">
-						<span>מידה</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="size-opts" id="sizeBoxes"></div>
-					</div>
-				</div>
-
-				<div class="filter-section" id="priceSection">
-					<div class="filter-header" onclick="toggleFilter('priceSection')">
-						<span>מחיר</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="price-section">
-							<div class="price-display">
-								עד <span id="priceValue">500</span> ₪
-							</div>
-							<div class="price-slider">
-								<input type="range" id="priceRange" min="50" max="500" step="10" value="500" oninput="updatePriceDisplay()">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>LOOKLI - מוצאים את הלוק שלך</title>
+  <style>
+    :root{
+      --bg:#fff;
+      --card:#fff;
+      --text:#787878;
+      --muted:#787878;
+      --accent:#e0a1c0;
+      --accent-light:#787878;
+      --accent-dark:#e0a1c0;
+      --border:#fff;
+      --radius:4px;
+      --shadow:0 4px 20px rgba(0,0,0,.08);
+      --shadow2:0 8px 40px rgba(0,0,0,.12);
+      --container:1600px;
+      --sidebar:280px;
+      --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%);
+      --sale-color:#ef4444
+    }
+    *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit;text-decoration:none}
+    
+    /* ===== HEADER ===== */
+    .header{background:var(--header-gradient);padding:0;position:sticky;top:0;z-index:100;box-shadow:0 4px 30px rgba(102,126,234,.3)}
+    .header-top{max-width:var(--container);margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:14px;text-decoration:none}
+    .logo img{height:48px;width:auto}
+    .header-nav{display:flex;gap:20px}
+    .header-nav a{color:#fff;font-weight:600;font-size:14px;text-decoration:none;padding:8px 16px;border-radius:8px;transition:background .2s}
+    .header-nav a:hover{background:rgba(255,255,255,.2)}
+    
+    /* Active Filters Bar */
+    .active-filters-bar{display:none;background:#fff;border-bottom:1px solid var(--border);padding:10px 24px}
+    .active-filters-bar.show{display:block}
+    .active-filters-inner{max-width:var(--container);margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .active-filters-label{font-weight:700;font-size:13px;color:var(--muted)}
+    .active-filters-tags{display:flex;gap:8px;flex-wrap:wrap}
+    .filter-tag{display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600}
+    .filter-tag .remove-tag{cursor:pointer;font-size:14px;opacity:.8}
+    .filter-tag .remove-tag:hover{opacity:1}
+    .clear-all-btn{background:none;border:2px solid var(--border);padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s}
+    .clear-all-btn:hover{border-color:var(--accent);color:var(--accent)}
+    
+    /* Search Bar */
+    .search-section{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.1)}
+    .search-inner{max-width:var(--container);margin:0 auto;padding:12px 24px}
+    .searchbar{display:flex;gap:12px;background:#fff;border-radius:14px;padding:6px;box-shadow:var(--shadow2)}
+    .searchbar input{flex:1;border:0;outline:none;font-size:16px;padding:12px 18px;background:transparent;font-weight:500}
+    .searchbar input::placeholder{color:#9ca3af}
+    .searchbar .btn{border:none;cursor:pointer;padding:14px 20px;border-radius:10px;background:var(--accent);transition:all .2s;display:flex;align-items:center;justify-content:center}
+    .searchbar .btn:hover{background:var(--accent-dark);transform:translateY(-2px)}
+    .searchbar .btn svg{width:24px;height:24px;color:#fff}
+    
+    /* AI Analysis removed */
+    
+    /* ===== MAIN LAYOUT ===== */
+    .wrap{display:flex;gap:0;min-height:calc(100vh - 140px)}
+    @media(max-width:1000px){.wrap{flex-direction:column}.filters{display:none}}
+    
+    /* ===== SIDEBAR ===== */
+    .filters{width:var(--sidebar);background:#fff;border-left:1px solid var(--border);padding:0;flex-shrink:0;overflow-y:auto;height:calc(100vh - 136px);position:sticky;top:136px}
+    .filters::-webkit-scrollbar{width:5px}
+    .filters::-webkit-scrollbar-track{background:#f3f4f6}
+    .filters::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:3px}
+    
+    /* Filter Accordion */
+    .filter-section{border-bottom:1px solid var(--border)}
+    .filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
+    .filter-header:hover{background:#f9fafb}
+    .filter-header .arrow{transition:transform .2s;color:var(--muted);font-size:12px}
+    .filter-section.open .filter-header .arrow{transform:rotate(180deg)}
+    .filter-content{display:none;padding:0 20px 18px}
+    .filter-section.open .filter-content{display:block}
+    
+    /* Filter Options */
+    .filter-options{display:flex;flex-wrap:wrap;gap:8px}
+    .filter-opt{padding:10px 16px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;transition:all .15s;color:var(--muted)}
+    .filter-opt:hover{border-color:var(--accent-light);color:var(--accent)}
+    .filter-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    
+    /* Store logos */
+    .store-opts{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow-y:auto}
+    .store-opt{width:50px;height:50px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden;flex-shrink:0}
+    .store-opt:hover{border-color:var(--accent-light)}
+    .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
+    .store-opt img{width:100%;height:100%;object-fit:contain;padding:4px}
+    .store-opt span{font-size:12px;font-weight:800}
+    
+    /* Color options */
+    .color-opts{display:flex;flex-wrap:wrap;gap:10px}
+    .color-opt{width:34px;height:34px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:all .15s;box-shadow:0 2px 4px rgba(0,0,0,.15)}
+    .color-opt:hover{transform:scale(1.1)}
+    .color-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.3)}
+    
+    /* Size options */
+    .size-opts{display:flex;flex-wrap:wrap;gap:8px}
+    .size-opt{min-width:48px;padding:10px 14px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;text-align:center;transition:all .15s}
+    .size-opt:hover{border-color:var(--accent-light)}
+    .size-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    
+    /* Price slider */
+    .price-section{padding:10px 0}
+    .price-display{font-size:16px;font-weight:800;color:var(--accent);text-align:center;margin-bottom:12px}
+    .price-slider input[type="range"]{width:100%;height:6px;border-radius:3px;background:linear-gradient(to left,var(--accent),var(--accent-light));outline:none;-webkit-appearance:none;cursor:pointer}
+    .price-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(144,97,249,.3)}
+    
+    /* Reset button */
+    .reset-btn{width:100%;padding:14px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;color:var(--muted);transition:all .15s}
+    .reset-btn:hover{border-color:var(--accent);color:var(--accent)}
+    
+    /* Design filter - compact */
+    #designBoxes .filter-opt{padding:7px 12px;font-size:12px}
+    
+    /* ===== MOBILE STYLES ===== */
+    @media(max-width:768px){
+      .header-top{padding:10px 16px}
+      .logo img{height:36px}
+      .header-nav{display:none}
+      .search-inner{padding:10px 16px}
+      .searchbar{padding:4px;border-radius:10px}
+      .searchbar input{font-size:14px;padding:10px 12px}
+      .searchbar .btn{padding:10px 14px;border-radius:8px}
+      .searchbar .btn svg{width:20px;height:20px}
+      
+      .active-filters-bar{padding:8px 16px}
+      .active-filters-inner{gap:8px}
+      .active-filters-label{font-size:12px}
+      .filter-tag{padding:5px 10px;font-size:11px}
+      
+      .wrap{flex-direction:column}
+      .filters{display:none;position:fixed;top:0;right:0;width:85%;max-width:320px;height:100vh;z-index:200;background:#fff;transform:translateX(100%);transition:transform .3s ease}
+      .filters.open{display:block;transform:translateX(0)}
+      
+      /* Mobile Sidebar Design */
+      .filter-section{border-bottom:1px solid #eee}
+      .filter-header{padding:16px 20px;font-size:14px}
+      .filter-content{padding:0 16px 16px}
+      .filter-opt{padding:8px 14px;font-size:13px;border-radius:6px}
+      .color-opt{width:30px;height:30px}
+      .size-opt{min-width:42px;padding:8px 12px;font-size:12px}
+      .store-opt{width:42px;height:42px;border-radius:8px}
+      
+      .mobile-filter-btn{display:flex !important;position:fixed;bottom:80px;right:16px;width:50px;height:50px;background:var(--accent);border-radius:50%;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(224,161,192,.4);z-index:149;color:#fff;font-size:20px;border:none;cursor:pointer}
+      
+      .mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199}
+      .mobile-overlay.show{display:block}
+      
+      .main{padding:16px}
+      .toolbar{margin-bottom:12px}
+      .meta{font-size:13px}
+      
+      .grid{grid-template-columns:repeat(2,1fr);gap:10px}
+      .card{border-radius:4px}
+      .card-body{padding:10px}
+      .title{font-size:12px;min-height:32px}
+      .price{font-size:14px}
+      .price-original{font-size:11px}
+      .store{font-size:10px}
+      .card-footer{margin-top:6px}
+      .sizes{font-size:9px}
+      .shipping-badge{font-size:8px;padding:3px 6px}
+      .sale-badge{font-size:9px;padding:4px 8px;top:6px;left:6px;border-radius:2px}
+      .card-logo{width:32px;height:32px;top:6px;right:6px;border-radius:4px}
+      .card-colors{padding:3px 5px;bottom:6px;right:6px;border-radius:4px}
+      .card-color{width:12px;height:12px}
+      .img-wrap{border-radius:4px 4px 0 0}
+      
+      .ads-sidebar{display:none !important}
+      
+      .whatsapp-btn{bottom:16px;right:16px;width:50px;height:50px}
+      .whatsapp-btn svg{width:24px;height:24px}
+      
+      .modal{width:100%;max-height:100vh;border-radius:0}
+      .modal-body{grid-template-columns:1fr;padding:12px 16px}
+      .modal-head{padding:14px 16px}
+      .modal-title{font-size:15px}
+    }
+    
+    @media(max-width:400px){
+      .grid{gap:8px}
+      .card-body{padding:8px}
+      .title{font-size:11px}
+      .price{font-size:13px}
+    }
+    
+    .mobile-filter-btn{display:none}
+    
+    /* Mobile Menu Button */
+    .mobile-menu-btn{display:none;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;padding:8px}
+    @media(max-width:768px){
+      .mobile-menu-btn{display:block}
+    }
+    
+    /* Filter close button */
+    .filter-close-btn{display:none;position:absolute;top:12px;left:12px;width:36px;height:36px;background:#fff;border:1px solid #eee;border-radius:50%;font-size:18px;cursor:pointer;z-index:10}
+    @media(max-width:768px){
+      .filter-close-btn{display:flex;align-items:center;justify-content:center}
+      .filters{position:relative}
+    }
+    .main{flex:1;padding:20px 24px;min-height:60vh}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+    .meta{color:var(--muted);font-size:14px;font-weight:700}
+    
+    /* Ads area */
+    .ads-sidebar{width:180px;flex-shrink:0;padding:20px 12px;display:none}
+    @media(min-width:1300px){.ads-sidebar{display:block}}
+    .ad-placeholder{background:#f0f0f0;border:2px dashed #ccc;border-radius:12px;height:600px;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;text-align:center}
+    
+    /* Product Grid - 4 columns */
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+    @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:500px){.grid{grid-template-columns:1fr}}
+    
+    /* Product Card */
+    .card{background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .2s,box-shadow .2s}
+    .card:hover{transform:translateY(-4px);box-shadow:var(--shadow2)}
+    .img-wrap{position:relative;width:100%;aspect-ratio:3/4;background:#f3f4f6;overflow:hidden}
+    
+    /* SALE Badge */
+    .sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:800;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
+    
+    /* Carousel */
+    .carousel{position:relative;width:100%;height:100%}
+    .carousel-inner{display:flex;height:100%;transition:transform .3s ease}
+    .carousel-slide{min-width:100%;height:100%}
+    .carousel-slide img{width:100%;height:100%;object-fit:cover}
+    .carousel-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px}
+    .carousel-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer;border:1px solid rgba(0,0,0,.2)}
+    .carousel-dot.active{background:#fff}
+    .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;font-size:14px;font-weight:bold;display:none;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);color:#333}
+    .img-wrap:hover .carousel-nav{display:flex}
+    .carousel-prev{right:8px}
+    .carousel-next{left:8px}
+    
+    /* Card elements */
+    .card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+    .card-logo img{max-width:90%;max-height:90%;object-fit:contain}
+    .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+    .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+    .card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
+    
+    .card-body{padding:14px}
+    .title{font-size:14px;font-weight:700;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:40px;color:var(--text)}
+    .subrow{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .price-wrap{display:flex;align-items:center;gap:6px}
+    .price{font-weight:900;font-size:17px}
+    .price-original{font-size:13px;color:var(--muted);text-decoration:line-through}
+    .price.sale{color:var(--sale-color)}
+    .store{font-size:12px;color:var(--muted);font-weight:600}
+    .card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:6px}
+    .sizes{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .shipping-badge{font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;white-space:nowrap;color:var(--accent);background:rgba(144,97,249,.1)}
+    .shipping-badge.free{color:#16a34a;background:#dcfce7}
+    
+    .empty{padding:50px;text-align:center;color:var(--muted);border:2px dashed var(--border);border-radius:var(--radius);background:#fff;font-weight:700;font-size:15px}
+    
+    /* ===== MODAL ===== */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:20px;overflow-y:auto;backdrop-filter:blur(4px)}
+    .modal-backdrop.open{display:flex;align-items:flex-start;justify-content:center;padding-top:20px;padding-bottom:20px}
+    .modal{width:min(1000px,100%);max-height:calc(100vh - 40px);background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
+    .modal-head{padding:18px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
+    .modal-title{font-weight:800;font-size:17px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .close-btn{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:18px;transition:all .15s}
+    .close-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .modal-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 22px;overflow-y:auto;flex:1;min-height:0}
+    @media(max-width:800px){.modal-body{grid-template-columns:1fr;overflow-y:auto}}
+    
+    /* Modal Gallery */
+    .gallery{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#f9f9f9}
+    .gallery-carousel{position:relative;width:100%;overflow:hidden;background:#f3f4f6}
+    .gallery-carousel-inner{display:flex;transition:transform .3s ease}
+    .gallery-carousel-slide{min-width:100%;display:flex;align-items:center;justify-content:center}
+    .gallery-carousel-slide img{width:100%;height:auto;object-fit:contain;max-height:75vh}
+    .gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;background:rgba(255,255,255,.95);border:none;border-radius:50%;cursor:pointer;font-size:18px;font-weight:bold;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#333}
+    .gallery-prev{right:12px}
+    .gallery-next{left:12px}
+    .gallery-dots{display:flex;gap:6px;justify-content:center;padding:12px}
+    .gallery-dot{width:9px;height:9px;border-radius:50%;background:#ddd;cursor:pointer;border:none;transition:background .15s}
+    .gallery-dot.active{background:var(--accent)}
+    .gallery-thumbs{display:flex;gap:8px;padding:10px;overflow-x:auto}
+    .gallery-thumb{width:55px;height:70px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;flex-shrink:0;background:#f3f4f6;transition:border-color .15s}
+    .gallery-thumb.active{border-color:var(--accent)}
+    .gallery-thumb img{width:100%;height:100%;object-fit:cover}
+    
+    .details{border:1px solid var(--border);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
+    .kpi{display:flex;gap:8px;flex-wrap:wrap}
+    .kpi span{border:2px solid var(--border);padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px;color:var(--muted)}
+    .kpi span.sale-kpi{border-color:var(--sale-color);color:var(--sale-color);background:rgba(239,68,68,.05)}
+    .kpi span.shipping-kpi{border-color:var(--accent-light);color:var(--accent)}
+    .kpi span.shipping-kpi.free{border-color:#16a34a;color:#16a34a;background:#dcfce7}
+    .modal-colors-section{margin-top:4px}
+    .modal-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+    .modal-color{width:36px;height:36px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:transform .15s;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+    .modal-color:hover{transform:scale(1.1)}
+    .desc{color:#555;font-size:13px;line-height:1.7;white-space:pre-line}
+    .desc-title{font-weight:700;font-size:14px;margin-bottom:8px;color:var(--text)}
+    .label{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase}
+    .buy-big{margin-top:auto}
+    .buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:800;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
+    .buy-big a:hover{background:var(--accent-dark)}
+    
+    /* Footer */
+    footer{background:#3a3a3a;color:#fff;margin-top:40px}
+    .footer-inner{max-width:var(--container);margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
+    @media(max-width:900px){.footer-inner{grid-template-columns:1fr 1fr;gap:30px}}
+    @media(max-width:500px){.footer-inner{grid-template-columns:1fr}}
+    .footer-section h4{font-size:14px;font-weight:700;margin:0 0 16px;color:var(--accent-light)}
+    .footer-section a{display:block;color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;margin-bottom:10px;transition:color .15s}
+    .footer-section a:hover{color:#fff}
+    .footer-brand{font-weight:900;font-size:24px;margin-bottom:12px}
+    .footer-desc{font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;margin:0}
+    .footer-bottom{border-top:1px solid rgba(255,255,255,.1);text-align:center;padding:20px 24px;font-size:12px;color:rgba(255,255,255,.5)}
+    
+    /* WhatsApp Button */
+    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s}
+    .whatsapp-btn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(196,140,179,.5)}
+    .whatsapp-btn svg{width:28px;height:28px;color:#fff}
+    
+    /* Load more button */
+    #loadMoreBtn{margin:24px auto;display:block;max-width:220px;padding:14px 28px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:background .2s}
+    #loadMoreBtn:hover{background:var(--accent-dark)}
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-top">
+      <a href="/" class="logo">
+        <img src="/lookli-logo.png" alt="LOOKLI" onerror="this.style.display='none'"/>
+      </a>
+      <nav class="header-nav">
+        <a href="/">דף הבית</a>
+        <a href="/about.html">אודות</a>
+        <a href="/contact.html">צור קשר</a>
+      </nav>
+      <button class="mobile-menu-btn" onclick="toggleMobileFilters()">☰</button>
+    </div>
+    <div class="search-section">
+      <div class="search-inner">
+        <div class="searchbar">
+          <input id="q" placeholder='חפשי: "שמלה שחורה מידה M עד 200 ש"ח"'/>
+          <button class="btn" onclick="runAISearch()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+  
+  <!-- Active Filters Bar -->
+  <div class="active-filters-bar" id="activeFiltersBar">
+    <div class="active-filters-inner">
+      <span class="active-filters-label">סינון פעיל:</span>
+      <div class="active-filters-tags" id="activeFiltersTags"></div>
+      <button class="clear-all-btn" onclick="resetAll()">נקה הכל</button>
+    </div>
+  </div>
+  
+  <!-- AI analysis removed -->
+  <span id="aiAnalysis" style="display:none"></span><span id="aiBox" style="display:none"></span>
+  
+  <!-- Mobile Filter Button -->
+  <button class="mobile-filter-btn" onclick="toggleMobileFilters()">☰</button>
+  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleMobileFilters()"></div>
+  
+  <div class="wrap">
+    <!-- SIDEBAR -->
+    <aside class="filters" id="filtersPanel">
+      <button class="filter-close-btn" onclick="toggleMobileFilters()">✕</button>
+      
+      <div class="filter-section open" id="storeSection">
+        <div class="filter-header" onclick="toggleFilter('storeSection')">
+          <span>חנות</span>
+          <span class="arrow">▲</span>
+        </div>
+        <div class="filter-content">
+          <div class="store-opts" id="storeLogos"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section open" id="categorySection">
+        <div class="filter-header" onclick="toggleFilter('categorySection')">
+          <span>סוג מוצר</span>
+          <span class="arrow">▲</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="categoryBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="colorSection">
+        <div class="filter-header" onclick="toggleFilter('colorSection')">
+          <span>צבע</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="color-opts" id="colorGrid"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="sizeSection">
+        <div class="filter-header" onclick="toggleFilter('sizeSection')">
+          <span>מידה</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="size-opts" id="sizeBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="priceSection">
+        <div class="filter-header" onclick="toggleFilter('priceSection')">
+          <span>מחיר</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="price-section">
+            <div class="price-display">עד <span id="priceValue">500</span> ₪</div>
+            <div class="price-slider">
+              <input type="range" id="priceRange" min="50" max="500" step="10" value="500" oninput="updatePriceDisplay()">
             </div>
-						</div>
-					</div>
-				</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="styleSection">
+        <div class="filter-header" onclick="toggleFilter('styleSection')">
+          <span>סגנון</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="styleBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="fitSection">
+        <div class="filter-header" onclick="toggleFilter('fitSection')">
+          <span>גיזרה</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="fitBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="fabricSection">
+        <div class="filter-header" onclick="toggleFilter('fabricSection')">
+          <span>סוג בד</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="fabricBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="patternSection">
+        <div class="filter-header" onclick="toggleFilter('patternSection')">
+          <span>דוגמא</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="patternBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="designSection">
+        <div class="filter-header" onclick="toggleFilter('designSection')">
+          <span>עיצוב</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="designBoxes"></div>
+        </div>
+      </div>
+      
+      <div class="filter-section" id="discountSection">
+        <div class="filter-header" onclick="toggleFilter('discountSection')">
+          <span>הנחה</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="filter-content">
+          <div class="filter-options" id="discountBoxes"></div>
+        </div>
+      </div>
+      
+      <div style="padding:14px 20px">
+        <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
+      </div>
+      
+    </aside>
+    
+    <!-- MAIN -->
+    <main class="main">
+      <div class="toolbar">
+        <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
+        <select id="sort" onchange="runRegularSearch()" style="padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-size:13px;font-weight:600">
+          <option value="new">חדש → ישן</option>
+          <option value="price_asc">מחיר ↑</option>
+          <option value="price_desc">מחיר ↓</option>
+        </select>
+      </div>
+      <div class="grid" id="grid"></div>
+    </main>
+    
+    <!-- ADS AREA -->
+    <aside class="ads-sidebar">
+      <div class="ad-placeholder">מקום<br>לפרסומת</div>
+    </aside>
+  </div>
+  
+  <!-- MODAL -->
+  <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-title" id="modalTitle">פרטי מוצר</div>
+        <button class="close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="gallery">
+          <div class="gallery-carousel" id="modalCarousel">
+            <div class="gallery-carousel-inner" id="modalCarouselInner"></div>
+            <button class="gallery-nav gallery-prev" onclick="modalCarouselNav(1)">‹</button>
+            <button class="gallery-nav gallery-next" onclick="modalCarouselNav(-1)">›</button>
+          </div>
+          <div class="gallery-dots" id="modalDots"></div>
+          <div class="gallery-thumbs" id="modalThumbs"></div>
+        </div>
+        <div class="details">
+          <div class="kpi" id="modalKpi"></div>
+          <div class="modal-colors-section">
+            <div class="label">צבעים זמינים</div>
+            <div class="modal-colors" id="modalColors"></div>
+          </div>
+          <div>
+            <div class="desc-title">פירוט המוצר</div>
+            <div class="desc" id="modalDesc"></div>
+          </div>
+          <div class="buy-big"><a id="modalBuy" href="#" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>לרכישה באתר</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- WhatsApp Button -->
+  <a href="https://wa.me/972500000000?text=שלום, פניתי מאתר LOOKLI" target="_blank" class="whatsapp-btn" title="שלחו לנו הודעה בוואטסאפ">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+  
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-section">
+        <div class="footer-brand">LOOKLI</div>
+        <p class="footer-desc">מנוע החיפוש החכם לאופנה צנועה.<br>מוצאים את הלוק שלך במקום אחד.</p>
+      </div>
+      <div class="footer-section">
+        <h4>ניווט מהיר</h4>
+        <a href="/">דף הבית</a>
+        <a href="/about.html">אודות</a>
+        <a href="/contact.html">צור קשר</a>
+      </div>
+      <div class="footer-section">
+        <h4>לחנויות</h4>
+        <a href="/contact.html?type=store">הצטרפות לאתר</a>
+        <a href="/contact.html?type=update">עדכון פרטים</a>
+      </div>
+      <div class="footer-section">
+        <h4>עזרה</h4>
+        <a href="/contact.html?type=bug">דיווח על בעיה</a>
+        <a href="/about.html#faq">שאלות נפוצות</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 LOOKLI - כל הזכויות שמורות</span>
+      <p style="font-size:11px;color:#999;margin:8px auto 0;line-height:1.6;max-width:800px;text-align:center">LOOKLI הוא אתר חיפוש והשוואת מוצרים בלבד. התמונות, המחירים, התיאורים וכל המידע המוצג באתר שייכים לאתרי המקור ולבעלי הזכויות שלהם. אנו אינם מוכרים מוצרים ואיננו אחראים על תוכן, זמינות, מחירים או שירות של אתרי המקור. הרכישה מתבצעת ישירות מול החנות המקורית.</p>
+    </div>
+  </footer>
 
-				<div class="filter-section" id="styleSection">
-					<div class="filter-header" onclick="toggleFilter('styleSection')">
-						<span>סגנון</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="styleBoxes"></div>
-					</div>
-				</div>
+<script>
+let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
+let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
+let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
+let lastSearchKeywords=[];
+let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
 
-				<div class="filter-section" id="fitSection">
-					<div class="filter-header" onclick="toggleFilter('fitSection')">
-						<span>גיזרה</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="fitBoxes"></div>
-					</div>
-				</div>
+const storeLogos={
+  'MEKIMI':'https://mekimi.co.il/wp-content/webp-express/webp-images/uploads/2022/10/logo.png.webp',
+  'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
+  'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png',
+  'AVIYAH':'https://aviyahyosef.com/wp-content/uploads/2023/09/logo-white.png',
+  'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg'
+};
 
-				<div class="filter-section" id="fabricSection">
-					<div class="filter-header" onclick="toggleFilter('fabricSection')">
-						<span>סוג בד</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="fabricBoxes"></div>
-					</div>
-				</div>
+// חנויות שהלוגו שלהן לבן וצריכות רקע כהה
+const darkBgStores = new Set(['AVIYAH', 'CHEMISE']);
 
-				<div class="filter-section" id="patternSection">
-					<div class="filter-header" onclick="toggleFilter('patternSection')">
-						<span>דוגמא</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="patternBoxes"></div>
-					</div>
-				</div>
+const colorData={
+  'שחור':'#000000','לבן':'#FFFFFF','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8',
+  'נייבי':'#1E3A5F','אדום':'#DC2626','בורדו':'#800020','ירוק':'#16A34A','זית':'#556B2F',
+  'חאקי':'#8B8B00','חום':'#92400E','קאמל':'#C19A6B','בז׳':'#D4B896','ניוד':'#E8BEAC',
+  'אפור':'#6B7280','ורוד':'#EC4899','סגול':'#7C3AED','לילך':'#C8A2C8','צהוב':'#FACC15',
+  'חרדל':'#FFDB58','כתום':'#EA580C','זהב':'#D4AF37','כסף':'#C0C0C0',
+  'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)','צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
+  'מנטה':'#98FFD3','אפרסק':'#FFCBA4'
+};
 
-				<div class="filter-section" id="designSection">
-					<div class="filter-header" onclick="toggleFilter('designSection')">
-						<span>עיצוב</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="designBoxes"></div>
-					</div>
-				</div>
+function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
+function formatSize(s){return s?s.replace(/^EU_/i,''):s}
+function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function calcDiscount(p,o){return(!o||o<=p)?0:Math.round((o-p)/o*100)}
+function debouncedSearch(){clearTimeout(debounceTimer);debounceTimer=setTimeout(runRegularSearch,250)}
+function setLoading(){document.getElementById("grid").innerHTML='<div class="card"><div class="img-wrap"></div><div class="card-body"><div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div></div></div>'.repeat(8)}
 
-				<div class="filter-section" id="discountSection">
-					<div class="filter-header" onclick="toggleFilter('discountSection')">
-						<span>הנחה</span>
-						<span class="arrow">▼</span>
-					</div>
-					<div class="filter-content">
-						<div class="filter-options" id="discountBoxes"></div>
-					</div>
-				</div>
-
-				<div style="padding:14px 20px">
-					<button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
-				</div>
-
-			</aside>
-
-			<!-- MAIN -->
-			<main class="main">
-				<div class="toolbar">
-					<div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
-					<select id="sort" onchange="runRegularSearch()" style="padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-size:13px;font-weight:600">
-						<option value="new">חדש → ישן</option>
-						<option value="price_asc">מחיר ↑</option>
-						<option value="price_desc">מחיר ↓</option>
-					</select>
-				</div>
-				<div class="grid" id="grid"></div>
-			</main>
-
-			<!-- ADS AREA -->
-			<aside class="ads-sidebar">
-				<div class="ad-placeholder">
-					מקום<br>לפרסומת</div>
-			</aside>
-		</div>
-
-		<!-- MODAL -->
-		<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
-			<div class="modal" onclick="event.stopPropagation()">
-				<div class="modal-head">
-					<div class="modal-title" id="modalTitle">פרטי מוצר</div>
-					<button class="close-btn" onclick="closeModal()">✕</button>
-				</div>
-				<div class="modal-body">
-					<div class="gallery">
-						<div class="gallery-carousel" id="modalCarousel">
-							<div class="gallery-carousel-inner" id="modalCarouselInner"></div>
-							<button class="gallery-nav gallery-prev" onclick="modalCarouselNav(1)">‹</button>
-							<button class="gallery-nav gallery-next" onclick="modalCarouselNav(-1)">›</button>
-						</div>
-						<div class="gallery-dots" id="modalDots"></div>
-						<div class="gallery-thumbs" id="modalThumbs"></div>
-					</div>
-					<div class="details">
-						<div class="kpi" id="modalKpi"></div>
-						<div class="modal-colors-section">
-							<div class="label">צבעים זמינים</div>
-							<div class="modal-colors" id="modalColors"></div>
-						</div>
-						<div>
-							<div class="desc-title">פירוט המוצר</div>
-							<div class="desc" id="modalDesc"></div>
-						</div>
-						<div class="buy-big">
-							<a id="modalBuy" href="#" target="_blank">
-								<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px">
-									<circle cx="9" cy="21" r="1"/>
-									<circle cx="20" cy="21" r="1"/>
-									<path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-								</svg>לרכישה באתר
-							</a>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- WhatsApp Button -->
-		<a href="https://wa.me/972500000000?text=שלום, פניתי מאתר LOOKLI" target="_blank" class="whatsapp-btn" title="שלחו לנו הודעה בוואטסאפ">
-			<svg viewBox="0 0 24 24" fill="currentColor">
-				<path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-			</svg>
-		</a>
-
-		<footer>
-			<div class="footer-inner">
-				<div class="footer-section">
-					<div class="footer-brand">LOOKLI</div>
-					<p class="footer-desc">
-						מנוע החיפוש החכם לאופנה צנועה.<br>מוצאים את הלוק שלך במקום אחד.</p>
-				</div>
-				<div class="footer-section">
-					<h4>ניווט מהיר</h4>
-					<a href="/">דף הבית</a>
-					<a href="/about.html">אודות</a>
-					<a href="/contact.html">צור קשר</a>
-				</div>
-				<div class="footer-section">
-					<h4>לחנויות</h4>
-					<a href="/contact.html?type=store">הצטרפות לאתר</a>
-					<a href="/contact.html?type=update">עדכון פרטים</a>
-				</div>
-				<div class="footer-section">
-					<h4>עזרה</h4>
-					<a href="/contact.html?type=bug">דיווח על בעיה</a>
-					<a href="/about.html#faq">שאלות נפוצות</a>
-				</div>
-			</div>
-			<div class="footer-bottom">
-				<span>© 2025 LOOKLI - כל הזכויות שמורות</span>
-				<p style="font-size:11px;color:#999;margin:8px auto 0;line-height:1.6;max-width:800px;text-align:center">LOOKLI הוא אתר חיפוש והשוואת מוצרים בלבד. התמונות, המחירים, התיאורים וכל המידע המוצג באתר שייכים לאתרי המקור ולבעלי הזכויות שלהם. אנו אינם מוכרים מוצרים ואיננו אחראים על תוכן, זמינות, מחירים או שירות של אתרי המקור. הרכישה מתבצעת ישירות מול החנות המקורית.</p>
-			</div>
-		</footer>
-
-		<script>
-			let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
-			let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
-			let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
-			let lastSearchKeywords=[];
-			let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
-
-			const storeLogos={
-			'MEKIMI':'https://mekimi.co.il/wp-content/webp-express/webp-images/uploads/2022/10/logo.png.webp',
-			'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
-			'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png',
-			'AVIYAH':'https://aviyahyosef.com/wp-content/uploads/2023/09/logo-white.png',
-			'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg'
-			};
-
-			// חנויות שהלוגו שלהן לבן וצריכות רקע כהה
-			const darkBgStores = new Set(['AVIYAH', 'CHEMISE']);
-
-			const colorData={
-			'שחור':'#000000','לבן':'#FFFFFF','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8',
-			'נייבי':'#1E3A5F','אדום':'#DC2626','בורדו':'#800020','ירוק':'#16A34A','זית':'#556B2F',
-			'חאקי':'#8B8B00','חום':'#92400E','קאמל':'#C19A6B','בז׳':'#D4B896','ניוד':'#E8BEAC',
-			'אפור':'#6B7280','ורוד':'#EC4899','סגול':'#7C3AED','לילך':'#C8A2C8','צהוב':'#FACC15',
-			'חרדל':'#FFDB58','כתום':'#EA580C','זהב':'#D4AF37','כסף':'#C0C0C0',
-			'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)','צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
-			'מנטה':'#98FFD3','אפרסק':'#FFCBA4'
-			};
-
-			function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
-			function formatSize(s){return s?s.replace(/^EU_/i,''):s}
-			function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-			function calcDiscount(p,o){return(!o||o<=p)?0:Math.round((o-p)/o*100)}
-			function debouncedSearch(){clearTimeout(debounceTimer);debounceTimer=setTimeout(runRegularSearch,250)}
-			function setLoading(){document.getElementById("grid").innerHTML='<div class="card">
-				<div class="img-wrap"></div>
-				<div class="card-body">
-					<div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div>
-				</div>
-			</div>'.repeat(8)}
-
-			function toggleMobileFilters(){
-			const filters=document.getElementById('filtersPanel');
-			const overlay=document.getElementById('mobileOverlay');
-			const isOpening=!filters.classList.contains('open');
-			filters.classList.toggle('open');
-			overlay.classList.toggle('show');
-			document.body.style.overflow=filters.classList.contains('open')?'hidden':'';
-			if(isOpening){
-			// גלילת הפילטרים עצמם לראש
-			filters.scrollTop=0;
-			}
-			}
-
-			function toggleFilter(id){
-			const section=document.getElementById(id);
-			section.classList.toggle('open');
-			const arrow=section.querySelector('.arrow');
-			arrow.textContent=section.classList.contains('open')?'▲':'▼';
-			}
-
-			function handleSearchInput(){
-			const q=document.getElementById("q").value.trim();
-			if(q===""&&previousSearchQuery!==""){
-			document.getElementById("aiAnalysis").classList.remove("active");
-			resetAllFiltersQuietly();
-			lastSearchKeywords=[];
-			runRegularSearch();
-			}
-			previousSearchQuery=q;
-			}
-
-			async function runAISearch(){
-			const q=document.getElementById("q").value.trim();
-			if(!q){document.getElementById("aiAnalysis").classList.remove("active");lastSearchKeywords=[];runRegularSearch();return}
-			setLoading();
-			window.scrollTo({top:0,behavior:'smooth'});
-			try{
-			const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
-			const data=await res.json();
-			lastSearchKeywords=data.analysis.keywords||[];
-			// סנכרון הסיידבר עם תוצאות AI
-			if(data.analysis.store){activeStore=data.analysis.store;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore))}
-			if(data.analysis.color){activeColor=data.analysis.color}
-			if(data.analysis.category){activeCategory=data.analysis.category}
-			if(data.analysis.size){activeSize=data.analysis.size}
-			if(data.analysis.style){activeStyle=data.analysis.style}
-			if(data.analysis.fit){activeFit=data.analysis.fit}
-			if(data.analysis.fabric){activeFabric=data.analysis.fabric}
-			if(data.analysis.pattern){activePattern=data.analysis.pattern}
-			if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}
-			if(data.analysis.maxPrice){document.getElementById("priceRange").value=Math.min(data.analysis.maxPrice,500);document.getElementById("priceValue").textContent=Math.min(data.analysis.maxPrice,500)}
-			// רענון כל הפילטרים ויזואלית
-			renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
-			updateActiveFiltersBar();
-			allProducts=data.results;currentPage=1;renderPage();
-			document.getElementById("metaToolbar").textContent=`${data.count} תוצאות`;
-			previousSearchQuery=q;
-			}catch(e){console.error(e);alert("שגיאה בחיפוש")}
-			}
-
-			async function runRegularSearch(){
-			setLoading();document.getElementById("aiAnalysis").classList.remove("active");
-			window.scrollTo({top:0,behavior:'smooth'});
-			const params=new URLSearchParams();
-			if(lastSearchKeywords.length>0)params.set("q",lastSearchKeywords.join(' '));
-			if(activeStore)params.set("store",activeStore);
-			if(activeCategory)params.set("category",activeCategory);
-			if(activeSize)params.set("size",activeSize);
-			if(activeColor)params.set("color",activeColor);
-			if(activeStyle)params.set("style",activeStyle);
-			if(activeFit)params.set("fit",activeFit);
-			if(activeFabric)params.set("fabric",activeFabric);
-			if(activePattern)params.set("pattern",activePattern);
-			if(activeDesign)params.set("design",activeDesign);
-			if(activeDiscount)params.set("minDiscount",activeDiscount);
-			const maxPrice=document.getElementById("priceRange").value;
-			const sliderMax=document.getElementById("priceRange").max;
-			if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice=""
-  if(document.getElementById=""("sort").value)params.set=""("sort",document.getElementById=""("sort").value=""
-  const="" res="await" fetch=""("/api/products?"+params=""
-  const="" data="await" res.json=""
-  allProducts=""data;currentPage="1;renderPage"
-  document.getElementById=""("metaToolbar").textContent="${data.length} מוצרים"
+function toggleMobileFilters(){
+  const filters=document.getElementById('filtersPanel');
+  const overlay=document.getElementById('mobileOverlay');
+  const isOpening=!filters.classList.contains('open');
+  filters.classList.toggle('open');
+  overlay.classList.toggle('show');
+  document.body.style.overflow=filters.classList.contains('open')?'hidden':'';
+  if(isOpening){
+    // גלילת הפילטרים עצמם לראש
+    filters.scrollTop=0;
+  }
 }
 
-function=`` renderPage=``
-  const=`` end=`currentPage*itemsPerPage`
-  const=`` productsToShow=`allProducts.slice(0,end`
-  renderProducts(productsToShow,false=``
-  updateLoadMoreButton=``
+function toggleFilter(id){
+  const section=document.getElementById(id);
+  section.classList.toggle('open');
+  const arrow=section.querySelector('.arrow');
+  arrow.textContent=section.classList.contains('open')?'▲':'▼';
 }
 
-function=`` loadMore=``
-  if(isLoading)return=``
-  currentPage=``
-  const=`` start=(`currentPage-1)*itemsPerPage`
-  const=`` end=`currentPage*itemsPerPage`
-  const=`` newProducts=`allProducts.slice(start,end`
-  renderProducts(newProducts,true=``
-  updateLoadMoreButton=``
+function handleSearchInput(){
+  const q=document.getElementById("q").value.trim();
+  if(q===""&&previousSearchQuery!==""){
+    document.getElementById("aiAnalysis").classList.remove("active");
+    resetAllFiltersQuietly();
+    lastSearchKeywords=[];
+    runRegularSearch();
+  }
+  previousSearchQuery=q;
 }
 
-function=`` updateLoadMoreButton=``
-  let=`` btn=document.getElementById
-  const="" totalPages="Math.ceil(allProducts.length"/itemsPerPage);
-			if(allProducts.length===0||currentPage>=totalPages||allProducts.length<=itemsPerPage){
-			if(btn)btn.style.display='none';
-			}else{
-			if(!btn){btn=document.createElement('button');btn.id='loadMoreBtn';btn.onclick=loadMore;document.getElementById("grid").after(btn)}
-			btn.style.display='block';
-			btn.textContent='טען עוד';
-			}
-			}
+async function runAISearch(){
+  const q=document.getElementById("q").value.trim();
+  if(!q){document.getElementById("aiAnalysis").classList.remove("active");lastSearchKeywords=[];runRegularSearch();return}
+  setLoading();
+  window.scrollTo({top:0,behavior:'smooth'});
+  try{
+    const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
+    const data=await res.json();
+    lastSearchKeywords=data.analysis.keywords||[];
+    // סנכרון הסיידבר עם תוצאות AI
+    if(data.analysis.store){activeStore=data.analysis.store;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore))}
+    if(data.analysis.color){activeColor=data.analysis.color}
+    if(data.analysis.category){activeCategory=data.analysis.category}
+    if(data.analysis.size){activeSize=data.analysis.size}
+    if(data.analysis.style){activeStyle=data.analysis.style}
+    if(data.analysis.fit){activeFit=data.analysis.fit}
+    if(data.analysis.fabric){activeFabric=data.analysis.fabric}
+    if(data.analysis.pattern){activePattern=data.analysis.pattern}
+    if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}
+    if(data.analysis.maxPrice){document.getElementById("priceRange").value=Math.min(data.analysis.maxPrice,500);document.getElementById("priceValue").textContent=Math.min(data.analysis.maxPrice,500)}
+    // רענון כל הפילטרים ויזואלית
+    renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
+    updateActiveFiltersBar();
+    allProducts=data.results;currentPage=1;renderPage();
+    document.getElementById("metaToolbar").textContent=`${data.count} תוצאות`;
+    previousSearchQuery=q;
+  }catch(e){console.error(e);alert("שגיאה בחיפוש")}
+}
 
-			// Infinite scroll - טעינה אוטומטית בגלילה
-			window.addEventListener('scroll',()=>{
-			if(isLoading)return;
-			const totalPages=Math.ceil(allProducts.length/itemsPerPage);
-			if(currentPage>=totalPages)return;
-			const scrollTop=window.scrollY;
-			const windowHeight=window.innerHeight;
-			const docHeight=document.documentElement.scrollHeight;
-			if(scrollTop+windowHeight>=docHeight-300){
-			loadMore();
-			}
-			});
+async function runRegularSearch(){
+  setLoading();document.getElementById("aiAnalysis").classList.remove("active");
+  window.scrollTo({top:0,behavior:'smooth'});
+  const params=new URLSearchParams();
+  if(lastSearchKeywords.length>0)params.set("q",lastSearchKeywords.join(' '));
+  if(activeStore)params.set("store",activeStore);
+  if(activeCategory)params.set("category",activeCategory);
+  if(activeSize)params.set("size",activeSize);
+  if(activeColor)params.set("color",activeColor);
+  if(activeStyle)params.set("style",activeStyle);
+  if(activeFit)params.set("fit",activeFit);
+  if(activeFabric)params.set("fabric",activeFabric);
+  if(activePattern)params.set("pattern",activePattern);
+  if(activeDesign)params.set("design",activeDesign);
+  if(activeDiscount)params.set("minDiscount",activeDiscount);
+  const maxPrice=document.getElementById("priceRange").value;
+  const sliderMax=document.getElementById("priceRange").max;
+  if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
+  if(document.getElementById("sort").value)params.set("sort",document.getElementById("sort").value);
+  const res=await fetch("/api/products?"+params);
+  const data=await res.json();
+  allProducts=data;currentPage=1;renderPage();
+  document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
+}
 
-			function renderProducts(products,append=false){
-			const grid=document.getElementById("grid");
-			if(!append)grid.innerHTML="";
-			if(!products?.length&&!append){grid.innerHTML='<div class="empty">לא נמצאו תוצאות</div>';return}
+function renderPage(){
+  const end=currentPage*itemsPerPage;
+  const productsToShow=allProducts.slice(0,end);
+  renderProducts(productsToShow,false);
+  updateLoadMoreButton();
+}
 
-			for(const p of products){
-			const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
-			const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
-			const colors=p.colors||(p.color?[p.color]:[]);
-			const sizes=(p.sizes||[]).map(formatSize);
-			const originalPrice=parseFloat(p.original_price)||0;
-			const currentPrice=parseFloat(p.price)||0;
-			const isOnSale=originalPrice>0&&originalPrice>currentPrice;
-			const disc=calcDiscount(currentPrice,originalPrice);
+function loadMore(){
+  if(isLoading)return;
+  currentPage++;
+  const start=(currentPage-1)*itemsPerPage;
+  const end=currentPage*itemsPerPage;
+  const newProducts=allProducts.slice(start,end);
+  renderProducts(newProducts,true);
+  updateLoadMoreButton();
+}
 
-			let carouselHTML='';
-			if(images.length>1){
-			const slides=images.slice(0,6).map(img=>`<div class="carousel-slide">
-				<img src="${escapeHtml(img)}" alt="" loading="lazy">
-			</div>`).join('');
-			const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
-			carouselHTML=`<div class="carousel" data-index="0">
-				<div class="carousel-inner">${slides}</div>
-				<div class="carousel-dots">${dots}</div>
-				<button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button>
-				<button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button>
-			</div>`;
-			}else if(images.length===1){
-			carouselHTML=`<img src="${escapeHtml(images[0])}" alt="" style="width:100%;height:100%;object-fit:cover" loading="lazy">
-				`;
-				}else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
+function updateLoadMoreButton(){
+  let btn=document.getElementById("loadMoreBtn");
+  const totalPages=Math.ceil(allProducts.length/itemsPerPage);
+  if(allProducts.length===0||currentPage>=totalPages||allProducts.length<=itemsPerPage){
+    if(btn)btn.style.display='none';
+  }else{
+    if(!btn){btn=document.createElement('button');btn.id='loadMoreBtn';btn.onclick=loadMore;document.getElementById("grid").after(btn)}
+    btn.style.display='block';
+    btn.textContent='טען עוד';
+  }
+}
 
-				let colorDotsHTML='';
-				if(colors.length>0){
-				colorDotsHTML='<div class="card-colors">
-					';
-					colors.slice(0,3).forEach(c=>{colorDotsHTML+=`<span class="card-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`});
-					if(colors.length>3)colorDotsHTML+=`<span class="card-color-more">+${colors.length-3}</span>`;
-					colorDotsHTML+='
-				</div>';
-				}
+// Infinite scroll - טעינה אוטומטית בגלילה
+window.addEventListener('scroll',()=>{
+  if(isLoading)return;
+  const totalPages=Math.ceil(allProducts.length/itemsPerPage);
+  if(currentPage>=totalPages)return;
+  const scrollTop=window.scrollY;
+  const windowHeight=window.innerHeight;
+  const docHeight=document.documentElement.scrollHeight;
+  if(scrollTop+windowHeight>=docHeight-300){
+    loadMore();
+  }
+});
 
-				const saleBadgeHTML=isOnSale?`<div class="sale-badge">${disc}%-</div>`:'';
-				const priceHTML=isOnSale?`<div class="price-wrap">
-					<div class="price sale">₪${currentPrice}</div>
-					<div class="price-original">₪${originalPrice}</div>
-				</div>`:`<div class="price">${currentPrice?'₪'+currentPrice:''}</div>`;
+function renderProducts(products,append=false){
+  const grid=document.getElementById("grid");
+  if(!append)grid.innerHTML="";
+  if(!products?.length&&!append){grid.innerHTML='<div class="empty">לא נמצאו תוצאות</div>';return}
+  
+  for(const p of products){
+    const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
+    const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
+    const colors=p.colors||(p.color?[p.color]:[]);
+    const sizes=(p.sizes||[]).map(formatSize);
+    const originalPrice=parseFloat(p.original_price)||0;
+    const currentPrice=parseFloat(p.price)||0;
+    const isOnSale=originalPrice>0&&originalPrice>currentPrice;
+    const disc=calcDiscount(currentPrice,originalPrice);
+    
+    let carouselHTML='';
+    if(images.length>1){
+      const slides=images.slice(0,6).map(img=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy"></div>`).join('');
+      const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
+      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
+    }else if(images.length===1){
+      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="" style="width:100%;height:100%;object-fit:cover" loading="lazy">`;
+    }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
+    
+    let colorDotsHTML='';
+    if(colors.length>0){
+      colorDotsHTML='<div class="card-colors">';
+      colors.slice(0,3).forEach(c=>{colorDotsHTML+=`<span class="card-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`});
+      if(colors.length>3)colorDotsHTML+=`<span class="card-color-more">+${colors.length-3}</span>`;
+      colorDotsHTML+='</div>';
+    }
+    
+    const saleBadgeHTML=isOnSale?`<div class="sale-badge">${disc}%-</div>`:'';
+    const priceHTML=isOnSale?`<div class="price-wrap"><div class="price sale">₪${currentPrice}</div><div class="price-original">₪${originalPrice}</div></div>`:`<div class="price">${currentPrice?'₪'+currentPrice:''}</div>`;
+    
+    let shippingBadgeHTML='';
+    if(p.shipping){
+      if(p.shipping.isFree){shippingBadgeHTML=`<span class="shipping-badge free">משלוח חינם</span>`}
+      else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
+    }
+    
+    const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
+    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+  }
+}
 
-				let shippingBadgeHTML='';
-				if(p.shipping){
-				if(p.shipping.isFree){shippingBadgeHTML=`<span class="shipping-badge free">משלוח חינם</span>`}
-				else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
-				}
+function carouselNav(btn,dir){
+  const carousel=btn.closest('.carousel'),inner=carousel.querySelector('.carousel-inner'),slides=carousel.querySelectorAll('.carousel-slide'),dots=carousel.querySelectorAll('.carousel-dot');
+  let idx=parseInt(carousel.dataset.index)||0;idx+=dir;if(idx<0)idx=slides.length-1;if(idx>=slides.length)idx=0;
+  carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
+}
+function goToSlide(dot,idx){
+  const carousel=dot.closest('.carousel'),inner=carousel.querySelector('.carousel-inner'),dots=carousel.querySelectorAll('.carousel-dot');
+  carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
+}
+function modalCarouselNav(dir){modalImageIndex+=dir;if(modalImageIndex<0)modalImageIndex=modalImages.length-1;if(modalImageIndex>=modalImages.length)modalImageIndex=0;updateModalCarousel()}
+function goToModalSlide(idx){modalImageIndex=idx;updateModalCarousel()}
+function updateModalCarousel(){
+  document.getElementById("modalCarouselInner").style.transform=`translateX(${modalImageIndex*100}%)`;
+  document.querySelectorAll('.gallery-dot').forEach((d,i)=>d.classList.toggle('active',i===modalImageIndex));
+  document.querySelectorAll('.gallery-thumb').forEach((t,i)=>t.classList.toggle('active',i===modalImageIndex));
+}
 
-				const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
-				grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})">
-					<div class="img-wrap">
-						${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass=""}>
-							<img src="${logo}" alt="${store}">
-						</div>`:''}${colorDotsHTML}
-					</div>
-					<div class="card-body">
-						<div class="title">${escapeHtml(p.title||'')}</div>
-						<div class="subrow">
-							${priceHTML}<div class="store">${escapeHtml(store)}</div>
-						</div>
-						<div class="card-footer">
-							<div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}
-						</div>
-					</div>
-				</div>`;
-				}
-				}
+const allFabrics=['סריג','אריג','ג\'רסי','פיקה','שיפון','קרפ','סאטן','קטיפה','פליז','תחרה','טול','לייקרה','טריקו','רשת','ג\'ינס','קורדרוי','כותנה','פשתן','משי','צמר','ריקמה'];
+const allPatterns=['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי','חיות'];
+const allDesigns=['צווארון V','צווארון עגול','גולף','צווארון גבוה','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','קומות','שסע','כיווצים','תיקתק','מעטפת'];
+const allDiscounts=[{val:'20',label:'20%+'},{val:'40',label:'40%+'},{val:'60',label:'60%+'}];
 
-				function carouselNav(btn,dir){
-				const carousel=btn.closest('.carousel'),inner=carousel.querySelector('.carousel-inner'),slides=carousel.querySelectorAll('.carousel-slide'),dots=carousel.querySelectorAll('.carousel-dot');
-				let idx=parseInt(carousel.dataset.index)||0;idx+=dir;if(idx<0)idx=slides.length-1;if(idx="">
-					=slides.length)idx=0;
-					carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
-					}
-					function goToSlide(dot,idx){
-					const carousel=dot.closest('.carousel'),inner=carousel.querySelector('.carousel-inner'),dots=carousel.querySelectorAll('.carousel-dot');
-					carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
-					}
-					function modalCarouselNav(dir){modalImageIndex+=dir;if(modalImageIndex<0)modalImageIndex=modalImages.length-1;if(modalImageIndex="">
-						=modalImages.length)modalImageIndex=0;updateModalCarousel()}
-						function goToModalSlide(idx){modalImageIndex=idx;updateModalCarousel()}
-						function updateModalCarousel(){
-						document.getElementById("modalCarouselInner").style.transform=`translateX(${modalImageIndex*100}%)`;
-						document.querySelectorAll('.gallery-dot').forEach((d,i)=>d.classList.toggle('active',i===modalImageIndex));
-						document.querySelectorAll('.gallery-thumb').forEach((t,i)=>t.classList.toggle('active',i===modalImageIndex));
-						}
+async function initFilters(){
+  const data=await(await fetch("/api/filters")).json();
+  dbCategories=data.categories||[];dbStyles=data.styles||[];dbFits=data.fits||[];dbColors=data.colors||[];dbSizes=data.sizes||[];dbFabrics=data.fabrics||[];dbPatterns=data.patterns||[];dbDesigns=data.designs||[];
+  
+  const storeDiv=document.getElementById("storeLogos");
+  storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
+  (data.stores||[]).forEach(s=>{const logo=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${logo?`<img src="${logo}" alt="${s}">`:`<span>${s.substring(0,3)}</span>`}</div>`});
+  
+  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
+  
+  const discDiv=document.getElementById("discountBoxes");
+  discDiv.innerHTML=`<div class="filter-opt${activeDiscount===''?' active':''}" data-discount="" onclick="selectDiscount('')">הכל</div>`+allDiscounts.map(d=>`<div class="filter-opt" data-discount="${d.val}" onclick="selectDiscount('${d.val}')">${d.label}</div>`).join('');
+  
+  if(data.maxPrice){const slider=document.getElementById("priceRange");const roundedMax=Math.ceil(data.maxPrice/10)*10;slider.max=roundedMax;slider.value=roundedMax;document.getElementById("priceValue").textContent=roundedMax}
+}
 
-						const allFabrics=['סריג','אריג','ג\'רסי','פיקה','שיפון','קרפ','סאטן','קטיפה','פליז','תחרה','טול','לייקרה','טריקו','רשת','ג\'ינס','קורדרוי','כותנה','פשתן','משי','צמר','ריקמה'];
-						const allPatterns=['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי','חיות'];
-						const allDesigns=['צווארון V','צווארון עגול','גולף','צווארון גבוה','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','קומות','שסע','כיווצים','תיקתק','מעטפת'];
-						const allDiscounts=[{val:'20',label:'20%+'},{val:'40',label:'40%+'},{val:'60',label:'60%+'}];
+function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes");div.innerHTML=`<div class="filter-opt${activeCategory===''?' active':''}" data-cat="" onclick="selectCategory('')">הכל</div>`+dbCategories.map(c=>`<div class="filter-opt${activeCategory===c?' active':''}" data-cat="${escapeHtml(c)}" onclick="selectCategory('${escapeHtml(c)}')">${escapeHtml(c)}</div>`).join('')}
+function renderColorGrid(){const div=document.getElementById("colorGrid");div.innerHTML=`<div class="color-opt${activeColor===''?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>`<div class="color-opt${activeColor===c?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`).join('')}
+function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");div.innerHTML=`<div class="size-opt${activeSize===''?' active':''}" data-size="" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>`<div class="size-opt${activeSize===s?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`).join('')}
+function renderStyleBoxes(){const div=document.getElementById("styleBoxes");if(dbStyles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeStyle===''?' active':''}" data-style="" onclick="selectStyle('')">הכל</div>`+dbStyles.map(s=>`<div class="filter-opt${activeStyle===s?' active':''}" data-style="${escapeHtml(s)}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`).join('')}
+function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFit===''?' active':''}" data-fit="" onclick="selectFit('')">הכל</div>`+allFits.map(f=>`<div class="filter-opt${activeFit===f?' active':''}" data-fit="${escapeHtml(f)}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
+function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFabric===''?' active':''}" data-fabric="" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>`<div class="filter-opt${activeFabric===f?' active':''}" data-fabric="${escapeHtml(f)}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
+function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" data-pattern="" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" data-pattern="${escapeHtml(p)}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
+function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" data-design="" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" data-design="${escapeHtml(d)}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
 
-						async function initFilters(){
-						const data=await(await fetch("/api/filters")).json();
-						dbCategories=data.categories||[];dbStyles=data.styles||[];dbFits=data.fits||[];dbColors=data.colors||[];dbSizes=data.sizes||[];dbFabrics=data.fabrics||[];dbPatterns=data.patterns||[];dbDesigns=data.designs||[];
+function updateActiveFiltersBar(){
+  const tags=[];
+  if(activeStore)tags.push({type:'store',label:`חנות: ${activeStore}`,value:activeStore});
+  if(activeCategory)tags.push({type:'category',label:`סוג: ${activeCategory}`,value:activeCategory});
+  if(activeColor)tags.push({type:'color',label:`צבע: ${activeColor}`,value:activeColor});
+  if(activeSize)tags.push({type:'size',label:`מידה: ${formatSize(activeSize)}`,value:activeSize});
+  if(activeStyle)tags.push({type:'style',label:`סגנון: ${activeStyle}`,value:activeStyle});
+  if(activeFit)tags.push({type:'fit',label:`גיזרה: ${activeFit}`,value:activeFit});
+  if(activeFabric)tags.push({type:'fabric',label:`בד: ${activeFabric}`,value:activeFabric});
+  if(activePattern)tags.push({type:'pattern',label:`דוגמא: ${activePattern}`,value:activePattern});
+  if(activeDesign)tags.push({type:'design',label:`עיצוב: ${activeDesign}`,value:activeDesign});
+  if(activeDiscount)tags.push({type:'discount',label:`${activeDiscount}%+ הנחה`,value:activeDiscount});
+  if(lastSearchKeywords.length>0)tags.push({type:'keywords',label:`חיפוש: ${lastSearchKeywords.join(' ')}`,value:lastSearchKeywords.join(' ')});
+  
+  const bar=document.getElementById("activeFiltersBar");
+  const tagsDiv=document.getElementById("activeFiltersTags");
+  
+  if(tags.length===0){
+    bar.classList.remove('show');
+  }else{
+    bar.classList.add('show');
+    tagsDiv.innerHTML=tags.map(t=>`<span class="filter-tag">${escapeHtml(t.label)}<span class="remove-tag" onclick="removeFilter('${t.type}')">✕</span></span>`).join('');
+  }
+}
 
-						const storeDiv=document.getElementById("storeLogos");
-						storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')">
-							<span>הכל</span>
-						</div>`;
-						(data.stores||[]).forEach(s=>{const logo=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle=""}>
-							${logo?`<img src="${logo}" alt="${s}">
-								`:`<span>${s.substring(0,3)}</span>`}
-						</div>`});
+function removeFilter(type){
+  switch(type){
+    case'store':activeStore="";document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===''));break;
+    case'category':activeCategory="";renderCategoryBoxes();break;
+    case'color':activeColor="";renderColorGrid();break;
+    case'size':activeSize="";renderSizeBoxes();break;
+    case'style':activeStyle="";renderStyleBoxes();break;
+    case'fit':activeFit="";renderFitBoxes();break;
+    case'fabric':activeFabric="";renderFabricBoxes();break;
+    case'pattern':activePattern="";renderPatternBoxes();break;
+    case'design':activeDesign="";renderDesignBoxes();break;
+    case'discount':activeDiscount="";document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));break;
+    case'keywords':lastSearchKeywords=[];document.getElementById("q").value="";break;
+  }
+  updateActiveFiltersBar();
+  runRegularSearch();
+}
 
-						renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
+function updateColorSelection(){document.querySelectorAll('.color-opt').forEach(el=>el.classList.toggle('active',el.dataset.color===activeColor));updateActiveFiltersBar()}
+function updateCategorySelection(){document.querySelectorAll('#categoryBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));updateActiveFiltersBar()}
+function updateSizeSelection(){document.querySelectorAll('.size-opt').forEach(el=>el.classList.toggle('active',el.dataset.size===activeSize));updateActiveFiltersBar()}
+function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
 
-						const discDiv=document.getElementById("discountBoxes");
-						discDiv.innerHTML=`<div class="filter-opt${activeDiscount===''?' active':''}" data-discount="" onclick="selectDiscount('')">הכל</div>`+allDiscounts.map(d=>`<div class="filter-opt" data-discount="${d.val}" onclick="selectDiscount('${d.val}')">${d.label}</div>`).join('');
+function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
+function selectCategory(c){activeCategory=(activeCategory===c)?"":c;renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectColor(c){activeColor=(activeColor===c)?"":c;renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
+function selectSize(s){activeSize=(activeSize===s)?"":s;renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectStyle(s){activeStyle=(activeStyle===s)?"":s;renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectFit(f){activeFit=(activeFit===f)?"":f;renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectFabric(f){activeFabric=(activeFabric===f)?"":f;renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
 
-						if(data.maxPrice){const slider=document.getElementById("priceRange");const roundedMax=Math.ceil(data.maxPrice/10)*10;slider.max=roundedMax;slider.value=roundedMax;document.getElementById("priceValue").textContent=roundedMax}
-						}
+function resetAllFiltersQuietly(){
+  activeStore="";activeCategory="";activeColor="";activeStyle="";activeFit="";activeDiscount="";activeFabric="";activePattern="";activeSize="";activeDesign="";
+  const slider=document.getElementById("priceRange");slider.value=slider.max;document.getElementById("priceValue").textContent=slider.max;
+  document.querySelectorAll(".store-opt").forEach(el=>el.classList.toggle('active',el.dataset.store===''));
+  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
+  document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));
+  document.getElementById("activeFiltersBar").classList.remove('show');
+}
 
-						function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes");div.innerHTML=`<div class="filter-opt${activeCategory===''?' active':''}" data-cat="" onclick="selectCategory('')">הכל</div>`+dbCategories.map(c=>`<div class="filter-opt${activeCategory===c?' active':''}" data-cat="${escapeHtml(c)}" onclick="selectCategory('${escapeHtml(c)}')">${escapeHtml(c)}</div>`).join('')}
-						function renderColorGrid(){const div=document.getElementById("colorGrid");div.innerHTML=`<div class="color-opt${activeColor===''?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>`<div class="color-opt${activeColor===c?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`).join('')}
-						function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");div.innerHTML=`<div class="size-opt${activeSize===''?' active':''}" data-size="" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>`<div class="size-opt${activeSize===s?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`).join('')}
-						function renderStyleBoxes(){const div=document.getElementById("styleBoxes");if(dbStyles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeStyle===''?' active':''}" data-style="" onclick="selectStyle('')">הכל</div>`+dbStyles.map(s=>`<div class="filter-opt${activeStyle===s?' active':''}" data-style="${escapeHtml(s)}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`).join('')}
-						function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFit===''?' active':''}" data-fit="" onclick="selectFit('')">הכל</div>`+allFits.map(f=>`<div class="filter-opt${activeFit===f?' active':''}" data-fit="${escapeHtml(f)}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
-						function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFabric===''?' active':''}" data-fabric="" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>`<div class="filter-opt${activeFabric===f?' active':''}" data-fabric="${escapeHtml(f)}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
-						function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" data-pattern="" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" data-pattern="${escapeHtml(p)}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
-						function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" data-design="" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" data-design="${escapeHtml(d)}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
+function resetAll(){document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];resetAllFiltersQuietly();document.getElementById("aiAnalysis").classList.remove("active");runRegularSearch()}
 
-						function updateActiveFiltersBar(){
-						const tags=[];
-						if(activeStore)tags.push({type:'store',label:`חנות: ${activeStore}`,value:activeStore});
-						if(activeCategory)tags.push({type:'category',label:`סוג: ${activeCategory}`,value:activeCategory});
-						if(activeColor)tags.push({type:'color',label:`צבע: ${activeColor}`,value:activeColor});
-						if(activeSize)tags.push({type:'size',label:`מידה: ${formatSize(activeSize)}`,value:activeSize});
-						if(activeStyle)tags.push({type:'style',label:`סגנון: ${activeStyle}`,value:activeStyle});
-						if(activeFit)tags.push({type:'fit',label:`גיזרה: ${activeFit}`,value:activeFit});
-						if(activeFabric)tags.push({type:'fabric',label:`בד: ${activeFabric}`,value:activeFabric});
-						if(activePattern)tags.push({type:'pattern',label:`דוגמא: ${activePattern}`,value:activePattern});
-						if(activeDesign)tags.push({type:'design',label:`עיצוב: ${activeDesign}`,value:activeDesign});
-						if(activeDiscount)tags.push({type:'discount',label:`${activeDiscount}%+ הנחה`,value:activeDiscount});
-						if(lastSearchKeywords.length>0)tags.push({type:'keywords',label:`חיפוש: ${lastSearchKeywords.join(' ')}`,value:lastSearchKeywords.join(' ')});
+async function openProduct(id){
+  document.getElementById("modalBackdrop").classList.add("open");
+  document.getElementById("modalTitle").textContent="טוען…";
+  document.getElementById("modalDesc").textContent="";
+  document.getElementById("modalKpi").innerHTML="";
+  document.getElementById("modalColors").innerHTML="";
+  document.getElementById("modalThumbs").innerHTML="";
+  document.getElementById("modalCarouselInner").innerHTML="";
+  document.getElementById("modalDots").innerHTML="";
+  try{
+    const p=await(await fetch("/api/product/"+id)).json();
+    document.getElementById("modalTitle").textContent=p.title||"מוצר";
+    document.getElementById("modalBuy").href="/out/"+id;
+    document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
+    modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
+    document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');
+    document.getElementById("modalDots").innerHTML=modalImages.map((_,i)=>`<button class="gallery-dot${i===0?' active':''}" onclick="goToModalSlide(${i})"></button>`).join('');
+    document.getElementById("modalThumbs").innerHTML=modalImages.map((img,i)=>`<div class="gallery-thumb${i===0?' active':''}" onclick="goToModalSlide(${i})"><img src="${escapeHtml(img)}" loading="lazy"></div>`).join('');
+    
+    const kpis=[],isOnSale=p.original_price&&p.original_price>p.price,disc=calcDiscount(p.price,p.original_price);
+    if(p.store)kpis.push(`<span>חנות: ${escapeHtml(p.store)}</span>`);
+    if(isOnSale){kpis.push(`<span class="sale-kpi">₪${p.price} <s>₪${p.original_price}</s> (${disc}%-)</span>`)}else if(p.price){kpis.push(`<span>מחיר: ₪${p.price}</span>`)}
+    if(p.sizes?.length)kpis.push(`<span>מידות: ${p.sizes.map(formatSize).join(', ')}</span>`);
+    if(p.category)kpis.push(`<span>סוג: ${escapeHtml(p.category)}</span>`);
+    if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
+    document.getElementById("modalKpi").innerHTML=kpis.join("");
+    
+    const colors=p.colors||(p.color?[p.color]:[]);
+    const colorsDiv=document.getElementById("modalColors");
+    if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
+  }catch(e){document.getElementById("modalTitle").textContent="שגיאה בטעינה"}
+}
 
-						const bar=document.getElementById("activeFiltersBar");
-						const tagsDiv=document.getElementById("activeFiltersTags");
+function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById("modalBackdrop").classList.remove("open")}
 
-						if(tags.length===0){
-						bar.classList.remove('show');
-						}else{
-						bar.classList.add('show');
-						tagsDiv.innerHTML=tags.map(t=>`<span class="filter-tag">
-							${escapeHtml(t.label)}<span class="remove-tag" onclick="removeFilter('${t.type}')">✕</span>
-						</span>`).join('');
-						}
-						}
+document.getElementById("q").addEventListener("input",handleSearchInput);
+document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});
 
-						function removeFilter(type){
-						switch(type){
-						case'store':activeStore="";document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===''));break;
-						case'category':activeCategory="";renderCategoryBoxes();break;
-						case'color':activeColor="";renderColorGrid();break;
-						case'size':activeSize="";renderSizeBoxes();break;
-						case'style':activeStyle="";renderStyleBoxes();break;
-						case'fit':activeFit="";renderFitBoxes();break;
-						case'fabric':activeFabric="";renderFabricBoxes();break;
-						case'pattern':activePattern="";renderPatternBoxes();break;
-						case'design':activeDesign="";renderDesignBoxes();break;
-						case'discount':activeDiscount="";document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));break;
-						case'keywords':lastSearchKeywords=[];document.getElementById("q").value="";break;
-						}
-						updateActiveFiltersBar();
-						runRegularSearch();
-						}
-
-						function updateColorSelection(){document.querySelectorAll('.color-opt').forEach(el=>el.classList.toggle('active',el.dataset.color===activeColor));updateActiveFiltersBar()}
-						function updateCategorySelection(){document.querySelectorAll('#categoryBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));updateActiveFiltersBar()}
-						function updateSizeSelection(){document.querySelectorAll('.size-opt').forEach(el=>el.classList.toggle('active',el.dataset.size===activeSize));updateActiveFiltersBar()}
-						function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
-
-						function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
-						function selectCategory(c){activeCategory=(activeCategory===c)?"":c;renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectColor(c){activeColor=(activeColor===c)?"":c;renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
-						function selectSize(s){activeSize=(activeSize===s)?"":s;renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectStyle(s){activeStyle=(activeStyle===s)?"":s;renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectFit(f){activeFit=(activeFit===f)?"":f;renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectFabric(f){activeFabric=(activeFabric===f)?"":f;renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
-						function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
-
-						function resetAllFiltersQuietly(){
-						activeStore="";activeCategory="";activeColor="";activeStyle="";activeFit="";activeDiscount="";activeFabric="";activePattern="";activeSize="";activeDesign="";
-						const slider=document.getElementById("priceRange");slider.value=slider.max;document.getElementById("priceValue").textContent=slider.max;
-						document.querySelectorAll(".store-opt").forEach(el=>el.classList.toggle('active',el.dataset.store===''));
-						renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
-						document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));
-						document.getElementById("activeFiltersBar").classList.remove('show');
-						}
-
-						function resetAll(){document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];resetAllFiltersQuietly();document.getElementById("aiAnalysis").classList.remove("active");runRegularSearch()}
-
-						async function openProduct(id){
-						document.getElementById("modalBackdrop").classList.add("open");
-						document.getElementById("modalTitle").textContent="טוען…";
-						document.getElementById("modalDesc").textContent="";
-						document.getElementById("modalKpi").innerHTML="";
-						document.getElementById("modalColors").innerHTML="";
-						document.getElementById("modalThumbs").innerHTML="";
-						document.getElementById("modalCarouselInner").innerHTML="";
-						document.getElementById("modalDots").innerHTML="";
-						try{
-						const p=await(await fetch("/api/product/"+id)).json();
-						document.getElementById("modalTitle").textContent=p.title||"מוצר";
-						document.getElementById("modalBuy").href="/out/"+id;
-						document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
-						modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
-						document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide">
-							<img src="${escapeHtml(img)}" alt="">
-						</div>`).join('');
-						document.getElementById("modalDots").innerHTML=modalImages.map((_,i)=>`<button class="gallery-dot${i===0?' active':''}" onclick="goToModalSlide(${i})"></button>`).join('');
-						document.getElementById("modalThumbs").innerHTML=modalImages.map((img,i)=>`<div class="gallery-thumb${i===0?' active':''}" onclick="goToModalSlide(${i})">
-							<img src="${escapeHtml(img)}" loading="lazy">
-						</div>`).join('');
-
-						const kpis=[],isOnSale=p.original_price&&p.original_price>p.price,disc=calcDiscount(p.price,p.original_price);
-						if(p.store)kpis.push(`<span>חנות: ${escapeHtml(p.store)}</span>`);
-						if(isOnSale){kpis.push(`<span class="sale-kpi">
-							₪${p.price} <s>₪${p.original_price}</s> (${disc}%-)
-						</span>`)}else if(p.price){kpis.push(`<span>מחיר: ₪${p.price}</span>`)}
-						if(p.sizes?.length)kpis.push(`<span>מידות: ${p.sizes.map(formatSize).join(', ')}</span>`);
-						if(p.category)kpis.push(`<span>סוג: ${escapeHtml(p.category)}</span>`);
-						if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
-						document.getElementById("modalKpi").innerHTML=kpis.join("");
-
-						const colors=p.colors||(p.color?[p.color]:[]);
-						const colorsDiv=document.getElementById("modalColors");
-						if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
-						}catch(e){document.getElementById("modalTitle").textContent="שגיאה בטעינה"}
-						}
-
-						function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById("modalBackdrop").classList.remove("open")}
-
-						document.getElementById("q").addEventListener("input",handleSearchInput);
-						document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});
-
-						(async()=>{await initFilters();await runRegularSearch()})();
-					</script>
-	</body>
+(async()=>{await initFilters();await runRegularSearch()})();
+</script>
+</body>
 </html>

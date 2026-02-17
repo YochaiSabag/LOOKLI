@@ -326,6 +326,71 @@
     /* Load more button */
     #loadMoreBtn{margin:24px auto;display:block;max-width:220px;padding:14px 28px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:background .2s}
     #loadMoreBtn:hover{background:var(--accent-dark)}
+    
+    /* ===== Hero Discovery Section ===== */
+    .hero-discover{width:100%;padding:30px 0 14px;text-align:center;background:#fff;border-bottom:1px solid #eee}
+    .hero-discover.hidden{display:none}
+    .hero-title{font-size:28px;font-weight:500;color:var(--accent);margin:0 0 26px;padding:0 24px;line-height:1.4}
+    .hero-step-label{font-size:21px;font-weight:500;color:#3a3a3a;margin-bottom:20px;padding:0 24px}
+    .hero-nav-labels{display:flex;align-items:center;gap:16px;margin-top:12px;justify-content:center;padding:0 24px}
+    .hero-nav-btn{display:flex;align-items:center;gap:6px;padding:9px 20px;border-radius:22px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);transition:all .15s}
+    .hero-nav-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .hero-nav-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .hero-nav-btn.primary:hover{background:var(--accent-dark)}
+    .hero-nav-btn.disabled{opacity:.35;pointer-events:none}
+    .hero-no-results{color:#e74c3c;font-size:15px;font-weight:600;margin-top:14px;padding:14px 24px;background:#fff5f5;border-radius:12px;display:inline-block}
+    
+    /* Scrollable row */
+    .hero-slider{position:relative;width:100%;padding:0 56px}
+    .hero-cubes{display:flex;gap:20px;overflow-x:auto;scroll-behavior:smooth;padding:10px 12px 20px;-ms-overflow-style:none;scrollbar-width:none;justify-content:flex-start}
+    .hero-cubes::-webkit-scrollbar{display:none}
+    .hero-cubes.color-grid{flex-wrap:wrap;max-width:1200px;margin:0 auto;justify-content:center;gap:12px;padding:10px 12px 16px}
+    .hero-arrow{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:#fff;border:1px solid #ddd;box-shadow:0 4px 18px rgba(0,0,0,.1);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;font-size:24px;color:#555;transition:all .15s}
+    .hero-arrow:hover{box-shadow:0 6px 24px rgba(0,0,0,.18);border-color:var(--accent);color:var(--accent)}
+    .hero-arrow-right{right:4px}
+    .hero-arrow-left{left:4px}
+    
+    /* Cubes - HUGE, centered content */
+    .hero-cube{min-width:210px;height:220px;border-radius:20px;background:#fff;border:1px solid #e5e5e5;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:all .25s;box-shadow:0 4px 20px rgba(0,0,0,.06);flex-shrink:0}
+    .hero-cube:hover{border-color:var(--accent);transform:translateY(-6px);box-shadow:0 14px 45px rgba(224,161,192,.2)}
+    .hero-cube.active{border-color:var(--accent);background:linear-gradient(135deg,rgba(224,161,192,.04),rgba(224,161,192,.1));box-shadow:0 8px 30px rgba(224,161,192,.28)}
+    .hero-cube-icon{width:100px;height:100px;display:flex;align-items:center;justify-content:center}
+    .hero-cube-icon img{max-width:100%;max-height:100%;object-fit:contain}
+    .hero-cube-icon svg{width:88px;height:88px;color:var(--accent);stroke-width:1.1}
+    .hero-cube-label{font-size:16px;font-weight:600;color:#444;text-align:center;line-height:1.2}
+    .hero-cube-sublabel{font-size:12px;font-weight:500;color:#999;text-align:center;margin-top:-6px}
+    
+    /* Color cubes - 2-row grid layout */
+    .hero-color-cube{min-width:100px;width:100px;height:96px;border-radius:14px;background:#fff;border:1px solid #e5e5e5;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:all .25s;box-shadow:0 3px 12px rgba(0,0,0,.05);flex-shrink:0}
+    .hero-color-cube:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 24px rgba(224,161,192,.2)}
+    .hero-color-cube .hero-color-circle{width:44px;height:44px;border-radius:50%;border:3px solid #e0e0e0;box-shadow:0 3px 8px rgba(0,0,0,.1);transition:all .2s}
+    .hero-color-cube:hover .hero-color-circle{border-color:var(--accent)}
+    .hero-color-cube .hero-cube-label{font-size:13px;font-weight:600}
+    
+    /* Price/Size cubes */
+    .hero-big-text{font-size:34px;font-weight:900;color:var(--accent)}
+    
+    @media(max-width:768px){
+      .hero-discover{padding:18px 0 8px}
+      .hero-title{font-size:19px;padding:0 16px;margin-bottom:16px}
+      .hero-step-label{font-size:16px;padding:0 16px;margin-bottom:14px}
+      .hero-slider{padding:0 38px}
+      .hero-cubes{gap:14px;padding:6px 6px 14px}
+      .hero-cube{min-width:150px;height:160px;border-radius:16px;gap:10px}
+      .hero-cube-icon{width:72px;height:72px}
+      .hero-cube-icon svg{width:64px;height:64px}
+      .hero-cube-label{font-size:14px}
+      .hero-cubes.color-grid{gap:8px}
+      .hero-color-cube{min-width:76px;width:76px;height:76px}
+      .hero-color-cube .hero-color-circle{width:34px;height:34px}
+      .hero-color-cube .hero-cube-label{font-size:11px}
+      .hero-big-text{font-size:26px}
+      .hero-arrow{width:34px;height:34px;font-size:17px}
+      .hero-arrow-right{right:2px}
+      .hero-arrow-left{left:2px}
+      .hero-nav-labels{gap:10px}
+      .hero-nav-btn{padding:7px 14px;font-size:12px}
+    }
   </style>
 </head>
 <body>
@@ -365,6 +430,19 @@
   
   <!-- AI analysis removed -->
   <span id="aiAnalysis" style="display:none"></span><span id="aiBox" style="display:none"></span>
+  
+  <!-- Hero Discovery Section -->
+  <div class="hero-discover" id="heroDiscover">
+    <h2 class="hero-title">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI</h2>
+    <div class="hero-step-label" id="heroStepLabel">מה את מחפשת?</div>
+    <div class="hero-slider">
+      <button class="hero-arrow hero-arrow-right" onclick="heroScroll(-1)">‹</button>
+      <div class="hero-cubes" id="heroCubes"></div>
+      <button class="hero-arrow hero-arrow-left" onclick="heroScroll(1)">›</button>
+    </div>
+    <div class="hero-nav-labels" id="heroNavLabels"></div>
+    <div id="heroNoResults" style="display:none"></div>
+  </div>
   
   <!-- Mobile Filter Button -->
   <button class="mobile-filter-btn" onclick="toggleMobileFilters()">☰</button>
@@ -607,7 +685,7 @@ const colorData={
   'אפור':'#6B7280','ורוד':'#EC4899','סגול':'#7C3AED','לילך':'#C8A2C8','צהוב':'#FACC15',
   'חרדל':'#FFDB58','כתום':'#EA580C','זהב':'#D4AF37','כסף':'#C0C0C0',
   'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)','צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
-  'מנטה':'#98FFD3','אפרסק':'#FFCBA4'
+  'מנטה':'#98FFD3','אפרסק':'#FFCBA4','אבן':'#C5B9A8'
 };
 
 function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
@@ -677,9 +755,12 @@ async function runAISearch(){
   }catch(e){console.error(e);alert("שגיאה בחיפוש")}
 }
 
+var skipScrollOnSearch=false;
+
 async function runRegularSearch(){
   setLoading();document.getElementById("aiAnalysis").classList.remove("active");
-  window.scrollTo({top:0,behavior:'smooth'});
+  if(!skipScrollOnSearch){window.scrollTo({top:0,behavior:'smooth'})}
+  skipScrollOnSearch=false;
   const params=new URLSearchParams();
   if(lastSearchKeywords.length>0)params.set("q",lastSearchKeywords.join(' '));
   if(activeStore)params.set("store",activeStore);
@@ -807,7 +888,7 @@ function updateModalCarousel(){
   document.querySelectorAll('.gallery-thumb').forEach((t,i)=>t.classList.toggle('active',i===modalImageIndex));
 }
 
-const allFabrics=['סריג','אריג','ג\'רסי','פיקה','שיפון','קרפ','סאטן','קטיפה','פליז','תחרה','טול','לייקרה','טריקו','רשת','ג\'ינס','קורדרוי','כותנה','פשתן','משי','צמר','ריקמה'];
+const allFabrics=['סריג','אריג','ג\'רסי','פיקה','שיפון','קרפ','סאטן','קטיפה','פליז','תחרה','טול','לייקרה','טריקו','רשת','ג\'ינס','קורדרוי','כותנה','פשתן','משי','צמר','ריקמה','פרווה'];
 const allPatterns=['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי','חיות'];
 const allDesigns=['צווארון V','צווארון עגול','גולף','צווארון גבוה','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','קומות','שסע','כיווצים','תיקתק','מעטפת'];
 const allDiscounts=[{val:'20',label:'20%+'},{val:'40',label:'40%+'},{val:'60',label:'60%+'}];
@@ -945,7 +1026,186 @@ function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getEleme
 document.getElementById("q").addEventListener("input",handleSearchInput);
 document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});
 
-(async()=>{await initFilters();await runRegularSearch()})();
+// === Hero Discovery Flow ===
+var heroStep='category';
+var heroSteps=['category','color','price','size','style','fit','fabric','done'];
+var heroStepNames={'category':'סוג מוצר','color':'צבע','price':'תקציב','size':'מידה','style':'סגנון','fit':'גיזרה','fabric':'סוג בד','done':''};
+var heroNoResultsFlag=false;
+var sizeToNumbers={'XS':'34-36','S':'36-38','M':'38-40','L':'40-42','XL':'42-44','XXL':'44-46','XXXL':'46-48','ONE SIZE':'מידה אחת'};
+
+function heroScroll(dir){
+  var c=document.getElementById('heroCubes');
+  c.scrollBy({left:dir*300,behavior:'smooth'});
+}
+
+// Icon: try /icons/NAME.png first, fallback to SVG
+function heroIconHtml(name,svgFB){
+  var safe=encodeURIComponent(name);
+  var encoded=btoa(unescape(encodeURIComponent(svgFB)));
+  return '<div class="hero-cube-icon"><img src="/icons/'+safe+'.png" onerror="this.onerror=null;this.parentElement.innerHTML=decodeURIComponent(escape(atob(\''+encoded+'\')));" /></div>';
+}
+
+// Minimal SVG fallbacks (only used if no .png in /icons/)
+var defaultSvg='<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="14" y="14" width="36" height="36" rx="8"/></svg>';
+var catSvg={
+'שמלה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 6h16l3 10-7 4v34H28V20l-7-4 3-10z"/><path d="M24 6c-1 0-3 1-4 3l-6 11 7 4"/><path d="M40 6c1 0 3 1 4 3l6 11-7 4"/></svg>',
+'חולצה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20v4l2 2v34H20V14l2-2V8z"/><path d="M22 8l-8 6-4 12h6l4-6"/><path d="M42 8l8 6 4 12h-6l-4-6"/><path d="M28 8a4 4 0 008 0"/></svg>',
+'חצאית':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v4l4 38H16l4-38v-4z"/><line x1="20" y1="16" x2="44" y2="16"/></svg>',
+'סט':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 6h20l2 2v18H20V8l2-2z"/><path d="M22 6l-6 5-3 9h5l4-5"/><path d="M42 6l6 5 3 9h-5l-4-5"/><path d="M20 30h24v4l3 24H17l3-24v-4z"/></svg>',
+'בייסיק':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v40H20V12z" rx="2"/><path d="M20 12l-6 5v22l6 3"/><path d="M44 12l6 5v22l-6 3"/></svg>',
+'קרדיגן':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M32 8v44"/><path d="M22 8h10v44H18V16z"/><path d="M42 8H32v44h14V16z"/><path d="M22 8l-8 6-4 16h6l4-8"/><path d="M42 8l8 6 4 16h-6l-4-8"/></svg>',
+'מעיל':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20l2 2v42H20V10l2-2z"/><path d="M22 8l-9 6-5 18h8l4-8"/><path d="M42 8l9 6 5 18h-8l-4-8"/><path d="M32 8v44"/></svg>',
+'טוניקה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 8h16l2 2v38c0 2-4 4-10 4s-10-2-10-4V10l2-2z"/><path d="M24 8l-7 5-3 14h5l3-6"/><path d="M40 8l7 5 3 14h-5l-3-6"/></svg>',
+'סוודר':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v34H20V14z" rx="2"/><path d="M20 14c0-3 5-6 12-6s12 3 12 6"/><path d="M20 16l-8 4v14l8 4"/><path d="M44 16l8 4v14l-8 4"/></svg>',
+'מכנסיים':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M18 10h28v8l-4 38h-8l-2-28-2 28h-8l-4-38v-8z"/><line x1="18" y1="14" x2="46" y2="14"/></svg>',
+'עליונית':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v30H20V14z" rx="2"/><path d="M20 14l-7 4v10l7 4"/><path d="M44 14l7 4v10l-7 4"/></svg>',
+};
+function getSvg(name){return catSvg[name]||defaultSvg}
+
+function renderHeroNav(){
+  var nav=document.getElementById('heroNavLabels');
+  var idx=heroSteps.indexOf(heroStep);
+  var prevStep=idx>0?heroSteps[idx-1]:null;
+  var nextStep=(idx<heroSteps.length-1)?heroSteps[idx+1]:null;
+  var h='';
+  if(prevStep&&heroStepNames[prevStep]){
+    h+='<button class="hero-nav-btn" onclick="heroPrevStep()">'+heroStepNames[prevStep]+' \u2192 \u05D7\u05D6\u05E8\u05D4</button>';
+  }
+  if(nextStep&&heroStepNames[nextStep]&&!heroNoResultsFlag){
+    h+='<button class="hero-nav-btn primary" onclick="heroNextStep()">'+heroStepNames[nextStep]+' \u2190</button>';
+  }
+  nav.innerHTML=h;
+}
+
+function renderHeroStep(){
+  var cubesDiv=document.getElementById('heroCubes');
+  var labelDiv=document.getElementById('heroStepLabel');
+  var noResDiv=document.getElementById('heroNoResults');
+  noResDiv.style.display='none';
+  cubesDiv.className='hero-cubes';
+  heroNoResultsFlag=false;
+  
+  if(heroStep==='category'){
+    labelDiv.textContent='\u05DE\u05D4 \u05D0\u05EA \u05DE\u05D7\u05E4\u05E9\u05EA?';
+    var cats=['שמלה','חולצה','חצאית','סט','בייסיק','קרדיגן','מעיל','טוניקה','סוודר','מכנסיים','עליונית'];
+    if(dbCategories.length>0){var o=[];cats.forEach(function(c){if(dbCategories.indexOf(c)!==-1)o.push(c)});dbCategories.forEach(function(c){if(o.indexOf(c)===-1)o.push(c)});cats=o}
+    cubesDiv.innerHTML=cats.map(function(c){return '<div class="hero-cube" onclick="heroSelect(\'category\',\''+escapeHtml(c)+'\')">'+heroIconHtml(c,getSvg(c))+'<span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
+    
+  } else if(heroStep==='color'){
+    labelDiv.textContent='\u05D1\u05D0\u05D9\u05D6\u05D4 \u05E6\u05D1\u05E2?';
+    cubesDiv.className='hero-cubes color-grid';
+    var pop=['שחור','לבן','כחול','אדום','ורוד','בז׳','שמנת','אפור','ירוק','חום','בורדו','סגול','אבן','קאמל','ניוד','צהוב','כתום','לילך','תכלת','זהב'];
+    var colors=dbColors.length>0?dbColors:pop;
+    if(dbColors.length>0){var o2=[];pop.forEach(function(c){if(colors.indexOf(c)!==-1)o2.push(c)});colors.forEach(function(c){if(o2.indexOf(c)===-1)o2.push(c)});colors=o2}
+    cubesDiv.innerHTML=colors.map(function(c){return '<div class="hero-color-cube" onclick="heroSelect(\'color\',\''+escapeHtml(c)+'\')"><div class="hero-color-circle" style="background:'+getColorHex(c)+'"></div><span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
+    
+  } else if(heroStep==='price'){
+    labelDiv.textContent='\u05D1\u05D0\u05D9\u05D6\u05D4 \u05EA\u05E7\u05E6\u05D9\u05D1?';
+    var prices=[{v:'100',l:'\u05E2\u05D3 \u20AA100'},{v:'150',l:'\u05E2\u05D3 \u20AA150'},{v:'200',l:'\u05E2\u05D3 \u20AA200'},{v:'300',l:'\u05E2\u05D3 \u20AA300'},{v:'500',l:'\u05E2\u05D3 \u20AA500'},{v:'',l:'\u05DC\u05DC\u05D0 \u05D4\u05D2\u05D1\u05DC\u05D4'}];
+    cubesDiv.innerHTML=prices.map(function(p){return '<div class="hero-cube" onclick="heroSelect(\'price\',\''+p.v+'\')"><span class="hero-big-text">'+(p.v?'\u20AA'+p.v:'\u221E')+'</span><span class="hero-cube-label">'+p.l+'</span></div>'}).join('');
+    
+  } else if(heroStep==='size'){
+    labelDiv.textContent='\u05DE\u05D4 \u05D4\u05DE\u05D9\u05D3\u05D4 \u05E9\u05DC\u05DA?';
+    var popS=['S','M','L','XL','XS','XXL','XXXL','ONE SIZE'];
+    var sizes=dbSizes.length>0?dbSizes:popS;
+    if(dbSizes.length>0){var o3=[];popS.forEach(function(s){if(sizes.indexOf(s)!==-1)o3.push(s)});sizes.forEach(function(s){if(o3.indexOf(s)===-1)o3.push(s)});sizes=o3}
+    cubesDiv.innerHTML=sizes.map(function(s){var nums=sizeToNumbers[s]||'';return '<div class="hero-cube" onclick="heroSelect(\'size\',\''+escapeHtml(s)+'\')"><span class="hero-big-text">'+formatSize(s)+'</span><span class="hero-cube-label">\u05DE\u05D9\u05D3\u05D4 '+formatSize(s)+'</span>'+(nums?'<span class="hero-cube-sublabel">'+nums+'</span>':'')+'</div>'}).join('');
+    
+  } else if(heroStep==='style'){
+    if(!dbStyles||dbStyles.length===0){heroStep='fit';renderHeroStep();return}
+    labelDiv.textContent='\u05D0\u05D9\u05D6\u05D4 \u05E1\u05D2\u05E0\u05D5\u05DF?';
+    var popSt=['\u05E2\u05E8\u05D1','\u05D9\u05D5\u05DD \u05D7\u05D5\u05DC','\u05D7\u05D2\u05D9\u05D2\u05D9','\u05E7\u05DC\u05D0\u05E1\u05D9','\u05D0\u05DC\u05D2\u05E0\u05D8\u05D9','\u05DE\u05D9\u05E0\u05D9\u05DE\u05DC\u05D9\u05E1\u05D8\u05D9','\u05D0\u05D5\u05D1\u05E8\u05E1\u05D9\u05D9\u05D6'];
+    var styles=dbStyles;var o4=[];popSt.forEach(function(s){if(styles.indexOf(s)!==-1)o4.push(s)});styles.forEach(function(s){if(o4.indexOf(s)===-1)o4.push(s)});
+    cubesDiv.innerHTML=o4.map(function(s){return '<div class="hero-cube" onclick="heroSelect(\'style\',\''+escapeHtml(s)+'\')">'+heroIconHtml(s,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(s)+'</span></div>'}).join('');
+    
+  } else if(heroStep==='fit'){
+    var popF=['\u05D0\u05E8\u05D5\u05DB\u05D4','\u05DE\u05D9\u05D3\u05D9','\u05E7\u05E6\u05E8\u05D4','\u05DE\u05D5\u05EA\u05DF','\u05D4\u05E8\u05D9\u05D5\u05DF','\u05D4\u05E0\u05E7\u05D4','\u05DE\u05E2\u05D8\u05E4\u05EA'];
+    var avail=popF.slice();
+    if(dbFits.length>0){dbFits.forEach(function(f){if(avail.indexOf(f)===-1)avail.push(f)})}
+    labelDiv.textContent='\u05D0\u05D9\u05D6\u05D5 \u05D2\u05D9\u05D6\u05E8\u05D4?';
+    cubesDiv.innerHTML=avail.map(function(f){return '<div class="hero-cube" onclick="heroSelect(\'fit\',\''+escapeHtml(f)+'\')">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
+    
+  } else if(heroStep==='fabric'){
+    if(!dbFabrics||dbFabrics.length===0){heroStep='done';renderHeroStep();return}
+    var popFab=['\u05E1\u05E8\u05D9\u05D2','\u05E9\u05D9\u05E4\u05D5\u05DF','\u05DB\u05D5\u05EA\u05E0\u05D4','\u05E1\u05D0\u05D8\u05DF','\u05EA\u05D7\u05E8\u05D4','\u05E7\u05D8\u05D9\u05E4\u05D4','\u05E4\u05E9\u05EA\u05DF','\u05E4\u05E8\u05D5\u05D5\u05D4','\u05DE\u05E9\u05D9','\u05E6\u05DE\u05E8'];
+    var fabrics=dbFabrics;var o5=[];popFab.forEach(function(f){if(fabrics.indexOf(f)!==-1)o5.push(f)});fabrics.forEach(function(f){if(o5.indexOf(f)===-1)o5.push(f)});
+    labelDiv.textContent='\u05E1\u05D5\u05D2 \u05D1\u05D3?';
+    cubesDiv.innerHTML=o5.map(function(f){return '<div class="hero-cube" onclick="heroSelect(\'fabric\',\''+escapeHtml(f)+'\')">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
+    
+  } else {
+    document.getElementById('heroDiscover').classList.add('hidden');
+    renderHeroNav();
+    return;
+  }
+  // Scroll to end for RTL (except color grid which wraps)
+  if(heroStep!=='color'){
+    setTimeout(function(){cubesDiv.scrollLeft=cubesDiv.scrollWidth},50);
+  }
+  renderHeroNav();
+}
+
+function heroSelect(type,val){
+  if(type==='category'){activeCategory=val;renderCategoryBoxes()}
+  if(type==='color'){activeColor=val;renderColorGrid()}
+  if(type==='price'&&val){document.getElementById("priceRange").value=parseInt(val);document.getElementById("priceValue").textContent=val}
+  if(type==='size'){activeSize=val;renderSizeBoxes()}
+  if(type==='style'){activeStyle=val;renderStyleBoxes()}
+  if(type==='fit'){activeFit=val;renderFitBoxes()}
+  if(type==='fabric'){activeFabric=val;renderFabricBoxes()}
+  updateActiveFiltersBar();
+  heroRunSearchAndCheck();
+}
+
+async function heroRunSearchAndCheck(){
+  skipScrollOnSearch=true;
+  await runRegularSearch();
+  var noResDiv=document.getElementById('heroNoResults');
+  if(allProducts.length===0){
+    heroNoResultsFlag=true;
+    noResDiv.innerHTML='<div class="hero-no-results">\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05DE\u05D5\u05E6\u05E8\u05D9\u05DD \u05E2\u05DD \u05D4\u05E9\u05D9\u05DC\u05D5\u05D1 \u05D4\u05D6\u05D4. \u05E0\u05E1\u05D9 \u05DC\u05D7\u05D6\u05D5\u05E8 \u05D0\u05D7\u05D5\u05E8\u05D4 \u05D5\u05DC\u05E9\u05E0\u05D5\u05EA \u05D1\u05D7\u05D9\u05E8\u05D4.</div>';
+    noResDiv.style.display='block';
+    renderHeroNav();
+  } else {
+    heroNoResultsFlag=false;
+    noResDiv.style.display='none';
+    heroNextStep();
+  }
+}
+
+function heroNextStep(){
+  var idx=heroSteps.indexOf(heroStep);
+  if(idx<heroSteps.length-1){heroStep=heroSteps[idx+1];renderHeroStep()}
+}
+
+function heroPrevStep(){
+  var idx=heroSteps.indexOf(heroStep);
+  if(idx>0){
+    var prev=heroSteps[idx-1];
+    if(prev==='category'){activeCategory='';renderCategoryBoxes()}
+    if(prev==='color'){activeColor='';renderColorGrid()}
+    if(prev==='price'){var sl=document.getElementById("priceRange");sl.value=sl.max;document.getElementById("priceValue").textContent=sl.max}
+    if(prev==='size'){activeSize='';renderSizeBoxes()}
+    if(prev==='style'){activeStyle='';renderStyleBoxes()}
+    if(prev==='fit'){activeFit='';renderFitBoxes()}
+    if(prev==='fabric'){activeFabric='';renderFabricBoxes()}
+    updateActiveFiltersBar();
+    runRegularSearch();
+    heroStep=prev;
+    renderHeroStep();
+  }
+}
+
+function checkHideHero(){
+  var hero=document.getElementById('heroDiscover');
+  if(hero&&!hero.classList.contains('hidden'))hero.classList.add('hidden');
+}
+
+var _origSelectStore=selectStore;
+selectStore=function(s){checkHideHero();_origSelectStore(s)};
+var _origRunAI=runAISearch;
+runAISearch=async function(){checkHideHero();await _origRunAI()};
+
+(async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch()})();
 </script>
 </body>
 </html>

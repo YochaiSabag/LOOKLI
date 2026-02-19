@@ -327,6 +327,35 @@
     #loadMoreBtn{margin:24px auto;display:block;max-width:220px;padding:14px 28px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:background .2s}
     #loadMoreBtn:hover{background:var(--accent-dark)}
     
+    /* Multi-select link */
+    
+    /* Multi-select modal */
+    .ms-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
+    .ms-modal-bg.open{display:flex}
+    .ms-modal{background:#fff;border-radius:18px;width:min(500px,95%);max-height:80vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column}
+    .ms-modal-head{padding:18px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+    .ms-modal-head h3{margin:0;font-size:18px;font-weight:700}
+    .ms-modal-close{width:36px;height:36px;border-radius:10px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    .ms-modal-body{padding:16px 20px;overflow-y:auto;flex:1}
+    .ms-checkbox{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .15s}
+    .ms-checkbox:hover{background:#f5f3ff}
+    .ms-checkbox input{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
+    .ms-checkbox label{font-size:14px;font-weight:600;cursor:pointer;flex:1}
+    .ms-checkbox .ms-color{width:22px;height:22px;border-radius:50%;border:2px solid #ddd;flex-shrink:0}
+    .ms-modal-foot{padding:14px 20px;border-top:1px solid #eee;display:flex;gap:10px}
+    .ms-modal-foot button{flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;border:none}
+    .ms-apply{background:var(--accent);color:#fff}
+    .ms-apply:hover{background:var(--accent-dark)}
+    .ms-clear{background:#f3f4f6;color:#555}
+    .ms-clear:hover{background:#e5e7eb}
+    
+    /* Hero cube selected state */
+    .hero-cube.selected{border-color:var(--accent);background:rgba(224,161,192,.1);box-shadow:0 4px 16px rgba(224,161,192,.25)}
+    .hero-cube.selected::after{content:"\2713";position:absolute;top:8px;left:8px;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center;font-weight:700}
+    .hero-color-cube.selected{border-color:var(--accent);background:rgba(224,161,192,.08)}
+    .hero-color-cube.selected .hero-color-circle{border-color:var(--accent);box-shadow:0 0 0 3px rgba(224,161,192,.3)}
+    .hero-cube{position:relative}
+    
     /* ===== Hero Discovery Section ===== */
     .hero-discover{width:100%;padding:30px 0 14px;text-align:center;background:#fff;border-bottom:1px solid #eee}
     .hero-discover.hidden{display:none}
@@ -337,6 +366,8 @@
     .hero-nav-btn:hover{border-color:var(--accent);color:var(--accent)}
     .hero-nav-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
     .hero-nav-btn.primary:hover{background:var(--accent-dark)}
+    .hero-nav-btn.primary.pulse{animation:heroPulse 1.5s ease-in-out infinite}
+    @keyframes heroPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
     .hero-nav-btn.disabled{opacity:.35;pointer-events:none}
     .hero-no-results{color:#e74c3c;font-size:15px;font-weight:600;margin-top:14px;padding:14px 24px;background:#fff5f5;border-radius:12px;display:inline-block}
     
@@ -593,6 +624,21 @@
     </aside>
   </div>
   
+  <!-- Multi-Select Modal -->
+  <div class="ms-modal-bg" id="msModal" onclick="closeMsModal(event)">
+    <div class="ms-modal" onclick="event.stopPropagation()">
+      <div class="ms-modal-head">
+        <h3 id="msModalTitle">בחירה מרובה</h3>
+        <button class="ms-modal-close" onclick="closeMsModal()">✕</button>
+      </div>
+      <div class="ms-modal-body" id="msModalBody"></div>
+      <div class="ms-modal-foot">
+        <button class="ms-clear" onclick="msClear()">נקה הכל</button>
+        <button class="ms-apply" onclick="msApply()">החל סינון</button>
+      </div>
+    </div>
+  </div>
+  
   <!-- MODAL -->
   <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
@@ -662,6 +708,7 @@
 
 <script>
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
+let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
 let lastSearchKeywords=[];
@@ -735,14 +782,16 @@ async function runAISearch(){
     const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
     const data=await res.json();
     lastSearchKeywords=data.analysis.keywords||[];
+    // Clear all existing filters before applying AI results
+    resetAllFiltersQuietly();
     // סנכרון הסיידבר עם תוצאות AI
     if(data.analysis.store){activeStore=data.analysis.store;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore))}
-    if(data.analysis.color){activeColor=data.analysis.color}
-    if(data.analysis.category){activeCategory=data.analysis.category}
-    if(data.analysis.size){activeSize=data.analysis.size}
-    if(data.analysis.style){activeStyle=data.analysis.style}
-    if(data.analysis.fit){activeFit=data.analysis.fit}
-    if(data.analysis.fabric){activeFabric=data.analysis.fabric}
+    if(data.analysis.color){activeColors=[data.analysis.color]}
+    if(data.analysis.category){activeCategories=[data.analysis.category]}
+    if(data.analysis.size){activeSizes=[data.analysis.size]}
+    if(data.analysis.style){activeStyles=[data.analysis.style]}
+    if(data.analysis.fit){activeFits=[data.analysis.fit]}
+    if(data.analysis.fabric){activeFabrics=[data.analysis.fabric]}
     if(data.analysis.pattern){activePattern=data.analysis.pattern}
     if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}
     if(data.analysis.maxPrice){document.getElementById("priceRange").value=Math.min(data.analysis.maxPrice,500);document.getElementById("priceValue").textContent=Math.min(data.analysis.maxPrice,500)}
@@ -764,12 +813,19 @@ async function runRegularSearch(){
   const params=new URLSearchParams();
   if(lastSearchKeywords.length>0)params.set("q",lastSearchKeywords.join(' '));
   if(activeStore)params.set("store",activeStore);
-  if(activeCategory)params.set("category",activeCategory);
-  if(activeSize)params.set("size",activeSize);
-  if(activeColor)params.set("color",activeColor);
-  if(activeStyle)params.set("style",activeStyle);
-  if(activeFit)params.set("fit",activeFit);
-  if(activeFabric)params.set("fabric",activeFabric);
+  // Multi-select: combine single + array selections
+  var catVal=activeCategory||(activeCategories.length?activeCategories.join(','):'');
+  var colorVal=activeColor||(activeColors.length?activeColors.join(','):'');
+  var sizeVal=activeSize||(activeSizes.length?activeSizes.join(','):'');
+  var styleVal=activeStyle||(activeStyles.length?activeStyles.join(','):'');
+  var fitVal=activeFit||(activeFits.length?activeFits.join(','):'');
+  var fabricVal=activeFabric||(activeFabrics.length?activeFabrics.join(','):'');
+  if(catVal)params.set("category",catVal);
+  if(sizeVal)params.set("size",sizeVal);
+  if(colorVal)params.set("color",colorVal);
+  if(styleVal)params.set("style",styleVal);
+  if(fitVal)params.set("fit",fitVal);
+  if(fabricVal)params.set("fabric",fabricVal);
   if(activePattern)params.set("pattern",activePattern);
   if(activeDesign)params.set("design",activeDesign);
   if(activeDiscount)params.set("minDiscount",activeDiscount);
@@ -909,76 +965,122 @@ async function initFilters(){
   if(data.maxPrice){const slider=document.getElementById("priceRange");const roundedMax=Math.ceil(data.maxPrice/10)*10;slider.max=roundedMax;slider.value=roundedMax;document.getElementById("priceValue").textContent=roundedMax}
 }
 
-function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes");div.innerHTML=`<div class="filter-opt${activeCategory===''?' active':''}" data-cat="" onclick="selectCategory('')">הכל</div>`+dbCategories.map(c=>`<div class="filter-opt${activeCategory===c?' active':''}" data-cat="${escapeHtml(c)}" onclick="selectCategory('${escapeHtml(c)}')">${escapeHtml(c)}</div>`).join('')}
-function renderColorGrid(){const div=document.getElementById("colorGrid");div.innerHTML=`<div class="color-opt${activeColor===''?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>`<div class="color-opt${activeColor===c?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`).join('')}
-function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");div.innerHTML=`<div class="size-opt${activeSize===''?' active':''}" data-size="" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>`<div class="size-opt${activeSize===s?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`).join('')}
-function renderStyleBoxes(){const div=document.getElementById("styleBoxes");if(dbStyles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeStyle===''?' active':''}" data-style="" onclick="selectStyle('')">הכל</div>`+dbStyles.map(s=>`<div class="filter-opt${activeStyle===s?' active':''}" data-style="${escapeHtml(s)}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`).join('')}
-function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFit===''?' active':''}" data-fit="" onclick="selectFit('')">הכל</div>`+allFits.map(f=>`<div class="filter-opt${activeFit===f?' active':''}" data-fit="${escapeHtml(f)}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
-function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeFabric===''?' active':''}" data-fabric="" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>`<div class="filter-opt${activeFabric===f?' active':''}" data-fabric="${escapeHtml(f)}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`).join('')}
-function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" data-pattern="" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" data-pattern="${escapeHtml(p)}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
-function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" data-design="" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" data-design="${escapeHtml(d)}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
+// Consolidated style map: שבת/ערב includes חגיגי+אלגנטי
+var styleConsolidation={'שבת/ערב':['ערב','חגיגי','אלגנטי','שבת','שבתי']};
+
+function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes");var cats=dbCategories.filter(c=>c!=='מכנסיים'&&c!=='סריג');var noSel=!activeCategory&&activeCategories.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectCategory('')">הכל</div>`+cats.map(c=>{var isA=activeCategory===c||activeCategories.indexOf(c)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectCategory('${escapeHtml(c)}')">${escapeHtml(c)}</div>`}).join('')}
+function renderColorGrid(){const div=document.getElementById("colorGrid");var noSel=!activeColor&&activeColors.length===0;div.innerHTML=`<div class="color-opt${noSel?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>{var isA=activeColor===c||activeColors.indexOf(c)!==-1;return `<div class="color-opt${isA?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`}).join('')}
+function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");var noSel=!activeSize&&activeSizes.length===0;div.innerHTML=`<div class="size-opt${noSel?' active':''}" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>{var isA=activeSize===s||activeSizes.indexOf(s)!==-1;return `<div class="size-opt${isA?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`}).join('')}
+function renderStyleBoxes(){const div=document.getElementById("styleBoxes");var consolidated=['שבת/ערב','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'];var styles=consolidated.filter(s=>s==='שבת/ערב'?dbStyles.some(d=>['ערב','חגיגי','אלגנטי'].includes(d)):dbStyles.includes(s));if(styles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';var noSel=!activeStyle&&activeStyles.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectStyle('')">הכל</div>`+styles.map(s=>{var isA=activeStyle===s||activeStyles.indexOf(s)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`}).join('')}
+function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';var noSel=!activeFit&&activeFits.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFit('')">הכל</div>`+allFits.map(f=>{var isA=activeFit===f||activeFits.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
+function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';var noSel=!activeFabric&&activeFabrics.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>{var isA=activeFabric===f||activeFabrics.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
+function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
+function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
 
 function updateActiveFiltersBar(){
   const tags=[];
-  if(activeStore)tags.push({type:'store',label:`חנות: ${activeStore}`,value:activeStore});
-  if(activeCategory)tags.push({type:'category',label:`סוג: ${activeCategory}`,value:activeCategory});
-  if(activeColor)tags.push({type:'color',label:`צבע: ${activeColor}`,value:activeColor});
-  if(activeSize)tags.push({type:'size',label:`מידה: ${formatSize(activeSize)}`,value:activeSize});
-  if(activeStyle)tags.push({type:'style',label:`סגנון: ${activeStyle}`,value:activeStyle});
-  if(activeFit)tags.push({type:'fit',label:`גיזרה: ${activeFit}`,value:activeFit});
-  if(activeFabric)tags.push({type:'fabric',label:`בד: ${activeFabric}`,value:activeFabric});
-  if(activePattern)tags.push({type:'pattern',label:`דוגמא: ${activePattern}`,value:activePattern});
-  if(activeDesign)tags.push({type:'design',label:`עיצוב: ${activeDesign}`,value:activeDesign});
-  if(activeDiscount)tags.push({type:'discount',label:`${activeDiscount}%+ הנחה`,value:activeDiscount});
-  if(lastSearchKeywords.length>0)tags.push({type:'keywords',label:`חיפוש: ${lastSearchKeywords.join(' ')}`,value:lastSearchKeywords.join(' ')});
+  if(activeStore)tags.push({type:'store',label:'חנות: '+activeStore});
+  if(activeCategory)tags.push({type:'category',label:'סוג: '+activeCategory});
+  if(activeColor)tags.push({type:'color',label:'צבע: '+activeColor});
+  if(activeSize)tags.push({type:'size',label:'מידה: '+formatSize(activeSize)});
+  if(activeStyle)tags.push({type:'style',label:'סגנון: '+activeStyle});
+  if(activeFit)tags.push({type:'fit',label:'גיזרה: '+activeFit});
+  if(activeFabric)tags.push({type:'fabric',label:'בד: '+activeFabric});
+  if(activePattern)tags.push({type:'pattern',label:'דוגמא: '+activePattern});
+  if(activeDesign)tags.push({type:'design',label:'עיצוב: '+activeDesign});
+  if(activeDiscount)tags.push({type:'discount',label:activeDiscount+'%+ הנחה'});
+  // Multi-select arrays
+  activeCategories.forEach(c=>tags.push({type:'category-'+c,label:'סוג: '+c}));
+  activeColors.forEach(c=>tags.push({type:'color-'+c,label:'צבע: '+c}));
+  activeSizes.forEach(s=>tags.push({type:'size-'+s,label:'מידה: '+formatSize(s)}));
+  activeStyles.forEach(s=>tags.push({type:'style-'+s,label:'סגנון: '+s}));
+  activeFits.forEach(f=>tags.push({type:'fit-'+f,label:'גיזרה: '+f}));
+  activeFabrics.forEach(f=>tags.push({type:'fabric-'+f,label:'בד: '+f}));
+  if(lastSearchKeywords.length>0)tags.push({type:'keywords',label:'חיפוש: '+lastSearchKeywords.join(' ')});
   
   const bar=document.getElementById("activeFiltersBar");
   const tagsDiv=document.getElementById("activeFiltersTags");
-  
-  if(tags.length===0){
-    bar.classList.remove('show');
-  }else{
+  if(tags.length===0){bar.classList.remove('show')}
+  else{
     bar.classList.add('show');
-    tagsDiv.innerHTML=tags.map(t=>`<span class="filter-tag">${escapeHtml(t.label)}<span class="remove-tag" onclick="removeFilter('${t.type}')">✕</span></span>`).join('');
+    tagsDiv.innerHTML=tags.map(t=>'<span class="filter-tag">'+escapeHtml(t.label)+'<span class="remove-tag" onclick="removeFilter(\''+escapeHtml(t.type)+'\')">✕</span></span>').join('');
   }
 }
 
 function removeFilter(type){
-  switch(type){
-    case'store':activeStore="";document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===''));break;
-    case'category':activeCategory="";renderCategoryBoxes();break;
-    case'color':activeColor="";renderColorGrid();break;
-    case'size':activeSize="";renderSizeBoxes();break;
-    case'style':activeStyle="";renderStyleBoxes();break;
-    case'fit':activeFit="";renderFitBoxes();break;
-    case'fabric':activeFabric="";renderFabricBoxes();break;
-    case'pattern':activePattern="";renderPatternBoxes();break;
-    case'design':activeDesign="";renderDesignBoxes();break;
-    case'discount':activeDiscount="";document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));break;
-    case'keywords':lastSearchKeywords=[];document.getElementById("q").value="";break;
-  }
+  if(type==='store'){activeStore="";document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===''))}
+  else if(type==='category'){activeCategory="";renderCategoryBoxes()}
+  else if(type==='color'){activeColor="";renderColorGrid()}
+  else if(type==='size'){activeSize="";renderSizeBoxes()}
+  else if(type==='style'){activeStyle="";renderStyleBoxes()}
+  else if(type==='fit'){activeFit="";renderFitBoxes()}
+  else if(type==='fabric'){activeFabric="";renderFabricBoxes()}
+  else if(type==='pattern'){activePattern="";renderPatternBoxes()}
+  else if(type==='design'){activeDesign="";renderDesignBoxes()}
+  else if(type==='discount'){activeDiscount="";document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''))}
+  else if(type==='keywords'){lastSearchKeywords=[];document.getElementById("q").value=""}
+  else if(type.startsWith('category-')){var v=type.substring(9);activeCategories=activeCategories.filter(x=>x!==v)}
+  else if(type.startsWith('color-')){var v2=type.substring(6);activeColors=activeColors.filter(x=>x!==v2)}
+  else if(type.startsWith('size-')){var v3=type.substring(5);activeSizes=activeSizes.filter(x=>x!==v3)}
+  else if(type.startsWith('style-')){var v4=type.substring(6);activeStyles=activeStyles.filter(x=>x!==v4)}
+  else if(type.startsWith('fit-')){var v5=type.substring(4);activeFits=activeFits.filter(x=>x!==v5)}
+  else if(type.startsWith('fabric-')){var v6=type.substring(7);activeFabrics=activeFabrics.filter(x=>x!==v6)}
   updateActiveFiltersBar();
   runRegularSearch();
 }
 
-function updateColorSelection(){document.querySelectorAll('.color-opt').forEach(el=>el.classList.toggle('active',el.dataset.color===activeColor));updateActiveFiltersBar()}
-function updateCategorySelection(){document.querySelectorAll('#categoryBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.cat===activeCategory));updateActiveFiltersBar()}
-function updateSizeSelection(){document.querySelectorAll('.size-opt').forEach(el=>el.classList.toggle('active',el.dataset.size===activeSize));updateActiveFiltersBar()}
 function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
 
 function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
-function selectCategory(c){activeCategory=(activeCategory===c)?"":c;renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectColor(c){activeColor=(activeColor===c)?"":c;renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
-function selectSize(s){activeSize=(activeSize===s)?"":s;renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectStyle(s){activeStyle=(activeStyle===s)?"":s;renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectFit(f){activeFit=(activeFit===f)?"":f;renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectFabric(f){activeFabric=(activeFabric===f)?"":f;renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectCategory(c){checkHideHero();if(!c){activeCategory='';activeCategories=[];}else{activeCategory='';var idx=activeCategories.indexOf(c);if(idx!==-1)activeCategories.splice(idx,1);else activeCategories.push(c);}renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectColor(c){checkHideHero();if(!c){activeColor='';activeColors=[];}else{activeColor='';var idx=activeColors.indexOf(c);if(idx!==-1)activeColors.splice(idx,1);else activeColors.push(c);}renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
+function selectSize(s){checkHideHero();if(!s){activeSize='';activeSizes=[];}else{activeSize='';var idx=activeSizes.indexOf(s);if(idx!==-1)activeSizes.splice(idx,1);else activeSizes.push(s);}renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectStyle(s){checkHideHero();if(!s){activeStyle='';activeStyles=[];}else{activeStyle='';var idx=activeStyles.indexOf(s);if(idx!==-1)activeStyles.splice(idx,1);else activeStyles.push(s);}renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectFit(f){checkHideHero();if(!f){activeFit='';activeFits=[];}else{activeFit='';var idx=activeFits.indexOf(f);if(idx!==-1)activeFits.splice(idx,1);else activeFits.push(f);}renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectFabric(f){checkHideHero();if(!f){activeFabric='';activeFabrics=[];}else{activeFabric='';var idx=activeFabrics.indexOf(f);if(idx!==-1)activeFabrics.splice(idx,1);else activeFabrics.push(f);}renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
 
+// === Multi-Select Modal ===
+var msCurrentType='';
+var msSelected=[];
+function openMsModal(type){
+  msCurrentType=type;
+  var items=[],title='';
+  if(type==='category'){title='בחירת סוגי מוצר';items=dbCategories.filter(c=>c!=='מכנסיים');msSelected=activeCategory?[activeCategory]:[...activeCategories]}
+  else if(type==='color'){title='בחירת צבעים';items=dbColors;msSelected=activeColor?[activeColor]:[...activeColors]}
+  else if(type==='size'){title='בחירת מידות';items=dbSizes;msSelected=activeSize?[activeSize]:[...activeSizes]}
+  else if(type==='style'){title='בחירת סגנונות';items=['שבת/ערב','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'];msSelected=activeStyle?[activeStyle]:[...activeStyles]}
+  else if(type==='fit'){title='בחירת גיזרות';items=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];msSelected=activeFit?[activeFit]:[...activeFits]}
+  else if(type==='fabric'){title='בחירת סוגי בד';items=dbFabrics;msSelected=activeFabric?[activeFabric]:[...activeFabrics]}
+  document.getElementById('msModalTitle').textContent=title;
+  var body=document.getElementById('msModalBody');
+  body.innerHTML=items.map(function(item){
+    var checked=msSelected.indexOf(item)!==-1?'checked':'';
+    var extra=type==='color'?'<span class="ms-color" style="background:'+getColorHex(item)+'"></span>':'';
+    return '<label class="ms-checkbox"><input type="checkbox" value="'+escapeHtml(item)+'" '+checked+' onchange="msToggle(this)"/>'+extra+'<span>'+escapeHtml(type==='size'?formatSize(item):item)+'</span></label>';
+  }).join('');
+  document.getElementById('msModal').classList.add('open');
+}
+function closeMsModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById('msModal').classList.remove('open')}
+function msToggle(cb){var v=cb.value;if(cb.checked){if(msSelected.indexOf(v)===-1)msSelected.push(v)}else{msSelected=msSelected.filter(x=>x!==v)}}
+function msClear(){msSelected=[];document.querySelectorAll('#msModalBody input').forEach(cb=>{cb.checked=false})}
+function msApply(){
+  if(msCurrentType==='category'){activeCategory='';activeCategories=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeCategory=msSelected[0];renderCategoryBoxes()}
+  else if(msCurrentType==='color'){activeColor='';activeColors=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeColor=msSelected[0];renderColorGrid()}
+  else if(msCurrentType==='size'){activeSize='';activeSizes=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeSize=msSelected[0];renderSizeBoxes()}
+  else if(msCurrentType==='style'){activeStyle='';activeStyles=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeStyle=msSelected[0];renderStyleBoxes()}
+  else if(msCurrentType==='fit'){activeFit='';activeFits=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeFit=msSelected[0];renderFitBoxes()}
+  else if(msCurrentType==='fabric'){activeFabric='';activeFabrics=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeFabric=msSelected[0];renderFabricBoxes()}
+  updateActiveFiltersBar();
+  runRegularSearch();
+  closeMsModal();
+}
+
 function resetAllFiltersQuietly(){
   activeStore="";activeCategory="";activeColor="";activeStyle="";activeFit="";activeDiscount="";activeFabric="";activePattern="";activeSize="";activeDesign="";
+  activeCategories=[];activeColors=[];activeSizes=[];activeStyles=[];activeFits=[];activeFabrics=[];
   const slider=document.getElementById("priceRange");slider.value=slider.max;document.getElementById("priceValue").textContent=slider.max;
   document.querySelectorAll(".store-opt").forEach(el=>el.classList.toggle('active',el.dataset.store===''));
   renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
@@ -1071,8 +1173,40 @@ function renderHeroNav(){
   if(prevStep&&heroStepNames[prevStep]){
     h+='<button class="hero-nav-btn" onclick="heroPrevStep()">'+heroStepNames[prevStep]+' \u2192 \u05D7\u05D6\u05E8\u05D4</button>';
   }
+  // Count current selections
+  var count=heroGetCurrentSelections().length;
   if(nextStep&&heroStepNames[nextStep]&&!heroNoResultsFlag){
-    h+='<button class="hero-nav-btn primary" onclick="heroNextStep()">'+heroStepNames[nextStep]+' \u2190</button>';
+    h+='<button class="hero-nav-btn primary'+(count>0?' pulse':'')+'" onclick="heroAdvanceStep()" style="'+(count>0?'font-size:16px;padding:12px 28px;':'')+'">'+heroStepNames[nextStep]+' \u2190'+(count>0?' ('+count+' \u05E0\u05D1\u05D7\u05E8\u05D5)':'')+'</button>';
+  } else if(heroStep!=='category'&&!heroNoResultsFlag){
+    h+='<button class="hero-nav-btn primary'+(count>0?' pulse':'')+'" onclick="heroAdvanceStep()" style="font-size:16px;padding:12px 28px;">\u05E1\u05D9\u05D5\u05DD \u2713</button>';
+  }
+  nav.innerHTML=h;
+}
+
+function heroGetCurrentSelections(){
+  if(heroStep==='category')return activeCategories.length?activeCategories:(activeCategory?[activeCategory]:[]);
+  if(heroStep==='color')return activeColors.length?activeColors:(activeColor?[activeColor]:[]);
+  if(heroStep==='size')return activeSizes.length?activeSizes:(activeSize?[activeSize]:[]);
+  if(heroStep==='style')return activeStyles.length?activeStyles:(activeStyle?[activeStyle]:[]);
+  if(heroStep==='fit')return activeFits.length?activeFits:(activeFit?[activeFit]:[]);
+  if(heroStep==='fabric')return activeFabrics.length?activeFabrics:(activeFabric?[activeFabric]:[]);
+  return [];
+}
+
+function renderHeroNav(){
+  var nav=document.getElementById('heroNavLabels');
+  var idx=heroSteps.indexOf(heroStep);
+  var prevStep=idx>0?heroSteps[idx-1]:null;
+  var nextStep=(idx<heroSteps.length-1)?heroSteps[idx+1]:null;
+  var h='';
+  if(prevStep&&heroStepNames[prevStep]){
+    h+='<button class="hero-nav-btn" onclick="heroPrevStep()">\u2192 '+heroStepNames[prevStep]+'</button>';
+  }
+  var count=heroGetCurrentSelections().length;
+  if(nextStep&&heroStepNames[nextStep]&&!heroNoResultsFlag){
+    h+='<button class="hero-nav-btn primary'+(count>0?' pulse':'')+'" onclick="heroAdvanceStep()" style="'+(count>0?'font-size:16px;padding:12px 28px;box-shadow:0 4px 16px rgba(144,97,249,.3);':'')+'">'+heroStepNames[nextStep]+' \u2190'+(count>0?' ('+count+')':'')+'</button>';
+  } else if(heroStep!=='category'&&!heroNoResultsFlag&&idx>=heroSteps.length-2){
+    h+='<button class="hero-nav-btn primary pulse" onclick="heroAdvanceStep()" style="font-size:16px;padding:12px 28px;box-shadow:0 4px 16px rgba(144,97,249,.3);">\u05E1\u05D9\u05D5\u05DD \u2713</button>';
   }
   nav.innerHTML=h;
 }
@@ -1084,12 +1218,13 @@ function renderHeroStep(){
   noResDiv.style.display='none';
   cubesDiv.className='hero-cubes';
   heroNoResultsFlag=false;
+  var sel=heroGetCurrentSelections();
   
   if(heroStep==='category'){
     labelDiv.textContent='\u05DE\u05D4 \u05D0\u05EA \u05DE\u05D7\u05E4\u05E9\u05EA?';
-    var cats=['שמלה','חולצה','חצאית','סט','בייסיק','קרדיגן','מעיל','טוניקה','סוודר','מכנסיים','עליונית'];
-    if(dbCategories.length>0){var o=[];cats.forEach(function(c){if(dbCategories.indexOf(c)!==-1)o.push(c)});dbCategories.forEach(function(c){if(o.indexOf(c)===-1)o.push(c)});cats=o}
-    cubesDiv.innerHTML=cats.map(function(c){return '<div class="hero-cube" onclick="heroSelect(\'category\',\''+escapeHtml(c)+'\')">'+heroIconHtml(c,getSvg(c))+'<span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
+    var cats=['שמלה','חולצה','חצאית','סט','בייסיק','קרדיגן','מעיל','טוניקה','סוודר','עליונית'];
+    if(dbCategories.length>0){var o=[];cats.forEach(function(c){if(dbCategories.indexOf(c)!==-1)o.push(c)});dbCategories.forEach(function(c){if(o.indexOf(c)===-1&&c!=='מכנסיים')o.push(c)});cats=o}
+    cubesDiv.innerHTML=cats.map(function(c){var is=sel.indexOf(c)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'category\',\''+escapeHtml(c)+'\',this)">'+heroIconHtml(c,getSvg(c))+'<span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
     
   } else if(heroStep==='color'){
     labelDiv.textContent='\u05D1\u05D0\u05D9\u05D6\u05D4 \u05E6\u05D1\u05E2?';
@@ -1097,66 +1232,89 @@ function renderHeroStep(){
     var pop=['שחור','לבן','כחול','אדום','ורוד','בז׳','שמנת','אפור','ירוק','חום','בורדו','סגול','אבן','קאמל','ניוד','צהוב','כתום','לילך','תכלת','זהב'];
     var colors=dbColors.length>0?dbColors:pop;
     if(dbColors.length>0){var o2=[];pop.forEach(function(c){if(colors.indexOf(c)!==-1)o2.push(c)});colors.forEach(function(c){if(o2.indexOf(c)===-1)o2.push(c)});colors=o2}
-    cubesDiv.innerHTML=colors.map(function(c){return '<div class="hero-color-cube" onclick="heroSelect(\'color\',\''+escapeHtml(c)+'\')"><div class="hero-color-circle" style="background:'+getColorHex(c)+'"></div><span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
+    cubesDiv.innerHTML=colors.map(function(c){var is=sel.indexOf(c)!==-1;return '<div class="hero-color-cube'+(is?' selected':'')+'" onclick="heroToggle(\'color\',\''+escapeHtml(c)+'\',this)"><div class="hero-color-circle" style="background:'+getColorHex(c)+'"></div><span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
     
   } else if(heroStep==='price'){
     labelDiv.textContent='\u05D1\u05D0\u05D9\u05D6\u05D4 \u05EA\u05E7\u05E6\u05D9\u05D1?';
     var prices=[{v:'100',l:'\u05E2\u05D3 \u20AA100'},{v:'150',l:'\u05E2\u05D3 \u20AA150'},{v:'200',l:'\u05E2\u05D3 \u20AA200'},{v:'300',l:'\u05E2\u05D3 \u20AA300'},{v:'500',l:'\u05E2\u05D3 \u20AA500'},{v:'',l:'\u05DC\u05DC\u05D0 \u05D4\u05D2\u05D1\u05DC\u05D4'}];
-    cubesDiv.innerHTML=prices.map(function(p){return '<div class="hero-cube" onclick="heroSelect(\'price\',\''+p.v+'\')"><span class="hero-big-text">'+(p.v?'\u20AA'+p.v:'\u221E')+'</span><span class="hero-cube-label">'+p.l+'</span></div>'}).join('');
+    cubesDiv.innerHTML=prices.map(function(p){return '<div class="hero-cube" onclick="heroSelectPrice(\''+p.v+'\')"><span class="hero-big-text">'+(p.v?'\u20AA'+p.v:'\u221E')+'</span><span class="hero-cube-label">'+p.l+'</span></div>'}).join('');
     
   } else if(heroStep==='size'){
     labelDiv.textContent='\u05DE\u05D4 \u05D4\u05DE\u05D9\u05D3\u05D4 \u05E9\u05DC\u05DA?';
     var popS=['S','M','L','XL','XS','XXL','XXXL','ONE SIZE'];
     var sizes=dbSizes.length>0?dbSizes:popS;
     if(dbSizes.length>0){var o3=[];popS.forEach(function(s){if(sizes.indexOf(s)!==-1)o3.push(s)});sizes.forEach(function(s){if(o3.indexOf(s)===-1)o3.push(s)});sizes=o3}
-    cubesDiv.innerHTML=sizes.map(function(s){var nums=sizeToNumbers[s]||'';return '<div class="hero-cube" onclick="heroSelect(\'size\',\''+escapeHtml(s)+'\')"><span class="hero-big-text">'+formatSize(s)+'</span><span class="hero-cube-label">\u05DE\u05D9\u05D3\u05D4 '+formatSize(s)+'</span>'+(nums?'<span class="hero-cube-sublabel">'+nums+'</span>':'')+'</div>'}).join('');
+    cubesDiv.innerHTML=sizes.map(function(s){var nums=sizeToNumbers[s]||'';var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'size\',\''+escapeHtml(s)+'\',this)"><span class="hero-big-text">'+formatSize(s)+'</span><span class="hero-cube-label">\u05DE\u05D9\u05D3\u05D4 '+formatSize(s)+'</span>'+(nums?'<span class="hero-cube-sublabel">'+nums+'</span>':'')+'</div>'}).join('');
     
   } else if(heroStep==='style'){
     if(!dbStyles||dbStyles.length===0){heroStep='fit';renderHeroStep();return}
     labelDiv.textContent='\u05D0\u05D9\u05D6\u05D4 \u05E1\u05D2\u05E0\u05D5\u05DF?';
-    var popSt=['\u05E2\u05E8\u05D1','\u05D9\u05D5\u05DD \u05D7\u05D5\u05DC','\u05D7\u05D2\u05D9\u05D2\u05D9','\u05E7\u05DC\u05D0\u05E1\u05D9','\u05D0\u05DC\u05D2\u05E0\u05D8\u05D9','\u05DE\u05D9\u05E0\u05D9\u05DE\u05DC\u05D9\u05E1\u05D8\u05D9','\u05D0\u05D5\u05D1\u05E8\u05E1\u05D9\u05D9\u05D6'];
-    var styles=dbStyles;var o4=[];popSt.forEach(function(s){if(styles.indexOf(s)!==-1)o4.push(s)});styles.forEach(function(s){if(o4.indexOf(s)===-1)o4.push(s)});
-    cubesDiv.innerHTML=o4.map(function(s){return '<div class="hero-cube" onclick="heroSelect(\'style\',\''+escapeHtml(s)+'\')">'+heroIconHtml(s,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(s)+'</span></div>'}).join('');
+    var consolidated=['שבת/ערב','יום חול','קלאסי','מינימליסטי','אוברסייז'];
+    var styles=consolidated.filter(function(s){return s==='שבת/ערב'?dbStyles.some(function(d){return ['ערב','חגיגי','אלגנטי'].indexOf(d)!==-1}):dbStyles.indexOf(s)!==-1});
+    if(styles.length===0){heroStep='fit';renderHeroStep();return}
+    cubesDiv.innerHTML=styles.map(function(s){var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'style\',\''+escapeHtml(s)+'\',this)">'+heroIconHtml(s,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(s)+'</span></div>'}).join('');
     
   } else if(heroStep==='fit'){
-    var popF=['\u05D0\u05E8\u05D5\u05DB\u05D4','\u05DE\u05D9\u05D3\u05D9','\u05E7\u05E6\u05E8\u05D4','\u05DE\u05D5\u05EA\u05DF','\u05D4\u05E8\u05D9\u05D5\u05DF','\u05D4\u05E0\u05E7\u05D4','\u05DE\u05E2\u05D8\u05E4\u05EA'];
+    var popF=['ארוכה','מידי','קצרה','מותן','הריון','הנקה','מעטפת'];
     var avail=popF.slice();
     if(dbFits.length>0){dbFits.forEach(function(f){if(avail.indexOf(f)===-1)avail.push(f)})}
     labelDiv.textContent='\u05D0\u05D9\u05D6\u05D5 \u05D2\u05D9\u05D6\u05E8\u05D4?';
-    cubesDiv.innerHTML=avail.map(function(f){return '<div class="hero-cube" onclick="heroSelect(\'fit\',\''+escapeHtml(f)+'\')">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
+    cubesDiv.innerHTML=avail.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fit\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
     
   } else if(heroStep==='fabric'){
     if(!dbFabrics||dbFabrics.length===0){heroStep='done';renderHeroStep();return}
-    var popFab=['\u05E1\u05E8\u05D9\u05D2','\u05E9\u05D9\u05E4\u05D5\u05DF','\u05DB\u05D5\u05EA\u05E0\u05D4','\u05E1\u05D0\u05D8\u05DF','\u05EA\u05D7\u05E8\u05D4','\u05E7\u05D8\u05D9\u05E4\u05D4','\u05E4\u05E9\u05EA\u05DF','\u05E4\u05E8\u05D5\u05D5\u05D4','\u05DE\u05E9\u05D9','\u05E6\u05DE\u05E8'];
+    var popFab=['סריג','שיפון','כותנה','סאטן','תחרה','קטיפה','פשתן','פרווה','משי','צמר'];
     var fabrics=dbFabrics;var o5=[];popFab.forEach(function(f){if(fabrics.indexOf(f)!==-1)o5.push(f)});fabrics.forEach(function(f){if(o5.indexOf(f)===-1)o5.push(f)});
     labelDiv.textContent='\u05E1\u05D5\u05D2 \u05D1\u05D3?';
-    cubesDiv.innerHTML=o5.map(function(f){return '<div class="hero-cube" onclick="heroSelect(\'fabric\',\''+escapeHtml(f)+'\')">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
+    cubesDiv.innerHTML=o5.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fabric\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
     
   } else {
     document.getElementById('heroDiscover').classList.add('hidden');
     renderHeroNav();
     return;
   }
-  // Scroll to end for RTL (except color grid which wraps)
-  if(heroStep!=='color'){
-    setTimeout(function(){cubesDiv.scrollLeft=cubesDiv.scrollWidth},50);
-  }
+  if(heroStep!=='color'){setTimeout(function(){cubesDiv.scrollLeft=cubesDiv.scrollWidth},50)}
   renderHeroNav();
 }
 
-function heroSelect(type,val){
-  if(type==='category'){activeCategory=val;renderCategoryBoxes()}
-  if(type==='color'){activeColor=val;renderColorGrid()}
-  if(type==='price'&&val){document.getElementById("priceRange").value=parseInt(val);document.getElementById("priceValue").textContent=val}
-  if(type==='size'){activeSize=val;renderSizeBoxes()}
-  if(type==='style'){activeStyle=val;renderStyleBoxes()}
-  if(type==='fit'){activeFit=val;renderFitBoxes()}
-  if(type==='fabric'){activeFabric=val;renderFabricBoxes()}
+// Toggle a cube selection (multi-select) - does NOT auto-advance
+function heroToggle(type,val,el){
+  var arr,setArr;
+  if(type==='category'){arr=activeCategories;activeCategory=''}
+  else if(type==='color'){arr=activeColors;activeColor=''}
+  else if(type==='size'){arr=activeSizes;activeSize=''}
+  else if(type==='style'){arr=activeStyles;activeStyle=''}
+  else if(type==='fit'){arr=activeFits;activeFit=''}
+  else if(type==='fabric'){arr=activeFabrics;activeFabric=''}
+  else return;
+  
+  var idx=arr.indexOf(val);
+  if(idx!==-1){arr.splice(idx,1);el.classList.remove('selected')}
+  else{arr.push(val);el.classList.add('selected')}
+  
+  // Sync sidebar
+  if(type==='category'){activeCategories=arr;renderCategoryBoxes()}
+  if(type==='color'){activeColors=arr;renderColorGrid()}
+  if(type==='size'){activeSizes=arr;renderSizeBoxes()}
+  if(type==='style'){activeStyles=arr;renderStyleBoxes()}
+  if(type==='fit'){activeFits=arr;renderFitBoxes()}
+  if(type==='fabric'){activeFabrics=arr;renderFabricBoxes()}
+  
   updateActiveFiltersBar();
-  heroRunSearchAndCheck();
+  skipScrollOnSearch=true;
+  runRegularSearch();
+  renderHeroNav();
 }
 
-async function heroRunSearchAndCheck(){
+// Price is still single-select with auto-advance
+function heroSelectPrice(val){
+  if(val){document.getElementById("priceRange").value=parseInt(val);document.getElementById("priceValue").textContent=val}
+  updateActiveFiltersBar();
+  heroAdvanceStep();
+}
+
+// Called by the prominent "next" button
+async function heroAdvanceStep(){
   skipScrollOnSearch=true;
   await runRegularSearch();
   var noResDiv=document.getElementById('heroNoResults');
@@ -1181,13 +1339,13 @@ function heroPrevStep(){
   var idx=heroSteps.indexOf(heroStep);
   if(idx>0){
     var prev=heroSteps[idx-1];
-    if(prev==='category'){activeCategory='';renderCategoryBoxes()}
-    if(prev==='color'){activeColor='';renderColorGrid()}
+    if(prev==='category'){activeCategory='';activeCategories=[];renderCategoryBoxes()}
+    if(prev==='color'){activeColor='';activeColors=[];renderColorGrid()}
     if(prev==='price'){var sl=document.getElementById("priceRange");sl.value=sl.max;document.getElementById("priceValue").textContent=sl.max}
-    if(prev==='size'){activeSize='';renderSizeBoxes()}
-    if(prev==='style'){activeStyle='';renderStyleBoxes()}
-    if(prev==='fit'){activeFit='';renderFitBoxes()}
-    if(prev==='fabric'){activeFabric='';renderFabricBoxes()}
+    if(prev==='size'){activeSize='';activeSizes=[];renderSizeBoxes()}
+    if(prev==='style'){activeStyle='';activeStyles=[];renderStyleBoxes()}
+    if(prev==='fit'){activeFit='';activeFits=[];renderFitBoxes()}
+    if(prev==='fabric'){activeFabric='';activeFabrics=[];renderFabricBoxes()}
     updateActiveFiltersBar();
     runRegularSearch();
     heroStep=prev;
@@ -1205,7 +1363,7 @@ selectStore=function(s){checkHideHero();_origSelectStore(s)};
 var _origRunAI=runAISearch;
 runAISearch=async function(){checkHideHero();await _origRunAI()};
 
-(async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch()})();
+(async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch();window.scrollTo(0,0)})();
 </script>
 </body>
 </html>

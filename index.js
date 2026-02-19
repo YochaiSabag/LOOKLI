@@ -69,30 +69,58 @@ app.get("/api/filters", async (req, res) => {
     let paramIndex = 1;
     
     if (store) { baseWhere += ` AND store = $${paramIndex++}`; baseParams.push(store); }
-    if (category) { baseWhere += ` AND (category = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(category, `%${category}%`); paramIndex += 2; }
-    if (style) { 
-      // יום חול - כל הווריאציות
-      if (style === 'יום חול') {
-        baseWhere += ` AND (style = $${paramIndex} OR style = 'יומיומי' OR title ILIKE '%יום חול%' OR title ILIKE '%יומיומי%' OR title ILIKE '%יום יום%' OR description ILIKE '%יום חול%' OR description ILIKE '%יומיומי%')`;
-        baseParams.push(style); paramIndex++;
+    if (category) { 
+      const cats = category.split(',').filter(Boolean);
+      if (cats.length === 1) {
+        baseWhere += ` AND (category = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(cats[0], `%${cats[0]}%`); paramIndex += 2;
       } else {
-        baseWhere += ` AND (style = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(style, `%${style}%`); paramIndex += 2;
+        baseWhere += ` AND category = ANY($${paramIndex}::text[])`; baseParams.push(cats); paramIndex++;
+      }
+    }
+    if (style) { 
+      const styles = style.split(',').filter(Boolean);
+      if (styles.length > 1) {
+        baseWhere += ` AND style = ANY($${paramIndex}::text[])`; baseParams.push(styles); paramIndex++;
+      } else if (styles[0] === 'יום חול') {
+        baseWhere += ` AND (style = $${paramIndex} OR style = 'יומיומי' OR title ILIKE '%יום חול%' OR title ILIKE '%יומיומי%' OR title ILIKE '%יום יום%' OR description ILIKE '%יום חול%' OR description ILIKE '%יומיומי%')`;
+        baseParams.push(styles[0]); paramIndex++;
+      } else if (styles[0] === 'שבת/ערב') {
+        baseWhere += ` AND (style IN ('ערב','חגיגי','אלגנטי','שבת') OR title ILIKE '%שבת%' OR title ILIKE '%ערב%' OR title ILIKE '%חגיג%' OR title ILIKE '%אלגנט%')`;
+      } else {
+        baseWhere += ` AND (style = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(styles[0], `%${styles[0]}%`); paramIndex += 2;
       }
     }
     if (fit) {
-      if (fit === '\u05d0\u05e8\u05d5\u05db\u05d4') {
+      const fits = fit.split(',').filter(Boolean);
+      if (fits.length > 1) {
+        baseWhere += ` AND fit = ANY($${paramIndex}::text[])`; baseParams.push(fits); paramIndex++;
+      } else if (fits[0] === '\u05d0\u05e8\u05d5\u05db\u05d4') {
         baseWhere += ` AND (fit = $${paramIndex} OR fit = '\u05d0\u05e8\u05d5\u05da' OR title ILIKE '%\u05de\u05e7\u05e1\u05d9%' OR title ILIKE '%maxi%')`;
-        baseParams.push(fit); paramIndex++;
-      } else if (fit === '\u05de\u05d9\u05d3\u05d9') {
+        baseParams.push(fits[0]); paramIndex++;
+      } else if (fits[0] === '\u05de\u05d9\u05d3\u05d9') {
         baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE '%\u05de\u05d9\u05d3\u05d9%' OR title ILIKE '%midi%' OR title ILIKE '%\u05d0\u05de\u05e6\u05e2%')`;
-        baseParams.push(fit); paramIndex++;
+        baseParams.push(fits[0]); paramIndex++;
       } else {
         baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE $${paramIndex + 1})`;
-        baseParams.push(fit, `%${fit}%`); paramIndex += 2;
+        baseParams.push(fits[0], `%${fits[0]}%`); paramIndex += 2;
       }
     }
-    if (color) { baseWhere += ` AND (color = $${paramIndex} OR $${paramIndex} = ANY(colors))`; baseParams.push(color); paramIndex++; }
-    if (size) { baseWhere += ` AND $${paramIndex} = ANY(sizes)`; baseParams.push(size); paramIndex++; }
+    if (color) { 
+      const colors = color.split(',').filter(Boolean);
+      if (colors.length === 1) {
+        baseWhere += ` AND (color = $${paramIndex} OR $${paramIndex} = ANY(colors))`; baseParams.push(colors[0]); paramIndex++;
+      } else {
+        baseWhere += ` AND (color = ANY($${paramIndex}::text[]) OR colors && $${paramIndex}::text[])`; baseParams.push(colors); paramIndex++;
+      }
+    }
+    if (size) { 
+      const sizes = size.split(',').filter(Boolean);
+      if (sizes.length === 1) {
+        baseWhere += ` AND $${paramIndex} = ANY(sizes)`; baseParams.push(sizes[0]); paramIndex++;
+      } else {
+        baseWhere += ` AND sizes && $${paramIndex}::text[]`; baseParams.push(sizes); paramIndex++;
+      }
+    }
     
     const [storesRes, sizesRes, colorsRes, stylesRes, fitsRes, categoriesRes, maxPriceRes, patternsRes, fabricsRes, designRes] = await Promise.all([
       pool.query(`SELECT DISTINCT store FROM products WHERE ${baseWhere} AND store IS NOT NULL ORDER BY store`, baseParams),
@@ -152,53 +180,118 @@ app.get("/api/products", async (req, res) => {
 
     if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
     
-    if (color) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(color); i++; }
-    if (size) {
-      const expandedSizes = expandSize(size);
-      if (expandedSizes.length === 1) {
-        sql += ` AND $${i} = ANY(sizes)`;
-        params.push(expandedSizes[0]); i++;
+    if (color) { 
+      const colors = color.split(',').filter(Boolean);
+      if (colors.length === 1) {
+        sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++;
       } else {
+        sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`;
+        params.push(colors); i++;
+      }
+    }
+    if (size) {
+      const sizes = size.split(',').filter(Boolean);
+      if (sizes.length === 1) {
+        const expandedSizes = expandSize(sizes[0]);
+        if (expandedSizes.length === 1) {
+          sql += ` AND $${i} = ANY(sizes)`;
+          params.push(expandedSizes[0]); i++;
+        } else {
+          sql += ` AND sizes && $${i}::text[]`;
+          params.push(expandedSizes); i++;
+        }
+      } else {
+        // Multi-select: expand all sizes and combine
+        const allExpanded = [];
+        sizes.forEach(s => expandSize(s).forEach(es => { if (!allExpanded.includes(es)) allExpanded.push(es); }));
         sql += ` AND sizes && $${i}::text[]`;
-        params.push(expandedSizes); i++;
+        params.push(allExpanded); i++;
       }
     }
     if (store) { sql += ` AND store = $${i++}`; params.push(store); }
     if (style) { 
-      if (style === '\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc') {
-        sql += ` AND (style = $${i} OR style = '\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR title ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d9\u05d5\u05dd%' OR description ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR description ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%')`;
-        params.push(style); i++;
+      const styles = style.split(',').filter(Boolean);
+      if (styles.length === 1) {
+        const s = styles[0];
+        if (s === '\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc') {
+          sql += ` AND (style = $${i} OR style = '\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR title ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d9\u05d5\u05dd%' OR description ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR description ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%')`;
+          params.push(s); i++;
+        } else if (s === '\u05e9\u05d1\u05ea/\u05e2\u05e8\u05d1') {
+          sql += ` AND (style IN ('\u05e2\u05e8\u05d1','\u05d7\u05d2\u05d9\u05d2\u05d9','\u05d0\u05dc\u05d2\u05e0\u05d8\u05d9','\u05e9\u05d1\u05ea') OR title ILIKE '%\u05e9\u05d1\u05ea%' OR title ILIKE '%\u05e2\u05e8\u05d1%' OR title ILIKE '%\u05d7\u05d2\u05d9\u05d2%' OR title ILIKE '%\u05d0\u05dc\u05d2\u05e0\u05d8%')`;
+        } else {
+          sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(s, `%${s}%`); i += 2;
+        }
       } else {
-        sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(style, `%${style}%`); i += 2;
+        const orParts = styles.map((_, idx) => `style = $${i + idx} OR title ILIKE $${i + styles.length + idx}`);
+        sql += ` AND (${orParts.join(' OR ')})`;
+        styles.forEach(s2 => params.push(s2));
+        styles.forEach(s2 => params.push(`%${s2}%`));
+        i += styles.length * 2;
       }
     }
     if (fit) { 
-      if (fit === 'ארוכה') {
-        sql += ` AND (fit = $${i} OR fit = 'ארוך' OR title ILIKE '%מקסי%' OR title ILIKE '%maxi%')`;
-        params.push(fit); i++;
-      } else if (fit === 'מידי') {
-        sql += ` AND (fit = $${i} OR title ILIKE '%מידי%' OR title ILIKE '%midi%' OR title ILIKE '%אמצע%')`;
-        params.push(fit); i++;
+      const fits = fit.split(',').filter(Boolean);
+      if (fits.length === 1) {
+        const f = fits[0];
+        if (f === 'ארוכה') {
+          sql += ` AND (fit = $${i} OR fit = 'ארוך' OR title ILIKE '%מקסי%' OR title ILIKE '%maxi%')`;
+          params.push(f); i++;
+        } else if (f === 'מידי') {
+          sql += ` AND (fit = $${i} OR title ILIKE '%מידי%' OR title ILIKE '%midi%' OR title ILIKE '%אמצע%')`;
+          params.push(f); i++;
+        } else {
+          sql += ` AND (fit = $${i} OR title ILIKE $${i+1})`;
+          params.push(f, `%${f}%`); i += 2;
+        }
       } else {
-        sql += ` AND (fit = $${i} OR title ILIKE $${i+1})`;
-        params.push(fit, `%${fit}%`); i += 2;
+        const orParts = fits.map((_, idx) => `fit = $${i + idx} OR title ILIKE $${i + fits.length + idx}`);
+        sql += ` AND (${orParts.join(' OR ')})`;
+        fits.forEach(f2 => params.push(f2));
+        fits.forEach(f2 => params.push(`%${f2}%`));
+        i += fits.length * 2;
       }
     }
     if (category) {
-      if (category === '\u05d7\u05dc\u05d5\u05e7') {
-        sql += ` AND (category = $${i} OR title ILIKE $${i+1} OR title ILIKE '%\u05d0\u05d9\u05e8\u05d5\u05d7%')`;
-        params.push(category, `%${category}%`); i += 2;
+      const cats = category.split(',').filter(Boolean);
+      if (cats.length === 1) {
+        const cat = cats[0];
+        if (cat === '\u05d7\u05dc\u05d5\u05e7') {
+          sql += ` AND (category = $${i} OR title ILIKE $${i+1} OR title ILIKE '%\u05d0\u05d9\u05e8\u05d5\u05d7%')`;
+          params.push(cat, `%${cat}%`); i += 2;
+        } else {
+          sql += ` AND (category = $${i} OR title ILIKE $${i+1})`;
+          params.push(cat, `%${cat}%`); i += 2;
+        }
       } else {
-        sql += ` AND (category = $${i} OR title ILIKE $${i+1})`;
-        params.push(category, `%${category}%`); i += 2;
+        // Multi-select: OR logic - category matches any, or title contains any
+        const orParts = cats.map((_, idx) => `category = $${i + idx} OR title ILIKE $${i + cats.length + idx}`);
+        sql += ` AND (${orParts.join(' OR ')})`;
+        cats.forEach(c => params.push(c));
+        cats.forEach(c => params.push(`%${c}%`));
+        i += cats.length * 2;
       }
     }
-    if (fabric) { sql += ` AND (fabric = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(fabric, `%${fabric}%`); i += 2; }
+    if (fabric) { 
+      const fabrics = fabric.split(',').filter(Boolean);
+      if (fabrics.length === 1) {
+        sql += ` AND (fabric = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(fabrics[0], `%${fabrics[0]}%`); i += 2;
+      } else {
+        sql += ` AND (fabric = ANY($${i}::text[]))`;
+        params.push(fabrics); i++;
+      }
+    }
     if (pattern) { 
       if (pattern === '\u05d7\u05dc\u05e7') {
         sql += ` AND (pattern = $${i})`; params.push(pattern); i++;
       } else {
+    if (pattern) { 
+      if (pattern === 'חלק') {
+        sql += ` AND (pattern = $${i} OR title ~* $${i+1} OR description ~* $${i+1})`; 
+        params.push(pattern, '(^|\\s)חלק(ה?)($|\\s|\\.)'); i += 2;
+      } else {
         sql += ` AND (pattern = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(pattern, `%${pattern}%`); i += 2;
+      }
+    }
       }
     }
     if (design) { sql += ` AND $${i++} = ANY(design_details)`; params.push(design); }

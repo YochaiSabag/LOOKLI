@@ -127,3 +127,19 @@ CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_users_updated_at();
+
+-- Sponsored Products (מוצרים ממומנים)
+CREATE TABLE IF NOT EXISTS sponsored_products (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  store VARCHAR(50),
+  priority INTEGER DEFAULT 0,        -- ערך גבוה = מופיע ראשון
+  active BOOLEAN DEFAULT true,
+  price_paid DECIMAL(10,2),          -- כמה שולם לתקופה
+  expires_at TIMESTAMP,              -- NULL = אין תפוגה
+  notes TEXT,                        -- הערות פנימיות
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sponsored_active ON sponsored_products(active, priority DESC);
+CREATE INDEX IF NOT EXISTS idx_sponsored_product ON sponsored_products(product_id);

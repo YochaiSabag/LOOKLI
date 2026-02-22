@@ -767,6 +767,44 @@ app.get("/api/debug/db", async (req, res) => {
 });
 
 
+
+// ===== SPONSORED PRODUCTS =====
+// GET /api/sponsored — מחזיר מוצרים ממומנים פעילים
+app.get("/api/sponsored", async (req, res) => {
+  try {
+    const q = req.query.q || "";
+    // מחזיר מוצרים ממומנים פעילים, ממוינים לפי עדיפות
+    // אם יש query — מוצרים שרלוונטיים לקטגוריה מקבלים עדיפות
+    let query, params;
+    if (q) {
+      query = `
+        SELECT sp.*, p.image_url, p.source_url, p.title, p.price, p.store
+        FROM sponsored_products sp
+        JOIN products p ON p.id = sp.product_id
+        WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
+        ORDER BY
+          CASE WHEN p.title ILIKE $1 OR p.category ILIKE $1 THEN 0 ELSE 1 END,
+          sp.priority DESC, sp.created_at DESC
+        LIMIT 4`;
+      params = [`%${q}%`];
+    } else {
+      query = `
+        SELECT sp.*, p.image_url, p.source_url, p.title, p.price, p.store
+        FROM sponsored_products sp
+        JOIN products p ON p.id = sp.product_id
+        WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
+        ORDER BY sp.priority DESC, sp.created_at DESC
+        LIMIT 4`;
+      params = [];
+    }
+    const result = await pool.query(query, params);
+    res.json({ sponsored: result.rows });
+  } catch (e) {
+    // טבלה לא קיימת — מחזיר רשימה ריקה בשקט
+    res.json({ sponsored: [] });
+  }
+});
+
 // ===== AUTH HELPERS =====
 const JWT_SECRET = process.env.JWT_SECRET || "lookli_secret_2026_change_in_prod";
 

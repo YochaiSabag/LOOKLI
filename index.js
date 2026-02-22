@@ -9,6 +9,42 @@ const __dirname = path.dirname(__filename);
 
 const { Pool } = pkg;
 const app = express();
+
+// ===== SEO helpers (robots.txt + sitemap.xml) =====
+const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
+
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain");
+  res.send(`User-agent: *
+Allow: /
+Sitemap: ${SITE_URL}/sitemap.xml
+`);
+});
+
+app.get("/sitemap.xml", (req, res) => {
+  res.type("application/xml");
+  const now = new Date().toISOString();
+  const urls = [
+    { loc: `${SITE_URL}/`, priority: "1.0" },
+    { loc: `${SITE_URL}/about.html`, priority: "0.6" },
+    { loc: `${SITE_URL}/contact.html`, priority: "0.6" },
+  ];
+
+  const xml =
+`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`).join("\n")}
+</urlset>`;
+
+  res.send(xml);
+});
+// ================================================
+
 app.get("/api/debug/version", (req, res) => {
   res.json({
     version: "v1-debug-2026-02-06-01",
@@ -201,11 +237,12 @@ app.get("/api/products", async (req, res) => {
           params.push(expandedSizes); i++;
         }
       } else {
-        // Multi-select: expand all sizes and combine
+        // Multi-select: expand all sizes and combine  
         const allExpanded = [];
         sizes.forEach(s => expandSize(s).forEach(es => { if (!allExpanded.includes(es)) allExpanded.push(es); }));
         sql += ` AND sizes && $${i}::text[]`;
         params.push(allExpanded); i++;
+        console.log('[multi-size] expanded:', allExpanded, 'from:', sizes);
       }
     }
     if (store) { sql += ` AND store = $${i++}`; params.push(store); }
@@ -306,15 +343,21 @@ app.get("/api/products", async (req, res) => {
     
     // סינון color+size ב-JS: אם שניהם צוינו, נבדוק ב-color_sizes שהצבע זמין במידה
     if (color && size) {
-      const expandedSizes = expandSize(size);
+      const sizeList = size.split(',').filter(Boolean);
+      const allExpandedSizes = [];
+      sizeList.forEach(s => expandSize(s).forEach(es => { if (!allExpandedSizes.includes(es)) allExpandedSizes.push(es); }));
+      const colorList = color.split(',').filter(Boolean);
       rows = rows.filter(p => {
         if (!p.color_sizes) return true; // אין מידע - מציג
         try {
           const cs = typeof p.color_sizes === 'string' ? JSON.parse(p.color_sizes) : p.color_sizes;
           if (!cs || Object.keys(cs).length === 0) return true;
-          const colorSizes = cs[color];
-          if (!colorSizes) return false; // הצבע לא קיים כלל
-          return expandedSizes.some(sz => colorSizes.includes(sz));
+          // Check if ANY selected color has ANY selected size
+          return colorList.some(c => {
+            const colorSizes = cs[c];
+            if (!colorSizes) return false;
+            return allExpandedSizes.some(sz => colorSizes.includes(sz));
+          });
         } catch(e) { return true; }
       });
     }

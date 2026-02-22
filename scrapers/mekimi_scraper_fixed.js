@@ -278,174 +278,84 @@ function normalizeSize(s) {
 }
 
 // ======================================================================
-// זיהוי קטגוריה מהכותרת
+// UNIFIED DETECT FUNCTIONS - v2
 // ======================================================================
+
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
-  
-  // סדר חשוב - בדיקות ספציפיות קודם
+  // סדר חשוב - ספציפי קודם
   if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
-  if (/סוודר|sweater|סוודר/i.test(t)) return 'סוודר';
-  if (/גולף/i.test(t)) return 'גולף';  // גולף = עיצוב, אבל גם קטגוריה אם זה המוצר העיקרי
+  if (/סוודר|sweater/i.test(t)) return 'סוודר';
   if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
   if (/סרפן|pinafore/i.test(t)) return 'סרפן';
   if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
   if (/חצאית|skirt/i.test(t)) return 'חצאית';
   if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
   if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
-  if (/ז׳קט|ג׳קט|jacket/i.test(t)) return 'ז׳קט';
+  if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
   if (/וסט|vest/i.test(t)) return 'וסט';
   if (/עליונית/i.test(t)) return 'עליונית';
   if (/מעיל|coat/i.test(t)) return 'מעיל';
-  if (/שכמיה|cape|poncho/i.test(t)) return 'שכמיה';
-  if (/קפוצ׳ון|קפוצון|hoodie/i.test(t)) return 'קפוצ׳ון';
+  if (/שכמיה|cape|poncho|פונצ׳ו/i.test(t)) return 'עליונית';
   if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
-  if (/מכנס|pants|trousers|ג׳ינס|jeans/i.test(t)) return 'מכנסיים';
   if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
   if (/סט|set/i.test(t)) return 'סט';
-  
+  if (/בייסיק|basic/i.test(t)) return 'בייסיק';
+  if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
+  // מכנסיים - לא מציגים
   return null;
 }
 
-// זיהוי סגנון מכותרת ותיאור
 function detectStyle(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
-  
-  // ערב (כולל "שבת") - חגיגי/פורמלי
-  if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף/i.test(text)) return 'ערב';
-  // חגיגי
-  if (/חגיג|celebration|festive/i.test(text)) return 'חגיגי';
-  // אלגנטי
-  if (/אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'אלגנטי';
-  // קלאסי
+  if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף|חגיג|celebration|festive|אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'ערב';
+  if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|daily|everyday|יום.?יום/i.test(text)) return 'יום חול';
   if (/קלאסי|classic|נצחי|timeless/i.test(text)) return 'קלאסי';
-  // מינימליסטי
-  if (/מינימליסט|minimal|פשוט|נקי|clean/i.test(text)) return 'מינימליסטי';
-  // מודרני
+  if (/מינימליסט|minimal|נקי|clean/i.test(text)) return 'מינימליסטי';
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  if (/רטרו|retro|וינטג׳|וינטג'|vintage/i.test(text)) return 'רטרו';
   if (/מודרני|modern|עכשווי|contemporary/i.test(text)) return 'מודרני';
-  // רטרו
-  if (/רטרו|retro|וינטג׳|vintage/i.test(text)) return 'רטרו';
-  // אוברסייז
-  if (/אוברסייז|oversize|oversized|רחב מאוד/i.test(text)) return 'אוברסייז';
-  // יום חול - כל הווריאציות
-  if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|יום.?יום|ליום.?יום|daily|everyday|יום-יומי|יומי/i.test(text)) return 'יום חול';
-  
+  if (/בייסיק|basic|בסיסי/i.test(text)) return 'יום חול';
   return '';
 }
 
-// זיהוי גיזרה מכותרת בלבד (לא מתיאור!)
 function detectFit(title, description = '') {
-  // חשוב: מזהים גיזרה רק מהכותרת, לא מהתיאור
   const text = (title || '').toLowerCase();
-  
-  // ישרה
-  if (/ישרה|straight/i.test(text)) return 'ישרה';
-  // A
-  if (/a.?line|איי.?ליין/i.test(text)) return 'A';
-  // מתרחבת
-  if (/מתרחב|flare|התרחבות/i.test(text)) return 'מתרחבת';
-  // רפויה / רחבה
-  if (/רפוי|רחב|loose|relaxed|wide/i.test(text)) return 'רפויה';
-  // אוברסייז
-  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
-  // מחויטת
-  if (/מחויט|tailored|מותאמ/i.test(text)) return 'מחויטת';
-  // מעטפת
-  if (/מעטפ|wrap/i.test(text)) return 'מעטפת';
-  // עפרון
-  if (/עפרון|pencil/i.test(text)) return 'עפרון';
-  // צמודה / צרה
-  if (/צמוד|tight|fitted|bodycon|צמודה|צר|narrow/i.test(text)) return 'צמודה';
-  // ארוכה (=מקסי)
-  if (/מקסי|maxi|ארוכ/i.test(text)) return 'ארוכה';
-  // מידי (=אמצע)
-  if (/מידי|midi|אמצע/i.test(text)) return 'מידי';
-  // קצרה (=מיני)
-  if (/קצר|מיני|mini|short/i.test(text)) return 'קצרה';
-  // הריון והנקה ומותן - בודקים גם בתיאור
   const fullText = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/ישרה|straight/i.test(text)) return 'ישרה';
+  if (/a.?line|איי.?ליין/i.test(text)) return 'A';
+  if (/מתרחב|flare|התרחבות/i.test(text)) return 'מתרחבת';
+  if (/רפוי|רחב|loose|relaxed|wide/i.test(text)) return 'רפויה';
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  if (/מחויט|tailored|מותאמ/i.test(text)) return 'מחויטת';
+  if (/מעטפ|wrap/i.test(text)) return 'מעטפת';
+  if (/עפרון|pencil/i.test(text)) return 'עפרון';
+  if (/צמוד|tight|fitted|bodycon|צר|narrow/i.test(text)) return 'צמודה';
+  if (/מקסי|maxi|ארוכ/i.test(text)) return 'ארוכה';
+  if (/מידי|midi|אמצע/i.test(text)) return 'מידי';
+  if (/קצר|מיני|mini|short/i.test(text)) return 'קצרה';
   if (/במותן|מותן גבוה|מותן נמוך|high.?waist|waisted/i.test(fullText)) return 'מותן';
   if (/הריון|pregnancy|maternity/i.test(fullText)) return 'הריון';
   if (/הנקה|nursing|breastfeed/i.test(fullText)) return 'הנקה';
-  
   return '';
 }
 
-// ======================================================================
-// זיהוי פרטי עיצוב מכותרת ותיאור
-// ======================================================================
-function detectDesignDetails(title, description = '') {
-  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
-  const details = [];
-  
-  // צווארון
-  if (/צווארון\s*וי|צווארון\s*v|v.?neck/i.test(text)) details.push('צווארון V');
-  if (/צווארון\s*עגול|round.?neck|crew.?neck/i.test(text)) details.push('צווארון עגול');
-  if (/גולף|turtle.?neck|mock.?neck/i.test(text)) details.push('גולף');
-  if (/צווארון\s*סיני|mandarin|צווארון\s*גבוה/i.test(text)) details.push('צווארון גבוה');
-  if (/בואט|boat.?neck|סירה/i.test(text)) details.push('צווארון סירה');
-  if (/חשוף\s*כתפ|off.?shoulder|כתף\s*חשופה/i.test(text)) details.push('כתפיים חשופות');
-  
-  // כפתורים ורוכסנים
-  if (/כפתור|מכופתר|button/i.test(text)) details.push('כפתורים');
-  if (/רוכסן|zipper|zip/i.test(text)) details.push('רוכסן');
-  
-  // שרוולים
-  if (/שרוול\s*ארוך|long.?sleeve/i.test(text)) details.push('שרוול ארוך');
-  if (/שרוול\s*קצר|short.?sleeve/i.test(text)) details.push('שרוול קצר');
-  if (/שרוול\s*3\/4|שרוול\s*שלושת\s*רבעי/i.test(text)) details.push('שרוול 3/4');
-  if (/ללא\s*שרוול|sleeveless|בלי\s*שרוול/i.test(text)) details.push('ללא שרוולים');
-  if (/שרוול\s*פעמון|bell.?sleeve/i.test(text)) details.push('שרוול פעמון');
-  if (/שרוול\s*נפוח|puff.?sleeve/i.test(text)) details.push('שרוול נפוח');
-  
-  // חגורה וקשירה
-  if (/חגורה|belt/i.test(text)) details.push('חגורה');
-  if (/קשירה|tie|bow/i.test(text)) details.push('קשירה');
-  
-  // כיסים
-  if (/כיס|pocket/i.test(text)) details.push('כיסים');
-  
-  // תחרה ופרטים
-  if (/תחרה|lace/i.test(text)) details.push('תחרה');
-  if (/פפלום|peplum/i.test(text)) details.push('פפלום');
-  if (/מלמלה|ruffle|ראפל/i.test(text)) details.push('מלמלה');
-  if (/קפלים|pleat/i.test(text)) details.push('קפלים');
-  if (/שסע|slit/i.test(text)) details.push('שסע');
-  if (/קומות|tier|tiered/i.test(text)) details.push('קומות');
-  if (/כיווצ|shirring|גומי/i.test(text)) details.push('כיווצים');
-  if (/תיקתק|snap/i.test(text)) details.push('תיקתק');
-  if (/מעטפ|wrap/i.test(text)) details.push('מעטפת');
-  
-  return details;
-}
-
-// ======================================================================
-// זיהוי דוגמא/הדפס מכותרת ותיאור
-// ======================================================================
 function detectPattern(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
-  
-  if (/פסים|striped|stripe/i.test(text)) return 'פסים';
-  if (/פרחוני|floral|flower|פרח/i.test(text)) return 'פרחוני';
-  if (/משבצות|plaid|check|checkered/i.test(text)) return 'משבצות';
-  if (/נקודות|polka|dot|dots/i.test(text)) return 'נקודות';
-  if (/הדפס|print|printed/i.test(text)) return 'הדפס';
+  if (/פסים|פס |striped?/i.test(text)) return 'פסים';
+  if (/פרחוני|פרחים|floral|flower/i.test(text)) return 'פרחוני';
+  if (/משבצות|plaid|check/i.test(text)) return 'משבצות';
+  if (/נקודות|dots|polka/i.test(text)) return 'נקודות';
+  if (/גיאומטרי|geometric/i.test(text)) return 'גיאומטרי';
   if (/אבסטרקט|abstract/i.test(text)) return 'אבסטרקטי';
-  if (/גיאומטר|geometric/i.test(text)) return 'גיאומטרי';
-  if (/חיות|animal|leopard|zebra|נמר/i.test(text)) return 'חיות';
-  
-  // חלק - בדיקה מיוחדת: לא "חלק מ..." ולא "חלק עליון" וכו'
-  if (/חלק(?!\s*(מ|מן|מה|עליון|תחתון|של|מסט|מהסט|ב|את|מאוד|ניכר))/i.test(text)) return 'חלק';
-  
+  if (/הדפס|print/i.test(text)) return 'הדפס';
+  if (/חלקה?\b|plain|solid/i.test(text)) return 'חלק';
   return '';
 }
 
-// ======================================================================
-// זיהוי סוג בד מכותרת ותיאור
-// ======================================================================
 function detectFabric(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
-  
   if (/סריג|knit|knitted/i.test(text)) return 'סריג';
   if (/אריג|woven/i.test(text)) return 'אריג';
   if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
@@ -460,15 +370,50 @@ function detectFabric(title, description = '') {
   if (/לייקרה|lycra|spandex/i.test(text)) return 'לייקרה';
   if (/טריקו|tricot/i.test(text)) return 'טריקו';
   if (/רשת|mesh|net/i.test(text)) return 'רשת';
-  if (/ג׳ינס|ג'ינס|denim|jeans/i.test(text)) return 'ג׳ינס';
+  if (/ג׳ינס|ג'ינס|jeans|דנים|denim/i.test(text)) return 'ג׳ינס';
   if (/קורדרוי|corduroy/i.test(text)) return 'קורדרוי';
   if (/כותנה|cotton/i.test(text)) return 'כותנה';
   if (/פשתן|linen/i.test(text)) return 'פשתן';
   if (/משי|silk/i.test(text)) return 'משי';
   if (/צמר|wool/i.test(text)) return 'צמר';
   if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
-  
+  if (/פרווה|fur|faux.?fur/i.test(text)) return 'פרווה';
   return '';
+}
+
+function detectDesignDetails(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  const details = [];
+  // צווארון
+  if (/צווארון\s*וי|v.?neck/i.test(text)) details.push('צווארון V');
+  if (/צווארון\s*עגול|round.?neck|crew.?neck/i.test(text)) details.push('צווארון עגול');
+  if (/גולף|turtle.?neck|mock.?neck/i.test(text)) details.push('גולף');
+  if (/סטרפלס|strapless|חשוף.?כתפ/i.test(text)) details.push('סטרפלס');
+  if (/כתפיי?ה|off.?shoulder|חשוף/i.test(text) && !/חשוף.?כתפ/.test(text)) details.push('חשוף כתפיים');
+  if (/קולר|choker|halter/i.test(text)) details.push('קולר');
+  if (/סירה|boat.?neck|bateau/i.test(text)) details.push('צווארון סירה');
+  // שרוולים
+  if (/שרוול\s*ארוך|long.?sleeve/i.test(text)) details.push('שרוול ארוך');
+  if (/שרוול\s*קצר|short.?sleeve/i.test(text)) details.push('שרוול קצר');
+  if (/3\/4|שרוול\s*3|three.?quarter/i.test(text)) details.push('שרוול 3/4');
+  if (/ללא\s*שרוול|sleeveless|גופיי?ה/i.test(text)) details.push('ללא שרוולים');
+  if (/שרוול\s*פעמון|bell.?sleeve/i.test(text)) details.push('שרוול פעמון');
+  if (/שרוול\s*נפוח|puff.?sleeve|שרוול\s*בלון/i.test(text)) details.push('שרוול נפוח');
+  // כפתורים ורוכסנים
+  if (/כפתור|מכופתר|button/i.test(text)) details.push('כפתורים');
+  if (/רוכסן|zipper|zip/i.test(text)) details.push('רוכסן');
+  // חגורה וקשירה
+  if (/חגורה|belt/i.test(text)) details.push('חגורה');
+  if (/קשירה|tie|bow/i.test(text)) details.push('קשירה');
+  // כיסים
+  if (/כיס|pocket/i.test(text)) details.push('כיסים');
+  // שסע
+  if (/שסע|slit/i.test(text)) details.push('שסע');
+  // פפלום
+  if (/פפלום|peplum/i.test(text)) details.push('פפלום');
+  // שכבות
+  if (/שכבות|layer/i.test(text)) details.push('שכבות');
+  return details;
 }
 
 async function getAllProductUrls(page) {

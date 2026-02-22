@@ -81,4 +81,49 @@ DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at
     BEFORE UPDATE ON products
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE FUNCTION update_updated_at_column();-- LOOKLI Users & Saved Products Schema
+-- SAFE: Only CREATE IF NOT EXISTS, no drops
+
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(100),
+  plan VARCHAR(20) DEFAULT 'free',  -- 'free' | 'premium'
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Saved products per user
+CREATE TABLE IF NOT EXISTS saved_products (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_source_url TEXT NOT NULL,
+  product_title TEXT,
+  product_price DECIMAL(10,2),
+  product_image TEXT,
+  product_store VARCHAR(50),
+  saved_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, product_source_url)
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_saved_user_id ON saved_products(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_user_saved_at ON saved_products(user_id, saved_at DESC);
+
+-- Auto-update updated_at for users
+CREATE OR REPLACE FUNCTION update_users_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_users_updated_at();

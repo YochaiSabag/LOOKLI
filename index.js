@@ -3,6 +3,7 @@ import express from "express";
 import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createHmac, randomBytes } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -762,6 +763,162 @@ app.get("/api/debug/db", async (req, res) => {
     res.json(r.rows[0]);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+
+// ===== AUTH HELPERS =====
+const JWT_SECRET = process.env.JWT_SECRET || "lookli_secret_2026_change_in_prod";
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = createHmac("sha256", salt).update(password).digest("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, hash] = stored.split(":");
+  const check = createHmac("sha256", salt).update(password).digest("hex");
+  return check === hash;
+}
+
+function createToken(userId, email) {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ sub: userId, email, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 })).toString("base64url");
+  const sig = createHmac("sha256", JWT_SECRET).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${sig}`;
+}
+
+function verifyToken(token) {
+  try {
+    const [header, payload, sig] = token.split(".");
+    const check = createHmac("sha256", JWT_SECRET).update(`${header}.${payload}`).digest("base64url");
+    if (check !== sig) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (data.exp < Math.floor(Date.now() / 1000)) return null;
+    return data;
+  } catch(e) { return null; }
+}
+
+function authMiddleware(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "לא מחובר" });
+  const data = verifyToken(token);
+  if (!data) return res.status(401).json({ error: "פג תוקף החיבור" });
+  req.userId = data.sub;
+  req.userEmail = data.email;
+  next();
+}
+
+// POST /api/auth/register
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "אימייל וסיסמה חובה" });
+    if (password.length < 6) return res.status(400).json({ error: "סיסמה חייבת לפחות 6 תווים" });
+    const emailLower = email.toLowerCase().trim();
+    const existing = await pool.query("SELECT id FROM users WHERE email=$1", [emailLower]);
+    if (existing.rows.length > 0) return res.status(409).json({ error: "אימייל כבר רשום" });
+    const hash = hashPassword(password);
+    const result = await pool.query(
+      "INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id, email, name, plan, created_at",
+      [emailLower, hash, name || null]
+    );
+    const user = result.rows[0];
+    const token = createToken(user.id, user.email);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+  } catch (e) {
+    console.error("register error:", e.message);
+    if (e.message.includes("users") && e.message.includes("exist")) {
+      return res.status(500).json({ error: "טבלת משתמשים לא קיימת - הרץ schema_users.sql" });
+    }
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/auth/login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "אימייל וסיסמה חובה" });
+    const emailLower = email.toLowerCase().trim();
+    const result = await pool.query("SELECT * FROM users WHERE email=$1", [emailLower]);
+    if (result.rows.length === 0) return res.status(401).json({ error: "אימייל או סיסמה שגויים" });
+    const user = result.rows[0];
+    if (!verifyPassword(password, user.password_hash)) return res.status(401).json({ error: "אימייל או סיסמה שגויים" });
+    const token = createToken(user.id, user.email);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+  } catch (e) {
+    console.error("login error:", e.message);
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// GET /api/auth/me
+app.get("/api/auth/me", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, email, name, plan, created_at FROM users WHERE id=$1", [req.userId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "משתמש לא נמצא" });
+    res.json({ user: result.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/saved - save a product
+app.post("/api/saved", authMiddleware, async (req, res) => {
+  try {
+    const { source_url, title, price, image, store } = req.body;
+    if (!source_url) return res.status(400).json({ error: "חסר URL" });
+    await pool.query(
+      `INSERT INTO saved_products(user_id, product_source_url, product_title, product_price, product_image, product_store)
+       VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id, product_source_url) DO NOTHING`,
+      [req.userId, source_url, title || null, price || null, image || null, store || null]
+    );
+    res.json({ saved: true });
+  } catch (e) {
+    console.error("save error:", e.message);
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// DELETE /api/saved - remove saved product
+app.delete("/api/saved", authMiddleware, async (req, res) => {
+  try {
+    const { source_url } = req.body;
+    await pool.query("DELETE FROM saved_products WHERE user_id=$1 AND product_source_url=$2", [req.userId, source_url]);
+    res.json({ removed: true });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// GET /api/saved - get all saved products
+app.get("/api/saved", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM saved_products WHERE user_id=$1 ORDER BY saved_at DESC",
+      [req.userId]
+    );
+    res.json({ saved: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/saved/check - batch check saved status
+app.post("/api/saved/check", authMiddleware, async (req, res) => {
+  try {
+    const { urls } = req.body;
+    if (!Array.isArray(urls) || urls.length === 0) return res.json({ saved: [] });
+    const result = await pool.query(
+      "SELECT product_source_url FROM saved_products WHERE user_id=$1 AND product_source_url=ANY($2)",
+      [req.userId, urls]
+    );
+    res.json({ saved: result.rows.map(r => r.product_source_url) });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
   }
 });
 

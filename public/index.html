@@ -450,6 +450,76 @@
       .hero-nav-labels{gap:10px}
       .hero-nav-btn{padding:7px 14px;font-size:12px}
     }
+
+    /* ===== AUTH BUTTON IN HEADER ===== */
+    .auth-btn{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;backdrop-filter:blur(4px)}
+    .auth-btn:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.7)}
+    .auth-btn svg{width:16px;height:16px;flex-shrink:0}
+    .auth-btn .auth-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* ===== AUTH MODAL ===== */
+    .auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
+    .auth-modal-bg.open{display:flex}
+    .auth-modal{background:#fff;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+    .auth-modal-head{background:var(--header-gradient);padding:28px 28px 22px;text-align:center}
+    .auth-modal-head h2{margin:0;color:#fff;font-size:22px;font-weight:800}
+    .auth-modal-head p{margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px}
+    .auth-modal-close{position:absolute;top:14px;left:14px;background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+    .auth-modal-body{padding:28px}
+    .auth-tabs{display:flex;gap:0;background:#f3f4f6;border-radius:10px;padding:3px;margin-bottom:24px}
+    .auth-tab{flex:1;padding:9px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:#6b7280;transition:all .2s}
+    .auth-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+    .auth-field{margin-bottom:16px}
+    .auth-field label{display:block;font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px}
+    .auth-field input{width:100%;border:2px solid #e5e7eb;border-radius:10px;padding:11px 14px;font-size:15px;outline:none;transition:border .2s;box-sizing:border-box}
+    .auth-field input:focus{border-color:var(--accent)}
+    .auth-submit{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
+    .auth-submit:hover{background:var(--accent-dark);transform:translateY(-1px)}
+    .auth-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .auth-error{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none}
+    .auth-error.show{display:block}
+    .auth-success{background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none}
+    .auth-success.show{display:block}
+    .auth-or{text-align:center;color:#9ca3af;font-size:12px;margin:6px 0 0}
+    .auth-logout-btn{width:100%;background:#f9fafb;color:#ef4444;border:1.5px solid #fecaca;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;transition:all .2s}
+    .auth-logout-btn:hover{background:#fef2f2}
+
+    /* ===== SAVED PANEL ===== */
+    .saved-panel-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:900;justify-content:flex-start}
+    .saved-panel-bg.open{display:flex}
+    .saved-panel{background:#fff;width:380px;max-width:95vw;height:100%;overflow-y:auto;box-shadow:4px 0 30px rgba(0,0,0,.15);display:flex;flex-direction:column}
+    .saved-panel-head{background:var(--header-gradient);padding:20px 20px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .saved-panel-head h3{margin:0;color:#fff;font-size:18px;font-weight:800}
+    .saved-panel-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px}
+    .saved-panel-body{flex:1;padding:16px;overflow-y:auto}
+    .saved-item{display:flex;gap:12px;padding:12px;border:1px solid #f3f4f6;border-radius:12px;margin-bottom:10px;align-items:center;transition:box-shadow .2s}
+    .saved-item:hover{box-shadow:var(--shadow)}
+    .saved-item img{width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#f3f4f6}
+    .saved-item-info{flex:1;min-width:0}
+    .saved-item-title{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+    .saved-item-price{font-size:13px;font-weight:700;color:var(--accent)}
+    .saved-item-store{font-size:11px;color:#9ca3af;margin-top:2px}
+    .saved-item-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+    .saved-item-remove{background:none;border:none;color:#9ca3af;cursor:pointer;padding:4px;border-radius:6px;transition:color .2s}
+    .saved-item-remove:hover{color:#ef4444}
+    .saved-item-buy{background:var(--accent);color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;display:block;text-align:center}
+    .saved-empty{text-align:center;padding:60px 20px;color:#9ca3af}
+    .saved-empty svg{width:48px;height:48px;margin:0 auto 12px;display:block;opacity:.35}
+    .saved-count{background:rgba(255,255,255,.3);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
+
+    /* ===== HEART BUTTON ON CARDS ===== */
+    .card-save-btn{position:absolute;top:8px;left:8px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3;transition:all .2s;backdrop-filter:blur(4px)}
+    .card-save-btn:hover{background:#fff;transform:scale(1.1)}
+    .card-save-btn svg{width:16px;height:16px;color:#9ca3af;transition:all .2s}
+    .card-save-btn.saved svg{color:#ef4444;fill:#ef4444}
+    .img-wrap{position:relative}
+
+    /* Profile area in saved panel */
+    .user-profile-bar{padding:14px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:12px}
+    .user-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;flex-shrink:0}
+    .user-info .user-email{font-size:13px;font-weight:700;color:var(--text)}
+    .user-info .user-plan{font-size:11px;color:#9ca3af;margin-top:2px}
+    .user-info .user-plan.premium{color:#f59e0b;font-weight:600}
   </style>
 </head>
 <body>
@@ -463,6 +533,14 @@
         <a href="/">דף הבית</a>
         <a href="/about.html">אודות</a>
         <a href="/contact.html">צור קשר</a>
+        <button class="auth-btn" id="authNavBtn" onclick="openAuthModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="auth-name" id="authNavLabel">התחברות</span>
+        </button>
+        <button class="auth-btn" id="savedNavBtn" onclick="openSavedPanel()" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span id="savedNavCount"></span>
+        </button>
       </nav>
       <button class="mobile-menu-btn" onclick="toggleMobileFilters()">☰</button>
     </div>
@@ -766,6 +844,18 @@ const colorData={
 function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
 function formatSize(s){return s?s.replace(/^EU_/i,''):s}
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function buildSaveBtn(url, title, price, image, store, isSaved) {
+  const cls = 'card-save-btn' + (isSaved ? ' saved' : '');
+  const fill = isSaved ? 'currentColor' : 'none';
+  const u = url.replace(/"/g,'&quot;');
+  const t = title.replace(/"/g,'&quot;');
+  const im = image.replace(/"/g,'&quot;');
+  const st = store.replace(/"/g,'&quot;');
+  return '<button class="'+cls+'" data-url="'+u+'" data-title="'+t+'" data-price="'+price+'" data-image="'+im+'" data-store="'+st+'" title="שמרי מוצר" onclick="event.stopPropagation();handleSaveClick(this)">'
+    + '<svg viewBox="0 0 24 24" fill="'+fill+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'
+    + '</svg></button>';
+}
 function calcDiscount(p,o){return(!o||o<=p)?0:Math.round((o-p)/o*100)}
 function debouncedSearch(){clearTimeout(debounceTimer);debounceTimer=setTimeout(runRegularSearch,250)}
 function setLoading(){document.getElementById("grid").innerHTML='<div class="card"><div class="img-wrap"></div><div class="card-body"><div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div></div></div>'.repeat(8)}
@@ -951,7 +1041,9 @@ function renderProducts(products,append=false){
     }
     
     const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
-    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+    const isSaved = savedUrls.has(p.source_url||'');
+    const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved);
+    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
   }
 }
 
@@ -1394,5 +1486,374 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 
 (async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch();window.scrollTo(0,0)})();
 </script>
+
+  <!-- AUTH MODAL -->
+  <div class="auth-modal-bg" id="authModalBg" onclick="closeAuthIfBg(event)">
+    <div class="auth-modal" onclick="event.stopPropagation()" style="position:relative">
+      <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
+      <div class="auth-modal-head">
+        <h2 id="authModalTitle">ברוכה הבאה ל-LOOKLI</h2>
+        <p id="authModalSub">שמרי מוצרים אהובים וגשי אליהם בכל זמן</p>
+      </div>
+      <div class="auth-modal-body">
+        <div class="auth-tabs" id="authTabsRow">
+          <button class="auth-tab active" onclick="switchAuthTab('login')">התחברות</button>
+          <button class="auth-tab" onclick="switchAuthTab('register')">הרשמה</button>
+        </div>
+        <div class="auth-error" id="authError"></div>
+        <div class="auth-success" id="authSuccess"></div>
+        <!-- Login form -->
+        <div id="loginForm">
+          <div class="auth-field">
+            <label>אימייל</label>
+            <input type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email"/>
+          </div>
+          <div class="auth-field">
+            <label>סיסמה</label>
+            <input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+          </div>
+          <button class="auth-submit" id="loginBtn" onclick="doLogin()">התחברות</button>
+        </div>
+        <!-- Register form -->
+        <div id="registerForm" style="display:none">
+          <div class="auth-field">
+            <label>שם (אופציונלי)</label>
+            <input type="text" id="regName" placeholder="השם שלך"/>
+          </div>
+          <div class="auth-field">
+            <label>אימייל</label>
+            <input type="email" id="regEmail" placeholder="your@email.com" autocomplete="email"/>
+          </div>
+          <div class="auth-field">
+            <label>סיסמה (לפחות 6 תווים)</label>
+            <input type="password" id="regPass" placeholder="••••••" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()"/>
+          </div>
+          <button class="auth-submit" id="registerBtn" onclick="doRegister()">יצירת חשבון</button>
+        </div>
+        <!-- Profile (when logged in) -->
+        <div id="profileForm" style="display:none">
+          <div style="text-align:center;margin-bottom:20px">
+            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800;margin:0 auto 12px" id="profileAvatar">?</div>
+            <div style="font-weight:700;font-size:16px" id="profileName">-</div>
+            <div style="color:#9ca3af;font-size:13px;margin-top:4px" id="profileEmail">-</div>
+            <div style="margin-top:8px" id="profilePlanBadge"></div>
+          </div>
+          <button class="auth-submit" onclick="openSavedPanel();closeAuthModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            המוצרים השמורים שלי
+          </button>
+          <button class="auth-logout-btn" onclick="doLogout()">יציאה מהחשבון</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SAVED PRODUCTS PANEL -->
+  <div class="saved-panel-bg" id="savedPanelBg" onclick="closeSavedIfBg(event)">
+    <div class="saved-panel" onclick="event.stopPropagation()">
+      <div class="saved-panel-head">
+        <h3>המוצרים השמורים שלי <span class="saved-count" id="savedPanelCount">0</span></h3>
+        <button class="saved-panel-close" onclick="closeSavedPanel()">✕</button>
+      </div>
+      <div class="user-profile-bar" id="savedProfileBar"></div>
+      <div class="saved-panel-body" id="savedPanelBody">
+        <div class="saved-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <div>עדיין אין מוצרים שמורים</div>
+          <div style="font-size:12px;margin-top:6px">לחצי על הלב על מוצר כדי לשמור אותו</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ===== AUTH STATE =====
+  let currentUser = null;
+  let savedUrls = new Set();
+  let authToken = localStorage.getItem('lookli_token') || null;
+
+  // Init on load
+  (async function initAuth() {
+    if (!authToken) return;
+    try {
+      const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + authToken } });
+      if (!res.ok) { authToken = null; localStorage.removeItem('lookli_token'); return; }
+      const data = await res.json();
+      setUser(data.user);
+    } catch(e) {}
+  })();
+
+  function setUser(user) {
+    currentUser = user;
+    const label = document.getElementById('authNavLabel');
+    const savedBtn = document.getElementById('savedNavBtn');
+    const authBtn = document.getElementById('authNavBtn');
+    if (user) {
+      label.textContent = user.name || user.email.split('@')[0];
+      if (savedBtn) savedBtn.style.display = 'flex';
+    } else {
+      label.textContent = 'התחברות';
+      if (savedBtn) savedBtn.style.display = 'none';
+    }
+    refreshSavedState();
+  }
+
+  async function refreshSavedState() {
+    if (!currentUser || !authToken) { savedUrls = new Set(); return; }
+    try {
+      const res = await fetch('/api/saved', { headers: { Authorization: 'Bearer ' + authToken } });
+      const data = await res.json();
+      savedUrls = new Set(data.saved.map(s => s.product_source_url));
+      updateSavedCount();
+      // update hearts on visible cards
+      document.querySelectorAll('.card-save-btn').forEach(btn => {
+        const url = btn.dataset.url;
+        btn.classList.toggle('saved', savedUrls.has(url));
+      });
+    } catch(e) {}
+  }
+
+  function updateSavedCount() {
+    const el = document.getElementById('savedNavCount');
+    if (el) el.textContent = savedUrls.size > 0 ? savedUrls.size : '';
+  }
+
+  // ===== AUTH MODAL =====
+  function openAuthModal() {
+    if (currentUser) {
+      // Show profile
+      switchAuthTab('profile');
+    } else {
+      switchAuthTab('login');
+    }
+    document.getElementById('authModalBg').classList.add('open');
+    clearAuthMessages();
+  }
+
+  function closeAuthModal() {
+    document.getElementById('authModalBg').classList.remove('open');
+  }
+
+  function closeAuthIfBg(e) {
+    if (e.target === document.getElementById('authModalBg')) closeAuthModal();
+  }
+
+  function switchAuthTab(tab) {
+    const loginF = document.getElementById('loginForm');
+    const regF = document.getElementById('registerForm');
+    const profF = document.getElementById('profileForm');
+    const tabs = document.getElementById('authTabsRow');
+    loginF.style.display = 'none';
+    regF.style.display = 'none';
+    profF.style.display = 'none';
+    if (tab === 'profile') {
+      tabs.style.display = 'none';
+      profF.style.display = 'block';
+      if (currentUser) {
+        const initials = (currentUser.name || currentUser.email)[0].toUpperCase();
+        document.getElementById('profileAvatar').textContent = initials;
+        document.getElementById('profileName').textContent = currentUser.name || '—';
+        document.getElementById('profileEmail').textContent = currentUser.email;
+        const badge = document.getElementById('profilePlanBadge');
+        badge.innerHTML = currentUser.plan === 'premium' ?
+          '<span style="background:#fef3c7;color:#d97706;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⭐ Premium</span>' :
+          '<span style="background:#f3f4f6;color:#9ca3af;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">חשבון חינמי</span>';
+      }
+    } else {
+      tabs.style.display = 'flex';
+      document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));
+      if (tab === 'login') loginF.style.display = 'block';
+      else regF.style.display = 'block';
+    }
+    clearAuthMessages();
+  }
+
+  function clearAuthMessages() {
+    const err = document.getElementById('authError');
+    const suc = document.getElementById('authSuccess');
+    err.classList.remove('show'); suc.classList.remove('show');
+  }
+
+  function showAuthError(msg) {
+    const el = document.getElementById('authError');
+    el.textContent = msg; el.classList.add('show');
+  }
+
+  function showAuthSuccess(msg) {
+    const el = document.getElementById('authSuccess');
+    el.textContent = msg; el.classList.add('show');
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pass = document.getElementById('loginPass').value;
+    if (!email || !pass) return showAuthError('אימייל וסיסמה חובה');
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'מתחבר...';
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass })
+      });
+      const data = await res.json();
+      if (!res.ok) { showAuthError(data.error || 'שגיאה'); return; }
+      authToken = data.token;
+      localStorage.setItem('lookli_token', authToken);
+      setUser(data.user);
+      showAuthSuccess('התחברת בהצלחה!');
+      setTimeout(closeAuthModal, 900);
+    } catch(e) { showAuthError('שגיאת חיבור'); }
+    finally { btn.disabled = false; btn.textContent = 'התחברות'; }
+  }
+
+  async function doRegister() {
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const pass = document.getElementById('regPass').value;
+    if (!email || !pass) return showAuthError('אימייל וסיסמה חובה');
+    if (pass.length < 6) return showAuthError('סיסמה חייבת לפחות 6 תווים');
+    const btn = document.getElementById('registerBtn');
+    btn.disabled = true; btn.textContent = 'יוצר חשבון...';
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password: pass })
+      });
+      const data = await res.json();
+      if (!res.ok) { showAuthError(data.error || 'שגיאה'); return; }
+      authToken = data.token;
+      localStorage.setItem('lookli_token', authToken);
+      setUser(data.user);
+      showAuthSuccess('ברוכה הבאה! החשבון נוצר בהצלחה');
+      setTimeout(closeAuthModal, 900);
+    } catch(e) { showAuthError('שגיאת חיבור'); }
+    finally { btn.disabled = false; btn.textContent = 'יצירת חשבון'; }
+  }
+
+  function doLogout() {
+    authToken = null;
+    currentUser = null;
+    savedUrls = new Set();
+    localStorage.removeItem('lookli_token');
+    setUser(null);
+    closeAuthModal();
+    // Remove saved state from all hearts
+    document.querySelectorAll('.card-save-btn').forEach(btn => btn.classList.remove('saved'));
+  }
+
+  // ===== SAVED PANEL =====
+  async function openSavedPanel() {
+    if (!currentUser) { openAuthModal(); return; }
+    document.getElementById('savedPanelBg').classList.add('open');
+    await loadSavedPanel();
+  }
+
+  function closeSavedPanel() {
+    document.getElementById('savedPanelBg').classList.remove('open');
+  }
+
+  function closeSavedIfBg(e) {
+    if (e.target === document.getElementById('savedPanelBg')) closeSavedPanel();
+  }
+
+  async function loadSavedPanel() {
+    if (!authToken) return;
+    const body = document.getElementById('savedPanelBody');
+    const countEl = document.getElementById('savedPanelCount');
+    const profileBar = document.getElementById('savedProfileBar');
+
+    // Profile bar
+    if (currentUser) {
+      const initials = (currentUser.name || currentUser.email)[0].toUpperCase();
+      profileBar.innerHTML = `
+        <div class="user-avatar">${initials}</div>
+        <div class="user-info">
+          <div class="user-email">${currentUser.name || currentUser.email}</div>
+          <div class="user-plan ${currentUser.plan}">${currentUser.plan === 'premium' ? '⭐ Premium' : 'חשבון חינמי'}</div>
+        </div>`;
+    }
+
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af">טוענת...</div>';
+    try {
+      const res = await fetch('/api/saved', { headers: { Authorization: 'Bearer ' + authToken } });
+      const data = await res.json();
+      savedUrls = new Set(data.saved.map(s => s.product_source_url));
+      updateSavedCount();
+      countEl.textContent = data.saved.length;
+      if (data.saved.length === 0) {
+        body.innerHTML = `<div class="saved-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <div>עדיין אין מוצרים שמורים</div>
+          <div style="font-size:12px;margin-top:6px">לחצי על הלב על מוצר כדי לשמור</div>
+        </div>`;
+        return;
+      }
+      body.innerHTML = data.saved.map(s => `
+        <div class="saved-item" id="saved-${btoa(s.product_source_url).replace(/[^a-z0-9]/gi,'').slice(0,12)}">
+          <img src="${s.product_image || ''}" alt="${s.product_title || ''}" onerror="this.style.background='#f3f4f6'"/>
+          <div class="saved-item-info">
+            <div class="saved-item-title">${s.product_title || 'מוצר'}</div>
+            <div class="saved-item-price">${s.product_price ? '₪' + Number(s.product_price).toFixed(0) : ''}</div>
+            <div class="saved-item-store">${s.product_store || ''}</div>
+          </div>
+          <div class="saved-item-actions">
+            <button class="saved-item-remove" title="הסר" onclick="removeSaved('${s.product_source_url.replace(/'/g,"\'")}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+            <a class="saved-item-buy" href="${s.product_source_url}" target="_blank">לרכישה</a>
+          </div>
+        </div>`).join('');
+    } catch(e) { body.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">שגיאה בטעינה</div>'; }
+  }
+
+  async function removeSaved(url) {
+    if (!authToken) return;
+    try {
+      await fetch('/api/saved', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ source_url: url })
+      });
+      savedUrls.delete(url);
+      updateSavedCount();
+      // update heart on card
+      document.querySelectorAll('.card-save-btn').forEach(btn => {
+        if (btn.dataset.url === url) btn.classList.remove('saved');
+      });
+      await loadSavedPanel();
+    } catch(e) {}
+  }
+
+  function handleSaveClick(btn) {
+    const url = btn.dataset.url;
+    const title = btn.dataset.title;
+    const price = parseFloat(btn.dataset.price) || 0;
+    const image = btn.dataset.image;
+    const store = btn.dataset.store;
+    toggleSave(url, title, price, image, store, btn);
+  }
+
+  async function toggleSave(url, title, price, image, store, btnEl) {
+    if (!currentUser) { openAuthModal(); return; }
+    if (savedUrls.has(url)) {
+      await removeSaved(url);
+      btnEl.classList.remove('saved');
+    } else {
+      try {
+        await fetch('/api/saved', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+          body: JSON.stringify({ source_url: url, title, price, image, store })
+        });
+        savedUrls.add(url);
+        updateSavedCount();
+        btnEl.classList.add('saved');
+      } catch(e) {}
+    }
+  }
+  </script>
+
 </body>
 </html>

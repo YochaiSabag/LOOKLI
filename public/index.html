@@ -33,7 +33,8 @@
   <link rel="dns-prefetch" href="https://mekimi.co.il"/>
   <link rel="dns-prefetch" href="https://lichi-shop.com"/>
   <meta name="keywords" content="אופנה צנועה, בגדים צנועים, שמלות צנועות, חצאיות ארוכות, חולצות צנועות, אופנה דתית, חיפוש בגדים, השוואת מחירים, LOOKLI, מקסי, לופטה, מקימי, ליצ'י, אביה יוסף"/>
-  <link rel="icon" href="/favicon.ico"/>
+  <link rel="icon" type="image/png" href="/לוגו כרטיסייה.png"/>
+  <link rel="shortcut icon" href="/לוגו כרטיסייה.png"/>
   <link rel="alternate" hreflang="he-il" href="https://lookli.co.il/"/>
 
   <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@context": "https://schema.org", "@type": "Organization", "name": "LOOKLI", "url": "https://lookli.co.il", "logo": "https://lookli.co.il/lookli-logo.png", "contactPoint": [{"@type": "ContactPoint", "contactType": "customer support", "email": "info@lookli.co.il", "availableLanguage": ["he", "en"]}]}, {"@context": "https://schema.org", "@type": "WebSite", "name": "LOOKLI", "url": "https://lookli.co.il", "potentialAction": {"@type": "SearchAction", "target": "https://lookli.co.il/?q={search_term_string}", "query-input": "required name=search_term_string"}}, {"@type": "WebPage", "url": "https://lookli.co.il/", "name": "LOOKLI – מנוע חיפוש חכם לאופנה צנועה | אלפי מוצרים במקום אחד", "inLanguage": "he-IL", "dateModified": "2026-02-22"}]}</script>
@@ -210,8 +211,10 @@
       .filter-tag{padding:5px 10px;font-size:11px}
       
       .wrap{flex-direction:column}
-      .filters{display:none;position:fixed;top:0;right:0;width:85%;max-width:320px;height:100vh;z-index:200;background:#fff;transform:translateX(100%);transition:transform .3s ease}
-      .filters.open{display:block;transform:translateX(0)}
+      .filters{position:fixed !important;top:0 !important;right:0 !important;width:85% !important;max-width:320px !important;height:100% !important;height:100dvh !important;z-index:9999 !important;background:#fff !important;transform:translateX(110%) !important;transition:transform .3s cubic-bezier(.4,0,.2,1) !important;overflow-y:auto !important;display:block !important;visibility:hidden}
+      .filters.open{transform:translateX(0) !important;visibility:visible !important}
+      .mobile-overlay{position:fixed !important;inset:0 !important;z-index:9998 !important;display:none}
+      .mobile-overlay.show{display:block !important}
       
       /* Mobile Sidebar Design */
       .filter-section{border-bottom:1px solid #eee}
@@ -557,7 +560,7 @@
     .saved-count{background:rgba(255,255,255,.3);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
 
     /* ===== HEART BUTTON ON CARDS ===== */
-    .card-save-btn{position:absolute;top:50px;left:8px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:6;transition:all .2s;backdrop-filter:blur(4px)}
+    .card-save-btn{position:absolute;top:8px;left:8px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:6;transition:all .2s;backdrop-filter:blur(4px)}
     .card-save-btn:hover{background:#fff;transform:scale(1.1)}
     .card-save-btn svg{width:16px;height:16px;color:#9ca3af;transition:all .2s}
     .card-save-btn.saved svg{color:#ef4444;fill:#ef4444}
@@ -585,20 +588,8 @@
     .card.img-blocked-mark{opacity:.5}
 
     /* ===== SPONSORED PRODUCTS ===== */
-    .sponsored-strip{padding:0 0 4px}
-    .sponsored-label{font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:.5px;text-transform:uppercase;padding:16px 24px 8px;display:flex;align-items:center;gap:6px}
-    .sponsored-label svg{width:13px;height:13px}
-    .sponsored-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:0 24px 16px}
-    @media(max-width:768px){.sponsored-row{grid-template-columns:repeat(2,1fr);padding:0 16px 12px}}
-    .sponsored-card{background:#fff;border-radius:10px;overflow:hidden;border:1.5px solid #f0e8f4;box-shadow:0 2px 12px rgba(196,140,179,.1);cursor:pointer;transition:box-shadow .2s;position:relative}
-    .sponsored-card:hover{box-shadow:0 6px 24px rgba(196,140,179,.2)}
-    .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px)}
-    .sponsored-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#f9fafb}
-    .sponsored-body{padding:10px 12px}
-    .sponsored-title{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-    .sponsored-price{font-size:13px;font-weight:800;color:var(--accent)}
-    .sponsored-store{font-size:10px;color:#9ca3af;margin-top:2px}
-    .sponsored-divider{height:1px;background:#f3f4f6;margin:0 24px}
+    .card.sponsored{border:1.5px solid #f0e8f4;box-shadow:0 2px 12px rgba(196,140,179,.12)}
+    .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px);z-index:4}
   </style>
 </head>
 <body>
@@ -787,7 +778,7 @@
       <div class="img-filter-toggle">
         <label class="img-filter-label" for="imgAvailToggle">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          תמונה גלויה בלבד
+          תמונה ללא חסימת נטפרי בלבד
         </label>
         <label class="toggle-switch">
           <input type="checkbox" id="imgAvailToggle" onchange="toggleImgFilter(this.checked)">
@@ -810,15 +801,6 @@
           <option value="price_asc">מחיר ↑</option>
           <option value="price_desc">מחיר ↓</option>
         </select>
-      </div>
-      <!-- Sponsored Products Strip -->
-      <div class="sponsored-strip" id="sponsoredStrip" style="display:none">
-        <div class="sponsored-label">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          ממומן
-        </div>
-        <div class="sponsored-row" id="sponsoredRow"></div>
-        <div class="sponsored-divider"></div>
       </div>
       <div class="grid" id="grid"></div>
     </main>
@@ -943,14 +925,15 @@ const colorData={
 function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
 function formatSize(s){return s?s.replace(/^EU_/i,''):s}
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function buildSaveBtn(url, title, price, image, store, isSaved) {
+function buildSaveBtn(url, title, price, image, store, isSaved, hasSale) {
+  const topPos = hasSale ? '50px' : '8px';
   const cls = 'card-save-btn' + (isSaved ? ' saved' : '');
   const fill = isSaved ? 'currentColor' : 'none';
   const u = url.replace(/"/g,'&quot;');
   const t = title.replace(/"/g,'&quot;');
   const im = image.replace(/"/g,'&quot;');
   const st = store.replace(/"/g,'&quot;');
-  return '<button class="'+cls+'" data-url="'+u+'" data-title="'+t+'" data-price="'+price+'" data-image="'+im+'" data-store="'+st+'" title="שמרי מוצר" onclick="event.stopPropagation();handleSaveClick(this)">'
+  return '<button class="'+cls+'" data-url="'+u+'" data-title="'+t+'" data-price="'+price+'" data-image="'+im+'" data-store="'+st+'" title="שמרי מוצר" style="top:'+topPos+'" onclick="event.stopPropagation();handleSaveClick(this)">'
     + '<svg viewBox="0 0 24 24" fill="'+fill+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
     + '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'
     + '</svg></button>';
@@ -962,15 +945,16 @@ function setLoading(){document.getElementById("grid").innerHTML='<div class="car
 function toggleMobileFilters(){
   const filters=document.getElementById('filtersPanel');
   const overlay=document.getElementById('mobileOverlay');
+  // העבר ל-body אם עוד לא שם (פעם אחת בלבד)
+  if(filters.parentElement!==document.body){
+    document.body.appendChild(filters);
+    document.body.appendChild(overlay);
+  }
   const isOpening=!filters.classList.contains('open');
+  if(isOpening) filters.scrollTop=0;
   filters.classList.toggle('open');
   overlay.classList.toggle('show');
-  document.body.style.overflow=filters.classList.contains('open')?'hidden':'';
-  if(isOpening){
-    filters.scrollTop=0;
-    // גלילת הדף לראש כדי שהסיידבר יהיה גלוי
-    window.scrollTo({top:0,behavior:'smooth'});
-  }
+  document.body.style.overflow=isOpening?'hidden':'';
 }
 
 function toggleFilter(id){
@@ -1118,11 +1102,11 @@ function renderProducts(products,append=false){
     
     let carouselHTML='';
     if(images.length>1){
-      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy" ${si===0?'onerror="markCardBlocked(this)"':''}>\u200B</div>`).join('');
+      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="markCardBlocked(this.parentElement.parentElement.parentElement)"':''}>\u200B</div>`).join('');
       const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
       carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
     }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="markCardBlocked(this)">`;
+      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onload="checkNetfreeBlock(this)" onerror="markCardBlocked(this.closest&&this.closest('.card')||this.parentElement)">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
     
     let colorDotsHTML='';
@@ -1144,7 +1128,7 @@ function renderProducts(products,append=false){
     
     const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
     const isSaved = savedUrls.has(p.source_url||'');
-    const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved);
+    const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
     grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.slice(0,4).join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
   }
 }
@@ -1974,13 +1958,38 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   // ===== IMAGE AVAILABILITY FILTER =====
   let filterImgAvail = false;
 
-  function markCardBlocked(imgEl) {
-    // Find parent card and mark it
+  // בדיקת חסימת נטפרי: נטפרי מחזירה תמונה תקינה HTTP 200 אבל מוחלפת
+  // בתמונת "חסימה" אפורה/מפוקסלת בגודל קטן מאוד (בד"כ <500 bytes או <20px)
+  // נבדוק naturalWidth קטן מאוד כסימן לחסימה
+  function checkNetfreeBlock(imgEl) {
     const card = imgEl.closest('.card');
-    if (card) {
-      card.dataset.imgBlocked = '1';
-      if (filterImgAvail) card.classList.add('img-blocked');
+    if (!card) return;
+    // אם naturalWidth קטן מ-20px — כנראה תמונת חסימה
+    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) {
+      markCardBlocked(card);
+      return;
     }
+    // בדיקה נוספת דרך canvas — תמונה חסומה של נטפרי היא אחידה (אפור מוצק)
+    try {
+      const canvas = document.createElement('canvas');
+      const size = 10; // דגימה של 10x10 פיקסלים מספיקה
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, size, size);
+      const d = ctx.getImageData(0, 0, size, size).data;
+      let allSame = true;
+      for (let i = 4; i < d.length; i += 4) {
+        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
+          allSame = false; break;
+        }
+      }
+      if (allSame) markCardBlocked(card); // תמונה אחידה = חסומה
+    } catch(e) {} // CORS block — skip canvas check
+  }
+
+  function markCardBlocked(card) {
+    card.dataset.imgBlocked = '1';
+    if (filterImgAvail) card.classList.add('img-blocked');
   }
 
   function toggleImgFilter(enabled) {
@@ -1990,37 +1999,57 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         card.classList.toggle('img-blocked', enabled);
       }
     });
-    // Update count display
     const visible = document.querySelectorAll('.card:not(.img-blocked)').length;
     if (enabled) {
-      document.getElementById('metaToolbar').textContent = visible + ' מוצרים עם תמונה גלויה';
+      document.getElementById('metaToolbar').textContent = visible + ' מוצרים ללא חסימת נטפרי';
     } else {
       document.getElementById('metaToolbar').textContent = allProducts.length + ' מוצרים';
     }
   }
 
   // ===== SPONSORED PRODUCTS =====
+  // מזריק את הממומנים לתוך הגריד (אחרי המוצר ה-1)
   async function loadSponsored(query) {
     try {
+      // הסר ממומנים ישנים מהגריד
+      document.querySelectorAll('.card.sponsored').forEach(el => el.remove());
       const params = new URLSearchParams();
       if (query) params.set('q', query);
       const res = await fetch('/api/sponsored?' + params.toString());
       if (!res.ok) return;
       const data = await res.json();
-      const strip = document.getElementById('sponsoredStrip');
-      const row = document.getElementById('sponsoredRow');
-      if (!data.sponsored || data.sponsored.length === 0) { strip.style.display='none'; return; }
-      strip.style.display = 'block';
-      row.innerHTML = data.sponsored.map(p => `
-        <div class="sponsored-card" onclick="window.open('${p.source_url}','_blank')">
+      if (!data.sponsored || data.sponsored.length === 0) return;
+      const grid = document.getElementById('grid');
+      const cards = grid.querySelectorAll('.card:not(.sponsored)');
+      // בנה את כרטיסיות הממומן בדיוק כמו כרטיסיה רגילה
+      const sponsoredCards = data.sponsored.map(p => {
+        const div = document.createElement('div');
+        div.className = 'card sponsored';
+        div.onclick = () => { trackClick(p); window.open(p.source_url,'_blank'); };
+        const img = escapeHtml(p.image_url||'');
+        const title = escapeHtml(p.title||'');
+        const price = p.price ? '₪'+Number(p.price).toFixed(0) : '';
+        const store = escapeHtml(p.store||'');
+        div.innerHTML = `<div class="img-wrap">
           <span class="sponsored-badge">ממומן</span>
-          <img class="sponsored-img" src="${escapeHtml(p.image_url||'')}" alt="${escapeHtml(p.title||'')}" loading="lazy" onerror="this.style.background='#f3f4f6'"/>
-          <div class="sponsored-body">
-            <div class="sponsored-title">${escapeHtml(p.title||'')}</div>
-            <div class="sponsored-price">${p.price ? '₪'+Number(p.price).toFixed(0) : ''}</div>
-            <div class="sponsored-store">${escapeHtml(p.store||'')}</div>
-          </div>
-        </div>`).join('');
+          <img src="${img}" alt="${title}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.background='#f3f4f6'"/>
+        </div>
+        <div class="card-body">
+          <div class="title">${title}</div>
+          <div class="subrow"><div class="price">${price}</div><div class="store">${store}</div></div>
+        </div>`;
+        return div;
+      });
+      // הזרק: אחרי הכרטיסייה הראשונה
+      if (cards.length > 0) {
+        sponsoredCards.forEach((sc, i) => {
+          const after = cards[i] || cards[cards.length-1];
+          after.insertAdjacentElement('afterend', sc);
+        });
+      } else {
+        // אין מוצרים רגילים - הוסף בהתחלה
+        sponsoredCards.forEach(sc => grid.prepend(sc));
+      }
     } catch(e) {}
   }
 

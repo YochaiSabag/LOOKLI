@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { normalizeColor, reportUnknownColors, unknownColors } from './color_utils.js';
 import { chromium } from 'playwright';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
@@ -15,59 +16,6 @@ const db = new Client({
 await db.connect();
 
 console.log('🚀 Aviyah Yosef Scraper');
-
-// ======================================================================
-// מיפוי צבעים
-// ======================================================================
-const colorMap = {
-  'black': 'שחור', 'שחור': 'שחור',
-  'white': 'לבן', 'לבן': 'לבן',
-  'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
-  'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
-  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק',
-  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
-  'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
-  'beige': 'בז׳', 'בז': 'בז׳', 'nude': 'בז׳', 'ניוד': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
-  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור', 'ash': 'אפור',
-  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד',
-  'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
-  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב', 'בננה': 'צהוב', 'banana': 'צהוב',
-  'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
-  'זהב': 'זהב', 'golden': 'זהב',
-  'silver': 'כסף', 'כסף': 'כסף', 'כסוף': 'כסף',
-  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו', 'cherry': 'בורדו',
-  'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
-  'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
-  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
-  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
-  'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
-  'כסוף': 'כסף'
-};
-
-const unknownColors = new Set();
-
-function normalizeColor(c) {
-  if (!c) return null;
-  const lower = c.toLowerCase().trim();
-  const noSpaces = lower.replace(/[-_\s]/g, '');
-  
-  if (colorMap[noSpaces]) return colorMap[noSpaces];
-  if (colorMap[lower]) return colorMap[lower];
-  
-  // מילה-מילה
-  const words = lower.split(/\s+/);
-  for (const word of words) {
-    if (colorMap[word]) return colorMap[word];
-  }
-  
-  // חלקי
-  for (const [key, val] of Object.entries(colorMap)) {
-    if (lower.includes(key) || key.includes(lower)) return val;
-  }
-  
-  unknownColors.add(c);
-  return null;
-}
 
 // ======================================================================
 // מיפוי מידות
@@ -483,14 +431,15 @@ async function scrapeProduct(page, url, isEvening = false) {
     const colorSizesMap = {};
     
     // חילוץ צבע מהכותרת (כל צבע בעמוד נפרד)
-    // רק מילים שמתאימות בדיוק לצבעים ידועים ב-colorMap
+    // רק מילים שמתאימות לצבעים ב-color_utils
     let titleColor = null;
     const titleWords = (data.title || '').split(/[\s\-–,]+/);
     for (const word of titleWords) {
       if (word.length < 2) continue;
       const lower = word.toLowerCase().trim();
-      // בדיקה ישירה ב-colorMap - רק התאמה מדויקת
-      if (colorMap[lower]) { titleColor = colorMap[lower]; break; }
+      // בדיקה דרך normalizeColor מ-color_utils
+      const _tc = normalizeColor(word);
+      if (_tc) { titleColor = _tc; break; }
     }
     if (!titleColor) {
       console.log(`    ⚠️ לא נמצא צבע בכותרת: "${data.title}"`);
@@ -614,10 +563,12 @@ async function runHealthCheck(scraped, failed) {
   
   const problems = [];
   
+  reportUnknownColors();
   if (unknownColors.size > 0) {
-    problems.push(`⚠️ צבעים לא מזוהים (${unknownColors.size}):`);
+    problems && problems.push(`צבעים לא מזוהים: ${unknownColors.size}`);
+  }):`);
     for (const c of unknownColors) {
-      problems.push(`   ❓ "${c}" - הוסף ל-colorMap בסקרייפר`);
+      problems.push(`   ❓ "${c}" - הוסף ל-color_utils.js`);
     }
   }
   

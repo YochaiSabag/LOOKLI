@@ -599,7 +599,7 @@
 
     /* ===== SPONSORED PRODUCTS ===== */
     .card.sponsored{border:1.5px solid #f0e8f4;box-shadow:0 2px 12px rgba(196,140,179,.12)}
-    .ad-badge-text{position:absolute;bottom:0;left:0;right:0;background:rgba(30,30,30,.72);color:#fff;font-size:11px;font-weight:700;padding:5px 10px;text-align:center;letter-spacing:.3px;backdrop-filter:blur(2px)}
+    .ad-badge-text{position:absolute;bottom:8px;left:8px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:5px 11px;border-radius:6px;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18);max-width:calc(100% - 16px)}
     .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px);z-index:4}
   </style>
 </head>
@@ -2078,12 +2078,14 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         return div;
       });
       if (cards.length > 0) {
+        // חשב כמה עמודות יש בגריד כרגע (responsive)
+        const cols = Math.round(grid.offsetWidth / (cards[0].offsetWidth || 1)) || 4;
         sponsoredCards.forEach((sc, i) => {
           const sp = data.sponsored[i];
-          // priority_row: באיזו שורה להופיע (1=ראשון, 3=שלישי וכו')
-          const row = Math.max(0, (sp.priority_row || 1) - 1);
-          const after = cards[Math.min(row, cards.length-1)];
-          after.insertAdjacentElement('afterend', sc);
+          // priority_row=3 → אחרי שורה 3 → אחרי כרטיסייה (3*cols - 1)
+          const targetRow = Math.max(1, sp.priority_row || 1);
+          const cardIndex = Math.min(targetRow * cols - 1, cards.length - 1);
+          cards[cardIndex].insertAdjacentElement('afterend', sc);
         });
       } else {
         sponsoredCards.forEach(sc => grid.prepend(sc));

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI — ניהול מודעות</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0f0f13;
+    --surface:#18181f;
+    --surface2:#22222c;
+    --border:#2e2e3a;
+    --accent:#a855f7;
+    --accent2:#ec4899;
+    --text:#f1f0f5;
+    --muted:#6b6b80;
+    --green:#22c55e;
+    --red:#ef4444;
+    --yellow:#eab308;
+  }
+  html{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh}
+  body{padding:0}
+
+  /* Header */
+  .topbar{
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    padding:0 28px;
+    height:60px;
+    display:flex;align-items:center;gap:16px;
+    position:sticky;top:0;z-index:100;
+  }
+  .topbar-logo{font-weight:900;font-size:20px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .topbar-title{font-size:14px;color:var(--muted);font-weight:500}
+  .topbar-sep{width:1px;height:20px;background:var(--border)}
+
+  /* Layout */
+  .layout{display:grid;grid-template-columns:1fr 380px;gap:24px;padding:24px 28px;max-width:1400px;margin:0 auto}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}}
+
+  /* Cards */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .panel-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .panel-title{font-weight:700;font-size:15px}
+  .panel-body{padding:20px 22px}
+
+  /* Form */
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .form-row.full{grid-template-columns:1fr}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .field input,.field select,.field textarea{
+    background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);padding:10px 12px;font-size:14px;font-family:'Heebo',sans-serif;
+    outline:none;transition:border-color .15s;direction:rtl;width:100%
+  }
+  .field input:focus,.field select:focus{border-color:var(--accent)}
+  .field textarea{resize:vertical;min-height:60px}
+  .field select option{background:var(--surface2)}
+
+  /* Sliders */
+  .weight-display{
+    display:flex;align-items:center;gap:12px;margin-top:4px
+  }
+  .weight-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .weight-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width .2s}
+  .weight-label{font-size:13px;font-weight:700;color:var(--accent);min-width:36px;text-align:left}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+
+  /* Buttons */
+  .btn{padding:10px 20px;border-radius:8px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+  .btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--text)}
+  .btn-danger{background:var(--red);color:#fff}
+  .btn-sm{padding:6px 12px;font-size:12px}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+  /* Table */
+  .ads-table{width:100%;border-collapse:collapse}
+  .ads-table th{
+    font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);padding:10px 14px;text-align:right;
+    border-bottom:1px solid var(--border);font-weight:600
+  }
+  .ads-table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+  .ads-table tr:last-child td{border-bottom:none}
+  .ads-table tr:hover td{background:rgba(255,255,255,.02)}
+
+  /* Status badge */
+  .badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700}
+  .badge-on{background:rgba(34,197,94,.15);color:var(--green)}
+  .badge-off{background:rgba(239,68,68,.1);color:var(--red)}
+  .badge-exp{background:rgba(234,179,8,.1);color:var(--yellow)}
+
+  /* Weight pill */
+  .w-pill{
+    display:inline-flex;align-items:center;gap:5px;
+    background:rgba(168,85,247,.12);border-radius:20px;
+    padding:3px 9px;font-size:12px;font-weight:700;color:var(--accent)
+  }
+
+  /* Ad card preview */
+  .ad-img{width:48px;height:64px;object-fit:cover;border-radius:6px;background:var(--surface2);flex-shrink:0}
+  .ad-info{flex:1;min-width:0}
+  .ad-title{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ad-meta{font-size:11px;color:var(--muted);margin-top:2px}
+  .badge-text-pill{background:rgba(168,85,247,.18);color:#d8b4fe;font-size:10px;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:3px}
+
+  /* Actions */
+  .actions{display:flex;gap:6px}
+
+  /* Toast */
+  #toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:12px 20px;font-size:13px;font-weight:600;color:var(--text);
+    opacity:0;transition:all .3s;z-index:999;pointer-events:none;white-space:nowrap
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.success{border-color:var(--green);color:var(--green)}
+  #toast.error{border-color:var(--red);color:var(--red)}
+
+  /* Loading */
+  .spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Stats row */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}
+  .stat{background:var(--surface2);border-radius:10px;padding:14px 16px;text-align:center}
+  .stat-num{font-size:24px;font-weight:900;line-height:1}
+  .stat-lbl{font-size:11px;color:var(--muted);margin-top:4px;font-weight:500}
+
+  /* Empty state */
+  .empty{text-align:center;padding:40px;color:var(--muted)}
+  .empty-icon{font-size:40px;margin-bottom:10px}
+
+  /* URL input hint */
+  .url-hint{font-size:11px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-logo">LOOKLI</span>
+  <span class="topbar-sep"></span>
+  <span class="topbar-title">ניהול מודעות ממומנות</span>
+  <div style="margin-right:auto;display:flex;gap:8px" id="topActions">
+    <button class="btn btn-ghost btn-sm" onclick="loadAds()">🔄 רענן</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- RIGHT: LIST -->
+  <div>
+    <!-- Stats -->
+    <div class="stats" id="statsRow">
+      <div class="stat"><div class="stat-num" id="statTotal">–</div><div class="stat-lbl">סה"כ מודעות</div></div>
+      <div class="stat"><div class="stat-num" style="color:var(--green)" id="statActive">–</div><div class="stat-lbl">פעילות</div></div>
+      <div class="stat"><div class="stat-num" style="color:var(--yellow)" id="statExpiring">–</div><div class="stat-lbl">פגות תוקף בשבוע</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">מודעות קיימות</span>
+        <span id="tableStatus" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="adsTableWrap" style="overflow-x:auto">
+        <div class="empty"><div class="empty-icon">📋</div>טוען...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEFT: FORM -->
+  <div>
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title" id="formTitle">➕ מודעה חדשה</span>
+        <button class="btn btn-ghost btn-sm" id="cancelEditBtn" style="display:none" onclick="cancelEdit()">ביטול</button>
+      </div>
+      <div class="panel-body">
+
+        <div class="form-row full">
+          <div class="field">
+            <label>קישור לדף המוצר *</label>
+            <input type="url" id="fUrl" placeholder="https://mekimi.co.il/products/..." oninput="onUrlInput()"/>
+            <div class="url-hint" id="urlHint">העתק את ה-URL מדף המוצר באתר החנות</div>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div id="productPreview" style="display:none;margin-bottom:14px;background:var(--surface2);border-radius:10px;padding:12px;display:none">
+          <div style="display:flex;gap:12px;align-items:center">
+            <img id="prevImg" class="ad-img" src="" alt=""/>
+            <div class="ad-info">
+              <div class="ad-title" id="prevTitle">–</div>
+              <div class="ad-meta"><span id="prevStore">–</span> · <span id="prevPrice">–</span></div>
+              <div class="ad-meta" style="color:var(--muted);font-size:10px;margin-top:4px" id="prevId"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label>שורה בגריד</label>
+            <input type="number" id="fRow" value="1" min="1" max="50" placeholder="1"/>
+            <div class="url-hint">1=ראשון, 3=שלישי...</div>
+          </div>
+          <div class="field">
+            <label>ימים בתוקף</label>
+            <input type="number" id="fDays" value="30" min="0" placeholder="30 (0=ללא תפוגה)"/>
+          </div>
+        </div>
+
+        <!-- Weight slider -->
+        <div class="field" style="margin-bottom:14px">
+          <label>תדירות הופעה</label>
+          <input type="range" id="fWeight" min="1" max="10" value="10" oninput="updateWeightDisplay()"/>
+          <div class="weight-display">
+            <div class="weight-bar"><div class="weight-fill" id="weightFill" style="width:100%"></div></div>
+            <div class="weight-label" id="weightLabel">100%</div>
+          </div>
+        </div>
+
+        <div class="form-row full">
+          <div class="field">
+            <label>תגית על התמונה (אופציונלי)</label>
+            <input type="text" id="fBadge" placeholder='מומלץ / מתאים להנקה / חדש...' maxlength="40"/>
+            <div class="url-hint">יוצג כריבוע בתחתית תמונת המוצר</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label>מחיר ששולם (₪)</label>
+            <input type="number" id="fPaid" min="0" placeholder="150"/>
+          </div>
+          <div class="field">
+            <label>הערות פנימיות</label>
+            <input type="text" id="fNotes" placeholder="קמפיין אביב..."/>
+          </div>
+        </div>
+
+        <input type="hidden" id="editId" value=""/>
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px" id="submitBtn" onclick="submitAd()">
+          הוסף מודעה
+        </button>
+      </div>
+    </div>
+
+    <!-- Weight guide -->
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head"><span class="panel-title" style="font-size:13px">📊 מדריך תדירות</span></div>
+      <div class="panel-body" style="padding:14px 18px">
+        <div style="display:grid;gap:7px;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><span>10 (100%)</span><span style="color:var(--muted)">מופיעה בכל טעינה</span></div>
+          <div style="display:flex;justify-content:space-between"><span>5 (≈50%)</span><span style="color:var(--muted)">פעם בשתי טעינות</span></div>
+          <div style="display:flex;justify-content:space-between"><span>3 (≈30%)</span><span style="color:var(--muted)">פעם בשלוש טעינות</span></div>
+          <div style="display:flex;justify-content:space-between"><span>1 (≈10%)</span><span style="color:var(--muted)">נדיר, פעם ב-10</span></div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5">
+          כשיש כמה מודעות, המערכת בוחרת לפי הגרלה משוקללת — כל אחת לפי המשקל שלה.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';  // אותו דומיין כמו האתר
+
+// ─── Weight display ───────────────────────────────────────
+function updateWeightDisplay() {
+  const v = parseInt(document.getElementById('fWeight').value);
+  const pct = Math.round(v / 10 * 100);
+  document.getElementById('weightFill').style.width = pct + '%';
+  document.getElementById('weightLabel').textContent = pct + '%';
+}
+
+// ─── URL lookup ───────────────────────────────────────────
+let urlTimer = null;
+function onUrlInput() {
+  clearTimeout(urlTimer);
+  const hint = document.getElementById('urlHint');
+  hint.textContent = '...';
+  urlTimer = setTimeout(lookupProduct, 600);
+}
+
+async function lookupProduct() {
+  const url = document.getElementById('fUrl').value.trim();
+  const hint = document.getElementById('urlHint');
+  const prev = document.getElementById('productPreview');
+  if (!url || !url.startsWith('http')) { hint.textContent = 'הכנס URL תקין'; prev.style.display='none'; return; }
+
+  try {
+    const res = await fetch(API + '/api/product-by-url?url=' + encodeURIComponent(url));
+    if (!res.ok) { hint.textContent = '❌ מוצר לא נמצא במסד הנתונים'; prev.style.display='none'; return; }
+    const p = await res.json();
+    document.getElementById('prevImg').src = p.image_url || '';
+    document.getElementById('prevTitle').textContent = p.title || '';
+    document.getElementById('prevStore').textContent = p.store || '';
+    document.getElementById('prevPrice').textContent = p.price ? '₪' + p.price : '';
+    document.getElementById('prevId').textContent = 'ID: ' + p.id;
+    document.getElementById('fUrl').dataset.pid = p.id;
+    hint.textContent = '✅ מוצר נמצא';
+    prev.style.display = 'block';
+  } catch(e) {
+    hint.textContent = 'שגיאת חיבור';
+    prev.style.display = 'none';
+  }
+}
+
+// ─── Submit ───────────────────────────────────────────────
+let editMode = false;
+
+async function submitAd() {
+  const pid = document.getElementById('fUrl').dataset.pid;
+  if (!pid && !editMode) { showToast('יש למצוא מוצר לפי URL תחילה', 'error'); return; }
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+  const body = {
+    product_id: parseInt(pid),
+    priority_row: parseInt(document.getElementById('fRow').value) || 1,
+    impression_weight: parseInt(document.getElementById('fWeight').value) || 10,
+    badge_text: document.getElementById('fBadge').value.trim() || null,
+    price_paid: parseFloat(document.getElementById('fPaid').value) || null,
+    notes: document.getElementById('fNotes').value.trim() || null,
+    days: parseInt(document.getElementById('fDays').value) || 0,
+  };
+
+  const editId = document.getElementById('editId').value;
+  const url = editId ? API + '/api/sponsored/' + editId : API + '/api/sponsored/create';
+  const method = editId ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('שגיאה');
+    showToast(editId ? '✅ מודעה עודכנה' : '🎯 מודעה נוספה!', 'success');
+    cancelEdit();
+    loadAds();
+  } catch(e) {
+    showToast('שגיאה בשמירה', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = editMode ? 'שמור שינויים' : 'הוסף מודעה';
+  }
+}
+
+// ─── Load ads ─────────────────────────────────────────────
+async function loadAds() {
+  document.getElementById('adsTableWrap').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res = await fetch(API + '/api/sponsored/all');
+    if (!res.ok) throw new Error();
+    const { sponsored } = await res.json();
+    renderTable(sponsored || []);
+  } catch(e) {
+    document.getElementById('adsTableWrap').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>שגיאה בטעינה</div>';
+  }
+}
+
+function renderTable(ads) {
+  const now = new Date();
+  const week = new Date(now.getTime() + 7*24*60*60*1000);
+  let active=0, expiring=0;
+
+  if (!ads.length) {
+    document.getElementById('adsTableWrap').innerHTML = '<div class="empty"><div class="empty-icon">📭</div>אין מודעות עדיין</div>';
+    updateStats(0,0,0); return;
+  }
+
+  let rows = '';
+  for (const a of ads) {
+    const isActive = a.active;
+    const exp = a.expires_at ? new Date(a.expires_at) : null;
+    const isExpired = exp && exp < now;
+    const isExpiring = exp && exp > now && exp < week;
+    if (isActive && !isExpired) active++;
+    if (isExpiring) expiring++;
+
+    const status = isExpired ? '<span class="badge badge-exp">פג תוקף</span>'
+      : isActive ? '<span class="badge badge-on">פעיל</span>'
+      : '<span class="badge badge-off">כבוי</span>';
+
+    const wpct = Math.round((a.impression_weight||10)/10*100);
+    const expStr = exp ? exp.toLocaleDateString('he-IL') : '∞';
+    const badgePill = a.badge_text ? `<div class="badge-text-pill">${a.badge_text}</div>` : '';
+
+    rows += `<tr>
+      <td>
+        <div style="display:flex;gap:10px;align-items:center">
+          <img class="ad-img" src="${a.image_url||''}" onerror="this.style.opacity='.3'" alt=""/>
+          <div class="ad-info">
+            <div class="ad-title">${a.title||''}</div>
+            <div class="ad-meta">${a.store||''} · ₪${a.product_price||''}</div>
+            ${badgePill}
+          </div>
+        </div>
+      </td>
+      <td style="text-align:center">${status}</td>
+      <td style="text-align:center"><div class="w-pill">שורה ${a.priority_row||1}</div></td>
+      <td style="text-align:center"><div class="w-pill">${wpct}%</div></td>
+      <td style="text-align:center;font-size:12px;color:var(--muted)">${expStr}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm" onclick="editAd(${JSON.stringify(a).replace(/"/g,'&quot;')})">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleAd(${a.id},${isActive})">${isActive?'⏸':'▶️'}</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAd(${a.id})">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  document.getElementById('adsTableWrap').innerHTML = `
+    <table class="ads-table">
+      <thead><tr>
+        <th>מוצר</th><th>סטטוס</th><th>שורה</th><th>תדירות</th><th>תפוגה</th><th>פעולות</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  updateStats(ads.length, active, expiring);
+}
+
+function updateStats(t,a,e) {
+  document.getElementById('statTotal').textContent = t;
+  document.getElementById('statActive').textContent = a;
+  document.getElementById('statExpiring').textContent = e;
+}
+
+// ─── Edit ─────────────────────────────────────────────────
+function editAd(a) {
+  editMode = true;
+  document.getElementById('formTitle').textContent = '✏️ עריכת מודעה';
+  document.getElementById('cancelEditBtn').style.display = '';
+  document.getElementById('submitBtn').textContent = 'שמור שינויים';
+  document.getElementById('editId').value = a.id;
+  document.getElementById('fUrl').value = a.source_url || '';
+  document.getElementById('fUrl').dataset.pid = a.product_id;
+  document.getElementById('fRow').value = a.priority_row || 1;
+  document.getElementById('fWeight').value = a.impression_weight || 10;
+  document.getElementById('fBadge').value = a.badge_text || '';
+  document.getElementById('fPaid').value = a.price_paid || '';
+  document.getElementById('fNotes').value = a.notes || '';
+  updateWeightDisplay();
+  // Show preview
+  document.getElementById('prevImg').src = a.image_url || '';
+  document.getElementById('prevTitle').textContent = a.title || '';
+  document.getElementById('prevStore').textContent = a.store || '';
+  document.getElementById('prevPrice').textContent = a.product_price ? '₪'+a.product_price : '';
+  document.getElementById('prevId').textContent = 'ID: ' + a.product_id;
+  document.getElementById('productPreview').style.display = 'block';
+  document.getElementById('urlHint').textContent = '✅ מוצר נמצא';
+  window.scrollTo({top:0,behavior:'smooth'});
+  document.querySelector('.layout > div:last-child').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function cancelEdit() {
+  editMode = false;
+  document.getElementById('formTitle').textContent = '➕ מודעה חדשה';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+  document.getElementById('submitBtn').textContent = 'הוסף מודעה';
+  document.getElementById('editId').value = '';
+  document.getElementById('fUrl').value = '';
+  delete document.getElementById('fUrl').dataset.pid;
+  document.getElementById('fRow').value = 1;
+  document.getElementById('fWeight').value = 10;
+  document.getElementById('fBadge').value = '';
+  document.getElementById('fPaid').value = '';
+  document.getElementById('fNotes').value = '';
+  document.getElementById('productPreview').style.display = 'none';
+  document.getElementById('urlHint').textContent = 'העתק את ה-URL מדף המוצר באתר החנות';
+  updateWeightDisplay();
+}
+
+// ─── Toggle / Delete ──────────────────────────────────────
+async function toggleAd(id, isActive) {
+  const endpoint = isActive ? 'deactivate' : 'activate';
+  try {
+    await fetch(API + '/api/sponsored/' + id + '/' + endpoint, { method: 'POST' });
+    showToast(isActive ? '⏸ מודעה הושהתה' : '▶️ מודעה הופעלה', 'success');
+    loadAds();
+  } catch(e) { showToast('שגיאה', 'error'); }
+}
+
+async function deleteAd(id) {
+  if (!confirm('למחוק את המודעה לצמיתות?')) return;
+  try {
+    await fetch(API + '/api/sponsored/' + id, { method: 'DELETE' });
+    showToast('🗑 נמחקה', 'success');
+    loadAds();
+  } catch(e) { showToast('שגיאה', 'error'); }
+}
+
+// ─── Toast ────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 2800);
+}
+
+// ─── Init ─────────────────────────────────────────────────
+updateWeightDisplay();
+loadAds();
+</script>
+</body>
+</html>

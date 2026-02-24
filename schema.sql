@@ -133,13 +133,59 @@ CREATE TABLE IF NOT EXISTS sponsored_products (
   id SERIAL PRIMARY KEY,
   product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   store VARCHAR(50),
-  priority INTEGER DEFAULT 0,        -- ערך גבוה = מופיע ראשון
+  priority_row INTEGER DEFAULT 1,    -- באיזו שורת מוצרים להופיע (1=ראשון, 3=שלישי...)
+  impression_weight INTEGER DEFAULT 10, -- משקל הגרלה: 10=הכל, 3≈30%, 1≈10%
   active BOOLEAN DEFAULT true,
-  price_paid DECIMAL(10,2),          -- כמה שולם לתקופה
-  expires_at TIMESTAMP,              -- NULL = אין תפוגה
-  notes TEXT,                        -- הערות פנימיות
+  price_paid DECIMAL(10,2),
+  expires_at TIMESTAMP,
+  badge_text VARCHAR(40),            -- טקסט על התמונה: "מומלץ", "מתאים להנקה" וכו'
+  notes TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_sponsored_active ON sponsored_products(active, priority DESC);
+-- מיגרציה בטוחה לDB קיים (ALTER מתעלם אם העמודה כבר קיימת)
+DO $$ BEGIN
+  ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS priority_row INTEGER DEFAULT 1;
+  ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS impression_weight INTEGER DEFAULT 10;
+  ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS badge_text VARCHAR(40);
+  -- הסר עמודת priority ישנה אם קיימת והמר ל-priority_row
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sponsored_products' AND column_name='priority') THEN
+    UPDATE sponsored_products SET priority_row = LEAST(GREATEST(priority,1),20) WHERE priority_row = 1;
+    ALTER TABLE sponsored_products DROP COLUMN IF EXISTS priority;
+  END IF;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_sponsored_active ON sponsored_products(active, priority_row ASC);
 CREATE INDEX IF NOT EXISTS idx_sponsored_product ON sponsored_products(product_id);
+
+-- Newsletter Subscribers
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  source VARCHAR(50) DEFAULT 'footer',  -- 'footer' / 'register'
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_nl_email ON newsletter_subscribers(email);
+CREATE INDEX IF NOT EXISTS idx_nl_active ON newsletter_subscribers(active);
+
+-- Sidebar Banner Ads (לוחות פרסום בסיידבר)
+CREATE TABLE IF NOT EXISTS sidebar_ads (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(100),
+  image_url TEXT,
+  link_url TEXT,
+  caption VARCHAR(80),              -- כיתוב על התמונה (אופציונלי)
+  size SMALLINT DEFAULT 1,          -- 1=ריבוע (180×180), 2=כפול (180×370), 3=תלת (180×560)
+  impression_weight SMALLINT DEFAULT 10, -- 10=תמיד, 5=50%, 3=30%, 1=10%
+  active BOOLEAN DEFAULT true,
+  starts_at TIMESTAMP,              -- NULL=מיד
+  expires_at TIMESTAMP,             -- NULL=ללא תפוגה
+  clicks INTEGER DEFAULT 0,
+  impressions INTEGER DEFAULT 0,
+  price_paid DECIMAL(10,2),
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sidebar_active ON sidebar_ads(active);

@@ -769,40 +769,247 @@ app.get("/api/debug/db", async (req, res) => {
 
 
 // ===== SPONSORED PRODUCTS =====
-// GET /api/sponsored — מחזיר מוצרים ממומנים פעילים
+// GET /api/sponsored — מחזיר כל המודעות הפעילות (הגרלה לפי impression_weight בצד הלקוח)
 app.get("/api/sponsored", async (req, res) => {
   try {
     const q = req.query.q || "";
-    // מחזיר מוצרים ממומנים פעילים, ממוינים לפי עדיפות
-    // אם יש query — מוצרים שרלוונטיים לקטגוריה מקבלים עדיפות
-    let query, params;
-    if (q) {
-      query = `
-        SELECT sp.*, p.image_url, p.source_url, p.title, p.price, p.store
-        FROM sponsored_products sp
-        JOIN products p ON p.id = sp.product_id
-        WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
-        ORDER BY
-          CASE WHEN p.title ILIKE $1 OR p.category ILIKE $1 THEN 0 ELSE 1 END,
-          sp.priority DESC, sp.created_at DESC
-        LIMIT 4`;
-      params = [`%${q}%`];
-    } else {
-      query = `
-        SELECT sp.*, p.image_url, p.source_url, p.title, p.price, p.store
-        FROM sponsored_products sp
-        JOIN products p ON p.id = sp.product_id
-        WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
-        ORDER BY sp.priority DESC, sp.created_at DESC
-        LIMIT 4`;
-      params = [];
-    }
-    const result = await pool.query(query, params);
+    // מחזיר את כל המודעות הפעילות — הגרלה לפי משקל תתבצע בצד הלקוח
+    const query = `
+      SELECT sp.id, sp.priority_row, sp.impression_weight, sp.badge_text,
+             p.image_url, p.source_url, p.title, p.price, p.store
+      FROM sponsored_products sp
+      JOIN products p ON p.id = sp.product_id
+      WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
+      ORDER BY
+        CASE WHEN $1 != '' AND (p.title ILIKE $1 OR p.category ILIKE $1) THEN 0 ELSE 1 END,
+        sp.created_at DESC
+      LIMIT 20`;
+    const result = await pool.query(query, [`%${q}%`]);
     res.json({ sponsored: result.rows });
   } catch (e) {
-    // טבלה לא קיימת — מחזיר רשימה ריקה בשקט
     res.json({ sponsored: [] });
   }
+});
+
+
+
+
+// ===== SIDEBAR ADS =====
+
+// GET /api/sidebar-ads — מחזיר לוחות פעילים לפי משקל
+app.get("/api/sidebar-ads", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT * FROM sidebar_ads
+      WHERE active = true
+        AND (starts_at IS NULL OR starts_at <= NOW())
+        AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY impression_weight DESC
+    `);
+    if (!r.rows.length) return res.json({ ads: [] });
+    // בחר עד 3 לוחות לפי הגרלה משוקללת
+    const picked = weightedPickAds(r.rows, 3);
+    // עדכן impressions
+    const ids = picked.map(a => a.id);
+    if (ids.length) {
+      await pool.query(
+        `UPDATE sidebar_ads SET impressions = impressions + 1 WHERE id = ANY($1)`,
+        [ids]
+      );
+    }
+    res.json({ ads: picked });
+  } catch(e) { res.json({ ads: [] }); }
+});
+
+function weightedPickAds(items, count) {
+  const pool = [...items];
+  const picked = [];
+  for (let n = 0; n < count && pool.length; n++) {
+    const total = pool.reduce((s, x) => s + (x.impression_weight || 10), 0);
+    let rand = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+      rand -= (pool[i].impression_weight || 10);
+      if (rand <= 0) { picked.push(pool.splice(i, 1)[0]); break; }
+    }
+  }
+  return picked;
+}
+
+// POST /api/sidebar-ads/:id/click
+app.post("/api/sidebar-ads/:id/click", async (req, res) => {
+  try {
+    await pool.query("UPDATE sidebar_ads SET clicks=clicks+1 WHERE id=$1", [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+// GET /api/sidebar-ads/all (ניהול)
+app.get("/api/sidebar-ads/all", async (req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM sidebar_ads ORDER BY active DESC, created_at DESC");
+    res.json({ ads: r.rows });
+  } catch(e) { res.json({ ads: [] }); }
+});
+
+// POST /api/sidebar-ads/create
+app.post("/api/sidebar-ads/create", async (req, res) => {
+  try {
+    const { title, image_url, link_url, caption, size=1, impression_weight=10, days=0, starts_in=0, price_paid=null, notes=null } = req.body;
+    let expires_at = null, starts_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    if (starts_in > 0) { const d=new Date(); d.setDate(d.getDate()+starts_in); starts_at=d.toISOString(); }
+    const r = await pool.query(
+      `INSERT INTO sidebar_ads (title,image_url,link_url,caption,size,impression_weight,expires_at,starts_at,price_paid,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [title,image_url,link_url,caption,size,impression_weight,expires_at,starts_at,price_paid,notes]
+    );
+    res.json({ id: r.rows[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/sidebar-ads/:id
+app.put("/api/sidebar-ads/:id", async (req, res) => {
+  try {
+    const { title, image_url, link_url, caption, size, impression_weight, days, price_paid, notes } = req.body;
+    let expires_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    await pool.query(
+      `UPDATE sidebar_ads SET title=$2,image_url=$3,link_url=$4,caption=$5,size=$6,
+       impression_weight=$7,expires_at=$8,price_paid=$9,notes=$10 WHERE id=$1`,
+      [req.params.id, title, image_url, link_url, caption, size, impression_weight, expires_at, price_paid, notes]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sidebar-ads/:id/activate|deactivate
+app.post("/api/sidebar-ads/:id/activate",   async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=true  WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+app.post("/api/sidebar-ads/:id/deactivate", async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=false WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+
+// DELETE /api/sidebar-ads/:id
+app.delete("/api/sidebar-ads/:id", async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+
+// Serve admin UI
+app.get("/admin/ads", (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_ads.html'));
+});
+
+// ===== SPONSORED ADMIN ROUTES =====
+
+// GET /api/product-by-url — מחפש מוצר לפי URL (לממשק הניהול)
+app.get("/api/product-by-url", async (req, res) => {
+  try {
+    const url = (req.query.url || '').trim().replace(/\/+$/, '');
+    if (!url) return res.status(400).json({ error: 'חסר url' });
+    const r = await pool.query(
+      `SELECT id, title, store, price, image_url FROM products
+       WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
+      [url, url + '%']
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
+    res.json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
+});
+
+// GET /api/sponsored/all — כל המודעות (לממשק הניהול)
+app.get("/api/sponsored/all", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT sp.*, p.image_url, p.source_url, p.title, p.price AS product_price, p.store
+      FROM sponsored_products sp
+      JOIN products p ON p.id = sp.product_id
+      ORDER BY sp.active DESC, sp.created_at DESC
+    `);
+    res.json({ sponsored: r.rows });
+  } catch(e) { res.json({ sponsored: [] }); }
+});
+
+// POST /api/sponsored/create — יצירת מודעה חדשה
+app.post("/api/sponsored/create", async (req, res) => {
+  try {
+    const { product_id, priority_row=1, impression_weight=10, badge_text=null, price_paid=null, notes=null, days=0 } = req.body;
+    let expires_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    const r = await pool.query(
+      `INSERT INTO sponsored_products (product_id, store, priority_row, impression_weight, badge_text, price_paid, expires_at, notes)
+       SELECT $1, store, $2, $3, $4, $5, $6, $7 FROM products WHERE id=$1 RETURNING id`,
+      [product_id, priority_row, impression_weight, badge_text, price_paid, expires_at, notes]
+    );
+    res.json({ id: r.rows[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/sponsored/:id — עדכון מודעה
+app.put("/api/sponsored/:id", async (req, res) => {
+  try {
+    const { priority_row, impression_weight, badge_text, price_paid, notes, days } = req.body;
+    let expires_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    await pool.query(
+      `UPDATE sponsored_products SET priority_row=$2, impression_weight=$3, badge_text=$4,
+       price_paid=$5, notes=$6, expires_at=$7 WHERE id=$1`,
+      [req.params.id, priority_row, impression_weight, badge_text, price_paid, notes, expires_at]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sponsored/:id/activate|deactivate
+app.post("/api/sponsored/:id/activate",   async (req,res) => {
+  await pool.query("UPDATE sponsored_products SET active=true  WHERE id=$1",[req.params.id]);
+  res.json({ok:true});
+});
+app.post("/api/sponsored/:id/deactivate", async (req,res) => {
+  await pool.query("UPDATE sponsored_products SET active=false WHERE id=$1",[req.params.id]);
+  res.json({ok:true});
+});
+
+// DELETE /api/sponsored/:id
+app.delete("/api/sponsored/:id", async (req,res) => {
+  await pool.query("DELETE FROM sponsored_products WHERE id=$1",[req.params.id]);
+  res.json({ok:true});
+});
+
+// Serve admin UI
+app.get("/admin/sponsored", (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_sponsored.html'));
+});
+
+// ===== NEWSLETTER =====
+// POST /api/newsletter/subscribe
+app.post("/api/newsletter/subscribe", async (req, res) => {
+  try {
+    const { email, source = 'footer' } = req.body;
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'מייל לא תקין' });
+    await pool.query(
+      `INSERT INTO newsletter_subscribers (email, source)
+       VALUES ($1, $2)
+       ON CONFLICT (email) DO UPDATE SET active=true`,
+      [email.toLowerCase().trim(), source]
+    );
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: 'שגיאה' });
+  }
+});
+
+// POST /api/newsletter/unsubscribe
+app.post("/api/newsletter/unsubscribe", async (req, res) => {
+  try {
+    const { email } = req.body;
+    await pool.query("UPDATE newsletter_subscribers SET active=false WHERE email=$1", [email]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
+});
+
+// GET /api/newsletter/list  (מוגן — רק לשימוש פנימי)
+app.get("/api/newsletter/list", async (req, res) => {
+  try {
+    const r = await pool.query(
+      "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+    );
+    res.json({ count: r.rowCount, subscribers: r.rows });
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });
 
 // ===== AUTH HELPERS =====

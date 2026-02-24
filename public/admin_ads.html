@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI — לוחות פרסום</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f13;--surface:#18181f;--surface2:#22222c;--border:#2e2e3a;
+  --accent:#a855f7;--accent2:#ec4899;--text:#f1f0f5;--muted:#6b6b80;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;
+}
+html{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif}
+body{padding:0}
+
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar-logo{font-weight:900;font-size:20px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar-sep{width:1px;height:20px;background:var(--border)}
+.topbar-title{font-size:14px;color:var(--muted);font-weight:500}
+.topbar-nav{display:flex;gap:8px;margin-right:auto}
+.nav-link{padding:6px 14px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;border:1px solid transparent;transition:all .15s}
+.nav-link:hover{color:var(--text);border-color:var(--border)}
+.nav-link.active{background:rgba(168,85,247,.15);color:var(--accent);border-color:rgba(168,85,247,.3)}
+
+.layout{display:grid;grid-template-columns:1fr 400px;gap:24px;padding:24px 28px;max-width:1400px;margin:0 auto}
+@media(max-width:960px){.layout{grid-template-columns:1fr}}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px}
+.panel-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+.panel-body{padding:18px 20px}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.stat{background:var(--surface2);border-radius:10px;padding:14px;text-align:center}
+.stat-num{font-size:22px;font-weight:900;line-height:1}
+.stat-lbl{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* Table */
+.table{width:100%;border-collapse:collapse}
+.table th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;font-weight:600}
+.table td{padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.table tr:last-child td{border-bottom:none}
+.table tr:hover td{background:rgba(255,255,255,.02)}
+
+/* Ad preview in table */
+.ad-thumb{width:50px;height:50px;object-fit:cover;border-radius:6px;background:var(--surface2)}
+.ad-thumb.double{height:100px}
+.ad-thumb.triple{height:150px}
+
+/* Size badge */
+.size-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(59,130,246,.12);color:var(--blue);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700}
+
+/* Status */
+.badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-on{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-off{background:rgba(239,68,68,.1);color:var(--red)}
+.badge-exp{background:rgba(234,179,8,.1);color:var(--yellow)}
+
+/* Weight pill */
+.w-pill{display:inline-flex;align-items:center;background:rgba(168,85,247,.12);border-radius:20px;padding:3px 8px;font-size:12px;font-weight:700;color:var(--accent)}
+
+/* Form */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.field input,.field select,.field textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Heebo',sans-serif;outline:none;transition:border-color .15s;direction:rtl;width:100%}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:56px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-hint{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* Size picker */
+.size-picker{display:flex;gap:8px}
+.size-opt{flex:1;border:2px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface2)}
+.size-opt:hover{border-color:var(--accent)}
+.size-opt.selected{border-color:var(--accent);background:rgba(168,85,247,.1)}
+.size-opt .size-icon{margin:0 auto 6px;background:var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px}
+.size-opt .size-name{font-size:12px;font-weight:700;color:var(--text)}
+.size-opt .size-dim{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* Weight slider */
+input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+.weight-row{display:flex;align-items:center;gap:10px;margin-top:4px}
+.weight-bar{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.weight-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width .2s}
+.weight-val{font-size:13px;font-weight:800;color:var(--accent);min-width:34px}
+
+/* Image preview */
+.img-preview{width:100%;border-radius:8px;object-fit:cover;background:var(--surface2);display:none;margin-top:8px}
+.img-preview.show{display:block}
+
+/* Buttons */
+.btn{padding:10px 18px;border-radius:8px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--text)}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+/* Actions */
+.actions{display:flex;gap:5px;flex-wrap:wrap}
+
+/* CTR */
+.ctr-bar{height:4px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden;width:60px}
+.ctr-fill{height:100%;background:var(--green);border-radius:2px}
+
+/* Live preview */
+.live-preview{background:var(--surface2);border-radius:12px;padding:14px;text-align:center;margin-bottom:14px}
+.live-preview-title{font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.preview-ad{width:180px;margin:0 auto;border-radius:8px;overflow:hidden;position:relative;background:var(--border)}
+.preview-ad img{width:100%;display:block;object-fit:cover}
+.preview-badge{position:absolute;top:5px;right:5px;background:rgba(255,255,255,.85);border-radius:8px;padding:2px 5px;font-size:8px;color:#666;font-weight:700}
+.preview-caption{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;font-size:10px;padding:14px 6px 5px;font-weight:700}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 20px;font-size:13px;font-weight:600;color:var(--text);opacity:0;transition:all .3s;z-index:999;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:var(--green);color:var(--green)}
+#toast.error{border-color:var(--red);color:var(--red)}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Guide */
+.guide-row{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start}
+.guide-swatch{border-radius:6px;background:var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:9px;font-weight:700}
+.guide-info{font-size:12px;color:var(--muted);line-height:1.5}
+.guide-info strong{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-logo">LOOKLI</span>
+  <span class="topbar-sep"></span>
+  <span class="topbar-title">ניהול פרסום</span>
+  <div class="topbar-nav">
+    <a href="/admin/sponsored" class="nav-link">🎯 מודעות מוצרים</a>
+    <a href="/admin/ads" class="nav-link active">📋 לוחות סיידבר</a>
+    <a href="/" class="nav-link" target="_blank">🌐 אתר</a>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- RIGHT: LIST -->
+  <div>
+    <div class="stats" id="statsRow">
+      <div class="stat"><div class="stat-num" id="stTotal">–</div><div class="stat-lbl">סה"כ</div></div>
+      <div class="stat"><div class="stat-num" style="color:var(--green)" id="stActive">–</div><div class="stat-lbl">פעיל</div></div>
+      <div class="stat"><div class="stat-num" style="color:var(--blue)" id="stClicks">–</div><div class="stat-lbl">קליקים</div></div>
+      <div class="stat"><div class="stat-num" style="color:var(--muted)" id="stImpr">–</div><div class="stat-lbl">חשיפות</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">📋 לוחות פרסום</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadAds()">🔄</button>
+      </div>
+      <div id="tableWrap" style="overflow-x:auto">
+        <div style="padding:40px;text-align:center;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEFT: FORM -->
+  <div>
+    <!-- Live Preview -->
+    <div class="live-preview">
+      <div class="live-preview-title">תצוגה מקדימה</div>
+      <div class="preview-ad" id="previewAd" style="height:180px">
+        <img id="previewImg" src="" alt="" style="display:none;height:100%;object-fit:cover"/>
+        <div id="previewEmpty" style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">הכנס קישור תמונה</div>
+        <span class="preview-badge">מודעה</span>
+        <div class="preview-caption" id="previewCaption" style="display:none"></div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)" id="previewDims">180 × 180 פיקסל</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title" id="formTitle">➕ לוח חדש</span>
+        <button class="btn btn-ghost btn-sm" id="cancelBtn" style="display:none" onclick="cancelEdit()">ביטול</button>
+      </div>
+      <div class="panel-body">
+
+        <!-- Size picker -->
+        <div class="field">
+          <label>גודל הלוח</label>
+          <div class="size-picker">
+            <div class="size-opt selected" data-size="1" onclick="selectSize(1)">
+              <div class="size-icon" style="width:36px;height:36px">1×</div>
+              <div class="size-name">רגיל</div>
+              <div class="size-dim">180×180</div>
+            </div>
+            <div class="size-opt" data-size="2" onclick="selectSize(2)">
+              <div class="size-icon" style="width:36px;height:72px">2×</div>
+              <div class="size-name">כפול</div>
+              <div class="size-dim">180×370</div>
+            </div>
+            <div class="size-opt" data-size="3" onclick="selectSize(3)">
+              <div class="size-icon" style="width:36px;height:108px">3×</div>
+              <div class="size-name">תלת</div>
+              <div class="size-dim">180×560</div>
+            </div>
+          </div>
+          <input type="hidden" id="fSize" value="1"/>
+        </div>
+
+        <div class="field">
+          <label>כותרת (פנימי)</label>
+          <input type="text" id="fTitle" placeholder="קמפיין קיץ — מקימי"/>
+        </div>
+
+        <div class="field">
+          <label>קישור לתמונה</label>
+          <input type="url" id="fImageUrl" placeholder="https://..." oninput="onImageInput()"/>
+          <img id="imgPreviewSmall" class="img-preview" src="" alt=""/>
+        </div>
+
+        <div class="field">
+          <label>קישור יעד (לחיצה)</label>
+          <input type="url" id="fLinkUrl" placeholder="https://..."/>
+        </div>
+
+        <div class="field">
+          <label>כיתוב על התמונה (אופציונלי)</label>
+          <input type="text" id="fCaption" placeholder='קולקציית קיץ 2026' maxlength="80" oninput="onCaptionInput()"/>
+        </div>
+
+        <!-- Weight -->
+        <div class="field">
+          <label>תדירות הופעה</label>
+          <input type="range" id="fWeight" min="1" max="10" value="10" oninput="updateWeight()"/>
+          <div class="weight-row">
+            <div class="weight-bar"><div class="weight-fill" id="wFill" style="width:100%"></div></div>
+            <div class="weight-val" id="wVal">100%</div>
+          </div>
+          <div class="field-hint">כמה לוחות עם משקל גבוה יותר יופיעו לעתים קרובות יותר</div>
+        </div>
+
+        <div class="field-row">
+          <div class="field" style="margin-bottom:0">
+            <label>ימים בתוקף</label>
+            <input type="number" id="fDays" value="30" min="0" placeholder="30"/>
+            <div class="field-hint">0 = ללא תפוגה</div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>מחיר ששולם (₪)</label>
+            <input type="number" id="fPaid" min="0" placeholder="500"/>
+          </div>
+        </div>
+
+        <input type="hidden" id="editId" value=""/>
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px" id="submitBtn" onclick="submitAd()">
+          הוסף לוח
+        </button>
+      </div>
+    </div>
+
+    <!-- Guide -->
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title" style="font-size:13px">📐 גדלי לוחות</span></div>
+      <div class="panel-body" style="padding:14px 18px">
+        <div class="guide-row">
+          <div class="guide-swatch" style="width:28px;height:28px">1×</div>
+          <div class="guide-info"><strong>ריבוע (180×180px)</strong><br/>מתאים לבאנר קטן, לוגו + מבצע</div>
+        </div>
+        <div class="guide-row">
+          <div class="guide-swatch" style="width:28px;height:56px">2×</div>
+          <div class="guide-info"><strong>כפול (180×370px)</strong><br/>מתאים לתמונת מוצר עם טקסט</div>
+        </div>
+        <div class="guide-row">
+          <div class="guide-swatch" style="width:28px;height:84px">3×</div>
+          <div class="guide-info"><strong>תלת (180×560px)</strong><br/>באנר גדול, קמפיין מלא</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5">
+          🖼 מומלץ להעלות תמונות ב-<strong style="color:var(--text)">360px רוחב</strong> (כפול — לרטינה)
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+let selectedSize = 1;
+let editMode = false;
+
+// ─── Size picker ─────────────────────────────────────────
+const sizeHeights = {1: 180, 2: 370, 3: 560};
+const sizeDims = {1:'180 × 180 פיקסל', 2:'180 × 370 פיקסל', 3:'180 × 560 פיקסל'};
+
+function selectSize(s) {
+  selectedSize = s;
+  document.getElementById('fSize').value = s;
+  document.querySelectorAll('.size-opt').forEach(el => el.classList.toggle('selected', parseInt(el.dataset.size)===s));
+  const h = sizeHeights[s];
+  document.getElementById('previewAd').style.height = h + 'px';
+  document.getElementById('previewDims').textContent = sizeDims[s];
+}
+
+// ─── Image preview ────────────────────────────────────────
+let imgTimer;
+function onImageInput() {
+  clearTimeout(imgTimer);
+  imgTimer = setTimeout(() => {
+    const url = document.getElementById('fImageUrl').value.trim();
+    const small = document.getElementById('imgPreviewSmall');
+    const big = document.getElementById('previewImg');
+    const empty = document.getElementById('previewEmpty');
+    if (url) {
+      small.src = url; small.classList.add('show');
+      big.src = url; big.style.display = 'block';
+      empty.style.display = 'none';
+    } else {
+      small.classList.remove('show');
+      big.style.display = 'none';
+      empty.style.display = 'flex';
+    }
+  }, 400);
+}
+
+function onCaptionInput() {
+  const cap = document.getElementById('fCaption').value.trim();
+  const el = document.getElementById('previewCaption');
+  if (cap) { el.textContent = cap; el.style.display = 'block'; }
+  else { el.style.display = 'none'; }
+}
+
+// ─── Weight ───────────────────────────────────────────────
+function updateWeight() {
+  const v = parseInt(document.getElementById('fWeight').value);
+  const pct = Math.round(v/10*100);
+  document.getElementById('wFill').style.width = pct + '%';
+  document.getElementById('wVal').textContent = pct + '%';
+}
+
+// ─── Load table ───────────────────────────────────────────
+async function loadAds() {
+  document.getElementById('tableWrap').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+  try {
+    const res = await fetch('/api/sidebar-ads/all');
+    const { ads } = await res.json();
+    renderTable(ads || []);
+  } catch(e) {
+    document.getElementById('tableWrap').innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">⚠️ שגיאה בטעינה</div>';
+  }
+}
+
+function renderTable(ads) {
+  const now = new Date();
+  let active=0, clicks=0, impr=0;
+
+  if (!ads.length) {
+    document.getElementById('tableWrap').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">📭 אין לוחות עדיין</div>';
+    updateStats(0,0,0,0); return;
+  }
+
+  let rows = '';
+  for (const a of ads) {
+    const exp = a.expires_at ? new Date(a.expires_at) : null;
+    const isExpired = exp && exp < now;
+    const isActive = a.active && !isExpired;
+    if (isActive) active++;
+    clicks += (a.clicks || 0);
+    impr += (a.impressions || 0);
+
+    const status = isExpired ? '<span class="badge badge-exp">פג</span>'
+      : a.active ? '<span class="badge badge-on">פעיל</span>'
+      : '<span class="badge badge-off">כבוי</span>';
+
+    const sizeNames = {1:'רגיל',2:'כפול',3:'תלת'};
+    const sizeH = {1:'h50',2:'h100',3:'h150'};
+    const pct = Math.round((a.impression_weight||10)/10*100);
+    const ctr = a.impressions ? ((a.clicks/a.impressions)*100).toFixed(1) : '0';
+    const expStr = exp ? exp.toLocaleDateString('he-IL') : '∞';
+
+    rows += `<tr>
+      <td>
+        <div style="display:flex;gap:10px;align-items:center">
+          ${a.image_url ? `<img class="ad-thumb ${a.size>=3?'triple':a.size>=2?'double':''}" src="${a.image_url}" onerror="this.style.opacity='.2'" alt=""/>` : `<div class="ad-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px">אין</div>`}
+          <div>
+            <div style="font-weight:600;font-size:13px">${a.title||'ללא כותרת'}</div>
+            ${a.caption ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">"${a.caption}"</div>` : ''}
+          </div>
+        </div>
+      </td>
+      <td><span class="size-badge">${sizeNames[a.size]||'1×'} (180×${sizeHeights[a.size]||180})</span></td>
+      <td>${status}</td>
+      <td><span class="w-pill">${pct}%</span></td>
+      <td style="font-size:12px">
+        <div>${a.clicks||0} קליקים</div>
+        <div class="ctr-bar"><div class="ctr-fill" style="width:${Math.min(parseFloat(ctr)*10,100)}%"></div></div>
+        <div style="color:var(--muted);font-size:10px">CTR ${ctr}%</div>
+      </td>
+      <td style="font-size:11px;color:var(--muted)">${expStr}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm" onclick='editAd(${JSON.stringify(a).replace(/"/g,"&quot;")})'>✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleAd(${a.id},${a.active})">${a.active?'⏸':'▶️'}</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAd(${a.id})">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  document.getElementById('tableWrap').innerHTML = `
+    <table class="table">
+      <thead><tr><th>לוח</th><th>גודל</th><th>סטטוס</th><th>תדירות</th><th>ביצועים</th><th>תפוגה</th><th>פעולות</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  updateStats(ads.length, active, clicks, impr);
+}
+
+function updateStats(t,a,c,i) {
+  document.getElementById('stTotal').textContent = t;
+  document.getElementById('stActive').textContent = a;
+  document.getElementById('stClicks').textContent = c;
+  document.getElementById('stImpr').textContent = i;
+}
+
+// ─── Submit ───────────────────────────────────────────────
+async function submitAd() {
+  const title = document.getElementById('fTitle').value.trim();
+  if (!title) { showToast('נדרשת כותרת', 'error'); return; }
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+  const body = {
+    title,
+    image_url: document.getElementById('fImageUrl').value.trim() || null,
+    link_url: document.getElementById('fLinkUrl').value.trim() || null,
+    caption: document.getElementById('fCaption').value.trim() || null,
+    size: selectedSize,
+    impression_weight: parseInt(document.getElementById('fWeight').value),
+    days: parseInt(document.getElementById('fDays').value) || 0,
+    price_paid: parseFloat(document.getElementById('fPaid').value) || null,
+  };
+
+  const editId = document.getElementById('editId').value;
+  const url = editId ? '/api/sidebar-ads/' + editId : '/api/sidebar-ads/create';
+  const method = editId ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error();
+    showToast(editId ? '✅ עודכן' : '✅ נוסף!', 'success');
+    cancelEdit(); loadAds();
+  } catch(e) { showToast('שגיאה', 'error'); }
+  finally { btn.disabled=false; btn.textContent = editMode?'שמור':'הוסף לוח'; }
+}
+
+// ─── Edit ─────────────────────────────────────────────────
+const sizeHeights = {1:180, 2:370, 3:560};
+
+function editAd(a) {
+  editMode = true;
+  document.getElementById('formTitle').textContent = '✏️ עריכת לוח';
+  document.getElementById('cancelBtn').style.display = '';
+  document.getElementById('submitBtn').textContent = 'שמור';
+  document.getElementById('editId').value = a.id;
+  document.getElementById('fTitle').value = a.title||'';
+  document.getElementById('fImageUrl').value = a.image_url||'';
+  document.getElementById('fLinkUrl').value = a.link_url||'';
+  document.getElementById('fCaption').value = a.caption||'';
+  document.getElementById('fWeight').value = a.impression_weight||10;
+  document.getElementById('fPaid').value = a.price_paid||'';
+  selectSize(a.size||1);
+  updateWeight(); onImageInput(); onCaptionInput();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function cancelEdit() {
+  editMode = false;
+  document.getElementById('formTitle').textContent = '➕ לוח חדש';
+  document.getElementById('cancelBtn').style.display = 'none';
+  document.getElementById('submitBtn').textContent = 'הוסף לוח';
+  document.getElementById('editId').value = '';
+  ['fTitle','fImageUrl','fLinkUrl','fCaption','fPaid'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('fWeight').value = 10;
+  document.getElementById('fDays').value = 30;
+  selectSize(1); updateWeight();
+  document.getElementById('imgPreviewSmall').classList.remove('show');
+  document.getElementById('previewImg').style.display='none';
+  document.getElementById('previewEmpty').style.display='flex';
+  document.getElementById('previewCaption').style.display='none';
+}
+
+// ─── Toggle / Delete ──────────────────────────────────────
+async function toggleAd(id, active) {
+  const ep = active ? 'deactivate' : 'activate';
+  await fetch('/api/sidebar-ads/'+id+'/'+ep, {method:'POST'});
+  showToast(active?'⏸ הושהה':'▶️ הופעל','success');
+  loadAds();
+}
+
+async function deleteAd(id) {
+  if (!confirm('למחוק לצמיתות?')) return;
+  await fetch('/api/sidebar-ads/'+id, {method:'DELETE'});
+  showToast('🗑 נמחק','success');
+  loadAds();
+}
+
+// ─── Toast ────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  setTimeout(()=>t.className='', 2800);
+}
+
+// ─── Init ─────────────────────────────────────────────────
+updateWeight();
+loadAds();
+</script>
+</body>
+</html>

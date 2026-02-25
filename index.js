@@ -1215,7 +1215,7 @@ function authMiddleware(req, res, next) {
 // POST /api/auth/register
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, newsletter = false } = req.body;
     if (!email || !password) return res.status(400).json({ error: "אימייל וסיסמה חובה" });
     if (password.length < 6) return res.status(400).json({ error: "סיסמה חייבת לפחות 6 תווים" });
     const emailLower = email.toLowerCase().trim();
@@ -1228,6 +1228,18 @@ app.post("/api/auth/register", async (req, res) => {
     );
     const user = result.rows[0];
     const token = createToken(user.id, user.email);
+    // שמור בניוזלטר + Brevo אם אישר
+    if (newsletter) {
+      try {
+        await pool.query(
+          `INSERT INTO newsletter_subscribers (email, source)
+           VALUES ($1, 'register')
+           ON CONFLICT (email) DO UPDATE SET active=true`,
+          [emailLower]
+        );
+        addToBrevo(emailLower).catch(()=>{});
+      } catch(_) {}
+    }
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
   } catch (e) {
     console.error("register error:", e.message);

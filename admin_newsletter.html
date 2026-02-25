@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI — ניהול רשימת תפוצה</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f13;--surface:#18181f;--surface2:#22222c;--border:#2e2e3a;
+  --accent:#a855f7;--accent2:#ec4899;--text:#f1f0f5;--muted:#6b6b80;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;
+  --brevo:#0b996e;
+}
+html{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh}
+
+/* ─── Topbar ─────────────────────────────────────────── */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.logo{font-weight:900;font-size:20px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sep{width:1px;height:20px;background:var(--border)}
+.topbar-title{font-size:14px;color:var(--muted)}
+.nav{display:flex;gap:8px;margin-right:auto}
+.nav a{padding:6px 14px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;border:1px solid transparent;transition:all .15s}
+.nav a:hover{color:var(--text);border-color:var(--border)}
+.nav a.active{background:rgba(168,85,247,.15);color:var(--accent);border-color:rgba(168,85,247,.3)}
+
+/* ─── Layout ─────────────────────────────────────────── */
+.page{max-width:1100px;margin:0 auto;padding:24px 28px}
+
+/* ─── Stats ──────────────────────────────────────────── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+.stat-num{font-size:28px;font-weight:900;line-height:1}
+.stat-lbl{font-size:11px;color:var(--muted);margin-top:5px;font-weight:500}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* ─── Cards ──────────────────────────────────────────── */
+.grid2{display:grid;grid-template-columns:1fr 340px;gap:20px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px}
+.panel-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.panel-title{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+.panel-body{padding:18px 20px}
+
+/* ─── Buttons ────────────────────────────────────────── */
+.btn{padding:9px 18px;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:7px;text-decoration:none}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{opacity:.88}
+.btn-brevo{background:var(--brevo);color:#fff}
+.btn-brevo:hover{opacity:.88}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--text)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+/* ─── Search ─────────────────────────────────────────── */
+.search-bar{display:flex;gap:10px;margin-bottom:14px}
+.search-bar input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 14px;font-size:13px;font-family:'Heebo',sans-serif;outline:none;direction:rtl}
+.search-bar input:focus{border-color:var(--accent)}
+.filter-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);color:var(--muted);background:transparent;transition:all .15s;font-family:'Heebo',sans-serif}
+.tab.active{background:rgba(168,85,247,.15);color:var(--accent);border-color:rgba(168,85,247,.4)}
+
+/* ─── Table ──────────────────────────────────────────── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:9px 14px;border-bottom:1px solid var(--border);text-align:right;font-weight:600}
+td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.email-cell{font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.source-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.src-footer{background:rgba(59,130,246,.12);color:var(--blue)}
+.src-register{background:rgba(168,85,247,.12);color:var(--accent)}
+.date-cell{font-size:12px;color:var(--muted)}
+.del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 6px;border-radius:5px;transition:color .15s}
+.del-btn:hover{color:var(--red)}
+
+/* ─── Growth chart ───────────────────────────────────── */
+.chart-wrap{height:120px;display:flex;align-items:flex-end;gap:3px;padding:0 0 24px;position:relative}
+.chart-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.chart-bar{width:100%;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--accent),rgba(168,85,247,.3));transition:height .4s;cursor:default;min-height:2px}
+.chart-bar:hover{opacity:.8}
+.chart-label{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;position:absolute;bottom:0}
+.chart-bar-container{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:calc(100% - 20px);width:100%}
+
+/* ─── Brevo panel ────────────────────────────────────── */
+.brevo-status{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;background:var(--surface2);margin-bottom:12px}
+.brevo-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-ok{background:var(--green)}
+.dot-warn{background:var(--yellow)}
+.dot-off{background:var(--muted)}
+.brevo-info{flex:1;font-size:13px}
+.brevo-info small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.sync-result{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:13px;display:none}
+.sync-ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green)}
+.sync-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+
+/* ─── Setup guide ────────────────────────────────────── */
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step-num{width:24px;height:24px;border-radius:50%;background:rgba(168,85,247,.2);color:var(--accent);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-body{flex:1;font-size:13px;line-height:1.55;color:var(--muted)}
+.step-body strong{color:var(--text)}
+.step-body a{color:var(--accent);text-decoration:none}
+.step-body a:hover{text-decoration:underline}
+code{background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:12px;color:var(--text);font-family:monospace}
+
+/* ─── Toast ──────────────────────────────────────────── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 22px;font-size:13px;font-weight:600;color:var(--text);opacity:0;transition:all .3s;z-index:999;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:var(--green);color:var(--green)}
+#toast.error{border-color:var(--red);color:var(--red)}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.empty{text-align:center;padding:40px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">LOOKLI</span>
+  <span class="sep"></span>
+  <span class="topbar-title">רשימת תפוצה</span>
+  <div class="nav">
+    <a href="/admin/sponsored">🎯 מודעות מוצרים</a>
+    <a href="/admin/ads">📋 לוחות סיידבר</a>
+    <a href="/admin/newsletter" class="active">📧 תפוצה</a>
+    <a href="/" target="_blank">🌐 אתר</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- Stats -->
+  <div class="stats" id="statsRow">
+    <div class="stat"><div class="stat-num" id="stTotal" style="color:var(--accent)">–</div><div class="stat-lbl">סה"כ נרשמים</div></div>
+    <div class="stat"><div class="stat-num" id="stFooter" style="color:var(--blue)">–</div><div class="stat-lbl">מטופס תחתית</div></div>
+    <div class="stat"><div class="stat-num" id="stRegister" style="color:var(--accent2)">–</div><div class="stat-lbl">מהרשמה לאתר</div></div>
+    <div class="stat"><div class="stat-num" id="stWeek" style="color:var(--green)">–</div><div class="stat-lbl">הצטרפו השבוע</div></div>
+  </div>
+
+  <div class="grid2">
+
+    <!-- RIGHT: רשימה -->
+    <div>
+      <!-- Growth chart -->
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">📈 צמיחה חודשית</span>
+        </div>
+        <div class="panel-body" style="padding:16px 20px 8px">
+          <div class="chart-wrap" id="chartWrap">
+            <div class="empty" style="padding:20px">טוען...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- List -->
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">👥 נרשמים</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="listCount" style="font-size:12px;color:var(--muted)"></span>
+            <a class="btn btn-green btn-sm" href="/api/newsletter/export.csv" download>⬇️ CSV</a>
+            <button class="btn btn-ghost btn-sm" onclick="loadList()">🔄</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:14px 20px">
+          <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="חפש לפי מייל..." oninput="filterList()"/>
+          </div>
+          <div class="filter-tabs">
+            <button class="tab active" data-filter="all" onclick="setFilter('all',this)">הכל</button>
+            <button class="tab" data-filter="footer" onclick="setFilter('footer',this)">טופס תחתית</button>
+            <button class="tab" data-filter="register" onclick="setFilter('register',this)">הרשמה לאתר</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tableWrap">
+          <div class="empty">טוען...</div>
+        </div>
+        <div id="paginationRow" style="padding:12px 20px;display:flex;gap:8px;justify-content:center;border-top:1px solid var(--border)"></div>
+      </div>
+    </div>
+
+    <!-- LEFT: כלים -->
+    <div>
+
+      <!-- CSV Export -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">⬇️ ייצוא CSV</span></div>
+        <div class="panel-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+            הורד את כל הרשימה כקובץ CSV לפתיחה ב-Excel או ייבוא לכל מערכת דיוור.
+          </p>
+          <a class="btn btn-green" style="width:100%;justify-content:center" href="/api/newsletter/export.csv" download>
+            ⬇️ הורד CSV מלא
+          </a>
+          <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+            הקובץ כולל: מייל, מקור, תאריך הצטרפות
+          </div>
+        </div>
+      </div>
+
+      <!-- Brevo -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">🔗 Brevo (דיוור)</span></div>
+        <div class="panel-body">
+
+          <div class="brevo-status" id="brevoStatus">
+            <div class="brevo-dot dot-off" id="brevoDot"></div>
+            <div class="brevo-info">
+              <span id="brevoStatusText">בודק חיבור...</span>
+              <small id="brevoStatusSub"></small>
+            </div>
+          </div>
+
+          <button class="btn btn-brevo" style="width:100%;justify-content:center;margin-bottom:10px" id="syncBtn" onclick="syncBrevo()">
+            🔄 סנכרן עכשיו
+          </button>
+          <div class="sync-result" id="syncResult"></div>
+
+          <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px">
+            ✅ נרשמים חדשים מתווספים ל-Brevo <strong style="color:var(--text)">אוטומטית</strong> בזמן אמת.<br/>
+            הכפתור לעיל מסנכרן את <em>כל</em> הרשימה הקיימת.
+          </div>
+        </div>
+      </div>
+
+      <!-- Setup Guide -->
+      <div class="panel" id="setupGuide">
+        <div class="panel-head"><span class="panel-title">🚀 הגדרת Brevo</span></div>
+        <div class="panel-body">
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                פתח חשבון חינמי ב-<a href="https://app.brevo.com" target="_blank">brevo.com</a><br/>
+                <small>(חינמי עד 300 מיילים/יום, רשימה ללא הגבלה)</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                לך ל: <strong>Settings → API Keys → Create API Key</strong><br/>
+                העתק את המפתח
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                ב-Railway → <strong>Variables</strong> הוסף:<br/>
+                <code>BREVO_API_KEY = your-key-here</code><br/>
+                <code>BREVO_LIST_ID = 2</code><br/>
+                <small>(ה-List ID מופיע ב-Brevo → Contacts → Lists)</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                לחץ <strong>"סנכרן עכשיו"</strong> — כל הרשימה תועלה.<br/>
+                מכאן כל נרשם חדש יתווסף אוטומטית.
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                לשליחת ניוזלטר: ב-Brevo → <strong>Email Campaigns → Create</strong><br/>
+                בחר את הרשימה → עצב → שלח 🎉
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let allSubs = [];
+let filtered = [];
+let currentFilter = 'all';
+let currentPage = 0;
+const PAGE_SIZE = 50;
+
+// ─── Load ─────────────────────────────────────────────────
+async function loadList() {
+  document.getElementById('tableWrap').innerHTML = '<div class="empty">טוען...</div>';
+  try {
+    const res = await fetch('/api/newsletter/list');
+    const data = await res.json();
+    allSubs = data.subscribers || [];
+    updateStats();
+    buildChart();
+    filterList();
+    checkBrevoStatus();
+  } catch(e) {
+    document.getElementById('tableWrap').innerHTML = '<div class="empty">⚠️ שגיאה בטעינה</div>';
+  }
+}
+
+// ─── Stats ────────────────────────────────────────────────
+function updateStats() {
+  const total = allSubs.length;
+  const footer = allSubs.filter(s => s.source === 'footer').length;
+  const reg = allSubs.filter(s => s.source === 'register').length;
+  const week = allSubs.filter(s => {
+    const d = new Date(s.created_at);
+    return (Date.now() - d.getTime()) < 7*24*60*60*1000;
+  }).length;
+  document.getElementById('stTotal').textContent = total;
+  document.getElementById('stFooter').textContent = footer;
+  document.getElementById('stRegister').textContent = reg;
+  document.getElementById('stWeek').textContent = '+' + week;
+}
+
+// ─── Chart ────────────────────────────────────────────────
+function buildChart() {
+  const wrap = document.getElementById('chartWrap');
+  if (!allSubs.length) { wrap.innerHTML = '<div class="empty" style="padding:20px">אין נתונים</div>'; return; }
+
+  // קבץ לפי חודש
+  const months = {};
+  allSubs.forEach(s => {
+    const d = new Date(s.created_at);
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    months[key] = (months[key]||0) + 1;
+  });
+  const keys = Object.keys(months).sort().slice(-12); // 12 חודשים אחרונים
+  const vals = keys.map(k => months[k]);
+  const max = Math.max(...vals, 1);
+
+  wrap.innerHTML = keys.map((k, i) => {
+    const pct = Math.round(vals[i]/max*100);
+    const label = k.slice(5) + '/' + k.slice(2,4);
+    return `<div class="chart-bar-wrap" style="position:relative">
+      <div class="chart-bar-container">
+        <div class="chart-bar" style="height:${pct}%" title="${vals[i]} נרשמים"></div>
+      </div>
+      <div class="chart-label">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Filter & Search ──────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  currentPage = 0;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  filterList();
+}
+
+function filterList() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  filtered = allSubs.filter(s => {
+    const matchFilter = currentFilter === 'all' || s.source === currentFilter;
+    const matchSearch = !q || s.email.toLowerCase().includes(q);
+    return matchFilter && matchSearch;
+  });
+  currentPage = 0;
+  renderTable();
+}
+
+// ─── Table ────────────────────────────────────────────────
+function renderTable() {
+  const start = currentPage * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+  document.getElementById('listCount').textContent = filtered.length + ' נרשמים';
+
+  if (!filtered.length) {
+    document.getElementById('tableWrap').innerHTML = '<div class="empty">לא נמצאו תוצאות</div>';
+    document.getElementById('paginationRow').innerHTML = '';
+    return;
+  }
+
+  const rows = page.map(s => {
+    const srcClass = s.source === 'footer' ? 'src-footer' : 'src-register';
+    const srcLabel = s.source === 'footer' ? 'טופס תחתית' : 'הרשמה לאתר';
+    const date = new Date(s.created_at).toLocaleDateString('he-IL');
+    return `<tr>
+      <td class="email-cell" title="${s.email}">${s.email}</td>
+      <td><span class="source-badge ${srcClass}">${srcLabel}</span></td>
+      <td class="date-cell">${date}</td>
+      <td><button class="del-btn" onclick="removeSubscriber('${s.email}')" title="הסר">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tableWrap').innerHTML = `
+    <table>
+      <thead><tr><th>מייל</th><th>מקור</th><th>תאריך</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  if (totalPages <= 1) { document.getElementById('paginationRow').innerHTML = ''; return; }
+  let pages = '';
+  for (let i = 0; i < totalPages; i++) {
+    pages += `<button class="btn btn-ghost btn-sm ${i===currentPage?'active':''}" 
+      style="${i===currentPage?'border-color:var(--accent);color:var(--accent)':''}"
+      onclick="goPage(${i})">${i+1}</button>`;
+  }
+  document.getElementById('paginationRow').innerHTML = pages;
+}
+
+function goPage(p) { currentPage = p; renderTable(); window.scrollTo({top:300,behavior:'smooth'}); }
+
+// ─── Remove ───────────────────────────────────────────────
+async function removeSubscriber(email) {
+  if (!confirm('להסיר ' + email + ' מהרשימה?')) return;
+  try {
+    await fetch('/api/newsletter/unsubscribe', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    allSubs = allSubs.filter(s => s.email !== email);
+    updateStats();
+    filterList();
+    showToast('✓ הוסר', 'success');
+  } catch(e) { showToast('שגיאה', 'error'); }
+}
+
+// ─── Brevo ────────────────────────────────────────────────
+async function checkBrevoStatus() {
+  const dot = document.getElementById('brevoDot');
+  const txt = document.getElementById('brevoStatusText');
+  const sub = document.getElementById('brevoStatusSub');
+  try {
+    // ננסה לסנכרן 0 כדי לבדוק אם המפתח מוגדר
+    const r = await fetch('/api/newsletter/sync-brevo', { method: 'POST' });
+    const d = await r.json();
+    if (r.status === 400 && d.error?.includes('BREVO_API_KEY')) {
+      dot.className = 'brevo-dot dot-warn';
+      txt.textContent = 'לא מחובר';
+      sub.textContent = 'נדרש BREVO_API_KEY ב-Railway Variables';
+      document.getElementById('setupGuide').style.display = '';
+    } else {
+      dot.className = 'brevo-dot dot-ok';
+      txt.textContent = 'מחובר ✓';
+      sub.textContent = d.message || '';
+      document.getElementById('setupGuide').style.display = 'none';
+    }
+  } catch(e) {
+    dot.className = 'brevo-dot dot-off';
+    txt.textContent = 'שגיאת חיבור';
+  }
+}
+
+async function syncBrevo() {
+  const btn = document.getElementById('syncBtn');
+  const result = document.getElementById('syncResult');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> מסנכרן...';
+  result.style.display = 'none';
+  try {
+    const r = await fetch('/api/newsletter/sync-brevo', { method: 'POST' });
+    const d = await r.json();
+    result.style.display = 'block';
+    if (r.ok && !d.error) {
+      result.className = 'sync-result sync-ok';
+      result.textContent = '✅ ' + (d.message || 'סונכרן בהצלחה!');
+      document.getElementById('brevoDot').className = 'brevo-dot dot-ok';
+      document.getElementById('brevoStatusText').textContent = 'מחובר ✓';
+      document.getElementById('brevoStatusSub').textContent = d.message;
+      document.getElementById('setupGuide').style.display = 'none';
+    } else {
+      result.className = 'sync-result sync-err';
+      result.textContent = '❌ ' + (d.error || 'שגיאה בסנכרון');
+    }
+  } catch(e) {
+    result.style.display = 'block';
+    result.className = 'sync-result sync-err';
+    result.textContent = '❌ שגיאת חיבור';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔄 סנכרן עכשיו';
+  }
+}
+
+// ─── Toast ────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 2800);
+}
+
+// ─── Init ─────────────────────────────────────────────────
+loadList();
+</script>
+</body>
+</html>

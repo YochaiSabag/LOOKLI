@@ -72,7 +72,7 @@ const pool = new Pool({
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.static(__dirname));
+// שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -890,7 +890,72 @@ app.post("/api/sidebar-ads/:id/deactivate", async(req,res)=>{ await pool.query("
 app.delete("/api/sidebar-ads/:id", async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
 
 // Serve admin UI
-app.get("/admin/ads", (req, res) => {
+
+// ===== ADMIN AUTH MIDDLEWARE =====
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "lookli-admin-2026";
+
+function adminAuth(req, res, next) {
+  // בדוק Authorization header: Basic base64(admin:password)
+  const auth = req.headers['authorization'];
+  if (auth && auth.startsWith('Basic ')) {
+    const decoded = Buffer.from(auth.slice(6), 'base64').toString();
+    const [user, pass] = decoded.split(':');
+    if (pass === ADMIN_PASSWORD) return next();
+  }
+  // בדוק query param: ?pwd=xxx (לנוחות)
+  if (req.query.pwd === ADMIN_PASSWORD) {
+    // שלח cookie session קצר
+    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/admin; HttpOnly; Max-Age=86400`);
+    return next();
+  }
+  // בדוק cookie
+  const cookies = req.headers.cookie || '';
+  if (cookies.includes(`admpwd=${ADMIN_PASSWORD}`)) return next();
+
+  // דחה — שלח דף login
+  res.status(401).send(`<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI Admin — כניסה</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f0f13;color:#f1f0f5;font-family:'Heebo',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .box{background:#18181f;border:1px solid #2e2e3a;border-radius:16px;padding:40px 36px;width:320px;text-align:center}
+  .logo{font-weight:900;font-size:24px;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .sub{font-size:13px;color:#6b6b80;margin-bottom:28px}
+  input{width:100%;background:#22222c;border:1px solid #2e2e3a;border-radius:8px;color:#f1f0f5;padding:11px 14px;font-size:15px;font-family:'Heebo',sans-serif;outline:none;margin-bottom:14px;direction:rtl;text-align:center}
+  input:focus{border-color:#a855f7}
+  button{width:100%;padding:11px;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;border:none;border-radius:8px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:700;cursor:pointer}
+  button:hover{opacity:.9}
+  .err{color:#ef4444;font-size:13px;margin-top:10px;display:none}
+  .lock{font-size:36px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="lock">🔐</div>
+  <div class="logo">LOOKLI</div>
+  <div class="sub">ממשק ניהול — כניסה מורשים בלבד</div>
+  <input type="password" id="pwd" placeholder="סיסמת ניהול" onkeydown="if(event.key==='Enter')login()"/>
+  <button onclick="login()">כניסה</button>
+  <div class="err" id="err">סיסמה שגויה</div>
+</div>
+<script>
+function login(){
+  const p=document.getElementById('pwd').value;
+  if(!p){return;}
+  window.location.href=window.location.pathname+'?pwd='+encodeURIComponent(p);
+}
+</script>
+</body>
+</html>`);
+}
+
+app.get("/admin", adminAuth, (req, res) => { res.redirect("/admin/sponsored"); });
+app.get("/admin/ads", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_ads.html'));
 });
 
@@ -971,11 +1036,100 @@ app.delete("/api/sponsored/:id", async (req,res) => {
 });
 
 // Serve admin UI
-app.get("/admin/sponsored", (req, res) => {
+app.get("/admin/sponsored", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_sponsored.html'));
 });
 
 // ===== NEWSLETTER =====
+
+// ===== NEWSLETTER EXTENDED =====
+
+// GET /api/newsletter/export.csv — הורדת CSV ישירה
+app.get("/api/newsletter/export.csv", async (req, res) => {
+  try {
+    const r = await pool.query(
+      "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+    );
+    const header = "Email,Source,Date\n";
+    const rows = r.rows.map(x =>
+      `${x.email},${x.source},${new Date(x.created_at).toLocaleDateString('he-IL')}`
+    ).join("\n");
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="lookli_subscribers.csv"');
+    res.send("\uFEFF" + header + rows); // BOM לעברית בExcel
+  } catch(e) { res.status(500).send("Error"); }
+});
+
+// POST /api/newsletter/sync-brevo — סנכרון אוטומטי ל-Brevo
+app.post("/api/newsletter/sync-brevo", async (req, res) => {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  const LIST_ID   = parseInt(process.env.BREVO_LIST_ID || "2");
+  if (!BREVO_KEY) return res.status(400).json({ error: "חסר BREVO_API_KEY ב-Railway Variables" });
+
+  try {
+    // שלוף את כל הנרשמים מה-DB
+    const r = await pool.query(
+      "SELECT email FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+    );
+    if (!r.rows.length) return res.json({ synced: 0, message: "אין נרשמים לסנכרן" });
+
+    // Brevo batch import — עד 150 בקריאה אחת
+    const contacts = r.rows.map(x => ({ email: x.email }));
+    const batches = [];
+    for (let i = 0; i < contacts.length; i += 150) {
+      batches.push(contacts.slice(i, i + 150));
+    }
+
+    let synced = 0;
+    for (const batch of batches) {
+      const resp = await fetch("https://api.brevo.com/v3/contacts/import", {
+        method: "POST",
+        headers: {
+          "api-key": BREVO_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          listIds: [LIST_ID],
+          updateEnabled: true,
+          jsonBody: batch
+        })
+      });
+      if (resp.ok) synced += batch.length;
+      else {
+        const err = await resp.json();
+        console.error("Brevo error:", err);
+      }
+    }
+
+    res.json({ synced, total: contacts.length, message: `סונכרנו ${synced} כתובות ל-Brevo` });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/newsletter/add-to-brevo — הוסף נרשם חדש ל-Brevo מיד (webhook)
+async function addToBrevo(email) {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  const LIST_ID   = parseInt(process.env.BREVO_LIST_ID || "2");
+  if (!BREVO_KEY) return;
+  try {
+    await fetch("https://api.brevo.com/v3/contacts", {
+      method: "POST",
+      headers: { "api-key": BREVO_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        listIds: [LIST_ID],
+        updateEnabled: true
+      })
+    });
+  } catch(e) { console.error("Brevo add error:", e.message); }
+}
+
+// Serve newsletter admin UI
+app.get("/admin/newsletter", adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_newsletter.html'));
+});
+
 // POST /api/newsletter/subscribe
 app.post("/api/newsletter/subscribe", async (req, res) => {
   try {
@@ -987,6 +1141,8 @@ app.post("/api/newsletter/subscribe", async (req, res) => {
        ON CONFLICT (email) DO UPDATE SET active=true`,
       [email.toLowerCase().trim(), source]
     );
+    // הוסף ל-Brevo מיד
+    addToBrevo(email.toLowerCase().trim()).catch(()=>{});
     res.json({ ok: true });
   } catch(e) {
     res.status(500).json({ error: 'שגיאה' });

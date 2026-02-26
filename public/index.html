@@ -579,6 +579,34 @@
     .saved-item-remove{background:none;border:none;color:#9ca3af;cursor:pointer;padding:4px;border-radius:6px;transition:color .2s}
     .saved-item-remove:hover{color:#ef4444}
     .saved-item-buy{background:var(--accent);color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;display:block;text-align:center}
+    /* Alert bell button */
+    .alert-btn{background:none;border:none;cursor:pointer;padding:5px;border-radius:7px;transition:background .15s;display:flex;align-items:center;justify-content:center}
+    .alert-btn:hover{background:#f3f4f6}
+    .alert-btn svg{width:17px;height:17px;color:#9ca3af;transition:color .2s}
+    .alert-btn.active svg{color:var(--accent);fill:var(--accent)}
+
+    /* Alert popup */
+    .alert-popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1100;align-items:center;justify-content:center}
+    .alert-popup-bg.open{display:flex}
+    .alert-popup{background:#fff;border-radius:18px;padding:24px;width:320px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.18);direction:rtl}
+    .alert-popup-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px}
+    .alert-popup-product{font-size:12px;color:#9ca3af;margin-bottom:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .alert-option{display:flex;align-items:center;gap:10px;padding:11px 13px;border:2px solid #e5e7eb;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s}
+    .alert-option:hover{border-color:var(--accent);background:rgba(224,161,192,.04)}
+    .alert-option.selected{border-color:var(--accent);background:rgba(224,161,192,.07)}
+    .alert-option input[type=checkbox]{accent-color:var(--accent);width:17px;height:17px;cursor:pointer;flex-shrink:0}
+    .alert-option-label{font-size:13px;font-weight:600;color:#374151;flex:1}
+    .alert-size-select{width:100%;margin-top:8px;padding:8px 11px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;font-size:13px;color:#374151;outline:none;direction:rtl;display:none}
+    .alert-size-select.show{display:block}
+    .alert-popup-actions{display:flex;gap:8px;margin-top:16px}
+    .alert-save-btn{flex:1;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s}
+    .alert-save-btn:hover{opacity:.88}
+    .alert-cancel-btn{padding:11px 16px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+
+    /* Banner בראש פאנל השמורים */
+    .alerts-banner{background:linear-gradient(135deg,rgba(224,161,192,.12),rgba(196,140,179,.08));border:1px solid rgba(224,161,192,.25);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:12px;color:#6b7280;line-height:1.4}
+    .alerts-banner svg{flex-shrink:0;color:var(--accent)}
+
     .saved-empty{text-align:center;padding:60px 20px;color:#9ca3af}
     .saved-empty svg{width:48px;height:48px;margin:0 auto 12px;display:block;opacity:.35}
     .saved-count{background:rgba(255,255,255,.3);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
@@ -1653,7 +1681,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
             <input type="checkbox" id="regNewsletter" style="width:15px;height:15px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"/>
             <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
           </label>
-          <button class="auth-submit" id="registerBtn" onclick="doRegister()">יצירת חשבון</button>
+          <button class="auth-submit" id="registerBtn" onclick="doRegister()" disabled style="opacity:.45;cursor:not-allowed">יצירת חשבון</button>
         </div>
         <!-- Profile (when logged in) -->
         <div id="profileForm" style="display:none">
@@ -2178,14 +2206,100 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 
   // טען בעמוד הראשון
   document.addEventListener('DOMContentLoaded', () => setTimeout(loadSidebarAds, 500));
-</script>
-      <div style="font-size:13px;color:rgba(255,255,255,.75);margin-bottom:20px">מבצעים, קולקציות חדשות וטרנדים — ישירות למייל</div>
-      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-      </div>
-      <div id="nlMsg" style="margin-top:12px;font-size:13px;min-height:20px;color:rgba(255,255,255,.9)"></div>
-      <div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:10px">ניתן לבטל הרשמה בכל עת • ללא ספאם</div>
-    </div>
-  </div>
 
+  // ===== PRICE ALERTS =====
+  let _alertUrl = '', _alertBtn = null;
+
+  async function openAlertPopup(url, title, price, btn) {
+    _alertUrl = url;
+    _alertBtn = btn;
+    document.getElementById('alertProductTitle').textContent = title;
+    document.getElementById('alertCurrentPrice').textContent = price ? 'מחיר נוכחי: ₪' + Number(price).toFixed(0) : '';
+    // טען מצב קיים
+    document.getElementById('alertPriceCheck').checked = false;
+    document.getElementById('alertSizeCheck').checked = false;
+    document.getElementById('alertSizeSelect').classList.remove('show');
+    document.getElementById('alertPriceOption').classList.remove('selected');
+    document.getElementById('alertSizeOption').classList.remove('selected');
+
+    // טען מידות זמינות
+    const sel = document.getElementById('alertSizeSelect');
+    sel.innerHTML = '<option value="any">כל מידה</option>';
+    try {
+      const res = await fetch('/api/product-by-url?url=' + encodeURIComponent(url));
+      if (res.ok) {
+        const p = await res.json();
+        if (p.sizes && p.sizes.length) {
+          p.sizes.forEach(s => {
+            const o = document.createElement('option');
+            o.value = s; o.textContent = s;
+            sel.appendChild(o);
+          });
+        }
+      }
+    } catch(_) {}
+
+    // טען התראה קיימת
+    try {
+      const ar = await fetch('/api/alerts', { headers: { Authorization: 'Bearer ' + authToken } });
+      const ad = await ar.json();
+      const existing = (ad.alerts || []).find(a => a.product_source_url === url);
+      if (existing) {
+        document.getElementById('alertPriceCheck').checked = !!existing.alert_price;
+        if (existing.alert_price) document.getElementById('alertPriceOption').classList.add('selected');
+        if (existing.alert_size) {
+          document.getElementById('alertSizeCheck').checked = true;
+          document.getElementById('alertSizeOption').classList.add('selected');
+          sel.value = existing.alert_size;
+          sel.classList.add('show');
+        }
+      }
+    } catch(_) {}
+
+    document.getElementById('alertPopupBg').classList.add('open');
+  }
+
+  function toggleAlertCheck(checkId, optEl) {
+    const chk = document.getElementById(checkId);
+    chk.checked = !chk.checked;
+    optEl.classList.toggle('selected', chk.checked);
+    if (checkId === 'alertSizeCheck') {
+      document.getElementById('alertSizeSelect').classList.toggle('show', chk.checked);
+    }
+  }
+
+  function closeAlertPopup(e) {
+    if (e && e.target !== document.getElementById('alertPopupBg')) return;
+    document.getElementById('alertPopupBg').classList.remove('open');
+  }
+
+  async function saveAlert() {
+    const alertPrice = document.getElementById('alertPriceCheck').checked;
+    const alertSizeChk = document.getElementById('alertSizeCheck').checked;
+    const alertSize = alertSizeChk ? document.getElementById('alertSizeSelect').value : null;
+    const btn = document.getElementById('alertSaveBtn');
+    btn.disabled = true; btn.textContent = 'שומר...';
+
+    if (!alertPrice && !alertSize) {
+      // מחק התראה
+      await fetch('/api/alerts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ product_source_url: _alertUrl })
+      });
+      if (_alertBtn) _alertBtn.classList.remove('active');
+    } else {
+      await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ product_source_url: _alertUrl, alert_price: alertPrice, alert_size: alertSize })
+      });
+      if (_alertBtn) _alertBtn.classList.add('active');
+    }
+
+    btn.disabled = false; btn.textContent = 'שמור התראה';
+    document.getElementById('alertPopupBg').classList.remove('open');
+  }
+</script>
 </body>
 </html>

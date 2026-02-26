@@ -189,3 +189,22 @@ CREATE TABLE IF NOT EXISTS sidebar_ads (
   created_at TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sidebar_active ON sidebar_ads(active);
+
+-- Price & Stock Alerts
+CREATE TABLE IF NOT EXISTS price_alerts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_source_url TEXT NOT NULL,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  alert_price BOOLEAN DEFAULT false,   -- התראה כשמחיר יורד
+  alert_size TEXT,                     -- התראה כשמידה ספציפית נכנסת (או NULL=כל מידה)
+  last_price DECIMAL(10,2),            -- מחיר בעת הגדרת ההתראה
+  last_sizes TEXT[],                   -- מידות זמינות בעת הגדרת ההתראה
+  triggered_at TIMESTAMP,              -- מתי נשלחה ההתראה האחרונה
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, product_source_url)
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(active);
+CREATE INDEX IF NOT EXISTS idx_alerts_product ON price_alerts(product_source_url);

@@ -1040,6 +1040,66 @@ app.get("/admin/sponsored", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_sponsored.html'));
 });
 
+
+// ===== PRICE & STOCK ALERTS =====
+
+// GET /api/alerts — כל ההתראות של המשתמש
+app.get("/api/alerts", authMiddleware, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT pa.*, p.price AS current_price, p.sizes AS current_sizes, p.title AS product_title, p.image_url AS product_image, p.store AS product_store
+       FROM price_alerts pa
+       LEFT JOIN products p ON p.source_url = pa.product_source_url
+       WHERE pa.user_id = $1 AND pa.active = true
+       ORDER BY pa.created_at DESC`,
+      [req.userId]
+    );
+    res.json({ alerts: r.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/alerts — הגדר/עדכן התראה
+app.post("/api/alerts", authMiddleware, async (req, res) => {
+  try {
+    const { product_source_url, alert_price, alert_size } = req.body;
+    if (!product_source_url) return res.status(400).json({ error: 'חסר product_source_url' });
+
+    // שלוף מחיר ומידות נוכחיים
+    const prod = await pool.query(
+      "SELECT id, price, sizes FROM products WHERE source_url = $1 LIMIT 1",
+      [product_source_url]
+    );
+    const p = prod.rows[0];
+
+    await pool.query(
+      `INSERT INTO price_alerts (user_id, product_source_url, product_id, alert_price, alert_size, last_price, last_sizes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id, product_source_url) DO UPDATE SET
+         alert_price = EXCLUDED.alert_price,
+         alert_size  = EXCLUDED.alert_size,
+         last_price  = EXCLUDED.last_price,
+         last_sizes  = EXCLUDED.last_sizes,
+         active      = true`,
+      [req.userId, product_source_url, p?.id || null,
+       !!alert_price, alert_size || null,
+       p?.price || null, p?.sizes || null]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/alerts — הסר התראה
+app.delete("/api/alerts", authMiddleware, async (req, res) => {
+  try {
+    const { product_source_url } = req.body;
+    await pool.query(
+      "UPDATE price_alerts SET active=false WHERE user_id=$1 AND product_source_url=$2",
+      [req.userId, product_source_url]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ===== NEWSLETTER =====
 
 // ===== NEWSLETTER EXTENDED =====

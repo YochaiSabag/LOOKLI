@@ -397,15 +397,29 @@
     
     /* Footer */
     footer{background:#3a3a3a;color:#fff;margin-top:40px}
-    .footer-inner{max-width:var(--container);margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
-    @media(max-width:900px){.footer-inner{grid-template-columns:1fr 1fr;gap:30px}}
-    @media(max-width:500px){.footer-inner{grid-template-columns:1fr}}
-    .footer-section h4{font-size:14px;font-weight:700;margin:0 0 16px;color:var(--accent-light)}
-    .footer-section a{display:block;color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;margin-bottom:10px;transition:color .15s}
+    .footer-inner{max-width:var(--container);margin:0 auto;padding:48px 28px 36px;display:grid;grid-template-columns:1fr 1fr 1fr 1.7fr;gap:36px;align-items:start}
+    @media(max-width:1000px){.footer-inner{grid-template-columns:1fr 1fr;gap:28px}}
+    @media(max-width:560px){.footer-inner{grid-template-columns:1fr;gap:22px}}
+    .footer-section h4{font-size:12px;font-weight:700;margin:0 0 14px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px}
+    .footer-section a{display:block;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;margin-bottom:9px;transition:color .15s}
     .footer-section a:hover{color:#fff}
-    .footer-brand{font-weight:900;font-size:24px;margin-bottom:12px}
-    .footer-desc{font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;margin:0}
-    .footer-bottom{border-top:1px solid rgba(255,255,255,.1);text-align:center;padding:20px 24px;font-size:12px;color:rgba(255,255,255,.5)}
+    .footer-brand{font-weight:900;font-size:22px;margin-bottom:10px;letter-spacing:-.3px}
+    .footer-desc{font-size:12px;color:rgba(255,255,255,.45);line-height:1.65;margin:0}
+    .footer-bottom{border-top:1px solid rgba(255,255,255,.07);text-align:center;padding:18px 24px;font-size:11px;color:rgba(255,255,255,.3)}
+
+    /* Newsletter בתוך הפוטר */
+    .footer-nl{padding:0}
+    .footer-nl h4{color:rgba(255,255,255,.5)!important;font-size:11px!important;margin-bottom:10px!important}
+    .footer-nl-title{font-size:17px;font-weight:800;color:#fff;margin-bottom:5px;line-height:1.2}
+    .footer-nl-sub{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.5}
+    .footer-nl-form{display:flex;flex-direction:column;gap:8px}
+    .footer-nl-input{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:9px;color:#fff;padding:11px 13px;font-size:14px;font-family:inherit;outline:none;direction:rtl;width:100%;transition:border-color .15s}
+    .footer-nl-input:focus{border-color:rgba(168,85,247,.7);background:rgba(255,255,255,.13)}
+    .footer-nl-input::placeholder{color:rgba(255,255,255,.35)}
+    .footer-nl-btn{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;width:100%;letter-spacing:.3px}
+    .footer-nl-btn:hover{opacity:.85}
+    .footer-nl-note{font-size:10px;color:rgba(255,255,255,.28);margin-top:7px;text-align:center}
+    .footer-nl-msg{font-size:12px;min-height:18px;margin-top:6px;color:rgba(255,255,255,.8);text-align:center}
     
     /* WhatsApp Button */
     .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s}
@@ -877,30 +891,42 @@
   
   <footer>
     <div class="footer-inner">
+      <!-- עמודה 1: מותג -->
       <div class="footer-section">
         <div class="footer-brand">LOOKLI</div>
         <p class="footer-desc">מנוע החיפוש החכם לאופנה צנועה.<br>מוצאים את הלוק שלך במקום אחד.</p>
       </div>
+      <!-- עמודה 2: ניווט -->
       <div class="footer-section">
-        <h4>ניווט מהיר</h4>
+        <h4>ניווט</h4>
         <a href="/">דף הבית</a>
         <a href="/about.html">אודות</a>
         <a href="/contact.html">צור קשר</a>
+        <a href="/contact.html?type=bug">דיווח על בעיה</a>
+        <a href="/about.html#faq">שאלות נפוצות</a>
       </div>
+      <!-- עמודה 3: לחנויות -->
       <div class="footer-section">
         <h4>לחנויות</h4>
         <a href="/contact.html?type=store">הצטרפות לאתר</a>
         <a href="/contact.html?type=update">עדכון פרטים</a>
       </div>
-      <div class="footer-section">
-        <h4>עזרה</h4>
-        <a href="/contact.html?type=bug">דיווח על בעיה</a>
-        <a href="/about.html#faq">שאלות נפוצות</a>
+      <!-- עמודה 4: newsletter (שמאל) -->
+      <div class="footer-section footer-nl">
+        <h4>עדכונים</h4>
+        <div class="footer-nl-title">✨ הישארי בעניינים</div>
+        <div class="footer-nl-sub">מבצעים, קולקציות חדשות וטרנדים — ישירות למייל</div>
+        <div class="footer-nl-form">
+          <input type="email" id="nlEmail" class="footer-nl-input" placeholder="המייל שלך"/>
+          <button onclick="subscribeNewsletter()" class="footer-nl-btn">הרשמי</button>
+        </div>
+        <div id="nlMsg" class="footer-nl-msg"></div>
+        <div class="footer-nl-note">ניתן לבטל הרשמה בכל עת • ללא ספאם</div>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2025 LOOKLI - כל הזכויות שמורות</span>
-      <p style="font-size:11px;color:#999;margin:8px auto 0;line-height:1.6;max-width:800px;text-align:center">LOOKLI הוא אתר חיפוש והשוואת מוצרים בלבד. התמונות, המחירים, התיאורים וכל המידע המוצג באתר שייכים לאתרי המקור ולבעלי הזכויות שלהם. אנו אינם מוכרים מוצרים ואיננו אחראים על תוכן, זמינות, מחירים או שירות של אתרי המקור. הרכישה מתבצעת ישירות מול החנות המקורית.</p>
+      © 2025 LOOKLI — כל הזכויות שמורות &nbsp;|&nbsp;
+      <span style="font-size:10px">אתר חיפוש והשוואה בלבד. הרכישה מתבצעת ישירות מול החנות המקורית.</span>
     </div>
   </footer>
 
@@ -2153,16 +2179,8 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   // טען בעמוד הראשון
   document.addEventListener('DOMContentLoaded', () => setTimeout(loadSidebarAds, 500));
 </script>
-
-
-  <!-- NEWSLETTER STRIP -->
-  <div id="newsletterStrip" style="background:linear-gradient(135deg,#4a1942 0%,#7c3aed 100%);padding:32px 24px;text-align:center;direction:rtl">
-    <div style="max-width:520px;margin:0 auto">
-      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-.3px">✨ הישארי בעניינים</div>
       <div style="font-size:13px;color:rgba(255,255,255,.75);margin-bottom:20px">מבצעים, קולקציות חדשות וטרנדים — ישירות למייל</div>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-        <input type="email" id="nlEmail" placeholder="המייל שלך" style="padding:11px 16px;border-radius:8px;border:none;font-size:14px;width:220px;outline:none;font-family:inherit;direction:rtl"/>
-        <button onclick="subscribeNewsletter()" style="padding:11px 22px;background:#fff;color:#7c3aed;border:none;border-radius:8px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">הרשמי</button>
       </div>
       <div id="nlMsg" style="margin-top:12px;font-size:13px;min-height:20px;color:rgba(255,255,255,.9)"></div>
       <div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:10px">ניתן לבטל הרשמה בכל עת • ללא ספאם</div>

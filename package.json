@@ -12,13 +12,13 @@
     "db:start": "docker-compose up -d",
     "db:stop": "docker-compose down",
     "db:logs": "docker-compose logs -f db",
-    "scrape:mekimi": "node mekimi_scraper_fixed.js && node check_alerts.js",
-    "scrape:lichi": "node lichi_scraper.js && node check_alerts.js",
-    "scrape:mima": "node mima_scraper.js && node check_alerts.js",
-    "scrape:aviyah": "node aviyah_scraper.js && node check_alerts.js",
-    "scrape:chemise": "node chemise_scraper.js && node check_alerts.js",
-    "scrape:all": "node mekimi_scraper_fixed.js && node lichi_scraper.js && node mima_scraper.js && node aviyah_scraper.js && node chemise_scraper.js && node check_alerts.js",
-    "alerts": "node check_alerts.js"
+    "scrape:mekimi": "node ./scrapers/mekimi_scraper_fixed.js && node ./check_alerts.js",
+    "scrape:lichi": "node ./scrapers/lichi_scraper.js && node ./check_alerts.js",
+    "scrape:mima": "node ./scrapers/mima_scraper.js && node ./check_alerts.js",
+    "scrape:aviyah": "node ./scrapers/aviyah_scraper.js && node ./check_alerts.js",
+    "scrape:chemise": "node ./scrapers/chemise_scraper.js && node ./check_alerts.js",
+    "scrape:all": "node ./scrapers/mekimi_scraper_fixed.js && node ./scrapers/lichi_scraper.js && node ./scrapers/mima_scraper.js && node ./scrapers/aviyah_scraper.js && node ./scrapers/chemise_scraper.js && node ./check_alerts.js",
+    "alerts": "node ./check_alerts.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

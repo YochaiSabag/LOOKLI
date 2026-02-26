@@ -1963,8 +1963,24 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         </div>`;
         return;
       }
-      body.innerHTML = data.saved.map(s => `
-        <div class="saved-item" id="saved-${btoa(s.product_source_url).replace(/[^a-z0-9]/gi,'').slice(0,12)}">
+      // טען התראות קיימות
+      let existingAlerts = {};
+      try {
+        const ar = await fetch('/api/alerts', { headers: { Authorization: 'Bearer ' + authToken } });
+        const ad = await ar.json();
+        (ad.alerts || []).forEach(a => { existingAlerts[a.product_source_url] = a; });
+      } catch(_) {}
+
+      const banner = `<div class="alerts-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>לחצי על 🔔 ליד מוצר שמור כדי לקבל התראה כשהמחיר יורד או מידה חוזרת</span>
+      </div>`;
+
+      body.innerHTML = banner + data.saved.map(s => {
+        const hasAlert = !!existingAlerts[s.product_source_url];
+        const uid = btoa(s.product_source_url).replace(/[^a-z0-9]/gi,'').slice(0,12);
+        return `
+        <div class="saved-item" id="saved-${uid}">
           <img src="${s.product_image || ''}" alt="${s.product_title || ''}" onerror="this.style.background='#f3f4f6'"/>
           <div class="saved-item-info">
             <div class="saved-item-title">${s.product_title || 'מוצר'}</div>
@@ -1972,12 +1988,17 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
             <div class="saved-item-store">${s.product_store || ''}</div>
           </div>
           <div class="saved-item-actions">
+            <button class="alert-btn${hasAlert?' active':''}" title="התראת מחיר ומלאי"
+              onclick="openAlertPopup('${s.product_source_url.replace(/'/g,"\'")}','${(s.product_title||'').replace(/'/g,"\'")}',${s.product_price||0},this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </button>
             <button class="saved-item-remove" title="הסר" onclick="removeSaved('${s.product_source_url.replace(/'/g,"\'")}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
             </button>
             <a class="saved-item-buy" href="${s.product_source_url}" target="_blank">לרכישה</a>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     } catch(e) { body.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">שגיאה בטעינה</div>'; }
   }
 
@@ -2067,12 +2088,16 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   function applyImgFilter() {
     document.querySelectorAll('.card:not(.sponsored)').forEach(card => {
       if (filterImgAvail) {
-        card.classList.toggle('img-blocked', card.dataset.imgOk !== '1');
+        const blocked = card.dataset.imgOk !== '1';
+        card.classList.toggle('img-blocked', blocked);
+        // הסתר לגמרי מה-DOM
+        card.style.display = blocked ? 'none' : '';
       } else {
         card.classList.remove('img-blocked');
+        card.style.display = '';
       }
     });
-    const visible = document.querySelectorAll('.card:not(.img-blocked):not(.sponsored)').length;
+    const visible = document.querySelectorAll('.card:not(.sponsored):not(.img-blocked)').length;
     document.getElementById('metaToolbar').textContent = filterImgAvail
       ? visible + ' מוצרים עם תמונה פתוחה בנטפרי'
       : allProducts.length + ' מוצרים';

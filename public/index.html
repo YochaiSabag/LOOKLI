@@ -1645,6 +1645,34 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 (async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch();window.scrollTo(0,0)})();
 </script>
 
+  <!-- ALERT POPUP -->
+  <div class="alert-popup-bg" id="alertPopupBg" onclick="closeAlertPopup(event)">
+    <div class="alert-popup" onclick="event.stopPropagation()">
+      <div class="alert-popup-title">🔔 התראת מחיר ומלאי</div>
+      <div class="alert-popup-product" id="alertProductTitle"></div>
+      <div class="alert-option" id="alertPriceOption" onclick="toggleAlertCheck('alertPriceCheck',this)">
+        <input type="checkbox" id="alertPriceCheck" onclick="event.stopPropagation()"/>
+        <div class="alert-option-label">
+          <div>הודיעי כשהמחיר יורד</div>
+          <div style="font-size:11px;font-weight:400;color:#9ca3af;margin-top:1px" id="alertCurrentPrice"></div>
+        </div>
+      </div>
+      <div class="alert-option" id="alertSizeOption" onclick="toggleAlertCheck('alertSizeCheck',this)">
+        <input type="checkbox" id="alertSizeCheck" onclick="event.stopPropagation()"/>
+        <div class="alert-option-label" style="flex:1">
+          <div>הודיעי כשמידה נכנסת למלאי</div>
+          <select class="alert-size-select" id="alertSizeSelect" onclick="event.stopPropagation()">
+            <option value="any">כל מידה</option>
+          </select>
+        </div>
+      </div>
+      <div class="alert-popup-actions">
+        <button class="alert-cancel-btn" onclick="closeAlertPopup()">ביטול</button>
+        <button class="alert-save-btn" id="alertSaveBtn" onclick="saveAlert()">שמור התראה</button>
+      </div>
+    </div>
+  </div>
+
   <!-- AUTH MODAL -->
   <div class="auth-modal-bg" id="authModalBg" onclick="closeAuthIfBg(event)">
     <div class="auth-modal" onclick="event.stopPropagation()" style="position:relative">

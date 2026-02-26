@@ -1108,11 +1108,22 @@ async function runRegularSearch(){
     loadSponsored(document.getElementById('q').value.trim());
 }
 
+function getFilteredProducts(){
+  // אם פילטר NetFree פעיל — נחכה לתוצאה מה-DOM (img-blocked)
+  // אבל עדיף: נסנן לפי imgOkSet שנבנה בזמן ריצה
+  return filterImgAvail
+    ? allProducts.filter(p => imgOkSet.has(p.source_url||p.url||p.id||''))
+    : allProducts;
+}
+
 function renderPage(){
+  const filtered = filterImgAvail ? allProducts : allProducts; // תמיד כל המוצרים בטעינה ראשונית
   const end=currentPage*itemsPerPage;
   const productsToShow=allProducts.slice(0,end);
   renderProducts(productsToShow,false);
   updateLoadMoreButton();
+  // אחרי רינדור — אם פילטר פעיל, החל מחדש
+  if(filterImgAvail) setTimeout(applyImgFilter, 2500);
 }
 
 function loadMore(){
@@ -1123,6 +1134,8 @@ function loadMore(){
   const newProducts=allProducts.slice(start,end);
   renderProducts(newProducts,true);
   updateLoadMoreButton();
+  // אחרי טעינה — אם פילטר פעיל, החל שוב
+  if(filterImgAvail) setTimeout(applyImgFilter, 2500);
 }
 
 function updateLoadMoreButton(){
@@ -1678,7 +1691,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
             <input type="password" id="regPass" placeholder="••••••" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()"/>
           </div>
           <label style="display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:#4b5563;cursor:pointer;margin-bottom:16px;line-height:1.5;user-select:none">
-            <input type="checkbox" id="regNewsletter" style="width:15px;height:15px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"/>
+            <input type="checkbox" id="regNewsletter" style="width:15px;height:15px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0" onchange="const b=document.getElementById('registerBtn');b.disabled=!this.checked;b.style.opacity=this.checked?'1':'.45';b.style.cursor=this.checked?'pointer':'not-allowed'"/>
             <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
           </label>
           <button class="auth-submit" id="registerBtn" onclick="doRegister()" disabled style="opacity:.45;cursor:not-allowed">יצירת חשבון</button>
@@ -2016,6 +2029,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
   let filterImgAvail = false;
+  const imgOkSet = new Set(); // שומר URLs של תמונות שאושרו
 
   // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
   function checkNetfreeBlock(imgEl) {
@@ -2034,6 +2048,8 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
           // יש שוני — תמונה אמיתית!
           card.dataset.imgOk = '1';
+          const url = card.dataset.url||card.dataset.sourceUrl||'';
+          if(url) imgOkSet.add(url);
           if (filterImgAvail) card.classList.remove('img-blocked');
           return;
         }
@@ -2042,6 +2058,8 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     } catch(e) {
       // CORS — לא יכולים לבדוק, נניח שפתוחה
       card.dataset.imgOk = '1';
+      const url = card.dataset.url||card.dataset.sourceUrl||'';
+      if(url) imgOkSet.add(url);
       if (filterImgAvail) card.classList.remove('img-blocked');
     }
   }

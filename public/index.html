@@ -1739,15 +1739,15 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     <div class="alert-popup" onclick="event.stopPropagation()">
       <div class="alert-popup-title">🔔 התראת מחיר ומלאי</div>
       <div class="alert-popup-product" id="alertProductTitle"></div>
-      <div class="alert-option" id="alertPriceOption" onclick="toggleAlertCheck('alertPriceCheck',this)">
-        <input type="checkbox" id="alertPriceCheck" onclick="event.stopPropagation()"/>
+      <div class="alert-option" id="alertPriceOption" onclick="toggleAlertPriceFromDiv(this)">
+        <input type="checkbox" id="alertPriceCheck" onchange="syncAlertPriceCheckbox(this)"/>
         <div class="alert-option-label">
           <div>הודיעי כשהמחיר יורד</div>
           <div style="font-size:11px;font-weight:400;color:#9ca3af;margin-top:1px" id="alertCurrentPrice"></div>
         </div>
       </div>
-      <div class="alert-option" id="alertSizeOption" onclick="toggleAlertCheck('alertSizeCheck',this)">
-        <input type="checkbox" id="alertSizeCheck" onclick="event.stopPropagation()"/>
+      <div class="alert-option" id="alertSizeOption" onclick="toggleAlertSizeFromDiv(this)">
+        <input type="checkbox" id="alertSizeCheck" onchange="syncAlertSizeCheckbox(this)"/>
         <div class="alert-option-label" style="flex:1">
           <div>הודיעי כשמידה נכנסת למלאי</div>
           <select class="alert-size-select" id="alertSizeSelect" onclick="event.stopPropagation()">
@@ -2231,8 +2231,10 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     const toolbar = document.getElementById('metaToolbar');
     const grid = document.getElementById('grid');
 
-    // הסתר גריד, הצג progress overlay
-    grid.style.opacity = '0';
+    // הסתר hero ואגדיר גריד
+    const hero = document.getElementById('heroDiscover');
+    if (hero) hero.classList.add('hidden');
+    grid.style.opacity = '0.3';
     grid.style.pointerEvents = 'none';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -2253,65 +2255,31 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     const total = allToCheck.length;
 
     // בדיקה משולבת: fetch לגודל קובץ (אם אפשר) + canvas ניגודיות
+    // בדיקת גודל קובץ: מתחת ל-100KB = חסום
     const checkImage = (url) => new Promise(resolve => {
       if (!url) { resolve(false); return; }
-
-      // שלב 1: נסה fetch עם cors רגיל לקבל Content-Length
-      fetch(url, { method: 'HEAD' })
-        .then(r => {
-          const len = parseInt(r.headers.get('Content-Length') || '0');
-          if (len > 0) {
-            // > 25KB = כנראה תמונה אמיתית (תמונת נטפרי ~5-20KB)
-            resolve(len > 25000);
-          } else {
-            resolve(null); // לא ידוע — המשך לבדיקת canvas
+      fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } })
+        .then(async r => {
+          // נסה content-range header: Content-Range: bytes 0-0/TOTAL
+          const cr = r.headers.get('Content-Range');
+          if (cr) {
+            const total = parseInt(cr.split('/')[1] || '0');
+            if (total > 0) { resolve(total > 100000); return; }
           }
+          // נסה content-length רגיל
+          const cl = parseInt(r.headers.get('Content-Length') || '0');
+          if (cl > 0) { resolve(cl > 100000); return; }
+          // fallback — קרא את כל התמונה ובדוק גודל
+          const blob = await r.blob();
+          resolve(blob.size > 100000);
         })
-        .catch(() => resolve(null)); // CORS block — המשך לבדיקת canvas
-    }).then(sizeResult => {
-      if (sizeResult !== null) return sizeResult;
-
-      // שלב 2: canvas — בדוק ניגודיות + יחס גובה/רוחב
-      return new Promise(resolve => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          const w = img.naturalWidth, h = img.naturalHeight;
-          // נטפרי מחזיר תמונה ריבועית קטנה עם לוגו
-          // תמונת בגד אמיתית: portrait (גבוה > רחב) ולא ריבועית
-          const isSquareLike = (w > 0 && h > 0) && (w / h > 0.85 && w / h < 1.15);
-
-          try {
-            const cv = document.createElement('canvas');
-            cv.width = 30; cv.height = 30;
-            const ctx = cv.getContext('2d');
-            ctx.drawImage(img, 0, 0, 30, 30);
-            const d = ctx.getImageData(0, 0, 30, 30).data;
-
-            // חשב ניגודיות ממוצעת
-            let totalDiff = 0, samples = 0;
-            const r0=d[0],g0=d[1],b0=d[2];
-            for (let i = 4; i < d.length; i += 4) {
-              totalDiff += Math.abs(d[i]-r0) + Math.abs(d[i+1]-g0) + Math.abs(d[i+2]-b0);
-              samples++;
-            }
-            const avgDiff = totalDiff / samples;
-
-            // תמונה חסומה: ניגודיות נמוכה (אחידה) וריבועית
-            if (avgDiff < 8 && isSquareLike) { resolve(false); return; }
-            // תמונה חסומה: ניגודיות נמוכה מאוד (כמעט חד-גוני)
-            if (avgDiff < 4) { resolve(false); return; }
-            resolve(true);
-          } catch(e) {
-            // CORS — לא יכולים לבדוק canvas
-            // fallback: portrait = כנראה תקין, ריבועי קטן = כנראה חסום
-            if (isSquareLike && w < 600) { resolve(false); return; }
-            resolve(true);
-          }
-        };
-        img.onerror = () => resolve(false);
-        img.src = url;
-      });
+        .catch(() => {
+          // CORS לחלוטין — בדוק naturalWidth: נטפרי מחזיר תמונה קטנה
+          const img = new Image();
+          img.onload = () => resolve(img.naturalWidth >= 400 && img.naturalHeight >= 400);
+          img.onerror = () => resolve(false);
+          img.src = url;
+        });
     });
 
     const BATCH = 15;
@@ -2512,26 +2480,34 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         // רק מידות אות (לא מספרים, לא ONE SIZE)
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const relevantSizes = productSizes.filter(s => letterSizes.includes(s));
+        const missingLetter = relevantSizes.filter(s => !inStock.map(x=>x.toUpperCase()).includes(s));
 
-        if (relevantSizes.length === 0) {
-          // אין מידות אות בכלל — לא רלוונטי
-          sel.innerHTML = '<option value="">אין מידות זמינות</option>';
-          document.getElementById('alertSizeOption').style.opacity = '0.5';
-          document.getElementById('alertSizeCheck').disabled = true;
-        } else {
-          const missingLetter = relevantSizes.filter(s => !inStock.map(x=>x.toUpperCase()).includes(s));
-          if (missingLetter.length === 0) {
-            sel.innerHTML = '<option value="">כל המידות במלאי</option>';
-            sel.disabled = true;
-          } else {
-            sel.innerHTML = '';
-            missingLetter.forEach(s => {
-              const o = document.createElement('option');
-              o.value = s; o.textContent = s;
-              sel.appendChild(o);
-            });
-          }
+        sel.innerHTML = '';
+        sel.disabled = false;
+        document.getElementById('alertSizeOption').style.opacity = '';
+        document.getElementById('alertSizeCheck').disabled = false;
+
+        // תמיד הוסף "כל מידה" כאופציה ראשונה
+        const optAny = document.createElement('option');
+        optAny.value = 'any'; optAny.textContent = 'כל מידה שחסרה';
+        sel.appendChild(optAny);
+
+        if (missingLetter.length > 0) {
+          // הוסף מידות חסרות ספציפיות
+          missingLetter.forEach(s => {
+            const o = document.createElement('option');
+            o.value = s; o.textContent = s;
+            sel.appendChild(o);
+          });
+        } else if (relevantSizes.length > 0) {
+          // כולן במלאי — אפשר לבחור מידה ספציפית להתריע אם תצא שוב
+          relevantSizes.forEach(s => {
+            const o = document.createElement('option');
+            o.value = s; o.textContent = s;
+            sel.appendChild(o);
+          });
         }
+        // אם אין מידות בכלל — רק "כל מידה" נשאר
       }
     } catch(_) {}
 
@@ -2555,13 +2531,34 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     document.getElementById('alertPopupBg').classList.add('open');
   }
 
-  function toggleAlertCheck(checkId, optEl) {
-    const chk = document.getElementById(checkId);
-    chk.checked = !chk.checked;
-    optEl.classList.toggle('selected', chk.checked);
-    if (checkId === 'alertSizeCheck') {
-      document.getElementById('alertSizeSelect').classList.toggle('show', chk.checked);
+  function _applyAlertSize(checked) {
+    const optEl = document.getElementById('alertSizeOption');
+    const sel = document.getElementById('alertSizeSelect');
+    optEl.classList.toggle('selected', checked);
+    if (checked && sel.options.length > 0 && !sel.disabled) {
+      sel.classList.add('show');
+    } else {
+      sel.classList.remove('show');
     }
+  }
+  function toggleAlertSizeFromDiv(divEl) {
+    const chk = document.getElementById('alertSizeCheck');
+    if (chk.disabled) return;
+    chk.checked = !chk.checked;
+    _applyAlertSize(chk.checked);
+  }
+  function syncAlertSizeCheckbox(chk) { _applyAlertSize(chk.checked); }
+  function toggleAlertPriceFromDiv(divEl) {
+    const chk = document.getElementById('alertPriceCheck');
+    chk.checked = !chk.checked;
+    divEl.classList.toggle('selected', chk.checked);
+  }
+  function syncAlertPriceCheckbox(chk) {
+    document.getElementById('alertPriceOption').classList.toggle('selected', chk.checked);
+  }
+  function toggleAlertCheck(checkId, optEl) {
+    if (checkId === 'alertSizeCheck') toggleAlertSizeFromDiv(optEl);
+    else toggleAlertPriceFromDiv(optEl);
   }
 
   function closeAlertPopup(e) {

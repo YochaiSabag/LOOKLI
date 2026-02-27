@@ -1450,10 +1450,12 @@ function resetAllFiltersQuietly(){
 }
 
 function resetAll(){
-  filterImgAvail=false;
-  const tog=document.getElementById('imgAvailToggle');
-  if(tog)tog.checked=false;
-  document.querySelectorAll('.card').forEach(c=>{c.classList.remove('img-blocked');});document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];resetAllFiltersQuietly();document.getElementById("aiAnalysis").classList.remove("active");runRegularSearch()}
+  // אל תכבה netfree — רק שאר הפילטרים
+  document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];
+  resetAllFiltersQuietly();
+  document.getElementById("aiAnalysis").classList.remove("active");
+  runRegularSearch();
+}
 
 async function openProduct(id){
   document.getElementById("modalBackdrop").classList.add("open");
@@ -2227,44 +2229,71 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 
   async function startNetfreeDeepScan() {
     const toolbar = document.getElementById('metaToolbar');
-    toolbar.textContent = '⏳ סורק תמונות...';
+    const grid = document.getElementById('grid');
 
-    // טען את כל המוצרים (לא רק הדף הנוכחי)
+    // הסתר גריד, הצג progress overlay
+    grid.style.opacity = '0';
+    grid.style.pointerEvents = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // הצג אנימציית loading
+    let progressBar = document.getElementById('netfreeProgress');
+    if (!progressBar) {
+      progressBar = document.createElement('div');
+      progressBar.id = 'netfreeProgress';
+      progressBar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#d191b0,#c48cb3);z-index:9999;transition:width .3s;width:0%';
+      document.body.appendChild(progressBar);
+    }
+    progressBar.style.width = '0%';
+    progressBar.style.display = 'block';
+
     let allToCheck = [...allProducts];
-
-    // רנדר את כולם זמנית (נסתר) כדי לבדוק תמונות
-    // אבל פשוט יותר: בדוק URL ישירות עם Image() object
     let okUrls = new Set();
     let checked = 0;
     const total = allToCheck.length;
 
+    // בדיקה לפי גודל: > 100KB = תמונה פתוחה
     const checkImage = (url) => new Promise(resolve => {
       if (!url) { resolve(false); return; }
+      fetch(url, { method: 'HEAD', mode: 'no-cors' })
+        .then(r => {
+          // no-cors לא מחזיר headers — fallback ל-Image size
+          resolve(null); // נמשיך ל-Image check
+        })
+        .catch(() => resolve(null));
+    }).then(headResult => new Promise(resolve => {
+      // בדוק גודל דרך Image object
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
+        // תמונה שחסומה ע"י נטפרי היא <50px רוחב או גובה
+        if (img.naturalWidth < 50 || img.naturalHeight < 50) { resolve(false); return; }
+        // בדוק ניגודיות — תמונה אחידה = חסומה
         try {
-          const c = document.createElement('canvas');
-          c.width = 10; c.height = 10;
-          const ctx = c.getContext('2d');
-          ctx.drawImage(img, 0, 0, 10, 10);
-          const d = ctx.getImageData(0, 0, 10, 10).data;
+          const cv = document.createElement('canvas');
+          cv.width = 20; cv.height = 20;
+          const ctx = cv.getContext('2d');
+          ctx.drawImage(img, 0, 0, 20, 20);
+          const d = ctx.getImageData(0, 0, 20, 20).data;
+          let diff = 0;
           for (let i = 4; i < d.length; i += 4) {
-            if (Math.abs(d[i]-d[0])>15||Math.abs(d[i+1]-d[1])>15||Math.abs(d[i+2]-d[2])>15) {
-              resolve(true); return;
-            }
+            diff += Math.abs(d[i]-d[0]) + Math.abs(d[i+1]-d[1]) + Math.abs(d[i+2]-d[2]);
           }
-          resolve(false); // אחידה = חסומה
-        } catch(e) { resolve(true); } // CORS = נניח פתוחה
+          // אם סך הניגודיות קטן מ-500 = תמונה אחידה/מפוקסלת = חסומה
+          resolve(diff > 500);
+        } catch(e) { resolve(true); } // CORS block = נניח פתוחה
       };
       img.onerror = () => resolve(false);
       img.src = url;
-    });
+    }));
 
-    // בדוק בקבוצות של 10
-    const BATCH = 10;
+    const BATCH = 15;
     for (let i = 0; i < allToCheck.length; i += BATCH) {
-      if (!filterImgAvail) return; // בוטל
+      if (!filterImgAvail) {
+        progressBar.style.display = 'none';
+        grid.style.opacity = '1'; grid.style.pointerEvents = '';
+        return;
+      }
       const batch = allToCheck.slice(i, i + BATCH);
       await Promise.all(batch.map(async p => {
         const url = p.image_url || (p.images && p.images[0]) || '';
@@ -2272,17 +2301,21 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         if (ok) okUrls.add(p.source_url || p.id || url);
         checked++;
       }));
-      const pct = Math.round(checked/total*100);
-      toolbar.textContent = `⏳ סורק תמונות... ${pct}% (${okUrls.size} פתוחות מתוך ${checked} נסרקו)`;
+      const pct = Math.round(checked / total * 100);
+      progressBar.style.width = pct + '%';
+      toolbar.textContent = `⏳ סורק תמונות... ${pct}% — ${okUrls.size} פתוחות מתוך ${checked}`;
     }
 
-    // שמור את הרשימה ועדכן allProducts כנגזרת
     netfreeOkUrls = okUrls;
+    progressBar.style.width = '100%';
+    setTimeout(() => { progressBar.style.display = 'none'; }, 600);
+
     toolbar.textContent = `✅ סינון נטפרי פעיל — ${okUrls.size} מוצרים עם תמונה פתוחה`;
 
-    // רנדר מחדש עם סינון
+    // הצג גריד עם מוצרים מסוננים בהדרגה
     currentPage = 1;
     renderPage();
+    setTimeout(() => { grid.style.opacity = '1'; grid.style.pointerEvents = ''; }, 200);
   }
 
   // ===== SPONSORED PRODUCTS =====
@@ -2438,20 +2471,25 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     document.getElementById('alertPriceOption').classList.remove('selected');
     document.getElementById('alertSizeOption').classList.remove('selected');
 
-    // טען מידות זמינות
+    // טען מידות — מה שחסר במלאי (כדי להתריע כשחוזר)
     const sel = document.getElementById('alertSizeSelect');
-    sel.innerHTML = '<option value="any">כל מידה</option>';
+    sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
     try {
       const res = await fetch('/api/product-by-url?url=' + encodeURIComponent(url));
       if (res.ok) {
         const p = await res.json();
-        if (p.sizes && p.sizes.length) {
-          p.sizes.forEach(s => {
-            const o = document.createElement('option');
-            o.value = s; o.textContent = s;
-            sel.appendChild(o);
-          });
-        }
+        // מידות שבDB = מה שיש עכשיו, כל המידות הסטנדרטיות = מה שיש בכלל
+        const allSizes = ['XS','S','M','L','XL','XXL','XXXL','34','36','38','40','42','44','46','ONE SIZE'];
+        const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim());
+        // מוצג: מידות שלא במלאי (ולכן יש עניין לקבל התראה)
+        const missing = allSizes.filter(s => !inStock.includes(s) && !inStock.includes('EU_'+s));
+        // אם אין missing ברורים — הצג את כולם
+        const toShow = missing.length > 0 ? missing : allSizes;
+        toShow.forEach(s => {
+          const o = document.createElement('option');
+          o.value = s; o.textContent = formatSize(s);
+          sel.appendChild(o);
+        });
       }
     } catch(_) {}
 

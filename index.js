@@ -967,7 +967,7 @@ app.get("/api/product-by-url", async (req, res) => {
     const url = (req.query.url || '').trim().replace(/\/+$/, '');
     if (!url) return res.status(400).json({ error: 'חסר url' });
     const r = await pool.query(
-      `SELECT id, title, store, price, image_url FROM products
+      `SELECT id, title, store, price, image_url, sizes FROM products
        WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
       [url, url + '%']
     );

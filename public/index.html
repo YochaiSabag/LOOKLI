@@ -2230,87 +2230,17 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   async function startNetfreeDeepScan() {
     const toolbar = document.getElementById('metaToolbar');
     const grid = document.getElementById('grid');
-
-    // הסתר hero ואגדיר גריד
     const hero = document.getElementById('heroDiscover');
     if (hero) hero.classList.add('hidden');
-    grid.style.opacity = '0.3';
-    grid.style.pointerEvents = 'none';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // הצג אנימציית loading
-    let progressBar = document.getElementById('netfreeProgress');
-    if (!progressBar) {
-      progressBar = document.createElement('div');
-      progressBar.id = 'netfreeProgress';
-      progressBar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#d191b0,#c48cb3);z-index:9999;transition:width .3s;width:0%';
-      document.body.appendChild(progressBar);
-    }
-    progressBar.style.width = '0%';
-    progressBar.style.display = 'block';
+    // סנן לפי image_size_bytes שנשמר בסקרייפר (> 100000 bytes = תמונה פתוחה)
+    const filtered = allProducts.filter(p => (p.image_size_bytes || 0) > 100000);
+    netfreeOkUrls = new Set(filtered.map(p => p.source_url));
 
-    let allToCheck = [...allProducts];
-    let okUrls = new Set();
-    let checked = 0;
-    const total = allToCheck.length;
+    toolbar.textContent = `✅ סינון נטפרי פעיל — ${netfreeOkUrls.size} מוצרים עם תמונה פתוחה`;
 
-    // בדיקה משולבת: fetch לגודל קובץ (אם אפשר) + canvas ניגודיות
-    // בדיקת גודל קובץ: מתחת ל-100KB = חסום
-    const checkImage = (url) => new Promise(resolve => {
-      if (!url) { resolve(false); return; }
-      fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } })
-        .then(async r => {
-          // נסה content-range header: Content-Range: bytes 0-0/TOTAL
-          const cr = r.headers.get('Content-Range');
-          if (cr) {
-            const total = parseInt(cr.split('/')[1] || '0');
-            if (total > 0) { resolve(total > 100000); return; }
-          }
-          // נסה content-length רגיל
-          const cl = parseInt(r.headers.get('Content-Length') || '0');
-          if (cl > 0) { resolve(cl > 100000); return; }
-          // fallback — קרא את כל התמונה ובדוק גודל
-          const blob = await r.blob();
-          resolve(blob.size > 100000);
-        })
-        .catch(() => {
-          // CORS לחלוטין — בדוק naturalWidth: נטפרי מחזיר תמונה קטנה
-          const img = new Image();
-          img.onload = () => resolve(img.naturalWidth >= 400 && img.naturalHeight >= 400);
-          img.onerror = () => resolve(false);
-          img.src = url;
-        });
-    });
-
-    const BATCH = 15;
-    for (let i = 0; i < allToCheck.length; i += BATCH) {
-      if (!filterImgAvail) {
-        progressBar.style.display = 'none';
-        grid.style.opacity = '1'; grid.style.pointerEvents = '';
-        return;
-      }
-      const batch = allToCheck.slice(i, i + BATCH);
-      await Promise.all(batch.map(async p => {
-        const url = p.image_url || (p.images && p.images[0]) || '';
-        const ok = await checkImage(url);
-        if (ok) okUrls.add(p.source_url || p.id || url);
-        checked++;
-      }));
-      const pct = Math.round(checked / total * 100);
-      progressBar.style.width = pct + '%';
-      toolbar.textContent = `⏳ סורק תמונות... ${pct}% — ${okUrls.size} פתוחות מתוך ${checked}`;
-    }
-
-    netfreeOkUrls = okUrls;
-    progressBar.style.width = '100%';
-    setTimeout(() => { progressBar.style.display = 'none'; }, 600);
-
-    toolbar.textContent = `✅ סינון נטפרי פעיל — ${okUrls.size} מוצרים עם תמונה פתוחה`;
-
-    // הצג גריד עם מוצרים מסוננים בהדרגה
     currentPage = 1;
     renderPage();
-    setTimeout(() => { grid.style.opacity = '1'; grid.style.pointerEvents = ''; }, 200);
   }
 
   // ===== SPONSORED PRODUCTS =====
@@ -2459,14 +2389,17 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     _alertBtn = btn;
     document.getElementById('alertProductTitle').textContent = title;
     document.getElementById('alertCurrentPrice').textContent = price ? 'מחיר נוכחי: ₪' + Number(price).toFixed(0) : '';
-    // טען מצב קיים
+    // איפוס מלא לפני פתיחה
     document.getElementById('alertPriceCheck').checked = false;
     document.getElementById('alertSizeCheck').checked = false;
     document.getElementById('alertSizeSelect').classList.remove('show');
     document.getElementById('alertPriceOption').classList.remove('selected');
-    document.getElementById('alertSizeOption').classList.remove('selected');
+    const sizeOptEl = document.getElementById('alertSizeOption');
+    sizeOptEl.classList.remove('selected');
+    sizeOptEl.style.display = ''; // תמיד הצג — יוסתר רק אם כל מידות במלאי
+    document.getElementById('alertSizeCheck').disabled = false;
 
-    // טען מידות — מה שחסר במלאי (כדי להתריע כשחוזר)
+    // טען מידות
     const sel = document.getElementById('alertSizeSelect');
     sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
     try {

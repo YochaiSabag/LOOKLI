@@ -1,5 +1,4 @@
 import { chromium } from 'playwright';
-import { normalizeColor, reportUnknownColors, unknownColors } from './color_utils.js';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Client } = pkg;
@@ -15,6 +14,73 @@ const db = new Client({
 await db.connect();
 
 console.log('🚀 MIMA Scraper - Wix Store');
+
+// ======================================================================
+// מיפוי צבעים - זהה למקימי
+// ======================================================================
+const colorMap = {
+  'black': 'שחור', 'שחור': 'שחור',
+  'white': 'לבן', 'לבן': 'לבן',
+  'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
+  'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
+  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק',
+  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום',
+  'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
+  'beige': 'בז׳', 'בז': 'בז׳', 'nude': 'בז׳', 'ניוד': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
+  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור',
+  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד',
+  'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
+  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב',
+  'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
+  'זהב': 'זהב', 'golden': 'זהב',
+  'silver': 'כסף', 'כסף': 'כסף',
+  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו',
+  'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
+  'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
+  // מנטה - צבע עצמאי
+  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
+  // אפרסק - צבע עצמאי
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  // בננה → צהוב
+  'בננה': 'צהוב', 'banana': 'צהוב',
+  // כסוף → כסף
+  'כסוף': 'כסף',
+  // שמות דוגמא שמשמשים כשמות וריאנט ב-Wix (לא צבע אמיתי)
+  'חלק': null, 'משבצות': null, 'פסים': null, 'נקודות': null, 'הדפס': null,
+  
+  // צבעים מיוחדים
+  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני'
+};
+
+// צבעים לא מזוהים
+const unknownColors = new Set();
+
+function normalizeColor(c) {
+  if (!c) return null;
+  const trimmed = c.trim();
+  const lower = trimmed.toLowerCase();
+  const noSpaces = lower.replace(/[-_\s]/g, '');
+  
+  // בדיקה ישירה (ללא רווחים)
+  if (noSpaces in colorMap) return colorMap[noSpaces];
+  // בדיקה ישירה (עם רווחים)
+  if (lower in colorMap) return colorMap[lower];
+  
+  // בדיקה מילה-מילה: "כחול מעושן" → כחול, "פרחוני רכה" → פרחוני
+  const words = lower.split(/\s+/);
+  for (const word of words) {
+    if (word in colorMap && colorMap[word] !== null) return colorMap[word];
+  }
+  
+  // חיפוש חלקי (רק צבעים אמיתיים)
+  for (const [key, val] of Object.entries(colorMap)) {
+    if (val === null) continue;
+    if (lower.includes(key) || key.includes(lower)) return val;
+  }
+  
+  unknownColors.add(trimmed);
+  return null;
+}
 
 // ======================================================================
 // מיפוי מידות - זהה למקימי
@@ -729,7 +795,8 @@ async function scrapeProduct(page, url) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
-      url
+      url,
+      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '')
     };
     
   } catch (err) {
@@ -741,15 +808,25 @@ async function scrapeProduct(page, url) {
 // ======================================================================
 // שמירה ל-DB - זהה למקימי, חנות = MIMA
 // ======================================================================
+
+// קבל גודל תמונה ב-bytes (HEAD request)
+async function getImageSizeBytes(url) {
+  if (!url) return 0;
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    const len = res.headers.get('content-length');
+    return len ? parseInt(len) : 0;
+  } catch(e) { return 0; }
+}
 async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, image_size_bytes, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, image_size_bytes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -797,7 +874,7 @@ try {
     console.log(`\n${'='.repeat(50)}`);
     console.log(`🎨 צבעים לא מזוהים (${unknownColors.size}):`);
     console.log('='.repeat(50));
-    [...unknownColors].forEach(c => console.log(`   ❓ "${c}" - הוסף ל-color_utils.js`));
+    [...unknownColors].forEach(c => console.log(`   ❓ "${c}" - הוסף ל-colorMap בסקרייפר`));
     console.log('='.repeat(50));
   }
   

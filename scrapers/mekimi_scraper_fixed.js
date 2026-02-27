@@ -1,6 +1,5 @@
 import { chromium } from 'playwright';
 import pkg from 'pg';
-import { normalizeColor, reportUnknownColors, unknownColors } from './color_utils.js';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 console.log("ENV DB_HOST =", process.env.DB_HOST || "(empty)");
 const { Client } = pkg;
@@ -16,6 +15,214 @@ const db = new Client({
 await db.connect();
 
 console.log('🚀 Mekimi Scraper - COMPLETE FIX');
+
+// ======================================================================
+// מיפוי צבעים - כל הצבעים שרוצים לתמוך בהם
+// איך להוסיף צבע חדש:
+// 1. הוסף את הצבע באנגלית (lowercase) כ-key
+// 2. הצבע העברי המנורמל כ-value
+// לדוגמה: 'turquoise': 'תכלת' - כל מוצר עם צבע turquoise יהפוך ל"תכלת"
+// ======================================================================
+const colorMap = {
+  // שחור
+  'black': 'שחור', 
+  'שחור': 'שחור',
+  
+  // לבן
+  'white': 'לבן', 
+  'לבן': 'לבן',
+  
+  // כחול
+  'blue': 'כחול', 
+  'כחול': 'כחול', 
+  'navy': 'כחול', 
+  'נייבי': 'כחול',
+  'royal': 'כחול',
+  'cobalt': 'כחול',
+  'denim': 'כחול',
+  'indigo': 'כחול',
+  
+  // אדום
+  'red': 'אדום', 
+  'אדום': 'אדום',
+  'scarlet': 'אדום',
+  'crimson': 'אדום',
+  
+  // ירוק - כולל snake (#6)
+  'green': 'ירוק', 
+  'ירוק': 'ירוק', 
+  'olive': 'ירוק', 
+  'זית': 'ירוק', 
+  'khaki': 'ירוק', 
+  'חאקי': 'ירוק', 
+  'snake': 'ירוק',        // #6 - snake = ירוק
+  'emerald': 'ירוק',
+  'forest': 'ירוק',
+  'sage': 'ירוק',
+  'teal': 'ירוק',
+  'army': 'ירוק',
+  'ירוק-זית': 'ירוק',
+  'olive-green': 'ירוק',
+  'dark-green': 'ירוק',
+  'darkgreen': 'ירוק',
+  'ירוקזית': 'ירוק',
+  'hunter': 'ירוק',
+  
+  // חום - כולל קפה (#7)
+  'brown': 'חום', 
+  'חום': 'חום', 
+  'tan': 'חום', 
+  'chocolate': 'חום',
+  'coffee': 'חום',         // #7 - coffee = חום
+  'קפה': 'חום',            // #7 - קפה = חום
+  'mocha': 'חום',
+  'espresso': 'חום',
+  'chestnut': 'חום',
+  
+  // קאמל
+  'camel': 'קאמל', 
+  'קאמל': 'קאמל',
+  'cognac': 'קאמל',
+  
+  // בז׳
+  'beige': 'בז׳', 
+  'בז': 'בז׳', 
+  'nude': 'בז׳', 
+  'ניוד': 'בז׳',
+  'sand': 'בז׳',
+  'taupe': 'בז׳',
+  
+  // אפור
+  'gray': 'אפור', 
+  'grey': 'אפור', 
+  'אפור': 'אפור',
+  'charcoal': 'אפור',
+  'slate': 'אפור',
+  'ash': 'אפור',
+  
+  // ורוד
+  'pink': 'ורוד', 
+  'ורוד': 'ורוד', 
+  'coral': 'ורוד', 
+  'קורל': 'ורוד',
+  'blush': 'ורוד',
+  'rose': 'ורוד',
+  'fuchsia': 'ורוד',
+  'magenta': 'ורוד',
+  'salmon': 'ורוד',
+  
+  // סגול
+  'purple': 'סגול', 
+  'סגול': 'סגול', 
+  'lilac': 'סגול', 
+  'לילך': 'סגול',
+  'lavender': 'סגול',
+  'violet': 'סגול',
+  'plum': 'סגול',
+  'mauve': 'סגול',
+  
+  // צהוב
+  'yellow': 'צהוב', 
+  'צהוב': 'צהוב', 
+  'mustard': 'צהוב', 
+  'חרדל': 'צהוב',
+  'gold': 'צהוב',
+  'lemon': 'צהוב',
+  
+  // כתום
+  'orange': 'כתום', 
+  'כתום': 'כתום',
+  'tangerine': 'כתום',
+  'rust': 'כתום',
+  
+  // זהב
+  'זהב': 'זהב',
+  'golden': 'זהב',
+  
+  // כסף
+  'silver': 'כסף', 
+  'כסף': 'כסף',
+  
+  // בורדו
+  'bordo': 'בורדו', 
+  'בורדו': 'בורדו', 
+  'burgundy': 'בורדו', 
+  'wine': 'בורדו',
+  'maroon': 'בורדו',
+  'oxblood': 'בורדו',
+  'cherry': 'בורדו',
+  'plum': 'בורדו',
+  
+  // שמנת - כולל stone (#5)
+  'cream': 'שמנת', 
+  'שמנת': 'שמנת', 
+  'ivory': 'שמנת', 
+  'offwhite': 'שמנת',
+  'off-white': 'שמנת',
+  'stone': 'שמנת',        // #5 - stone = שמנת
+  'bone': 'שמנת',
+  'ecru': 'שמנת',
+  'vanilla': 'שמנת',
+  
+  // תכלת
+  'turquoise': 'תכלת', 
+  'tourquise': 'תכלת',
+  'תכלת': 'תכלת', 
+  'טורקיז': 'תכלת',
+  'aqua': 'תכלת',
+  'cyan': 'תכלת',
+  'skyblue': 'תכלת',
+  'sky': 'תכלת',
+  
+  // צבעים מיוחדים - מיפוי לפי הגיון
+  'dots': 'שחור',          // dots = נקודות, בד"כ שחור על לבן
+  'flower': 'ורוד',        // flower = פרחוני
+  'breek': 'חום',          // breek/brick = לבנה/חום
+  'brick': 'חום',
+  
+  // צבעים מיוחדים
+  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
+  // מנטה - צבע עצמאי
+  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
+  // אפרסק - צבע עצמאי
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  // בננה → צהוב
+  'בננה': 'צהוב', 'banana': 'צהוב',
+  // כסוף → כסף
+  'כסוף': 'כסף'
+};
+
+// רשימת צבעים לא מזוהים - לדיווח
+const unknownColors = new Set();
+
+// ======================================================================
+// פונקציה לנרמול צבע - ממירה כל שם צבע לצבע העברי המתאים
+// ======================================================================
+function normalizeColor(c) {
+  if (!c) return null;
+  const original = c;
+  const lower = c.toLowerCase().trim();
+  const noSpaces = lower.replace(/[-_\s]/g, '');
+  
+  // חיפוש ישיר
+  if (colorMap[noSpaces]) return colorMap[noSpaces];
+  if (colorMap[lower]) return colorMap[lower];
+  
+  // בדיקה מילה-מילה: "כחול מעושן" → כחול
+  const words = lower.split(/\s+/);
+  for (const word of words) {
+    if (colorMap[word]) return colorMap[word];
+  }
+  
+  // חיפוש חלקי
+  for (const [key, val] of Object.entries(colorMap)) {
+    if (lower.includes(key) || key.includes(lower)) return val;
+  }
+  
+  // צבע לא מזוהה - שמור לדיווח
+  unknownColors.add(original);
+  return null;
+}
 
 // ======================================================================
 // מיפוי מידות - המרה למידות אוניברסליות
@@ -501,15 +708,25 @@ async function scrapeProduct(page, url) {
   }
 }
 
+
+// קבל גודל תמונה ב-bytes (HEAD request)
+async function getImageSizeBytes(url) {
+  if (!url) return 0;
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    const len = res.headers.get('content-length');
+    return len ? parseInt(len) : 0;
+  } catch(e) { return 0; }
+}
 async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, image_size_bytes, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, image_size_bytes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -519,7 +736,8 @@ async function saveProduct(product) {
        product.colors, product.style || null, product.fit || null, product.category, 
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null, 
-       product.designDetails?.length ? product.designDetails : null]
+       product.designDetails?.length ? product.designDetails : null,
+       product.imageSizeBytes || 0]
     );
     console.log('  💾 saved');
   } catch (err) {
@@ -563,7 +781,6 @@ async function runHealthCheck(scraped, failed) {
   const problems = [];
   
   // 1. צבעים לא מזוהים
-  reportUnknownColors();
   if (unknownColors.size > 0) {
     problems.push(`⚠️ צבעים לא מזוהים (${unknownColors.size}): ${[...unknownColors].join(', ')}`);
   }

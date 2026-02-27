@@ -2252,40 +2252,67 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     let checked = 0;
     const total = allToCheck.length;
 
-    // בדיקה לפי גודל: > 100KB = תמונה פתוחה
+    // בדיקה משולבת: fetch לגודל קובץ (אם אפשר) + canvas ניגודיות
     const checkImage = (url) => new Promise(resolve => {
       if (!url) { resolve(false); return; }
-      fetch(url, { method: 'HEAD', mode: 'no-cors' })
+
+      // שלב 1: נסה fetch עם cors רגיל לקבל Content-Length
+      fetch(url, { method: 'HEAD' })
         .then(r => {
-          // no-cors לא מחזיר headers — fallback ל-Image size
-          resolve(null); // נמשיך ל-Image check
-        })
-        .catch(() => resolve(null));
-    }).then(headResult => new Promise(resolve => {
-      // בדוק גודל דרך Image object
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        // תמונה שחסומה ע"י נטפרי היא <50px רוחב או גובה
-        if (img.naturalWidth < 50 || img.naturalHeight < 50) { resolve(false); return; }
-        // בדוק ניגודיות — תמונה אחידה = חסומה
-        try {
-          const cv = document.createElement('canvas');
-          cv.width = 20; cv.height = 20;
-          const ctx = cv.getContext('2d');
-          ctx.drawImage(img, 0, 0, 20, 20);
-          const d = ctx.getImageData(0, 0, 20, 20).data;
-          let diff = 0;
-          for (let i = 4; i < d.length; i += 4) {
-            diff += Math.abs(d[i]-d[0]) + Math.abs(d[i+1]-d[1]) + Math.abs(d[i+2]-d[2]);
+          const len = parseInt(r.headers.get('Content-Length') || '0');
+          if (len > 0) {
+            // > 25KB = כנראה תמונה אמיתית (תמונת נטפרי ~5-20KB)
+            resolve(len > 25000);
+          } else {
+            resolve(null); // לא ידוע — המשך לבדיקת canvas
           }
-          // אם סך הניגודיות קטן מ-500 = תמונה אחידה/מפוקסלת = חסומה
-          resolve(diff > 500);
-        } catch(e) { resolve(true); } // CORS block = נניח פתוחה
-      };
-      img.onerror = () => resolve(false);
-      img.src = url;
-    }));
+        })
+        .catch(() => resolve(null)); // CORS block — המשך לבדיקת canvas
+    }).then(sizeResult => {
+      if (sizeResult !== null) return sizeResult;
+
+      // שלב 2: canvas — בדוק ניגודיות + יחס גובה/רוחב
+      return new Promise(resolve => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const w = img.naturalWidth, h = img.naturalHeight;
+          // נטפרי מחזיר תמונה ריבועית קטנה עם לוגו
+          // תמונת בגד אמיתית: portrait (גבוה > רחב) ולא ריבועית
+          const isSquareLike = (w > 0 && h > 0) && (w / h > 0.85 && w / h < 1.15);
+
+          try {
+            const cv = document.createElement('canvas');
+            cv.width = 30; cv.height = 30;
+            const ctx = cv.getContext('2d');
+            ctx.drawImage(img, 0, 0, 30, 30);
+            const d = ctx.getImageData(0, 0, 30, 30).data;
+
+            // חשב ניגודיות ממוצעת
+            let totalDiff = 0, samples = 0;
+            const r0=d[0],g0=d[1],b0=d[2];
+            for (let i = 4; i < d.length; i += 4) {
+              totalDiff += Math.abs(d[i]-r0) + Math.abs(d[i+1]-g0) + Math.abs(d[i+2]-b0);
+              samples++;
+            }
+            const avgDiff = totalDiff / samples;
+
+            // תמונה חסומה: ניגודיות נמוכה (אחידה) וריבועית
+            if (avgDiff < 8 && isSquareLike) { resolve(false); return; }
+            // תמונה חסומה: ניגודיות נמוכה מאוד (כמעט חד-גוני)
+            if (avgDiff < 4) { resolve(false); return; }
+            resolve(true);
+          } catch(e) {
+            // CORS — לא יכולים לבדוק canvas
+            // fallback: portrait = כנראה תקין, ריבועי קטן = כנראה חסום
+            if (isSquareLike && w < 600) { resolve(false); return; }
+            resolve(true);
+          }
+        };
+        img.onerror = () => resolve(false);
+        img.src = url;
+      });
+    });
 
     const BATCH = 15;
     for (let i = 0; i < allToCheck.length; i += BATCH) {
@@ -2479,17 +2506,32 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       if (res.ok) {
         const p = await res.json();
         // מידות שבDB = מה שיש עכשיו, כל המידות הסטנדרטיות = מה שיש בכלל
-        const allSizes = ['XS','S','M','L','XL','XXL','XXXL','34','36','38','40','42','44','46','ONE SIZE'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim());
-        // מוצג: מידות שלא במלאי (ולכן יש עניין לקבל התראה)
-        const missing = allSizes.filter(s => !inStock.includes(s) && !inStock.includes('EU_'+s));
-        // אם אין missing ברורים — הצג את כולם
-        const toShow = missing.length > 0 ? missing : allSizes;
-        toShow.forEach(s => {
-          const o = document.createElement('option');
-          o.value = s; o.textContent = formatSize(s);
-          sel.appendChild(o);
-        });
+        // מידות שהמוצר מכיר (מה שהסקרפר מצא אי פעם)
+        const productSizes = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
+        // רק מידות אות (לא מספרים, לא ONE SIZE)
+        const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
+        const relevantSizes = productSizes.filter(s => letterSizes.includes(s));
+
+        if (relevantSizes.length === 0) {
+          // אין מידות אות בכלל — לא רלוונטי
+          sel.innerHTML = '<option value="">אין מידות זמינות</option>';
+          document.getElementById('alertSizeOption').style.opacity = '0.5';
+          document.getElementById('alertSizeCheck').disabled = true;
+        } else {
+          const missingLetter = relevantSizes.filter(s => !inStock.map(x=>x.toUpperCase()).includes(s));
+          if (missingLetter.length === 0) {
+            sel.innerHTML = '<option value="">כל המידות במלאי</option>';
+            sel.disabled = true;
+          } else {
+            sel.innerHTML = '';
+            missingLetter.forEach(s => {
+              const o = document.createElement('option');
+              o.value = s; o.textContent = s;
+              sel.appendChild(o);
+            });
+          }
+        }
       }
     } catch(_) {}
 

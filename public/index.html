@@ -665,7 +665,7 @@
           <span id="savedNavCount"></span>
         </button>
       </nav>
-      <button class="mobile-menu-btn" onclick="toggleMobileFilters()">☰</button>
+      <button class="mobile-menu-btn" onclick="toggleMobileNav()">☰</button>
     </div>
     <div class="search-section">
       <div class="search-inner">
@@ -978,16 +978,66 @@ const storeLogos={
 const darkBgStores = new Set(['AVIYAH', 'CHEMISE']);
 
 const colorData={
-  'שחור':'#000000','לבן':'#FFFFFF','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8',
-  'נייבי':'#1E3A5F','אדום':'#DC2626','בורדו':'#800020','ירוק':'#16A34A','זית':'#556B2F',
-  'חאקי':'#8B8B00','חום':'#92400E','קאמל':'#C19A6B','בז׳':'#D4B896','ניוד':'#E8BEAC',
-  'אפור':'#6B7280','ורוד':'#EC4899','סגול':'#7C3AED','לילך':'#C8A2C8','צהוב':'#FACC15',
-  'חרדל':'#FFDB58','כתום':'#EA580C','זהב':'#D4AF37','כסף':'#C0C0C0',
-  'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)','צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
-  'מנטה':'#98FFD3','אפרסק':'#FFCBA4','אבן':'#C5B9A8'
+  // עברית
+  'שחור':'#1a1a1a','לבן':'#FFFFFF','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8',
+  'נייבי':'#1E3A5F','כחול כהה':'#1E3A5F','כחול בהיר':'#93C5FD','ג׳ינס':'#4A7FA5',
+  'אדום':'#DC2626','בורדו':'#800020','יין':'#722F37','טרקוטה':'#C16B4B',
+  'ירוק':'#16A34A','זית':'#556B2F','ירוק כהה':'#14532D','ירוק בהיר':'#86EFAC','ירוק מנטה':'#98FFD3',
+  'חאקי':'#8B8B00','חום':'#92400E','קאמל':'#C19A6B','טאופ':'#B5A898',
+  'בז׳':'#D4B896','ניוד':'#E8BEAC','פודרה':'#F2C4CE','ביסקוויט':'#DEB887',
+  'אפור':'#6B7280','אפור בהיר':'#D1D5DB','אפור כהה':'#374151','פחם':'#374151',
+  'ורוד':'#EC4899','ורוד בהיר':'#FBCFE8','ורוד כהה':'#BE185D','פוקסיה':'#D946EF','קורל':'#FF7F6B',
+  'סגול':'#7C3AED','לילך':'#C8A2C8','סגול בהיר':'#DDD6FE','סגול כהה':'#4C1D95',
+  'צהוב':'#FACC15','חרדל':'#D97706','לימון':'#FEF08A',
+  'כתום':'#EA580C','ענבר':'#FFBF00',
+  'זהב':'#D4AF37','כסף':'#C0C0C0','ברונז':'#CD7F32',
+  'מנטה':'#98FFD3','אפרסק':'#FFCBA4','אבן':'#C5B9A8','אוף וויט':'#FAF7F0',
+  'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)',
+  'צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
+  'מולטי':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
+  // אנגלית — שמות נפוצים בחנויות
+  'black':'#1a1a1a','white':'#FFFFFF','cream':'#FFFDD0','ivory':'#FFFFF0','off white':'#FAF7F0',
+  'blue':'#2563EB','navy':'#1E3A5F','light blue':'#93C5FD','sky':'#38BDF8','cobalt':'#0047AB',
+  'red':'#DC2626','burgundy':'#800020','wine':'#722F37','rust':'#B7410E',
+  'green':'#16A34A','olive':'#556B2F','khaki':'#8B8B00','forest':'#228B22','sage':'#87AE73',
+  'brown':'#92400E','camel':'#C19A6B','tan':'#D2B48C','taupe':'#B5A898','mocha':'#6F4E37',
+  'beige':'#D4B896','nude':'#E8BEAC','sand':'#C2B280','latte':'#C19A6B',
+  'gray':'#6B7280','grey':'#6B7280','charcoal':'#374151','silver':'#C0C0C0',
+  'pink':'#EC4899','blush':'#F2C4CE','fuchsia':'#D946EF','coral':'#FF7F6B','rose':'#FB7185',
+  'purple':'#7C3AED','lilac':'#C8A2C8','lavender':'#E6E6FA','violet':'#7F00FF','plum':'#8E4585',
+  'yellow':'#FACC15','mustard':'#D97706','lemon':'#FEF08A','gold':'#D4AF37',
+  'orange':'#EA580C','amber':'#FFBF00','terracotta':'#C16B4B','brick':'#B7410E',
+  'mint':'#98FFD3','turquoise':'#40E0D0','teal':'#0D9488','aqua':'#00FFFF',
+  'peach':'#FFCBA4','apricot':'#FBCFE8','salmon':'#FA8072',
+  // שמות מיוחדים של מותגים
+  'banana':'#FACC15','banana yellow':'#FACC15','banana cream':'#FFFDD0',
+  'cherry':'#800020','cherry red':'#DC143C',
+  'menta':'#98FFD3','mint green':'#98FFD3',
+  'ecru':'#C2B280','stone':'#C5B9A8','pebble':'#C5B9A8','clay':'#B66A50',
+  'chocolate':'#7B3F00','espresso':'#4B2C20','coffee':'#6F4E37',
+  'denim':'#4A7FA5','indigo':'#3730A3','electric':'#3B82F6',
+  'emerald':'#10B981','hunter':'#355E3B','moss':'#8A9A5B',
+  'blush pink':'#F9A8D4','dusty rose':'#D4918B','mauve':'#E0B0B0',
+  'sky blue':'#38BDF8','powder blue':'#B0E0E6','baby blue':'#89CFF0',
+  'hot pink':'#FF69B4','neon pink':'#FF00FF','candy':'#FF69B4',
+  'lime':'#84CC16','neon green':'#39FF14',
+  'maroon':'#800000','crimson':'#DC143C','scarlet':'#FF2400',
 };
 
-function getColorHex(n){if(!n)return'#CCC';const t=n.trim();return colorData[t]||Object.entries(colorData).find(([k])=>t.includes(k)||k.includes(t))?.[1]||'#CCC'}
+function getColorHex(n){
+  if(!n)return'#CCC';
+  const t=n.trim();
+  const tl=t.toLowerCase();
+  // התאמה מדויקת
+  if(colorData[t]) return colorData[t];
+  if(colorData[tl]) return colorData[tl];
+  // התאמה חלקית — הצבע מכיל את המפתח או להיפך
+  const found = Object.entries(colorData).find(([k]) => {
+    const kl=k.toLowerCase();
+    return tl===kl || tl.includes(kl) || kl.includes(tl);
+  });
+  return found?.[1] || '#CCC';
+}
 function formatSize(s){return s?s.replace(/^EU_/i,''):s}
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function buildSaveBtn(url, title, price, image, store, isSaved, hasSale) {
@@ -1006,6 +1056,30 @@ function buildSaveBtn(url, title, price, image, store, isSaved, hasSale) {
 function calcDiscount(p,o){return(!o||o<=p)?0:Math.round((o-p)/o*100)}
 function debouncedSearch(){clearTimeout(debounceTimer);debounceTimer=setTimeout(runRegularSearch,250)}
 function setLoading(){document.getElementById("grid").innerHTML='<div class="card"><div class="img-wrap"></div><div class="card-body"><div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div></div></div>'.repeat(8)}
+
+function toggleMobileNav(){
+  // פתח/סגור תפריט ניווט עמודים
+  const nav = document.getElementById('mobileNavMenu');
+  if(nav){ nav.classList.toggle('open'); return; }
+  // צור בפעם הראשונה
+  const menu = document.createElement('div');
+  menu.id = 'mobileNavMenu';
+  menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
+  menu.innerHTML = `
+    <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🏠 דף הבית</a>
+    <a href="/about.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">📖 אודות</a>
+    <a href="/contact.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">✉️ צור קשר</a>
+  `;
+  document.body.appendChild(menu);
+  setTimeout(() => { menu.style.transform = 'translateY(0)'; menu.classList.add('open'); }, 10);
+  // סגור בלחיצה מחוץ
+  setTimeout(()=> document.addEventListener('click', function h(e){
+    if(!menu.contains(e.target) && !e.target.classList.contains('mobile-menu-btn')){
+      menu.style.transform='translateY(-110%)';
+      document.removeEventListener('click',h);
+    }
+  }), 100);
+}
 
 function toggleMobileFilters(){
   const filters=document.getElementById('filtersPanel');
@@ -1116,26 +1190,39 @@ function getFilteredProducts(){
     : allProducts;
 }
 
+function getActiveProducts(){
+  if(filterImgAvail && netfreeOkUrls){
+    return allProducts.filter(p => netfreeOkUrls.has(p.source_url||p.id||''));
+  }
+  return allProducts;
+}
+
 function renderPage(){
-  const filtered = filterImgAvail ? allProducts : allProducts; // תמיד כל המוצרים בטעינה ראשונית
-  const end=currentPage*itemsPerPage;
-  const productsToShow=allProducts.slice(0,end);
-  renderProducts(productsToShow,false);
-  updateLoadMoreButton();
-  // אחרי רינדור — אם פילטר פעיל, החל מחדש
-  if(filterImgAvail) setTimeout(applyImgFilter, 2500);
+  const active = getActiveProducts();
+  const end = currentPage*itemsPerPage;
+  renderProducts(active.slice(0,end), false);
+  updateLoadMoreButtonFiltered(active.length);
 }
 
 function loadMore(){
   if(isLoading)return;
   currentPage++;
+  const active = getActiveProducts();
   const start=(currentPage-1)*itemsPerPage;
   const end=currentPage*itemsPerPage;
-  const newProducts=allProducts.slice(start,end);
-  renderProducts(newProducts,true);
-  updateLoadMoreButton();
-  // אחרי טעינה — אם פילטר פעיל, החל שוב
-  if(filterImgAvail) setTimeout(applyImgFilter, 2500);
+  renderProducts(active.slice(start,end), true);
+  updateLoadMoreButtonFiltered(active.length);
+}
+
+function updateLoadMoreButtonFiltered(total){
+  let btn=document.getElementById("loadMoreBtn");
+  const totalPages=Math.ceil(total/itemsPerPage);
+  if(total===0||currentPage>=totalPages){
+    if(btn) btn.remove();
+  } else {
+    if(!btn){btn=document.createElement('button');btn.id='loadMoreBtn';btn.onclick=loadMore;document.getElementById("grid").after(btn)}
+    btn.textContent='טען עוד';
+  }
 }
 
 function updateLoadMoreButton(){
@@ -1998,12 +2085,10 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         const ad = await ar.json();
         (ad.alerts || []).forEach(a => { existingAlerts[a.product_source_url] = a; });
       } catch(_) {}
-
       const banner = `<div class="alerts-banner">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span>לחצי על 🔔 ליד מוצר שמור כדי לקבל התראה כשהמחיר יורד או מידה חוזרת</span>
+        <span>לחצי על 🔔 להגדרת התראה כשמחיר יורד או מידה חוזרת</span>
       </div>`;
-
       body.innerHTML = banner + data.saved.map(s => {
         const hasAlert = !!existingAlerts[s.product_source_url];
         const uid = btoa(s.product_source_url).replace(/[^a-z0-9]/gi,'').slice(0,12);
@@ -2078,6 +2163,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
   let filterImgAvail = false;
+  let netfreeOkUrls = null; // Set של source_urls שעברו בדיקה
   const imgOkSet = new Set(); // שומר URLs של תמונות שאושרו
 
   // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
@@ -2116,16 +2202,12 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   function applyImgFilter() {
     document.querySelectorAll('.card:not(.sponsored)').forEach(card => {
       if (filterImgAvail) {
-        const blocked = card.dataset.imgOk !== '1';
-        card.classList.toggle('img-blocked', blocked);
-        // הסתר לגמרי מה-DOM
-        card.style.display = blocked ? 'none' : '';
+        card.classList.toggle('img-blocked', card.dataset.imgOk !== '1');
       } else {
         card.classList.remove('img-blocked');
-        card.style.display = '';
       }
     });
-    const visible = document.querySelectorAll('.card:not(.sponsored):not(.img-blocked)').length;
+    const visible = document.querySelectorAll('.card:not(.img-blocked):not(.sponsored)').length;
     document.getElementById('metaToolbar').textContent = filterImgAvail
       ? visible + ' מוצרים עם תמונה פתוחה בנטפרי'
       : allProducts.length + ' מוצרים';
@@ -2133,11 +2215,74 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 
   function toggleImgFilter(enabled) {
     filterImgAvail = enabled;
-    if (!enabled) { applyImgFilter(); return; }
-    // חכה 2 שניות לטעינת תמונות, אז החל
+    if (!enabled) {
+      // כיבוי: הצג הכל
+      document.querySelectorAll('.card').forEach(c=>{ c.classList.remove('img-blocked'); c.style.display=''; });
+      document.getElementById('metaToolbar').textContent = allProducts.length + ' מוצרים';
+      return;
+    }
+    // הפעלה: טען את כל המוצרים, בדוק תמונות, סנן
+    startNetfreeDeepScan();
+  }
+
+  async function startNetfreeDeepScan() {
     const toolbar = document.getElementById('metaToolbar');
-    toolbar.textContent = 'בודק תמונות...';
-    setTimeout(applyImgFilter, 2000);
+    toolbar.textContent = '⏳ סורק תמונות...';
+
+    // טען את כל המוצרים (לא רק הדף הנוכחי)
+    let allToCheck = [...allProducts];
+
+    // רנדר את כולם זמנית (נסתר) כדי לבדוק תמונות
+    // אבל פשוט יותר: בדוק URL ישירות עם Image() object
+    let okUrls = new Set();
+    let checked = 0;
+    const total = allToCheck.length;
+
+    const checkImage = (url) => new Promise(resolve => {
+      if (!url) { resolve(false); return; }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = 10; c.height = 10;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, 10, 10);
+          const d = ctx.getImageData(0, 0, 10, 10).data;
+          for (let i = 4; i < d.length; i += 4) {
+            if (Math.abs(d[i]-d[0])>15||Math.abs(d[i+1]-d[1])>15||Math.abs(d[i+2]-d[2])>15) {
+              resolve(true); return;
+            }
+          }
+          resolve(false); // אחידה = חסומה
+        } catch(e) { resolve(true); } // CORS = נניח פתוחה
+      };
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+
+    // בדוק בקבוצות של 10
+    const BATCH = 10;
+    for (let i = 0; i < allToCheck.length; i += BATCH) {
+      if (!filterImgAvail) return; // בוטל
+      const batch = allToCheck.slice(i, i + BATCH);
+      await Promise.all(batch.map(async p => {
+        const url = p.image_url || (p.images && p.images[0]) || '';
+        const ok = await checkImage(url);
+        if (ok) okUrls.add(p.source_url || p.id || url);
+        checked++;
+      }));
+      const pct = Math.round(checked/total*100);
+      toolbar.textContent = `⏳ סורק תמונות... ${pct}% (${okUrls.size} פתוחות מתוך ${checked} נסרקו)`;
+    }
+
+    // שמור את הרשימה ועדכן allProducts כנגזרת
+    netfreeOkUrls = okUrls;
+    toolbar.textContent = `✅ סינון נטפרי פעיל — ${okUrls.size} מוצרים עם תמונה פתוחה`;
+
+    // רנדר מחדש עם סינון
+    currentPage = 1;
+    renderPage();
   }
 
   // ===== SPONSORED PRODUCTS =====

@@ -1257,11 +1257,11 @@ function renderProducts(products,append=false){
     
     let carouselHTML='';
     if(images.length>1){
-      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="markCardBlocked(this.parentElement.parentElement.parentElement)"':''}>\u200B</div>`).join('');
+      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="var _c=this.closest(\'.card\');if(_c)_c.style.display=\'none\'"':''}>\u200B</div>`).join('');
       const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
       carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
     }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onload="checkNetfreeBlock(this)" onerror="markCardBlocked(this.closest&&this.closest('.card')||this.parentElement)">`;
+      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
     
     let colorDotsHTML='';
@@ -2235,8 +2235,12 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     if (hero) hero.classList.add('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // סנן לפי image_size_bytes שנשמר בסקרייפר (> 100000 bytes = תמונה פתוחה)
+    // סנן לפי image_size_bytes שנשמר בסקרייפר (> 5000 bytes = תמונה פתוחה)
+    const sample = allProducts.slice(0,3).map(p => p.source_url?.split('/').pop()?.substring(0,20) + '=' + (p.image_size_bytes||0));
+    console.log('NetFree sample sizes:', sample);
+    console.log('Total products:', allProducts.length);
     const filtered = allProducts.filter(p => (p.image_size_bytes || 0) > 5000);
+    console.log('Filtered (open):', filtered.length);
     netfreeOkUrls = new Set(filtered.map(p => p.source_url));
 
     toolbar.textContent = `✅ סינון נטפרי פעיל — ${netfreeOkUrls.size} מוצרים עם תמונה פתוחה`;

@@ -847,7 +847,8 @@ async function saveProduct(product) {
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
-       product.pattern || null, product.fabric || null, product.designDetails || []]
+       product.pattern || null, product.fabric || null, product.designDetails || [],
+       product.imageSizeBytes || 0]
     );
     console.log('  💾 saved');
   } catch (err) {

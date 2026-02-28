@@ -2423,8 +2423,15 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         if (productLetterSizes.length === 0) {
           // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
+        } else if (productLetterSizes.length === letterSizes.filter(s => inStock.includes(s)).length && productLetterSizes.length >= 3) {
+          // כל המידות הסטנדרטיות במלאי — disabled, אין checkbox
+          sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+          sel.disabled = true;
+          sel.classList.add('show');
+          document.getElementById('alertSizeCheck').disabled = true;
+          document.getElementById('alertSizeCheck').checked = false;
         } else {
-          // יש מידות — הצג רק מידות המוצר עצמו לבחירה
+          // יש מידות — הצג אותן לבחירה
           sel.innerHTML = '';
           productLetterSizes.forEach(s => {
             const o = document.createElement('option');

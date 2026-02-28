@@ -549,7 +549,7 @@ async function scrapeProduct(page, url, isEvening = false) {
       description: data.description,
       colorSizes: colorSizesMap,
       url,
-      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '')
+      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '', page)
     };
     
   } catch (err) {
@@ -562,18 +562,18 @@ async function scrapeProduct(page, url, isEvening = false) {
 // שמירה ל-DB
 // ======================================================================
 
-// קבל גודל תמונה — GET עם abort אחרי headers
-async function getImageSizeBytes(url) {
+// קבל גודל תמונה דרך Playwright (עוקף CORS ו-CDN)
+async function getImageSizeBytes(url, page) {
   if (!url) return 0;
   try {
-    const controller = new AbortController();
-    const res = await fetch(url, { method: 'GET', signal: controller.signal });
-    const len = res.headers.get('content-length');
-    controller.abort(); // אל תוריד את הגוף
-    if (len) return parseInt(len);
-    // אם אין content-length — קרא buffer קטן
-    const buf = await res.arrayBuffer().catch(() => null);
-    return buf ? buf.byteLength : 0;
+    const response = await page.evaluate(async (imgUrl) => {
+      try {
+        const r = await fetch(imgUrl);
+        const buf = await r.arrayBuffer();
+        return buf.byteLength;
+      } catch(e) { return 0; }
+    }, url);
+    return response || 0;
   } catch(e) { return 0; }
 }
 async function saveProduct(product) {

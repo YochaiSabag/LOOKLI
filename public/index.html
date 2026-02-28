@@ -2233,6 +2233,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     const grid = document.getElementById('grid');
     const hero = document.getElementById('heroDiscover');
     if (hero) hero.classList.add('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // סנן לפי image_size_bytes שנשמר בסקרייפר (> 100000 bytes = תמונה פתוחה)
     const filtered = allProducts.filter(p => (p.image_size_bytes || 0) > 100000);
@@ -2420,13 +2421,15 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 
         if (productLetterSizes.length === 0) {
           // מוצר בלי מידות אות — הצג "כל מידה" בלבד
-          sel.innerHTML = '<option value="any">כל מידה</option>';
+          sel.innerHTML = '<option value="any">התראה על כל מידה</option>';
         } else if (missingLetter.length === 0) {
-          // כל המידות שיש במוצר כרגע במלאי — הסתר
-          sizeOpt.style.display = 'none';
+          // כל המידות במלאי — הצג הודעה
+          sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+          sel.disabled = true;
+          sel.classList.add('show');
         } else {
           // יש מידות חסרות — הצג "כל מידה שחסרה" + הספציפיות
-          sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+          sel.innerHTML = '';
           missingLetter.forEach(s => {
             const o = document.createElement('option');
             o.value = s; o.textContent = s;
@@ -2435,7 +2438,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         }
       } else {
         // לא נמצא מוצר ב-DB — הצג ברירת מחדל
-        sel.innerHTML = '<option value="any">כל מידה</option>';
+        sel.innerHTML = '<option value="any">התראה על כל מידה</option>';
       }
     } catch(_) {
       // שגיאה — הצג ברירת מחדל

@@ -533,7 +533,8 @@ async function scrapeProduct(page, url, isEvening = false) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
-      url
+      url,
+      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '')
     };
     
   } catch (err) {

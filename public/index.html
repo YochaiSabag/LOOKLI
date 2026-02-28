@@ -2417,34 +2417,20 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
         // מידות אות שיש כרגע במלאי
+        // מידות אות שיש למוצר כרגע במלאי
         const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
-        // מידות אות שחסרות מהמלאי
-        const missingLetter = letterSizes.filter(s => !inStock.includes(s));
 
-        if (productLetterSizes.length === 0 && p.sizes && p.sizes.length === 0) {
-          // אין מידות בכלל — "כל מידה"
+        if (productLetterSizes.length === 0) {
+          // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
-
-        } else if (productLetterSizes.length > 0 && missingLetter.length === 0) {
-          // יש מידות אות ו-כולן במלאי — הצג הודעה, בלי checkbox
-          sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
-          sel.disabled = true;
-          sel.classList.add('show');
-          document.getElementById('alertSizeCheck').disabled = true;
-          document.getElementById('alertSizeCheck').checked = false;
-
-        } else if (productLetterSizes.length > 0 && missingLetter.length > 0) {
-          // יש מידות חסרות — הצג אותן
+        } else {
+          // יש מידות — הצג רק מידות המוצר עצמו לבחירה
           sel.innerHTML = '';
-          missingLetter.filter(s => letterSizes.includes(s)).forEach(s => {
+          productLetterSizes.forEach(s => {
             const o = document.createElement('option');
             o.value = s; o.textContent = s;
             sel.appendChild(o);
           });
-
-        } else {
-          // אין מידות אות (רק מספרים) — "כל מידה"
-          sel.innerHTML = '<option value="any">כל מידה</option>';
         }
       } else {
         // לא נמצא מוצר ב-DB — הצג ברירת מחדל

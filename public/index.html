@@ -2416,28 +2416,25 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         const p = await res.json();
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
-        // מידות המוצר מתוך letterSizes בלבד (לא מספרים)
+        // מידות המוצר — רק אותיות
         const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
-        // "חסרות" = מידות שהמוצר מכיר אך לא קיימות עכשיו = לא ידוע מה-DB בלבד
-        // → הצג את מידות המוצר עצמו (הן אלה שהלקוח ירצה לקבל התראה עליהן)
-        const missingLetter = productLetterSizes; // כל מידה שיש במוצר — כולן רלוונטיות
+        // מידות חסרות = letterSizes שהמוצר מכיר אך לא במלאי
+        const missingLetter = productLetterSizes.filter(s => !inStock.includes(s));
 
         if (productLetterSizes.length === 0) {
-          // אין מידות אות — הסתר סקשן מידה לגמרי
-          document.getElementById('alertSizeOption').style.display = 'none';
-          document.getElementById('alertSizeCheck').disabled = true;
+          // אין מידות אות — הצג "כל המידות"
+          sel.innerHTML = '<option value="any">כל מידה</option>';
 
         } else if (missingLetter.length === 0) {
-          // כל המידות במלאי — הצג הודעה, חסום checkbox
+          // כל המידות במלאי — הצג הודעה, בלי checkbox
           sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
           sel.disabled = true;
           sel.classList.add('show');
           document.getElementById('alertSizeCheck').disabled = true;
-          // checkbox לא עובד — הסר אפשרות לסמן
           document.getElementById('alertSizeCheck').checked = false;
 
         } else {
-          // יש מידות חסרות — הצג רק את המידות שקיימות במוצר וחסרות
+          // יש מידות חסרות — הצג אותן
           sel.innerHTML = '';
           missingLetter.forEach(s => {
             const o = document.createElement('option');

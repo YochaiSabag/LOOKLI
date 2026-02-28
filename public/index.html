@@ -1182,13 +1182,7 @@ async function runRegularSearch(){
     loadSponsored(document.getElementById('q').value.trim());
 }
 
-function getFilteredProducts(){
-  // אם פילטר NetFree פעיל — נחכה לתוצאה מה-DOM (img-blocked)
-  // אבל עדיף: נסנן לפי imgOkSet שנבנה בזמן ריצה
-  return filterImgAvail
-    ? allProducts.filter(p => imgOkSet.has(p.source_url||p.url||p.id||''))
-    : allProducts;
-}
+
 
 function getActiveProducts(){
   if(filterImgAvail && netfreeOkUrls){
@@ -2166,7 +2160,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
   let filterImgAvail = false;
   let netfreeOkUrls = null; // Set של source_urls שעברו בדיקה
-  const imgOkSet = new Set(); // שומר URLs של תמונות שאושרו
 
   // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
   function checkNetfreeBlock(imgEl) {
@@ -2186,7 +2179,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
           // יש שוני — תמונה אמיתית!
           card.dataset.imgOk = '1';
           const url = card.dataset.url||card.dataset.sourceUrl||'';
-          if(url) imgOkSet.add(url);
           if (filterImgAvail) card.classList.remove('img-blocked');
           return;
         }
@@ -2196,7 +2188,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       // CORS — לא יכולים לבדוק, נניח שפתוחה
       card.dataset.imgOk = '1';
       const url = card.dataset.url||card.dataset.sourceUrl||'';
-      if(url) imgOkSet.add(url);
       if (filterImgAvail) card.classList.remove('img-blocked');
     }
   }
@@ -2427,15 +2418,17 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         if (productLetterSizes.length === 0) {
           // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
-        } else if (productLetterSizes.length === letterSizes.filter(s => inStock.includes(s)).length && productLetterSizes.length >= 3) {
-          // כל המידות הסטנדרטיות במלאי — disabled, אין checkbox
+
+        } else if (productLetterSizes.length >= letterSizes.length) {
+          // כל 7 המידות הסטנדרטיות במלאי — כל המידות במלאי
           sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
           sel.disabled = true;
           sel.classList.add('show');
           document.getElementById('alertSizeCheck').disabled = true;
           document.getElementById('alertSizeCheck').checked = false;
+
         } else {
-          // יש מידות — הצג אותן לבחירה
+          // יש מידות ספציפיות — הצג רק אותן
           sel.innerHTML = '';
           productLetterSizes.forEach(s => {
             const o = document.createElement('option');

@@ -821,13 +821,18 @@ async function scrapeProduct(page, url) {
 // שמירה ל-DB - זהה למקימי, חנות = MIMA
 // ======================================================================
 
-// קבל גודל תמונה ב-bytes (HEAD request)
+// קבל גודל תמונה — GET עם abort אחרי headers
 async function getImageSizeBytes(url) {
   if (!url) return 0;
   try {
-    const res = await fetch(url, { method: 'HEAD' });
+    const controller = new AbortController();
+    const res = await fetch(url, { method: 'GET', signal: controller.signal });
     const len = res.headers.get('content-length');
-    return len ? parseInt(len) : 0;
+    controller.abort(); // אל תוריד את הגוף
+    if (len) return parseInt(len);
+    // אם אין content-length — קרא buffer קטן
+    const buf = await res.arrayBuffer().catch(() => null);
+    return buf ? buf.byteLength : 0;
   } catch(e) { return 0; }
 }
 async function saveProduct(product) {

@@ -41,7 +41,17 @@ const colorMap = {
   'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
   'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
   'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
-  'כסוף': 'כסף'
+  'כסוף': 'כסף',
+  // חדש/מעודכן
+  'מוקה': 'חום', 'moka': 'חום',
+  'שזיף': 'סגול',
+  'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
+  'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
+  'פודרה': 'ורוד', 'powder': 'ורוד',
+  'אבן': 'אבן', 'stone': 'אבן',
+  'בהיר': 'בהיר',
+  // ג'ינס בכותרת → כחול (לאביה)
+  "גי'נס": 'כחול', 'ג׳ינס': 'כחול', 'jeans': 'כחול', 'denim': 'כחול',
 };
 
 const unknownColors = new Set();
@@ -66,7 +76,7 @@ function normalizeColor(c) {
   }
   
   unknownColors.add(c);
-  return null;
+  return 'אחר';
 }
 
 // ======================================================================
@@ -483,6 +493,11 @@ async function scrapeProduct(page, url, isEvening = false) {
     const colorSizesMap = {};
     
     // חילוץ צבע מהכותרת (כל צבע בעמוד נפרד)
+    // בדיקת ג'ינס בכותרת → כחול
+    const titleLower = (title || '').toLowerCase();
+    if (titleLower.includes("ג'ינס") || titleLower.includes("ג׳ינס") || titleLower.includes('jeans') || titleLower.includes('denim')) {
+      if (!rawColors.length) rawColors.push('כחול');
+    }
     // רק מילים שמתאימות בדיוק לצבעים ידועים ב-colorMap
     let titleColor = null;
     const titleWords = (data.title || '').split(/[\s\-–,]+/);

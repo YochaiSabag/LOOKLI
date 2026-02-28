@@ -991,7 +991,7 @@ const colorData={
   'צהוב':'#FACC15','חרדל':'#D97706','לימון':'#FEF08A',
   'כתום':'#EA580C','ענבר':'#FFBF00',
   'זהב':'#D4AF37','כסף':'#C0C0C0','ברונז':'#CD7F32',
-  'מנטה':'#98FFD3','אפרסק':'#FFCBA4','אבן':'#C5B9A8','אוף וויט':'#FAF7F0',
+  'מנטה':'#98FFD3','אפרסק':'#FFCBA4','אבן':'#C5B9A8','אוף וויט':'#FAF7F0','בהיר':'linear-gradient(135deg,#fff9f0,#e8f4f8)','אחר':'#BDBDBD',
   'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)',
   'צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
   'מולטי':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
@@ -2236,7 +2236,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // סנן לפי image_size_bytes שנשמר בסקרייפר (> 100000 bytes = תמונה פתוחה)
-    const filtered = allProducts.filter(p => (p.image_size_bytes || 0) > 100000);
+    const filtered = allProducts.filter(p => (p.image_size_bytes || 0) > 5000);
     netfreeOkUrls = new Set(filtered.map(p => p.source_url));
 
     toolbar.textContent = `✅ סינון נטפרי פעיל — ${netfreeOkUrls.size} מוצרים עם תמונה פתוחה`;

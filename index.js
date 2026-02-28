@@ -82,7 +82,7 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-const validColors = ['שחור', 'לבן', 'שמנת', 'כחול', 'תכלת', 'נייבי', 'אדום', 'בורדו', 'ירוק', 'זית', 'חאקי', 'חום', 'קאמל', 'בז׳', 'ניוד', 'אפור', 'ורוד', 'סגול', 'לילך', 'צהוב', 'חרדל', 'כתום', 'זהב', 'כסף', 'פרחוני', 'צבעוני', 'מנטה', 'אפרסק', 'אבן'];
+const validColors = ['שחור', 'לבן', 'שמנת', 'כחול', 'תכלת', 'נייבי', 'אדום', 'בורדו', 'ירוק', 'זית', 'חאקי', 'חום', 'קאמל', 'בז׳', 'ניוד', 'אפור', 'ורוד', 'סגול', 'לילך', 'צהוב', 'חרדל', 'כתום', 'זהב', 'כסף', 'פרחוני', 'צבעוני', 'מנטה', 'אפרסק', 'אבן', 'בהיר', 'אחר'];
 
 const shippingInfo = {
   'MEKIMI': { cost: 25, threshold: 300 },
@@ -143,7 +143,12 @@ app.get("/api/filters", async (req, res) => {
       }
     }
     if (color) { 
-      const colors = color.split(',').filter(Boolean);
+      const LIGHT_COLORS = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      let colors = color.split(',').filter(Boolean);
+      // "בהיר" → הרחב לכל הצבעים הבהירים
+      if (colors.includes('בהיר')) {
+        colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS])];
+      }
       if (colors.length === 1) {
         baseWhere += ` AND (color = $${paramIndex} OR $${paramIndex} = ANY(colors))`; baseParams.push(colors[0]); paramIndex++;
       } else {
@@ -218,7 +223,11 @@ app.get("/api/products", async (req, res) => {
     if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
     
     if (color) { 
-      const colors = color.split(',').filter(Boolean);
+      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      let colors = color.split(',').filter(Boolean);
+      if (colors.includes('בהיר')) {
+        colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS2])];
+      }
       if (colors.length === 1) {
         sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++;
       } else {

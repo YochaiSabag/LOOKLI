@@ -2416,31 +2416,35 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         const p = await res.json();
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
-        // מידות המוצר — רק אותיות
+        // מידות אות שיש כרגע במלאי
         const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
-        // מידות חסרות = letterSizes שהמוצר מכיר אך לא במלאי
-        const missingLetter = productLetterSizes.filter(s => !inStock.includes(s));
+        // מידות אות שחסרות מהמלאי
+        const missingLetter = letterSizes.filter(s => !inStock.includes(s));
 
-        if (productLetterSizes.length === 0) {
-          // אין מידות אות — הצג "כל המידות"
+        if (productLetterSizes.length === 0 && p.sizes && p.sizes.length === 0) {
+          // אין מידות בכלל — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
 
-        } else if (missingLetter.length === 0) {
-          // כל המידות במלאי — הצג הודעה, בלי checkbox
+        } else if (productLetterSizes.length > 0 && missingLetter.length === 0) {
+          // יש מידות אות ו-כולן במלאי — הצג הודעה, בלי checkbox
           sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
           sel.disabled = true;
           sel.classList.add('show');
           document.getElementById('alertSizeCheck').disabled = true;
           document.getElementById('alertSizeCheck').checked = false;
 
-        } else {
+        } else if (productLetterSizes.length > 0 && missingLetter.length > 0) {
           // יש מידות חסרות — הצג אותן
           sel.innerHTML = '';
-          missingLetter.forEach(s => {
+          missingLetter.filter(s => letterSizes.includes(s)).forEach(s => {
             const o = document.createElement('option');
             o.value = s; o.textContent = s;
             sel.appendChild(o);
           });
+
+        } else {
+          // אין מידות אות (רק מספרים) — "כל מידה"
+          sel.innerHTML = '<option value="any">כל מידה</option>';
         }
       } else {
         // לא נמצא מוצר ב-DB — הצג ברירת מחדל

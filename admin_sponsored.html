@@ -226,6 +226,13 @@
           </div>
         </div>
 
+        <!-- Show rate slider -->
+        <div class="field" style="margin-bottom:14px">
+          <label>אחוז הצגה לפי טעינות <span id="srVal" style="color:var(--primary);font-weight:700">100%</span></label>
+          <input type="range" id="fShowRate" min="1" max="100" value="100" oninput="document.getElementById('srVal').textContent=this.value+'%'"/>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">10% = מוצג פעם אחת מכל 10 כניסות לאתר</div>
+        </div>
+
         <div class="form-row full">
           <div class="field">
             <label>תגית על התמונה (אופציונלי)</label>
@@ -331,6 +338,7 @@ async function submitAd() {
     product_id: parseInt(pid),
     priority_row: parseInt(document.getElementById('fRow').value) || 1,
     impression_weight: parseInt(document.getElementById('fWeight').value) || 10,
+    show_rate: parseInt(document.getElementById('fShowRate').value) || 100,
     badge_text: document.getElementById('fBadge').value.trim() || null,
     price_paid: parseFloat(document.getElementById('fPaid').value) || null,
     notes: document.getElementById('fNotes').value.trim() || null,
@@ -413,6 +421,7 @@ function renderTable(ads) {
       <td style="text-align:center">${status}</td>
       <td style="text-align:center"><div class="w-pill">שורה ${a.priority_row||1}</div></td>
       <td style="text-align:center"><div class="w-pill">${wpct}%</div></td>
+      <td style="text-align:center"><div class="w-pill" style="background:rgba(139,92,246,.12);color:#7c3aed">${a.show_rate||100}%</div></td>
       <td style="text-align:center;font-size:12px;color:var(--muted)">${expStr}</td>
       <td>
         <div class="actions">
@@ -427,7 +436,7 @@ function renderTable(ads) {
   document.getElementById('adsTableWrap').innerHTML = `
     <table class="ads-table">
       <thead><tr>
-        <th>מוצר</th><th>סטטוס</th><th>שורה</th><th>תדירות</th><th>תפוגה</th><th>פעולות</th>
+        <th>מוצר</th><th>סטטוס</th><th>שורה</th><th>תדירות</th><th>הצגה</th><th>תפוגה</th><th>פעולות</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -451,6 +460,8 @@ function editAd(a) {
   document.getElementById('fUrl').dataset.pid = a.product_id;
   document.getElementById('fRow').value = a.priority_row || 1;
   document.getElementById('fWeight').value = a.impression_weight || 10;
+  document.getElementById('fShowRate').value = a.show_rate || 100;
+  document.getElementById('srVal').textContent = (a.show_rate||100) + '%';
   document.getElementById('fBadge').value = a.badge_text || '';
   document.getElementById('fPaid').value = a.price_paid || '';
   document.getElementById('fNotes').value = a.notes || '';
@@ -477,6 +488,8 @@ function cancelEdit() {
   delete document.getElementById('fUrl').dataset.pid;
   document.getElementById('fRow').value = 1;
   document.getElementById('fWeight').value = 10;
+  document.getElementById('fShowRate').value = 100;
+  document.getElementById('srVal').textContent = '100%';
   document.getElementById('fBadge').value = '';
   document.getElementById('fPaid').value = '';
   document.getElementById('fNotes').value = '';

@@ -784,7 +784,7 @@ app.get("/api/sponsored", async (req, res) => {
     const q = req.query.q || "";
     // מחזיר את כל המודעות הפעילות — הגרלה לפי משקל תתבצע בצד הלקוח
     const query = `
-      SELECT sp.id, sp.priority_row, sp.impression_weight, sp.badge_text,
+      SELECT sp.id, sp.priority_row, sp.impression_weight, sp.show_rate, sp.badge_text,
              p.image_url, p.source_url, p.title, p.price, p.store
       FROM sponsored_products sp
       JOIN products p ON p.id = sp.product_id
@@ -816,8 +816,11 @@ app.get("/api/sidebar-ads", async (req, res) => {
       ORDER BY impression_weight DESC
     `);
     if (!r.rows.length) return res.json({ ads: [] });
+    // סנן לפי show_rate (1-100)
+    const eligible = r.rows.filter(a => Math.random() * 100 < (a.show_rate ?? 100));
+    if (!eligible.length) return res.json({ ads: [] });
     // בחר עד 3 לוחות לפי הגרלה משוקללת
-    const picked = weightedPickAds(r.rows, 3);
+    const picked = weightedPickAds(eligible, 3);
     // עדכן impressions
     const ids = picked.map(a => a.id);
     if (ids.length) {
@@ -863,14 +866,14 @@ app.get("/api/sidebar-ads/all", async (req, res) => {
 // POST /api/sidebar-ads/create
 app.post("/api/sidebar-ads/create", async (req, res) => {
   try {
-    const { title, image_url, link_url, caption, size=1, impression_weight=10, days=0, starts_in=0, price_paid=null, notes=null } = req.body;
+    const { title, image_url, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null } = req.body;
     let expires_at = null, starts_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     if (starts_in > 0) { const d=new Date(); d.setDate(d.getDate()+starts_in); starts_at=d.toISOString(); }
     const r = await pool.query(
-      `INSERT INTO sidebar_ads (title,image_url,link_url,caption,size,impression_weight,expires_at,starts_at,price_paid,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [title,image_url,link_url,caption,size,impression_weight,expires_at,starts_at,price_paid,notes]
+      `INSERT INTO sidebar_ads (title,image_url,link_url,caption,size,impression_weight,show_rate,expires_at,starts_at,price_paid,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [title,image_url,link_url,caption,size,impression_weight,show_rate??100,expires_at,starts_at,price_paid,notes]
     );
     res.json({ id: r.rows[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -879,13 +882,13 @@ app.post("/api/sidebar-ads/create", async (req, res) => {
 // PUT /api/sidebar-ads/:id
 app.put("/api/sidebar-ads/:id", async (req, res) => {
   try {
-    const { title, image_url, link_url, caption, size, impression_weight, days, price_paid, notes } = req.body;
+    const { title, image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes } = req.body;
     let expires_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     await pool.query(
       `UPDATE sidebar_ads SET title=$2,image_url=$3,link_url=$4,caption=$5,size=$6,
-       impression_weight=$7,expires_at=$8,price_paid=$9,notes=$10 WHERE id=$1`,
-      [req.params.id, title, image_url, link_url, caption, size, impression_weight, expires_at, price_paid, notes]
+       impression_weight=$7,show_rate=$8,expires_at=$9,price_paid=$10,notes=$11 WHERE id=$1`,
+      [req.params.id, title, image_url, link_url, caption, size, impression_weight, show_rate??100, expires_at, price_paid, notes]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1001,13 +1004,13 @@ app.get("/api/sponsored/all", async (req, res) => {
 // POST /api/sponsored/create — יצירת מודעה חדשה
 app.post("/api/sponsored/create", async (req, res) => {
   try {
-    const { product_id, priority_row=1, impression_weight=10, badge_text=null, price_paid=null, notes=null, days=0 } = req.body;
+    const { product_id, priority_row=1, impression_weight=10, show_rate=100, badge_text=null, price_paid=null, notes=null, days=0 } = req.body;
     let expires_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     const r = await pool.query(
-      `INSERT INTO sponsored_products (product_id, store, priority_row, impression_weight, badge_text, price_paid, expires_at, notes)
-       SELECT $1, store, $2, $3, $4, $5, $6, $7 FROM products WHERE id=$1 RETURNING id`,
-      [product_id, priority_row, impression_weight, badge_text, price_paid, expires_at, notes]
+      `INSERT INTO sponsored_products (product_id, store, priority_row, impression_weight, show_rate, badge_text, price_paid, expires_at, notes)
+       SELECT $1, store, $2, $3, $4, $5, $6, $7, $8 FROM products WHERE id=$1 RETURNING id`,
+      [product_id, priority_row, impression_weight, show_rate??100, badge_text, price_paid, expires_at, notes]
     );
     res.json({ id: r.rows[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1016,13 +1019,13 @@ app.post("/api/sponsored/create", async (req, res) => {
 // PUT /api/sponsored/:id — עדכון מודעה
 app.put("/api/sponsored/:id", async (req, res) => {
   try {
-    const { priority_row, impression_weight, badge_text, price_paid, notes, days } = req.body;
+    const { priority_row, impression_weight, show_rate, badge_text, price_paid, notes, days } = req.body;
     let expires_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     await pool.query(
-      `UPDATE sponsored_products SET priority_row=$2, impression_weight=$3, badge_text=$4,
-       price_paid=$5, notes=$6, expires_at=$7 WHERE id=$1`,
-      [req.params.id, priority_row, impression_weight, badge_text, price_paid, notes, expires_at]
+      `UPDATE sponsored_products SET priority_row=$2, impression_weight=$3, show_rate=$4, badge_text=$5,
+       price_paid=$6, notes=$7, expires_at=$8 WHERE id=$1`,
+      [req.params.id, priority_row, impression_weight, show_rate??100, badge_text, price_paid, notes, expires_at]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

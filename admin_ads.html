@@ -404,6 +404,7 @@ function renderTable(ads) {
       <td><span class="size-badge">${sizeNames[a.size]||'1×'} (180×${sizeHeights[a.size]||180})</span></td>
       <td>${status}</td>
       <td><span class="w-pill">${pct}%</span></td>
+      <td><span class="size-badge" style="background:rgba(139,92,246,.12);color:#7c3aed">${a.show_rate||100}% הצגה</span></td>
       <td style="font-size:12px">
         <div>${a.clicks||0} קליקים</div>
         <div class="ctr-bar"><div class="ctr-fill" style="width:${Math.min(parseFloat(ctr)*10,100)}%"></div></div>
@@ -449,7 +450,7 @@ async function submitAd() {
     caption: document.getElementById('fCaption').value.trim() || null,
     size: selectedSize,
     impression_weight: parseInt(document.getElementById('fWeight').value),
-        show_rate: parseInt(document.getElementById('fShowRate').value),
+    show_rate: parseInt(document.getElementById('fShowRate').value),
     days: parseInt(document.getElementById('fDays').value) || 0,
     price_paid: parseFloat(document.getElementById('fPaid').value) || null,
   };

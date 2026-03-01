@@ -567,7 +567,7 @@ async function scrapeProduct(page, url) {
       description: data.description,
       colorSizes: colorSizesMap,
       url,
-      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '', page)
+      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '')
     };
     
   } catch (err) {
@@ -580,13 +580,29 @@ async function scrapeProduct(page, url) {
 // שמירה
 // ======================================================================
 
-// קבל גודל תמונה דרך Playwright request (Node.js side — עוקף הכל)
-async function getImageSizeBytes(url, page) {
+// קבל גודל תמונה — Node.js fetch (server-side, ללא CORS)
+async function getImageSizeBytes(url) {
   if (!url) return 0;
   try {
-    const response = await page.request.get(url, { timeout: 8000 });
-    const buf = await response.body();
-    return buf.length;
+    const { default: https } = await import('https');
+    const { default: http } = await import('http');
+    const mod = url.startsWith('https') ? https : http;
+    return new Promise(resolve => {
+      const req = mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }, res => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          req.destroy();
+          return getImageSizeBytes(res.headers.location || '').then(resolve);
+        }
+        const len = res.headers['content-length'];
+        if (len) { req.destroy(); return resolve(parseInt(len)); }
+        let size = 0;
+        res.on('data', chunk => { size += chunk.length; if (size > 500000) { req.destroy(); resolve(size); } });
+        res.on('end', () => resolve(size));
+        res.on('error', () => resolve(0));
+      });
+      req.on('error', () => resolve(0));
+      req.on('timeout', () => { req.destroy(); resolve(0); });
+    });
   } catch(e) { return 0; }
 }
 async function saveProduct(product) {

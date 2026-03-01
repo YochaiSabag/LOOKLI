@@ -2350,21 +2350,28 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   // ===== SIDEBAR ADS =====
   async function loadSidebarAds() {
     const sidebar = document.getElementById('adsSidebar');
-    if (!sidebar || sidebar.offsetParent === null) return; // לא גלוי
+    if (!sidebar) return;
     try {
       const res = await fetch('/api/sidebar-ads');
       if (!res.ok) return;
       const { ads } = await res.json();
-      if (!ads || !ads.length) return;
-      // בדוק כמה מוצרים מוצגים כרגע
-      const visibleCards = document.querySelectorAll('#grid .card').length;
-      const cols = window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1;
       sidebar.innerHTML = '';
+      if (!ads || !ads.length) return;
+
+      // ספור רק מוצרים אמיתיים (לא מודעות ספונסרד)
+      const visibleCards = document.querySelectorAll('#grid .card:not(.sponsored-card)').length;
+      const cols = window.innerWidth >= 1200 ? 4 : window.innerWidth >= 900 ? 3 : window.innerWidth >= 640 ? 2 : 1;
+      const availableRows = Math.floor(visibleCards / cols);
+
       for (const ad of ads) {
-        // בדוק שיש מספיק שורות לפני הצגת המודעה
-        const requiredRows = ad.size || 1; // size 1=1שורה, 2=2שורות, 3=3שורות
-        const availableRows = Math.floor(visibleCards / cols);
-        if (availableRows < requiredRows) continue; // אין מספיק שורות — דלג
+        // show_rate: 1-100 — אחוז הטעינות שבהן תופיע
+        const rate = ad.show_rate ?? 100;
+        if (Math.random() * 100 >= rate) continue;
+
+        // בדוק שיש מספיק שורות
+        const requiredRows = ad.size || 1;
+        if (availableRows < requiredRows) continue;
+
         const sizeClass = ad.size === 3 ? 'adunit-triple' : ad.size === 2 ? 'adunit-double' : 'adunit-single';
         const div = document.createElement('a');
         div.className = 'adunit ' + sizeClass;

@@ -821,13 +821,15 @@ async function scrapeProduct(page, url) {
 // שמירה ל-DB - זהה למקימי, חנות = MIMA
 // ======================================================================
 
-// קבל גודל תמונה — Node.js fetch (server-side, ללא CORS)
+// קבל גודל תמונה — Node.js https ישיר
+import https from 'https';
+import http from 'http';
+
 async function getImageSizeBytes(url) {
   if (!url) return 0;
   try {
-    const { default: https } = await import('https');
-    const { default: http } = await import('http');
     const mod = url.startsWith('https') ? https : http;
+    console.log('  📷 בודק גודל תמונה:', url.substring(0,60));
     return new Promise(resolve => {
       const req = mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }, res => {
         if (res.statusCode === 301 || res.statusCode === 302) {

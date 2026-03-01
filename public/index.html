@@ -626,9 +626,6 @@
     .user-info .user-plan.premium{color:#f59e0b;font-weight:600}
 
     /* ===== IMAGE FILTER TOGGLE ===== */
-    .img-filter-toggle{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
-    .img-filter-label{font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
-    .img-filter-label svg{width:15px;height:15px;color:var(--muted);flex-shrink:0}
     .toggle-switch{position:relative;width:40px;height:22px;flex-shrink:0}
     .toggle-switch input{opacity:0;width:0;height:0;position:absolute}
     .toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:22px;cursor:pointer;transition:background .2s}
@@ -636,8 +633,6 @@
     .toggle-switch input:checked + .toggle-slider{background:var(--accent)}
     .toggle-switch input:checked + .toggle-slider:before{transform:translateX(18px)}
     /* hidden card when image blocked */
-    .card.img-blocked{display:none}
-    .card.img-blocked-mark{opacity:.5}
 
     /* ===== SPONSORED PRODUCTS ===== */
     .card.sponsored{border:1.5px solid #f0e8f4;box-shadow:0 2px 12px rgba(196,140,179,.12)}
@@ -828,18 +823,6 @@
           <div class="filter-options" id="discountBoxes"></div>
         </div>
       </div>
-      
-      <div class="img-filter-toggle">
-        <label class="img-filter-label" for="imgAvailToggle">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          מוצרים עם תמונה פתוחה בנטפרי בלבד
-        </label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="imgAvailToggle" onchange="toggleImgFilter(this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-
       <div style="padding:14px 20px">
         <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
       </div>
@@ -1186,9 +1169,7 @@ async function runRegularSearch(){
 
 
 function getActiveProducts(){
-  if(filterImgAvail && netfreeOkUrls){
-    return allProducts.filter(p => netfreeOkUrls.has(p.source_url||p.id||''));
-  }
+
   return allProducts;
 }
 
@@ -1446,7 +1427,6 @@ function resetAllFiltersQuietly(){
 }
 
 function resetAll(){
-  // אל תכבה netfree — רק שאר הפילטרים
   document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];
   resetAllFiltersQuietly();
   document.getElementById("aiAnalysis").classList.remove("active");
@@ -2160,8 +2140,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   }
   
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
-  let filterImgAvail = false;
-  let netfreeOkUrls = null; // Set של source_urls שעברו בדיקה
 
   // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
   function checkNetfreeBlock(imgEl) {
@@ -2181,7 +2159,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
           // יש שוני — תמונה אמיתית!
           card.dataset.imgOk = '1';
           const url = card.dataset.url||card.dataset.sourceUrl||'';
-          if (filterImgAvail) card.classList.remove('img-blocked');
           return;
         }
       }
@@ -2190,57 +2167,10 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       // CORS — לא יכולים לבדוק, נניח שפתוחה
       card.dataset.imgOk = '1';
       const url = card.dataset.url||card.dataset.sourceUrl||'';
-      if (filterImgAvail) card.classList.remove('img-blocked');
     }
   }
 
-  function applyImgFilter() {
-    document.querySelectorAll('.card:not(.sponsored)').forEach(card => {
-      if (filterImgAvail) {
-        card.classList.toggle('img-blocked', card.dataset.imgOk !== '1');
-      } else {
-        card.classList.remove('img-blocked');
-      }
-    });
-    const visible = document.querySelectorAll('.card:not(.img-blocked):not(.sponsored)').length;
-    document.getElementById('metaToolbar').textContent = filterImgAvail
-      ? visible + ' מוצרים עם תמונה פתוחה בנטפרי'
-      : allProducts.length + ' מוצרים';
-  }
 
-  function toggleImgFilter(enabled) {
-    filterImgAvail = enabled;
-    if (!enabled) {
-      netfreeOkUrls = null;
-      currentPage = 1;
-      renderPage();
-      document.getElementById('metaToolbar').textContent = allProducts.length + ' מוצרים';
-      return;
-    }
-    // הפעלה: טען את כל המוצרים, בדוק תמונות, סנן
-    startNetfreeDeepScan();
-  }
-
-  async function startNetfreeDeepScan() {
-    const toolbar = document.getElementById('metaToolbar');
-    const grid = document.getElementById('grid');
-    const hero = document.getElementById('heroDiscover');
-    if (hero) hero.classList.add('hidden');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    // סנן לפי image_size_bytes שנשמר בסקרייפר (> 5000 bytes = תמונה פתוחה)
-    const sample = allProducts.slice(0,3).map(p => p.source_url?.split('/').pop()?.substring(0,20) + '=' + (p.image_size_bytes||0));
-    console.log('NetFree sample sizes:', sample);
-    console.log('Total products:', allProducts.length);
-    const filtered = allProducts.filter(p => (p.image_size_bytes || 0) > 5000);
-    console.log('Filtered (open):', filtered.length);
-    netfreeOkUrls = new Set(filtered.map(p => p.source_url));
-
-    toolbar.textContent = `✅ סינון נטפרי פעיל — ${netfreeOkUrls.size} מוצרים עם תמונה פתוחה`;
-
-    currentPage = 1;
-    renderPage();
-  }
 
   // ===== SPONSORED PRODUCTS =====
   // מזריק את הממומנים לתוך הגריד (אחרי המוצר ה-1)

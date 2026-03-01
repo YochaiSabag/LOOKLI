@@ -466,55 +466,30 @@ async function scrapeProduct(page, url) {
       // מציאת container הגלריה
       const gallery = document.querySelector('[data-hook="product-gallery-root"]');
       
-      if (gallery) {
-        // שיטה 1: מ-wow-image בתוך הגלריה בלבד
-        gallery.querySelectorAll('wow-image').forEach(el => {
-          try {
-            const info = JSON.parse(el.getAttribute('data-image-info') || '{}');
-            const uri = info?.imageData?.uri;
-            if (uri && !imageUris.has(uri)) {
-              imageUris.add(uri);
-              images.push(`https://static.wixstatic.com/media/${uri}/v1/fill/w_800,h_1200,al_c,q_85/${uri}`);
-            }
-          } catch(e) {}
-        });
-        
-        // שיטה 2: מ-img tags בתוך הגלריה
-        if (images.length === 0) {
-          gallery.querySelectorAll('img[src*="wixstatic"]').forEach(img => {
-            const src = img.src || '';
-            const uriMatch = src.match(/media\/([^/]+~mv2\.\w+)/);
-            if (uriMatch && !imageUris.has(uriMatch[1])) {
-              imageUris.add(uriMatch[1]);
-              images.push(`https://static.wixstatic.com/media/${uriMatch[1]}/v1/fill/w_800,h_1200,al_c,q_85/${uriMatch[1]}`);
-            }
-          });
+      // חלץ תמונות מ-img src ישירות (הכי אמין — מכיל ~mv2.jpg)
+      const allImgs = gallery
+        ? [...gallery.querySelectorAll('img[src*="wixstatic"]')]
+        : [...document.querySelectorAll('img[src*="wixstatic"]')];
+
+      allImgs.forEach(img => {
+        const src = img.getAttribute('src') || img.src || '';
+        // חלץ media/FILENAME~mv2.EXT
+        const m = src.match(/media\/([^/?#]+~mv2\.[a-z0-9]+)/i);
+        if (m && !imageUris.has(m[1])) {
+          imageUris.add(m[1]);
+          images.push(`https://static.wixstatic.com/media/${m[1]}`);
         }
-        
-        // שיטה 3: מ-href של media wrappers בתוך הגלריה
-        if (images.length === 0) {
-          gallery.querySelectorAll('.media-wrapper-hook[href*="wixstatic"]').forEach(el => {
-            const href = el.getAttribute('href');
-            const uriMatch = href?.match(/media\/([^/]+~mv2\.\w+)/);
-            if (uriMatch && !imageUris.has(uriMatch[1])) {
-              imageUris.add(uriMatch[1]);
-              images.push(`https://static.wixstatic.com/media/${uriMatch[1]}/v1/fill/w_800,h_1200,al_c,q_85/${uriMatch[1]}`);
-            }
-          });
-        }
-      }
-      
-      // fallback: אם הגלריה לא נמצאה, נסה main-media בלבד
+      });
+
+      // fallback מ-data-src אם אין src
       if (images.length === 0) {
-        document.querySelectorAll('[data-hook="main-media-image-wrapper"] wow-image').forEach(el => {
-          try {
-            const info = JSON.parse(el.getAttribute('data-image-info') || '{}');
-            const uri = info?.imageData?.uri;
-            if (uri && !imageUris.has(uri)) {
-              imageUris.add(uri);
-              images.push(`https://static.wixstatic.com/media/${uri}/v1/fill/w_800,h_1200,al_c,q_85/${uri}`);
-            }
-          } catch(e) {}
+        document.querySelectorAll('[data-src*="wixstatic"]').forEach(el => {
+          const src = el.getAttribute('data-src') || '';
+          const m = src.match(/media\/([^/?#]+~mv2\.[a-z0-9]+)/i);
+          if (m && !imageUris.has(m[1])) {
+            imageUris.add(m[1]);
+            images.push(`https://static.wixstatic.com/media/${m[1]}`);
+          }
         });
       }
       
@@ -566,7 +541,6 @@ async function scrapeProduct(page, url) {
       });
       
       // === מידות - לא קוראים כאן, נקרא אחרי לחיצה על dropdown ===
-      
       return { title, price, originalPrice, images, description, rawColors };
     });
     
@@ -807,8 +781,7 @@ async function scrapeProduct(page, url) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
-      url,
-      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '')
+      url
     };
     
   } catch (err) {
@@ -821,23 +794,20 @@ async function scrapeProduct(page, url) {
 // שמירה ל-DB - זהה למקימי, חנות = MIMA
 // ======================================================================
 
-// קבל גודל תמונה — Node.js https ישיר
-import https from 'https';
-import http from 'http';
-
-async function getImageSizeBytes(url) {
-  if (!url) return 0;
+async function getImageSizeBytes(url, depth=0) {
+  if (!url || depth > 5) return 0;
   try {
     const mod = url.startsWith('https') ? https : http;
-    console.log('  📷 בודק גודל תמונה:', url.substring(0,60));
     return new Promise(resolve => {
       const req = mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }, res => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
+        if ([301,302,303,307,308].includes(res.statusCode) && res.headers.location) {
           req.destroy();
-          return getImageSizeBytes(res.headers.location || '').then(resolve);
+          const loc = res.headers.location;
+          const next = loc.startsWith('http') ? loc : new URL(loc, url).href;
+          return getImageSizeBytes(next, depth+1).then(resolve);
         }
         const len = res.headers['content-length'];
-        if (len) { req.destroy(); return resolve(parseInt(len)); }
+        if (len && parseInt(len) > 0) { req.destroy(); return resolve(parseInt(len)); }
         let size = 0;
         res.on('data', chunk => { size += chunk.length; if (size > 500000) { req.destroy(); resolve(size); } });
         res.on('end', () => resolve(size));
@@ -852,11 +822,11 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, image_size_bytes, last_seen)
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, image_size_bytes=EXCLUDED.image_size_bytes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -865,8 +835,7 @@ async function saveProduct(product) {
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
-       product.pattern || null, product.fabric || null, product.designDetails || [],
-       product.imageSizeBytes || 0]
+       product.pattern || null, product.fabric || null, product.designDetails || []]
     );
     console.log('  💾 saved');
   } catch (err) {

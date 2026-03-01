@@ -709,8 +709,7 @@ async function scrapeProduct(page, url) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
-      url,
-      imageSizeBytes: await getImageSizeBytes(data.images?.[0] || '')
+      url
     };
     
   } catch (err) {
@@ -720,40 +719,15 @@ async function scrapeProduct(page, url) {
 }
 
 
-// קבל גודל תמונה — Node.js fetch (server-side, ללא CORS)
-async function getImageSizeBytes(url) {
-  if (!url) return 0;
-  try {
-    const { default: https } = await import('https');
-    const { default: http } = await import('http');
-    const mod = url.startsWith('https') ? https : http;
-    return new Promise(resolve => {
-      const req = mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }, res => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          req.destroy();
-          return getImageSizeBytes(res.headers.location || '').then(resolve);
-        }
-        const len = res.headers['content-length'];
-        if (len) { req.destroy(); return resolve(parseInt(len)); }
-        let size = 0;
-        res.on('data', chunk => { size += chunk.length; if (size > 500000) { req.destroy(); resolve(size); } });
-        res.on('end', () => resolve(size));
-        res.on('error', () => resolve(0));
-      });
-      req.on('error', () => resolve(0));
-      req.on('timeout', () => { req.destroy(); resolve(0); });
-    });
-  } catch(e) { return 0; }
-}
 async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, image_size_bytes, last_seen)
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, image_size_bytes=EXCLUDED.image_size_bytes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -763,8 +737,7 @@ async function saveProduct(product) {
        product.colors, product.style || null, product.fit || null, product.category, 
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null, 
-       product.designDetails?.length ? product.designDetails : null,
-       product.imageSizeBytes || 0]
+       product.designDetails?.length ? product.designDetails : null]
     );
     console.log('  💾 saved');
   } catch (err) {

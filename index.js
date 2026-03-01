@@ -1422,5 +1422,8 @@ app.listen(PORT, async () => {
       clicked_at TIMESTAMP DEFAULT NOW()
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at DESC)`);
+    // migrations
+    await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
   } catch(e) { console.error('clicks table init:', e.message); }
 });

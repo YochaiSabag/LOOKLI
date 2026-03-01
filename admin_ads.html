@@ -484,6 +484,13 @@ function editAd(a) {
   document.getElementById('fShowRate').value = a.show_rate||100;
   document.getElementById('srVal').textContent = (a.show_rate||100)+'%';
   document.getElementById('fPaid').value = a.price_paid||'';
+  // חשב ימים נותרים מ-expires_at
+  if (a.expires_at) {
+    const daysLeft = Math.max(0, Math.ceil((new Date(a.expires_at) - new Date()) / (1000*60*60*24)));
+    document.getElementById('fDays').value = daysLeft;
+  } else {
+    document.getElementById('fDays').value = 0; // 0 = ללא פגיעה
+  }
   selectSize(a.size||1);
   updateWeight(); onImageInput(); onCaptionInput();
   window.scrollTo({top:0,behavior:'smooth'});

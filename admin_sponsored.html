@@ -465,6 +465,13 @@ function editAd(a) {
   document.getElementById('fBadge').value = a.badge_text || '';
   document.getElementById('fPaid').value = a.price_paid || '';
   document.getElementById('fNotes').value = a.notes || '';
+  // חשב ימים נותרים מ-expires_at
+  if (a.expires_at) {
+    const daysLeft = Math.max(0, Math.ceil((new Date(a.expires_at) - new Date()) / (1000*60*60*24)));
+    document.getElementById('fDays').value = daysLeft;
+  } else {
+    document.getElementById('fDays').value = 0;
+  }
   updateWeightDisplay();
   // Show preview
   document.getElementById('prevImg').src = a.image_url || '';

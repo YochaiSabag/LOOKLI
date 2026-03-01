@@ -641,7 +641,8 @@
 
     /* ===== SPONSORED PRODUCTS ===== */
     .card.sponsored{border:1.5px solid #f0e8f4;box-shadow:0 2px 12px rgba(196,140,179,.12)}
-    .ad-badge-text{position:absolute;bottom:8px;left:8px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:5px 11px;border-radius:6px;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18);max-width:calc(100% - 16px)}
+    .ad-badge-wrap{position:absolute;bottom:8px;left:8px;right:8px;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px}
+    .ad-badge-text{background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:5px 11px;border-radius:6px;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
     .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px);z-index:4}
   </style>
 </head>
@@ -1196,6 +1197,7 @@ function renderPage(){
   const end = currentPage*itemsPerPage;
   renderProducts(active.slice(0,end), false);
   updateLoadMoreButtonFiltered(active.length);
+  setTimeout(loadSidebarAds, 100); // עדכן מודעות לפי מוצרים נוכחיים
 }
 
 function loadMore(){
@@ -2267,7 +2269,8 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       if (!res.ok) return;
       const raw = await res.json();
       // בחר מתוך הפול לפי משקל
-      const data = { sponsored: weightedPick(raw.sponsored || [], 4) };
+      const eligibleSponsored = (raw.sponsored || []).filter(s => Math.random() * 100 < (s.show_rate ?? 100));
+      const data = { sponsored: weightedPick(eligibleSponsored, 4) };
       if (!data.sponsored || data.sponsored.length === 0) return;
       const grid = document.getElementById('grid');
       const cards = grid.querySelectorAll('.card:not(.sponsored)');
@@ -2353,8 +2356,15 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       if (!res.ok) return;
       const { ads } = await res.json();
       if (!ads || !ads.length) return;
+      // בדוק כמה מוצרים מוצגים כרגע
+      const visibleCards = document.querySelectorAll('#grid .card').length;
+      const cols = window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1;
       sidebar.innerHTML = '';
       for (const ad of ads) {
+        // בדוק שיש מספיק שורות לפני הצגת המודעה
+        const requiredRows = ad.size || 1; // size 1=1שורה, 2=2שורות, 3=3שורות
+        const availableRows = Math.floor(visibleCards / cols);
+        if (availableRows < requiredRows) continue; // אין מספיק שורות — דלג
         const sizeClass = ad.size === 3 ? 'adunit-triple' : ad.size === 2 ? 'adunit-double' : 'adunit-single';
         const div = document.createElement('a');
         div.className = 'adunit ' + sizeClass;

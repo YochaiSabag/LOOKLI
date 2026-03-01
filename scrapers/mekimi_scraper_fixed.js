@@ -720,18 +720,13 @@ async function scrapeProduct(page, url) {
 }
 
 
-// קבל גודל תמונה דרך Playwright (עוקף CORS ו-CDN)
+// קבל גודל תמונה דרך Playwright request (Node.js side — עוקף הכל)
 async function getImageSizeBytes(url, page) {
   if (!url) return 0;
   try {
-    const response = await page.evaluate(async (imgUrl) => {
-      try {
-        const r = await fetch(imgUrl);
-        const buf = await r.arrayBuffer();
-        return buf.byteLength;
-      } catch(e) { return 0; }
-    }, url);
-    return response || 0;
+    const response = await page.request.get(url, { timeout: 8000 });
+    const buf = await response.body();
+    return buf.length;
   } catch(e) { return 0; }
 }
 async function saveProduct(product) {

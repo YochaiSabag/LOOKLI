@@ -232,13 +232,20 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
 
         <!-- Weight -->
         <div class="field">
-          <label>תדירות הופעה</label>
+          <label>עדיפות (משקל בין לוחות)</label>
           <input type="range" id="fWeight" min="1" max="10" value="10" oninput="updateWeight()"/>
           <div class="weight-row">
             <div class="weight-bar"><div class="weight-fill" id="wFill" style="width:100%"></div></div>
             <div class="weight-val" id="wVal">100%</div>
           </div>
-          <div class="field-hint">כמה לוחות עם משקל גבוה יותר יופיעו לעתים קרובות יותר</div>
+          <div class="field-hint">לוח עם משקל גבוה יותר מנצח בהגרלה מול לוחות אחרים</div>
+        </div>
+
+        <!-- Show Rate -->
+        <div class="field">
+          <label>אחוז הצגה <span id="srVal" style="color:var(--primary);font-weight:700">100%</span></label>
+          <input type="range" id="fShowRate" min="1" max="100" value="100" oninput="updateShowRate()"/>
+          <div class="field-hint">באיזה אחוז מהטעינות יוצג הלוח (100% = תמיד, 10% = 1 מתוך 10)</div>
         </div>
 
         <div class="field-row">
@@ -334,6 +341,9 @@ function onCaptionInput() {
 }
 
 // ─── Weight ───────────────────────────────────────────────
+function updateShowRate() {
+  document.getElementById('srVal').textContent = document.getElementById('fShowRate').value + '%';
+}
 function updateWeight() {
   const v = parseInt(document.getElementById('fWeight').value);
   const pct = Math.round(v/10*100);
@@ -439,6 +449,7 @@ async function submitAd() {
     caption: document.getElementById('fCaption').value.trim() || null,
     size: selectedSize,
     impression_weight: parseInt(document.getElementById('fWeight').value),
+        show_rate: parseInt(document.getElementById('fShowRate').value),
     days: parseInt(document.getElementById('fDays').value) || 0,
     price_paid: parseFloat(document.getElementById('fPaid').value) || null,
   };
@@ -469,6 +480,8 @@ function editAd(a) {
   document.getElementById('fLinkUrl').value = a.link_url||'';
   document.getElementById('fCaption').value = a.caption||'';
   document.getElementById('fWeight').value = a.impression_weight||10;
+  document.getElementById('fShowRate').value = a.show_rate||100;
+  document.getElementById('srVal').textContent = (a.show_rate||100)+'%';
   document.getElementById('fPaid').value = a.price_paid||'';
   selectSize(a.size||1);
   updateWeight(); onImageInput(); onCaptionInput();
@@ -483,6 +496,8 @@ function cancelEdit() {
   document.getElementById('editId').value = '';
   ['fTitle','fImageUrl','fLinkUrl','fCaption','fPaid'].forEach(id => document.getElementById(id).value='');
   document.getElementById('fWeight').value = 10;
+  document.getElementById('fShowRate').value = 100;
+  document.getElementById('srVal').textContent = '100%';
   document.getElementById('fDays').value = 30;
   selectSize(1); updateWeight();
   document.getElementById('imgPreviewSmall').classList.remove('show');

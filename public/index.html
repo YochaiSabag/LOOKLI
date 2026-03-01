@@ -640,6 +640,14 @@
     .ad-badge-text{background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:5px 11px;border-radius:6px;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
     .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px);z-index:4}
   </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1KF0KR6VS8"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-1KF0KR6VS8');
+</script>
 </head>
 <body>
   <!-- HEADER -->
@@ -947,6 +955,18 @@ let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
+
+// show_rate: session-based counter (10% = פעם מכל 10 כניסות)
+const _sessionCounter = (() => {
+  let cnt = parseInt(sessionStorage.getItem('_lsc') || '0') + 1;
+  sessionStorage.setItem('_lsc', cnt);
+  return cnt;
+})();
+function shouldShowByRate(rate) {
+  if (!rate || rate >= 100) return true;
+  const interval = Math.round(100 / rate);
+  return (_sessionCounter % interval) === 1;
+}
 let lastSearchKeywords=[];
 let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
 
@@ -2199,7 +2219,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       if (!res.ok) return;
       const raw = await res.json();
       // בחר מתוך הפול לפי משקל
-      const eligibleSponsored = (raw.sponsored || []).filter(s => Math.random() * 100 < (s.show_rate ?? 100));
+      const eligibleSponsored = (raw.sponsored || []).filter(s => shouldShowByRate(s.show_rate ?? 100));
       const data = { sponsored: weightedPick(eligibleSponsored, 4) };
       if (!data.sponsored || data.sponsored.length === 0) return;
       const grid = document.getElementById('grid');
@@ -2294,9 +2314,8 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       const availableRows = Math.floor(visibleCards / cols);
 
       for (const ad of ads) {
-        // show_rate: 1-100 — אחוז הטעינות שבהן תופיע
-        const rate = ad.show_rate ?? 100;
-        if (Math.random() * 100 >= rate) continue;
+        // show_rate: 1-100 — session-based (10% = פעם מכל 10 כניסות)
+        if (!shouldShowByRate(ad.show_rate ?? 100)) continue;
 
         // בדוק שיש מספיק שורות
         const requiredRows = ad.size || 1;

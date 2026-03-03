@@ -1461,10 +1461,10 @@ function trackOutClick(el) {
   const url = el.href || '';
   const title = document.getElementById('modalTitle')?.textContent || '';
   gtag('event', 'outbound_click', {
+    link_url: url,
+    link_text: title,
     event_category: 'outbound',
-    event_label: title,
-    transport_type: 'beacon',
-    value: url
+    transport_type: 'beacon'
   });
 }
 
@@ -2243,7 +2243,10 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
       const sponsoredCards = data.sponsored.map(p => {
         const div = document.createElement('div');
         div.className = 'card sponsored';
-        div.onclick = () => { trackClick(p); window.open(p.source_url,'_blank'); };
+        div.onclick = () => {
+          if (typeof gtag !== 'undefined') gtag('event', 'outbound_click', { link_url: p.source_url, link_text: p.title });
+          if (p.source_url) window.open(p.source_url, '_blank');
+        };
         const img = escapeHtml(p.image_url||'');
         const title = escapeHtml(p.title||'');
         const price = p.price ? '₪'+Number(p.price).toFixed(0) : '';

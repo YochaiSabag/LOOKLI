@@ -1413,8 +1413,14 @@ const { GoogleAuth } = require('google-auth-library');
 const GA4_PROPERTY = 'properties/526435013';
 
 async function getGA4Token() {
+  let credentials;
+  if (process.env.GA4_CREDENTIALS) {
+    credentials = JSON.parse(process.env.GA4_CREDENTIALS);
+  } else {
+    throw new Error('GA4_CREDENTIALS environment variable not set');
+  }
   const auth = new GoogleAuth({
-    keyFile: process.env.GA4_KEY_FILE || './ga4-key.json',
+    credentials,
     scopes: ['https://www.googleapis.com/auth/analytics.readonly']
   });
   const client = await auth.getClient();

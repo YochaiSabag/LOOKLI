@@ -1407,6 +1407,103 @@ app.post("/api/saved/check", authMiddleware, async (req, res) => {
   }
 });
 
+
+// ── GA4 Analytics Dashboard ──────────────────────────────────────────
+const { GoogleAuth } = require('google-auth-library');
+const GA4_PROPERTY = 'properties/526435013';
+
+async function getGA4Token() {
+  const auth = new GoogleAuth({
+    keyFile: process.env.GA4_KEY_FILE || './ga4-key.json',
+    scopes: ['https://www.googleapis.com/auth/analytics.readonly']
+  });
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  return token.token;
+}
+
+async function ga4Query(token, body) {
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${GA4_PROPERTY}:runReport`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+app.get('/api/analytics', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 28;
+    const dateRange = [{ startDate: `${days}daysAgo`, endDate: 'today' }];
+    const token = await getGA4Token();
+
+    // סשנים, משתמשים, צפיות
+    const [overview, daily, outbound] = await Promise.all([
+      ga4Query(token, {
+        dateRanges: dateRange,
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'screenPageViews' }]
+      }),
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'date' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ dimension: { dimensionName: 'date' } }]
+      }),
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'eventName' }, { name: 'customEvent:link_url' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'outbound_click' } } }
+      })
+    ]);
+
+    const totals = {
+      sessions: overview.rows?.[0]?.metricValues?.[0]?.value || 0,
+      users: overview.rows?.[0]?.metricValues?.[1]?.value || 0,
+      pageViews: overview.rows?.[0]?.metricValues?.[2]?.value || 0,
+      outboundClicks: 0
+    };
+
+    const dailyData = (daily.rows || []).map(r => ({
+      date: r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+      sessions: parseInt(r.metricValues[0].value)
+    }));
+
+    // קליקים לפי חנות מה-URL
+    const storeMap = {};
+    const STORES = { 'mima.co.il':'MIMA', 'mekimi.co.il':'MEKIMI', 'lichi.com':'LICHI', 'aviyah.co.il':'AVIYAH', 'chemise.co.il':'CHEMISE' };
+    (outbound.rows || []).forEach(r => {
+      const url = r.dimensionValues[1]?.value || '';
+      const count = parseInt(r.metricValues[0].value);
+      totals.outboundClicks += count;
+      for (const [domain, name] of Object.entries(STORES)) {
+        if (url.includes(domain)) {
+          storeMap[name] = (storeMap[name] || 0) + count;
+        }
+      }
+    });
+
+    const stores = Object.entries(storeMap)
+      .map(([name, clicks]) => ({ name, clicks }))
+      .sort((a,b) => b.clicks - a.clicks);
+
+    // מוצרים מה-DB
+    const topProducts = [];
+    try {
+      const dbClicks = await pool.query(
+        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 6`
+      );
+      dbClicks.rows.forEach(r => topProducts.push({ title: r.product_title, store: r.store, clicks: parseInt(r.clicks) }));
+    } catch(e) {}
+
+    res.json({ totals, daily: dailyData, stores, topProducts });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
+
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   // יצירת טבלת clicks אוטומטית אם לא קיימת

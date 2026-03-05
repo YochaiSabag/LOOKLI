@@ -4,6 +4,7 @@ import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
+import { GoogleAuth } from "google-auth-library";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1409,7 +1410,6 @@ app.post("/api/saved/check", authMiddleware, async (req, res) => {
 
 
 // ── GA4 Analytics Dashboard ──────────────────────────────────────────
-const { GoogleAuth } = require('google-auth-library');
 const GA4_PROPERTY = 'properties/526435013';
 
 async function getGA4Token() {
@@ -1480,14 +1480,13 @@ app.get('/api/analytics', async (req, res) => {
       totals.outboundClicks += parseInt(r.metricValues[0].value);
     });
 
-    // קליקים לפי חנות - מה-DB שלנו (מדויק יותר)
+    // קליקים לפי חנות - מה-DB (מדויק יותר)
     const storeMap = {};
     try {
       const storeClicks = await pool.query(
         `SELECT store, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY store ORDER BY clicks DESC`
       );
       storeClicks.rows.forEach(r => { if (r.store) storeMap[r.store] = parseInt(r.clicks); });
-      // עדכן outboundClicks מה-DB אם GA4 מחזיר 0
       if (totals.outboundClicks === 0) {
         totals.outboundClicks = Object.values(storeMap).reduce((a,b) => a+b, 0);
       }

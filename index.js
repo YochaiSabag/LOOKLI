@@ -4,7 +4,6 @@ import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
-import { GoogleAuth } from "google-auth-library";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1410,6 +1409,7 @@ app.post("/api/saved/check", authMiddleware, async (req, res) => {
 
 
 // ── GA4 Analytics Dashboard ──────────────────────────────────────────
+const { GoogleAuth } = require('google-auth-library');
 const GA4_PROPERTY = 'properties/526435013';
 
 async function getGA4Token() {
@@ -1457,7 +1457,7 @@ app.get('/api/analytics', async (req, res) => {
       }),
       ga4Query(token, {
         dateRanges: dateRange,
-        dimensions: [{ name: 'eventName' }, { name: 'customEvent:link_url' }],
+        dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'outbound_click' } } }
       })
@@ -1475,19 +1475,23 @@ app.get('/api/analytics', async (req, res) => {
       sessions: parseInt(r.metricValues[0].value)
     }));
 
-    // קליקים לפי חנות מה-URL
-    const storeMap = {};
-    const STORES = { 'mima.co.il':'MIMA', 'mekimi.co.il':'MEKIMI', 'lichi.com':'LICHI', 'aviyah.co.il':'AVIYAH', 'chemise.co.il':'CHEMISE' };
+    // סה"כ קליקים מ-GA4
     (outbound.rows || []).forEach(r => {
-      const url = r.dimensionValues[1]?.value || '';
-      const count = parseInt(r.metricValues[0].value);
-      totals.outboundClicks += count;
-      for (const [domain, name] of Object.entries(STORES)) {
-        if (url.includes(domain)) {
-          storeMap[name] = (storeMap[name] || 0) + count;
-        }
-      }
+      totals.outboundClicks += parseInt(r.metricValues[0].value);
     });
+
+    // קליקים לפי חנות - מה-DB שלנו (מדויק יותר)
+    const storeMap = {};
+    try {
+      const storeClicks = await pool.query(
+        `SELECT store, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY store ORDER BY clicks DESC`
+      );
+      storeClicks.rows.forEach(r => { if (r.store) storeMap[r.store] = parseInt(r.clicks); });
+      // עדכן outboundClicks מה-DB אם GA4 מחזיר 0
+      if (totals.outboundClicks === 0) {
+        totals.outboundClicks = Object.values(storeMap).reduce((a,b) => a+b, 0);
+      }
+    } catch(e) {}
 
     const stores = Object.entries(storeMap)
       .map(([name, clicks]) => ({ name, clicks }))

@@ -1457,23 +1457,14 @@ function resetAll(){
 }
 
 function trackOutClick(el) {
-  const url = el.href || '';
   const title = document.getElementById('modalTitle')?.textContent || '';
-  const store = el.dataset.store || document.getElementById('modalStore')?.textContent || '';
-  const productId = el.dataset.productId || null;
+  const store = el.dataset.store || '';
+  const realUrl = el.dataset.realUrl || '';  // URL אמיתי של החנות
 
-  // 1. שמור ל-DB (keepalive מבטיח שנשלח גם אם הדף נסגר)
-  fetch('/api/clicks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    keepalive: true,
-    body: JSON.stringify({ product_id: productId, store, product_title: title, source_url: url })
-  }).catch(() => {});
-
-  // 2. שלח ל-GA4
+  // שלח ל-GA4 עם URL האמיתי של החנות (לא /out/id)
   if (typeof gtag !== 'undefined') {
     gtag('event', 'outbound_click', {
-      link_url: url,
+      link_url: realUrl,
       link_text: title,
       store_name: store,
       event_category: 'outbound',
@@ -1495,8 +1486,9 @@ async function openProduct(id){
     const p=await(await fetch("/api/product/"+id)).json();
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
+    document.getElementById("modalBuy").dataset.realUrl = p.source_url || "";
     document.getElementById("modalBuy").dataset.productId = id;
-    document.getElementById("modalBuy").dataset.store = p.store || '';
+    document.getElementById("modalBuy").dataset.store = p.store || "";
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
     document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');

@@ -761,6 +761,23 @@ app.get("/api/clicks/stats", async (req, res) => {
     res.status(500).json({ error: "DB error" });
   }
 });
+
+// DELETE /api/clicks/reset - איפוס קליקים לפי חנות (או הכל)
+app.delete("/api/clicks/reset", async (req, res) => {
+  try {
+    const { store } = req.body;
+    if (store) {
+      await pool.query(`DELETE FROM clicks WHERE store = $1`, [store]);
+      res.json({ ok: true, message: `איפוס קליקים לחנות ${store}` });
+    } else {
+      await pool.query(`DELETE FROM clicks`);
+      res.json({ ok: true, message: 'איפוס כל הקליקים' });
+    }
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/api/debug/db", async (req, res) => {
   try {
     const r = await pool.query(`
@@ -1480,30 +1497,19 @@ app.get('/api/analytics', async (req, res) => {
       totals.outboundClicks += parseInt(r.metricValues[0].value);
     });
 
-    // קליקים לפי חנות - מה-DB (מדויק יותר)
-    const storeMap = {};
+    // קליקים לפי חנות ומוצרים - מה-DB (מדויק יותר)
+    let stores = [], topProducts = [];
     try {
-      const storeClicks = await pool.query(
-        `SELECT store, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY store ORDER BY clicks DESC`
-      );
-      storeClicks.rows.forEach(r => { if (r.store) storeMap[r.store] = parseInt(r.clicks); });
+      const [storeRes, productRes] = await Promise.all([
+        pool.query(`SELECT store, COUNT(*) as clicks, MAX(clicked_at) as last_click FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' AND store IS NOT NULL GROUP BY store ORDER BY clicks DESC`),
+        pool.query(`SELECT product_title, store, source_url, COUNT(*) as clicks, MAX(clicked_at) as last_click FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY product_title, store, source_url ORDER BY clicks DESC LIMIT 20`)
+      ]);
+      stores = storeRes.rows.map(r => ({ name: r.store, clicks: parseInt(r.clicks), last_click: r.last_click }));
+      topProducts = productRes.rows.map(r => ({ title: r.product_title, store: r.store, source_url: r.source_url, clicks: parseInt(r.clicks), last_click: r.last_click }));
       if (totals.outboundClicks === 0) {
-        totals.outboundClicks = Object.values(storeMap).reduce((a,b) => a+b, 0);
+        totals.outboundClicks = stores.reduce((a,b) => a + b.clicks, 0);
       }
-    } catch(e) {}
-
-    const stores = Object.entries(storeMap)
-      .map(([name, clicks]) => ({ name, clicks }))
-      .sort((a,b) => b.clicks - a.clicks);
-
-    // מוצרים מה-DB
-    const topProducts = [];
-    try {
-      const dbClicks = await pool.query(
-        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 6`
-      );
-      dbClicks.rows.forEach(r => topProducts.push({ title: r.product_title, store: r.store, clicks: parseInt(r.clicks) }));
-    } catch(e) {}
+    } catch(e) { console.error('clicks db error:', e.message); }
 
     res.json({ totals, daily: dailyData, stores, topProducts });
   } catch(e) {

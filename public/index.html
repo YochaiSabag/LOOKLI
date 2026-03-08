@@ -1333,7 +1333,7 @@ function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes"
 function renderColorGrid(){const div=document.getElementById("colorGrid");var noSel=!activeColor&&activeColors.length===0;div.innerHTML=`<div class="color-opt${noSel?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>{var isA=activeColor===c||activeColors.indexOf(c)!==-1;return `<div class="color-opt${isA?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`}).join('')}
 function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");var noSel=!activeSize&&activeSizes.length===0;div.innerHTML=`<div class="size-opt${noSel?' active':''}" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>{var isA=activeSize===s||activeSizes.indexOf(s)!==-1;return `<div class="size-opt${isA?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`}).join('')}
 function renderStyleBoxes(){const div=document.getElementById("styleBoxes");var consolidated=['שבת/ערב','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'];var styles=consolidated.filter(s=>s==='שבת/ערב'?dbStyles.some(d=>['ערב','חגיגי','אלגנטי'].includes(d)):dbStyles.includes(s));if(styles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';var noSel=!activeStyle&&activeStyles.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectStyle('')">הכל</div>`+styles.map(s=>{var isA=activeStyle===s||activeStyles.indexOf(s)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`}).join('')}
-function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';var noSel=!activeFit&&activeFits.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFit('')">הכל</div>`+allFits.map(f=>{var isA=activeFit===f||activeFits.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
+function renderFitBoxes(){const div=document.getElementById("fitBoxes");if(!dbFits||dbFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';var noSel=!activeFit&&activeFits.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFit('')">הכל</div>`+dbFits.map(f=>{var isA=activeFit===f||activeFits.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
 function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';var noSel=!activeFabric&&activeFabrics.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>{var isA=activeFabric===f||activeFabrics.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
 function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
 function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
@@ -1457,20 +1457,15 @@ function resetAll(){
 }
 
 function trackOutClick(el) {
+  if (typeof gtag === 'undefined') return;
+  const url = el.href || '';
   const title = document.getElementById('modalTitle')?.textContent || '';
-  const store = el.dataset.store || '';
-  const realUrl = el.dataset.realUrl || '';  // URL אמיתי של החנות
-
-  // שלח ל-GA4 עם URL האמיתי של החנות (לא /out/id)
-  if (typeof gtag !== 'undefined') {
-    gtag('event', 'outbound_click', {
-      link_url: realUrl,
-      link_text: title,
-      store_name: store,
-      event_category: 'outbound',
-      transport_type: 'beacon'
-    });
-  }
+  gtag('event', 'outbound_click', {
+    link_url: url,
+    link_text: title,
+    event_category: 'outbound',
+    transport_type: 'beacon'
+  });
 }
 
 async function openProduct(id){
@@ -1486,9 +1481,6 @@ async function openProduct(id){
     const p=await(await fetch("/api/product/"+id)).json();
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
-    document.getElementById("modalBuy").dataset.realUrl = p.source_url || "";
-    document.getElementById("modalBuy").dataset.productId = id;
-    document.getElementById("modalBuy").dataset.store = p.store || "";
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
     document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');
@@ -1642,11 +1634,9 @@ function renderHeroStep(){
     cubesDiv.innerHTML=styles.map(function(s){var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'style\',\''+escapeHtml(s)+'\',this)">'+heroIconHtml(s,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(s)+'</span></div>'}).join('');
     
   } else if(heroStep==='fit'){
-    var popF=['ארוכה','מידי','קצרה','מותן','הריון','הנקה','מעטפת'];
-    var avail=popF.slice();
-    if(dbFits.length>0){dbFits.forEach(function(f){if(avail.indexOf(f)===-1)avail.push(f)})}
+    if(!dbFits||dbFits.length===0){heroStep='fabric';renderHeroStep();return}
     labelDiv.textContent='\u05D0\u05D9\u05D6\u05D5 \u05D2\u05D9\u05D6\u05E8\u05D4?';
-    cubesDiv.innerHTML=avail.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fit\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
+    cubesDiv.innerHTML=dbFits.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fit\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
     
   } else if(heroStep==='fabric'){
     if(!dbFabrics||dbFabrics.length===0){heroStep='done';renderHeroStep();return}

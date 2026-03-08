@@ -4,7 +4,6 @@ import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
-import { GoogleAuth } from "google-auth-library";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -218,8 +217,8 @@ app.get("/api/products", async (req, res) => {
     let i = 1;
 
     // סינון אקססוריז - לא מציגים גומיות שיער וכדומה
-    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;
-    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
+    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'תכשיט', 'קשתות', 'גומי שיער'))`;
+    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%' AND title NOT ILIKE '%קשת%שיער%' AND title NOT ILIKE '%תכשיט%'`;
 
     if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
     
@@ -373,6 +372,21 @@ app.get("/api/products", async (req, res) => {
       });
     }
     
+    // צבע מבוקש יופיע ראשון ב-colors array
+    if (color) {
+      const reqColors = color.split(',').filter(Boolean);
+      rows = rows.map(p => {
+        if (p.colors && p.colors.length > 1) {
+          const sorted = [...p.colors].sort((a,b) => {
+            const aM = reqColors.includes(a) ? 0 : 1;
+            const bM = reqColors.includes(b) ? 0 : 1;
+            return aM - bM;
+          });
+          return { ...p, colors: sorted };
+        }
+        return p;
+      });
+    }
     res.json(rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("products error:", err.message);
@@ -512,7 +526,7 @@ function analyzeQuery(query) {
   };
   const categoryMap = { 
     '\u05e9\u05de\u05dc\u05d4': ['\u05e9\u05de\u05dc\u05d4', '\u05e9\u05de\u05dc\u05ea', '\u05e9\u05de\u05dc\u05d5\u05ea'], 
-    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4'], 
+    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4', '\u05d8\u05d9 \u05e9\u05e8\u05d8', 'T-shirt', 'tshirt'], 
     '\u05d7\u05e6\u05d0\u05d9\u05ea': ['\u05d7\u05e6\u05d0\u05d9\u05ea', '\u05d7\u05e6\u05d0\u05d9\u05d5\u05ea'], 
     '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd': ['\u05de\u05db\u05e0\u05e1', '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd'], 
     '\u05e7\u05e8\u05d3\u05d9\u05d2\u05df': ['\u05e7\u05e8\u05d3\u05d9\u05d2\u05df'],
@@ -547,11 +561,13 @@ function analyzeQuery(query) {
     '\u05de\u05e2\u05d8\u05e4\u05ea': ['\u05de\u05e2\u05d8\u05e4\u05ea', '\u05de\u05e2\u05d8\u05e4\u05d4', 'wrap'],
     '\u05d4\u05e8\u05d9\u05d5\u05df': ['\u05d4\u05e8\u05d9\u05d5\u05df', 'maternity', 'pregnancy'],
     '\u05d4\u05e0\u05e7\u05d4': ['\u05d4\u05e0\u05e7\u05d4', 'nursing', 'breastfeed'],
-    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist']
+    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist'],
+    '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea': ['\u05de\u05ea\u05e8\u05d7\u05d1\u05ea', 'flare', '\u05d4\u05ea\u05e8\u05d7\u05d1\u05d5\u05ea', 'a-line', 'A line', '\u05d0\u05d9\u05d9 \u05dc\u05d9\u05d9\u05df']
   };
   // בד
   const fabricMap = {
-    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2'],
+    '\u05d6\'\u05de\u05e1': ['\u05d6\'\u05de\u05e1', '\u05d6\u05de\u05e1', '\u05d2\'\u05de\u05e1', '\u05d2\u05de\u05e1', 'jams'],
+    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2', '\u05e1\u05e8\u05d5\u05d2'],
     '\u05d0\u05e8\u05d9\u05d2': ['\u05d0\u05e8\u05d9\u05d2'],
     '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', '\u05d2\u05e8\u05e1\u05d9', '\u05d2\'\u05e8\u05e1\u05d9', 'jersey'],
     '\u05e9\u05d9\u05e4\u05d5\u05df': ['\u05e9\u05d9\u05e4\u05d5\u05df', 'chiffon'],
@@ -567,7 +583,8 @@ function analyzeQuery(query) {
     '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd'],
     '\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9': ['\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9', 'corduroy'],
     '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique'],
-    'פרווה': ['פרווה', 'fur', 'faux fur'],
+    'עור': ['עור', 'leather', 'מעור', 'דמוי עור', 'faux leather'],
+    'פרווה': ['פרווה', 'פרוה', 'fur', 'faux fur'],
     '\u05db\u05d5\u05ea\u05e0\u05d4': ['\u05db\u05d5\u05ea\u05e0\u05d4', 'cotton'],
     '\u05e4\u05e9\u05ea\u05df': ['\u05e4\u05e9\u05ea\u05df', 'linen'],
     '\u05de\u05e9\u05d9': ['\u05de\u05e9\u05d9', 'silk'],
@@ -585,7 +602,7 @@ function analyzeQuery(query) {
   };
   // עיצוב
   const designMap = {
-    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck'],
+    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck', '\u05d5\u05d9', '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df \u05d5\u05d9'],
     '\u05d2\u05d5\u05dc\u05e3': ['\u05d2\u05d5\u05dc\u05e3', 'turtleneck'],
     '\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd': ['\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd', 'buttons'],
     '\u05d7\u05d2\u05d5\u05e8\u05d4': ['\u05d7\u05d2\u05d5\u05e8\u05d4', 'belt'],
@@ -600,7 +617,7 @@ function analyzeQuery(query) {
   // מילות עצירה - מילים שמופיעות בחיפוש אבל לא צריכות להיות keywords
   const stopWords = new Set(['מידה', 'מידות', 'עד', 'של', 'עם', 'בלי', 'ללא', 'או', 'גם', 'רק', 'כל', 'את', 'זה', 'זו', 'הנחה', 'מבצע', 'sale', 'לי', 'אני', 'רוצה', 'מחפשת', 'מחפש', 'צבע', 'סגנון', 'גיזרה', 'בד', 'דוגמא', 'מחיר', 'שקל', 'שקלים', 'ש"ח', 'שח', 'אורך', 'באורך', 'חנות', 'באתר', 'מאתר', 'ב', 'מ']);
   // קטגוריות שלא מציגים (אקססוריז)
-  const excludedCategories = new Set(['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים']);
+  const excludedCategories = new Set(['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'תכשיט', 'קשתות', 'גומי שיער']);
 
 
   // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
@@ -761,23 +778,6 @@ app.get("/api/clicks/stats", async (req, res) => {
     res.status(500).json({ error: "DB error" });
   }
 });
-
-// DELETE /api/clicks/reset - איפוס קליקים לפי חנות (או הכל)
-app.delete("/api/clicks/reset", async (req, res) => {
-  try {
-    const { store } = req.body;
-    if (store) {
-      await pool.query(`DELETE FROM clicks WHERE store = $1`, [store]);
-      res.json({ ok: true, message: `איפוס קליקים לחנות ${store}` });
-    } else {
-      await pool.query(`DELETE FROM clicks`);
-      res.json({ ok: true, message: 'איפוס כל הקליקים' });
-    }
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 app.get("/api/debug/db", async (req, res) => {
   try {
     const r = await pool.query(`
@@ -1427,6 +1427,7 @@ app.post("/api/saved/check", authMiddleware, async (req, res) => {
 
 
 // ── GA4 Analytics Dashboard ──────────────────────────────────────────
+const { GoogleAuth } = require('google-auth-library');
 const GA4_PROPERTY = 'properties/526435013';
 
 async function getGA4Token() {
@@ -1474,7 +1475,7 @@ app.get('/api/analytics', async (req, res) => {
       }),
       ga4Query(token, {
         dateRanges: dateRange,
-        dimensions: [{ name: 'eventName' }],
+        dimensions: [{ name: 'eventName' }, { name: 'customEvent:link_url' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'outbound_click' } } }
       })
@@ -1492,24 +1493,32 @@ app.get('/api/analytics', async (req, res) => {
       sessions: parseInt(r.metricValues[0].value)
     }));
 
-    // סה"כ קליקים מ-GA4
+    // קליקים לפי חנות מה-URL
+    const storeMap = {};
+    const STORES = { 'mima.co.il':'MIMA', 'mekimi.co.il':'MEKIMI', 'lichi.com':'LICHI', 'aviyah.co.il':'AVIYAH', 'chemise.co.il':'CHEMISE' };
     (outbound.rows || []).forEach(r => {
-      totals.outboundClicks += parseInt(r.metricValues[0].value);
+      const url = r.dimensionValues[1]?.value || '';
+      const count = parseInt(r.metricValues[0].value);
+      totals.outboundClicks += count;
+      for (const [domain, name] of Object.entries(STORES)) {
+        if (url.includes(domain)) {
+          storeMap[name] = (storeMap[name] || 0) + count;
+        }
+      }
     });
 
-    // קליקים לפי חנות ומוצרים - מה-DB (מדויק יותר)
-    let stores = [], topProducts = [];
+    const stores = Object.entries(storeMap)
+      .map(([name, clicks]) => ({ name, clicks }))
+      .sort((a,b) => b.clicks - a.clicks);
+
+    // מוצרים מה-DB
+    const topProducts = [];
     try {
-      const [storeRes, productRes] = await Promise.all([
-        pool.query(`SELECT store, COUNT(*) as clicks, MAX(clicked_at) as last_click FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' AND store IS NOT NULL GROUP BY store ORDER BY clicks DESC`),
-        pool.query(`SELECT product_title, store, source_url, COUNT(*) as clicks, MAX(clicked_at) as last_click FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY product_title, store, source_url ORDER BY clicks DESC LIMIT 20`)
-      ]);
-      stores = storeRes.rows.map(r => ({ name: r.store, clicks: parseInt(r.clicks), last_click: r.last_click }));
-      topProducts = productRes.rows.map(r => ({ title: r.product_title, store: r.store, source_url: r.source_url, clicks: parseInt(r.clicks), last_click: r.last_click }));
-      if (totals.outboundClicks === 0) {
-        totals.outboundClicks = stores.reduce((a,b) => a + b.clicks, 0);
-      }
-    } catch(e) { console.error('clicks db error:', e.message); }
+      const dbClicks = await pool.query(
+        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 6`
+      );
+      dbClicks.rows.forEach(r => topProducts.push({ title: r.product_title, store: r.store, clicks: parseInt(r.clicks) }));
+    } catch(e) {}
 
     res.json({ totals, daily: dailyData, stores, topProducts });
   } catch(e) {

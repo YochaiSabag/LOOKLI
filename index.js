@@ -4,6 +4,7 @@ import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
+import { GoogleAuth } from "google-auth-library";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1409,7 +1410,7 @@ app.post("/api/saved/check", authMiddleware, async (req, res) => {
 
 
 // ── GA4 Analytics Dashboard ──────────────────────────────────────────
-const { GoogleAuth } = require('google-auth-library');
+// GoogleAuth imported at top of file
 const GA4_PROPERTY = 'properties/526435013';
 
 async function getGA4Token() {

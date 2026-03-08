@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI — תיוג מוצרים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d14;
+  --surface:#13131e;
+  --surface2:#1a1a2a;
+  --border:#2a2a3d;
+  --accent:#c97cc0;
+  --accent2:#7c6fcf;
+  --text:#f0eefa;
+  --muted:#7a7a9a;
+  --green:#4ade80;
+  --red:#f87171;
+  --yellow:#fbbf24;
+  --selected-border:#c97cc0;
+  --selected-bg:rgba(201,124,192,0.12);
+}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;direction:rtl}
+
+/* ─── Header ─── */
+.header{
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 28px;
+  height:64px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(12px);
+}
+.logo{font-size:22px;font-weight:900;letter-spacing:3px;color:var(--accent)}
+.header-links{display:flex;gap:8px}
+.header-links a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;transition:.15s}
+.header-links a:hover{color:var(--text);background:var(--surface2)}
+.header-links a.active{color:var(--accent);background:rgba(201,124,192,.1)}
+
+/* ─── Layout ─── */
+.layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 64px)}
+
+/* ─── Sidebar ─── */
+.sidebar{
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  padding:24px 20px;
+  position:sticky;top:64px;height:calc(100vh - 64px);
+  overflow-y:auto;display:flex;flex-direction:column;gap:20px;
+}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+.section-title{font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+
+/* Field selector */
+.field-btn{
+  width:100%;text-align:right;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--muted);font-family:'Heebo',sans-serif;font-size:14px;
+  cursor:pointer;transition:.15s;display:flex;align-items:center;gap:8px;
+}
+.field-btn:hover{border-color:var(--accent);color:var(--text)}
+.field-btn.active{border-color:var(--accent);background:rgba(201,124,192,.1);color:var(--accent);font-weight:600}
+.field-btn .field-icon{font-size:16px;flex-shrink:0}
+
+/* Value input area */
+.value-area{display:flex;flex-direction:column;gap:8px}
+.value-area label{font-size:12px;color:var(--muted);font-weight:500}
+.preset-values{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.preset-val{
+  padding:5px 12px;border-radius:20px;font-size:13px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface2);color:var(--muted);
+  transition:.15s;font-family:'Heebo',sans-serif;
+}
+.preset-val:hover{border-color:var(--accent2);color:var(--text)}
+.preset-val.active{border-color:var(--accent);background:rgba(201,124,192,.15);color:var(--accent);font-weight:600}
+
+.value-input{
+  width:100%;padding:10px 14px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface2);
+  color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;
+  outline:none;text-align:right;
+}
+.value-input:focus{border-color:var(--accent)}
+
+/* Selection info */
+.selection-info{
+  background:var(--surface2);border-radius:12px;padding:14px;
+  border:1px solid var(--border);
+}
+.sel-count{font-size:28px;font-weight:900;color:var(--accent);line-height:1}
+.sel-label{font-size:12px;color:var(--muted);margin-top:2px}
+.sel-preview{margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;max-height:80px;overflow:hidden}
+.sel-chip{
+  font-size:11px;padding:2px 8px;border-radius:4px;
+  background:rgba(201,124,192,.12);color:var(--accent);
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* Apply button */
+.apply-btn{
+  width:100%;padding:14px;border-radius:12px;border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-family:'Heebo',sans-serif;font-size:15px;font-weight:700;
+  cursor:pointer;transition:.2s;letter-spacing:.5px;
+}
+.apply-btn:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 24px rgba(201,124,192,.3)}
+.apply-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.apply-btn.loading{background:var(--surface2);color:var(--muted)}
+
+.clear-btn{
+  width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);font-family:'Heebo',sans-serif;font-size:13px;
+  cursor:pointer;transition:.15s;
+}
+.clear-btn:hover{border-color:var(--red);color:var(--red)}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);
+  padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;
+  transition:.3s cubic-bezier(.34,1.56,.64,1);z-index:9999;
+  white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{background:#052e16;border:1px solid #16a34a;color:var(--green)}
+.toast.error{background:#1c0607;border:1px solid #dc2626;color:var(--red)}
+
+/* ─── Main content ─── */
+.main{padding:24px 28px}
+
+/* Toolbar */
+.toolbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:20px;
+}
+.search-input{
+  flex:1;min-width:200px;padding:10px 16px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface);
+  color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;
+  outline:none;text-align:right;
+}
+.search-input:focus{border-color:var(--accent)}
+.filter-select{
+  padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);
+  font-family:'Heebo',sans-serif;font-size:13px;outline:none;cursor:pointer;
+}
+.filter-select:focus{border-color:var(--accent)}
+.count-badge{
+  padding:8px 14px;border-radius:10px;background:var(--surface2);
+  font-size:13px;color:var(--muted);white-space:nowrap;border:1px solid var(--border);
+}
+.select-all-btn{
+  padding:9px 16px;border-radius:10px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);font-family:'Heebo',sans-serif;font-size:13px;
+  cursor:pointer;transition:.15s;white-space:nowrap;
+}
+.select-all-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+
+/* Grid */
+.products-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  gap:12px;
+}
+
+/* Product card */
+.prod-card{
+  background:var(--surface);border:2px solid var(--border);
+  border-radius:14px;overflow:hidden;cursor:pointer;
+  transition:.15s;position:relative;user-select:none;
+}
+.prod-card:hover{border-color:var(--accent2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.prod-card.selected{
+  border-color:var(--selected-border);
+  background:var(--selected-bg);
+  box-shadow:0 0 0 1px var(--selected-border), 0 8px 24px rgba(201,124,192,.2);
+}
+.prod-card.tagged{border-color:rgba(74,222,128,.35)}
+.card-check{
+  position:absolute;top:8px;right:8px;width:22px;height:22px;
+  border-radius:50%;background:var(--surface);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;transition:.15s;z-index:2;
+}
+.prod-card.selected .card-check{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+.tag-badge{
+  position:absolute;top:8px;left:8px;
+  padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;
+  background:rgba(74,222,128,.15);color:var(--green);border:1px solid rgba(74,222,128,.3);
+  z-index:2;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.card-img{
+  width:100%;aspect-ratio:3/4;object-fit:cover;
+  background:var(--surface2);display:block;
+}
+.card-img-placeholder{
+  width:100%;aspect-ratio:3/4;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;font-size:32px;
+}
+.card-body{padding:10px 10px 12px}
+.card-title{
+  font-size:12px;font-weight:500;color:var(--text);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.4;margin-bottom:6px;
+}
+.card-meta{display:flex;flex-wrap:wrap;gap:4px}
+.meta-tag{
+  font-size:10px;padding:2px 7px;border-radius:4px;
+  background:var(--surface2);color:var(--muted);border:1px solid var(--border);
+}
+.meta-tag.has-val{color:var(--accent2);border-color:rgba(124,111,207,.4);background:rgba(124,111,207,.08)}
+.card-store{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* Empty/loading states */
+.state-msg{
+  grid-column:1/-1;padding:60px 20px;text-align:center;color:var(--muted);
+}
+.state-msg .icon{font-size:40px;margin-bottom:12px}
+.spinner{
+  display:inline-block;width:36px;height:36px;
+  border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Pagination */
+.pagination{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:24px}
+.page-btn{
+  padding:8px 14px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);color:var(--muted);font-family:'Heebo',sans-serif;
+  font-size:13px;cursor:pointer;transition:.15s;
+}
+.page-btn:hover:not(:disabled){border-color:var(--accent2);color:var(--text)}
+.page-btn.active{background:rgba(201,124,192,.15);border-color:var(--accent);color:var(--accent);font-weight:700}
+.page-btn:disabled{opacity:.35;cursor:not-allowed}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">LOOKLI</div>
+  <div class="header-links">
+    <a href="/admin/sponsored">ממומן</a>
+    <a href="/admin/ads">מודעות</a>
+    <a href="/admin/analytics">אנליטיקס</a>
+    <a href="/admin/tagger" class="active">תיוג מוצרים</a>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- ─── Sidebar ─── -->
+  <aside class="sidebar">
+
+    <div>
+      <div class="section-title">שדה לתיוג</div>
+      <div id="fieldButtons" style="display:flex;flex-direction:column;gap:6px">
+        <button class="field-btn active" data-field="style" onclick="selectField('style',this)">
+          <span class="field-icon">✨</span> סגנון
+        </button>
+        <button class="field-btn" data-field="category" onclick="selectField('category',this)">
+          <span class="field-icon">👗</span> קטגוריה
+        </button>
+        <button class="field-btn" data-field="fit" onclick="selectField('fit',this)">
+          <span class="field-icon">📐</span> גיזרה
+        </button>
+        <button class="field-btn" data-field="fabric" onclick="selectField('fabric',this)">
+          <span class="field-icon">🧵</span> סוג בד
+        </button>
+        <button class="field-btn" data-field="pattern" onclick="selectField('pattern',this)">
+          <span class="field-icon">🎨</span> דוגמא
+        </button>
+      </div>
+    </div>
+
+    <div class="value-area">
+      <div class="section-title">ערך לתיוג</div>
+      <div class="preset-values" id="presetValues"></div>
+      <input class="value-input" id="valueInput" type="text" placeholder="הכנס ערך חופשי..." oninput="syncValueFromInput()"/>
+    </div>
+
+    <div class="selection-info">
+      <div class="sel-count" id="selCount">0</div>
+      <div class="sel-label">מוצרים נבחרו</div>
+      <div class="sel-preview" id="selPreview"></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="apply-btn" id="applyBtn" onclick="applyTag()" disabled>
+        שמור תיוג
+      </button>
+      <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
+    </div>
+
+  </aside>
+
+  <!-- ─── Main ─── -->
+  <main class="main">
+    <div class="toolbar">
+      <input class="search-input" id="searchInput" placeholder="חיפוש לפי שם מוצר..." oninput="onSearch()"/>
+      <select class="filter-select" id="storeFilter" onchange="onFilter()">
+        <option value="">כל החנויות</option>
+      </select>
+      <select class="filter-select" id="fieldFilter" onchange="onFilter()">
+        <option value="">כל המוצרים</option>
+        <option value="untagged">ללא תיוג בשדה</option>
+        <option value="tagged">עם תיוג בשדה</option>
+      </select>
+      <span class="count-badge" id="countBadge">0 מוצרים</span>
+      <button class="select-all-btn" onclick="selectAllVisible()">בחר הכל</button>
+    </div>
+
+    <div class="products-grid" id="productsGrid">
+      <div class="state-msg"><div class="spinner"></div></div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ───
+let allProducts = [];
+let filtered = [];
+let selected = new Set();
+let currentField = 'style';
+let currentValue = '';
+let page = 1;
+const PAGE_SIZE = 60;
+
+// ─── Presets ───
+const PRESETS = {
+  style: ['ערב','שבת','חגיגי','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'],
+  category: ['שמלה','חולצה','חצאית','קרדיגן','סוודר','מעיל','בלייזר','טוניקה','סרפן','סט','אוברול','וסט','עליונית','חלוק'],
+  fit: ['ארוכה','מידי','קצרה','מותן','מתרחבת','ישרה','מחויטת','מעטפת','צמודה','רפויה','הריון','הנקה'],
+  fabric: ["ז'מס",'סריג','שיפון','כותנה','סאטן','תחרה','קטיפה','אריג',"ג'רסי",'פשתן','משי','צמר','עור','פרווה','לייקרה','טריקו','רשת'],
+  pattern: ['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי'],
+};
+
+// ─── Init ───
+(async function init() {
+  await loadProducts();
+  renderPresets();
+  renderStoreFilter();
+})();
+
+async function loadProducts() {
+  try {
+    const r = await fetch('/api/products?limit=2000&sort=newest');
+    const data = await r.json();
+    allProducts = Array.isArray(data) ? data : (data.products || []);
+    applyFilter();
+  } catch(e) {
+    showToast('שגיאה בטעינת מוצרים', 'error');
+    document.getElementById('productsGrid').innerHTML = '<div class="state-msg"><div class="icon">⚠️</div><div>שגיאה בטעינה</div></div>';
+  }
+}
+
+function renderStoreFilter() {
+  const stores = [...new Set(allProducts.map(p => p.store).filter(Boolean))].sort();
+  const sel = document.getElementById('storeFilter');
+  stores.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    sel.appendChild(o);
+  });
+}
+
+// ─── Filtering ───
+function applyFilter() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const store = document.getElementById('storeFilter').value;
+  const fieldF = document.getElementById('fieldFilter').value;
+
+  filtered = allProducts.filter(p => {
+    if (q && !p.title?.toLowerCase().includes(q)) return false;
+    if (store && p.store !== store) return false;
+    if (fieldF === 'untagged' && p[currentField]) return false;
+    if (fieldF === 'tagged' && !p[currentField]) return false;
+    return true;
+  });
+
+  document.getElementById('countBadge').textContent = filtered.length + ' מוצרים';
+  page = 1;
+  renderGrid();
+  renderPagination();
+}
+
+function onSearch() { applyFilter(); }
+function onFilter() { applyFilter(); }
+
+// ─── Grid render ───
+function renderGrid() {
+  const grid = document.getElementById('productsGrid');
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+
+  if (!slice.length) {
+    grid.innerHTML = '<div class="state-msg"><div class="icon">🔍</div><div>לא נמצאו מוצרים</div></div>';
+    return;
+  }
+
+  grid.innerHTML = slice.map(p => {
+    const isSel = selected.has(p.id);
+    const fieldVal = p[currentField];
+    const img = p.image_url || (p.images && p.images[0]) || '';
+    const store = p.store || '';
+    const price = p.price ? `₪${Math.round(p.price)}` : '';
+
+    return `<div class="prod-card${isSel ? ' selected' : ''}${fieldVal ? ' tagged' : ''}"
+      data-id="${p.id}" onclick="toggleCard(${p.id}, this)">
+      <div class="card-check">${isSel ? '✓' : ''}</div>
+      ${fieldVal ? `<div class="tag-badge">${escHtml(fieldVal)}</div>` : ''}
+      ${img
+        ? `<img class="card-img" src="${escHtml(img)}" loading="lazy" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="card-img-placeholder" style="display:none">👗</div>`
+        : `<div class="card-img-placeholder">👗</div>`
+      }
+      <div class="card-body">
+        <div class="card-title">${escHtml(p.title || '')}</div>
+        <div class="card-meta">
+          ${price ? `<span class="meta-tag">${price}</span>` : ''}
+          ${p.color ? `<span class="meta-tag has-val">${escHtml(p.color)}</span>` : ''}
+          ${fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : ''}
+        </div>
+        <div class="card-store">${escHtml(store)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderPagination() {
+  const total = Math.ceil(filtered.length / PAGE_SIZE);
+  const pag = document.getElementById('pagination');
+  if (total <= 1) { pag.innerHTML = ''; return; }
+
+  let html = `<button class="page-btn" onclick="goPage(${page-1})" ${page===1?'disabled':''}>‹ הקודם</button>`;
+  const start = Math.max(1, page - 2);
+  const end = Math.min(total, page + 2);
+  if (start > 1) html += `<button class="page-btn" onclick="goPage(1)">1</button>${start>2?'<span style="color:var(--muted);padding:0 4px">…</span>':''}`;
+  for (let i = start; i <= end; i++) {
+    html += `<button class="page-btn${i===page?' active':''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  if (end < total) html += `${end<total-1?'<span style="color:var(--muted);padding:0 4px">…</span>':''}<button class="page-btn" onclick="goPage(${total})">${total}</button>`;
+  html += `<button class="page-btn" onclick="goPage(${page+1})" ${page===total?'disabled':''}>הבא ›</button>`;
+  pag.innerHTML = html;
+}
+
+function goPage(p) {
+  page = p;
+  renderGrid();
+  renderPagination();
+  document.querySelector('.main').scrollTo(0, 0);
+  window.scrollTo(0, 0);
+}
+
+// ─── Card toggle ───
+function toggleCard(id, el) {
+  if (selected.has(id)) {
+    selected.delete(id);
+    el.classList.remove('selected');
+    el.querySelector('.card-check').textContent = '';
+  } else {
+    selected.add(id);
+    el.classList.add('selected');
+    el.querySelector('.card-check').textContent = '✓';
+  }
+  updateSelectionUI();
+}
+
+function selectAllVisible() {
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+  const allSel = slice.every(p => selected.has(p.id));
+  slice.forEach(p => {
+    if (allSel) selected.delete(p.id);
+    else selected.add(p.id);
+  });
+  renderGrid();
+  updateSelectionUI();
+}
+
+function clearSelection() {
+  selected.clear();
+  renderGrid();
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  const count = selected.size;
+  document.getElementById('selCount').textContent = count;
+  const btn = document.getElementById('applyBtn');
+  btn.disabled = count === 0 || !currentValue.trim();
+
+  // Preview chips
+  const preview = document.getElementById('selPreview');
+  const names = [...selected].slice(0, 8).map(id => {
+    const p = allProducts.find(x => x.id === id);
+    return p ? p.title?.substring(0, 18) || `#${id}` : `#${id}`;
+  });
+  preview.innerHTML = names.map(n => `<span class="sel-chip">${escHtml(n)}</span>`).join('') +
+    (selected.size > 8 ? `<span class="sel-chip">+${selected.size - 8}</span>` : '');
+}
+
+// ─── Field selector ───
+function selectField(field, btn) {
+  currentField = field;
+  document.querySelectorAll('.field-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPresets();
+  currentValue = '';
+  document.getElementById('valueInput').value = '';
+  document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
+  applyFilter();
+  updateSelectionUI();
+}
+
+function renderPresets() {
+  const presets = PRESETS[currentField] || [];
+  document.getElementById('presetValues').innerHTML = presets.map(v =>
+    `<button class="preset-val" onclick="selectPreset('${escHtml(v)}',this)">${escHtml(v)}</button>`
+  ).join('');
+}
+
+function selectPreset(val, btn) {
+  currentValue = val;
+  document.getElementById('valueInput').value = val;
+  document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateApplyBtn();
+}
+
+function syncValueFromInput() {
+  currentValue = document.getElementById('valueInput').value;
+  document.querySelectorAll('.preset-val').forEach(b => {
+    b.classList.toggle('active', b.textContent === currentValue);
+  });
+  updateApplyBtn();
+}
+
+function updateApplyBtn() {
+  const btn = document.getElementById('applyBtn');
+  btn.disabled = selected.size === 0 || !currentValue.trim();
+}
+
+// ─── Apply tag ───
+async function applyTag() {
+  if (selected.size === 0 || !currentValue.trim()) return;
+  const btn = document.getElementById('applyBtn');
+  btn.classList.add('loading');
+  btn.textContent = 'שומר...';
+  btn.disabled = true;
+
+  try {
+    const ids = [...selected];
+    const r = await fetch('/api/admin/tag-products', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, field: currentField, value: currentValue.trim() })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'שגיאה');
+
+    // עדכן local state
+    ids.forEach(id => {
+      const p = allProducts.find(x => x.id === id);
+      if (p) p[currentField] = currentValue.trim();
+    });
+
+    showToast(`✅ עודכנו ${ids.length} מוצרים → ${currentField}: "${currentValue}"`, 'success');
+    clearSelection();
+    applyFilter();
+  } catch(e) {
+    showToast('❌ שגיאה: ' + e.message, 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.textContent = 'שמור תיוג';
+    updateApplyBtn();
+  }
+}
+
+// ─── Helpers ───
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type}`;
+  void t.offsetWidth;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>

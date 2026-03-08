@@ -217,8 +217,8 @@ app.get("/api/products", async (req, res) => {
     let i = 1;
 
     // סינון אקססוריז - לא מציגים גומיות שיער וכדומה
-    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'תכשיט', 'קשתות', 'גומי שיער'))`;
-    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%' AND title NOT ILIKE '%קשת%שיער%' AND title NOT ILIKE '%תכשיט%'`;
+    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;
+    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
 
     if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
     
@@ -372,21 +372,6 @@ app.get("/api/products", async (req, res) => {
       });
     }
     
-    // צבע מבוקש יופיע ראשון ב-colors array
-    if (color) {
-      const reqColors = color.split(',').filter(Boolean);
-      rows = rows.map(p => {
-        if (p.colors && p.colors.length > 1) {
-          const sorted = [...p.colors].sort((a,b) => {
-            const aM = reqColors.includes(a) ? 0 : 1;
-            const bM = reqColors.includes(b) ? 0 : 1;
-            return aM - bM;
-          });
-          return { ...p, colors: sorted };
-        }
-        return p;
-      });
-    }
     res.json(rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("products error:", err.message);
@@ -526,7 +511,7 @@ function analyzeQuery(query) {
   };
   const categoryMap = { 
     '\u05e9\u05de\u05dc\u05d4': ['\u05e9\u05de\u05dc\u05d4', '\u05e9\u05de\u05dc\u05ea', '\u05e9\u05de\u05dc\u05d5\u05ea'], 
-    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4', '\u05d8\u05d9 \u05e9\u05e8\u05d8', 'T-shirt', 'tshirt'], 
+    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4'], 
     '\u05d7\u05e6\u05d0\u05d9\u05ea': ['\u05d7\u05e6\u05d0\u05d9\u05ea', '\u05d7\u05e6\u05d0\u05d9\u05d5\u05ea'], 
     '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd': ['\u05de\u05db\u05e0\u05e1', '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd'], 
     '\u05e7\u05e8\u05d3\u05d9\u05d2\u05df': ['\u05e7\u05e8\u05d3\u05d9\u05d2\u05df'],
@@ -561,13 +546,11 @@ function analyzeQuery(query) {
     '\u05de\u05e2\u05d8\u05e4\u05ea': ['\u05de\u05e2\u05d8\u05e4\u05ea', '\u05de\u05e2\u05d8\u05e4\u05d4', 'wrap'],
     '\u05d4\u05e8\u05d9\u05d5\u05df': ['\u05d4\u05e8\u05d9\u05d5\u05df', 'maternity', 'pregnancy'],
     '\u05d4\u05e0\u05e7\u05d4': ['\u05d4\u05e0\u05e7\u05d4', 'nursing', 'breastfeed'],
-    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist'],
-    '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea': ['\u05de\u05ea\u05e8\u05d7\u05d1\u05ea', 'flare', '\u05d4\u05ea\u05e8\u05d7\u05d1\u05d5\u05ea', 'a-line', 'A line', '\u05d0\u05d9\u05d9 \u05dc\u05d9\u05d9\u05df']
+    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist']
   };
   // בד
   const fabricMap = {
-    '\u05d6\'\u05de\u05e1': ['\u05d6\'\u05de\u05e1', '\u05d6\u05de\u05e1', '\u05d2\'\u05de\u05e1', '\u05d2\u05de\u05e1', 'jams'],
-    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2', '\u05e1\u05e8\u05d5\u05d2'],
+    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2'],
     '\u05d0\u05e8\u05d9\u05d2': ['\u05d0\u05e8\u05d9\u05d2'],
     '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', '\u05d2\u05e8\u05e1\u05d9', '\u05d2\'\u05e8\u05e1\u05d9', 'jersey'],
     '\u05e9\u05d9\u05e4\u05d5\u05df': ['\u05e9\u05d9\u05e4\u05d5\u05df', 'chiffon'],
@@ -583,8 +566,7 @@ function analyzeQuery(query) {
     '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd'],
     '\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9': ['\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9', 'corduroy'],
     '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique'],
-    'עור': ['עור', 'leather', 'מעור', 'דמוי עור', 'faux leather'],
-    'פרווה': ['פרווה', 'פרוה', 'fur', 'faux fur'],
+    'פרווה': ['פרווה', 'fur', 'faux fur'],
     '\u05db\u05d5\u05ea\u05e0\u05d4': ['\u05db\u05d5\u05ea\u05e0\u05d4', 'cotton'],
     '\u05e4\u05e9\u05ea\u05df': ['\u05e4\u05e9\u05ea\u05df', 'linen'],
     '\u05de\u05e9\u05d9': ['\u05de\u05e9\u05d9', 'silk'],
@@ -602,7 +584,7 @@ function analyzeQuery(query) {
   };
   // עיצוב
   const designMap = {
-    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck', '\u05d5\u05d9', '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df \u05d5\u05d9'],
+    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck'],
     '\u05d2\u05d5\u05dc\u05e3': ['\u05d2\u05d5\u05dc\u05e3', 'turtleneck'],
     '\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd': ['\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd', 'buttons'],
     '\u05d7\u05d2\u05d5\u05e8\u05d4': ['\u05d7\u05d2\u05d5\u05e8\u05d4', 'belt'],
@@ -617,7 +599,7 @@ function analyzeQuery(query) {
   // מילות עצירה - מילים שמופיעות בחיפוש אבל לא צריכות להיות keywords
   const stopWords = new Set(['מידה', 'מידות', 'עד', 'של', 'עם', 'בלי', 'ללא', 'או', 'גם', 'רק', 'כל', 'את', 'זה', 'זו', 'הנחה', 'מבצע', 'sale', 'לי', 'אני', 'רוצה', 'מחפשת', 'מחפש', 'צבע', 'סגנון', 'גיזרה', 'בד', 'דוגמא', 'מחיר', 'שקל', 'שקלים', 'ש"ח', 'שח', 'אורך', 'באורך', 'חנות', 'באתר', 'מאתר', 'ב', 'מ']);
   // קטגוריות שלא מציגים (אקססוריז)
-  const excludedCategories = new Set(['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'תכשיט', 'קשתות', 'גומי שיער']);
+  const excludedCategories = new Set(['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים']);
 
 
   // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
@@ -1527,6 +1509,42 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
+// ─── Admin: Tagger UI ───────────────────────────────────────────────────────
+app.get('/admin/tagger', adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_tagger.html'));
+});
+
+// ─── Admin: Tag products API ─────────────────────────────────────────────────
+app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
+  try {
+    const { ids, field, value } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ error: 'ids required' });
+    if (!field || !value)
+      return res.status(400).json({ error: 'field and value required' });
+
+    // שדות מותרים בלבד
+    const allowedFields = ['style', 'category', 'fit', 'fabric', 'pattern'];
+    if (!allowedFields.includes(field))
+      return res.status(400).json({ error: 'Invalid field: ' + field });
+
+    // sanitize ids
+    const numIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
+    if (numIds.length === 0)
+      return res.status(400).json({ error: 'No valid ids' });
+
+    const result = await pool.query(
+      `UPDATE products SET ${field} = $1 WHERE id = ANY($2::int[]) RETURNING id`,
+      [value.trim(), numIds]
+    );
+
+    res.json({ ok: true, updated: result.rowCount, field, value });
+  } catch (err) {
+    console.error('tag-products error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);

@@ -347,6 +347,9 @@ const PRESETS = {
 };
 
 // ─── Init ───
+// קרא pwd מה-URL אם קיים (לניווט ישיר)
+const urlPwd = new URLSearchParams(window.location.search).get('pwd') || '';
+
 (async function init() {
   await loadProducts();
   renderPresets();
@@ -355,7 +358,7 @@ const PRESETS = {
 
 async function loadProducts() {
   try {
-    const r = await fetch('/api/products?limit=2000&sort=newest');
+    const r = await fetch('/api/products?limit=2000&sort=newest', { credentials: 'include' });
     const data = await r.json();
     allProducts = Array.isArray(data) ? data : (data.products || []);
     applyFilter();
@@ -561,8 +564,10 @@ async function applyTag() {
 
   try {
     const ids = [...selected];
-    const r = await fetch('/api/admin/tag-products', {
+    const pwdParam = urlPwd ? `?pwd=${encodeURIComponent(urlPwd)}` : '';
+    const r = await fetch('/api/admin/tag-products' + pwdParam, {
       method: 'PATCH',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids, field: currentField, value: currentValue.trim() })
     });

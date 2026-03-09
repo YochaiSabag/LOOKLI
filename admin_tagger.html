@@ -277,6 +277,9 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
         <button class="field-btn" data-field="pattern" onclick="selectField('pattern',this)">
           <span class="field-icon">🎨</span> דוגמא
         </button>
+        <button class="field-btn" data-field="color" onclick="selectField('color',this)">
+          <span class="field-icon">🌈</span> צבע
+        </button>
       </div>
     </div>
 
@@ -344,6 +347,7 @@ const PRESETS = {
   fit: ['ארוכה','מידי','קצרה','מותן','מתרחבת','ישרה','מחויטת','מעטפת','צמודה','רפויה','הריון','הנקה'],
   fabric: ["ז'מס",'סריג','שיפון','כותנה','סאטן','תחרה','קטיפה','אריג',"ג'רסי",'פשתן','משי','צמר','עור','פרווה','לייקרה','טריקו','רשת'],
   pattern: ['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי'],
+  color: ['שחור','לבן','שמנת','כחול','תכלת','אדום','בורדו','ירוק','זית','חאקי','חום','קאמל','בז׳','ניוד','אפור','ורוד','סגול','לילך','צהוב','חרדל','כתום','זהב','כסף','פרחוני','צבעוני','מנטה','אפרסק','אבן'],
 };
 
 // ─── Init ───
@@ -387,8 +391,10 @@ function applyFilter() {
   filtered = allProducts.filter(p => {
     if (q && !p.title?.toLowerCase().includes(q)) return false;
     if (store && p.store !== store) return false;
-    if (fieldF === 'untagged' && p[currentField]) return false;
-    if (fieldF === 'tagged' && !p[currentField]) return false;
+    const fieldVal = p[currentField];
+    const isUntagged = !fieldVal || fieldVal === 'אחר';
+    if (fieldF === 'untagged' && !isUntagged) return false;
+    if (fieldF === 'tagged' && isUntagged) return false;
     return true;
   });
 
@@ -431,7 +437,7 @@ function renderGrid() {
         <div class="card-title">${escHtml(p.title || '')}</div>
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
-          ${p.color ? `<span class="meta-tag has-val">${escHtml(p.color)}</span>` : ''}
+          ${p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : (!p.color || p.color === 'אחר' ? '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>' : '')}
           ${fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : ''}
         </div>
         <div class="card-store">${escHtml(store)}</div>
@@ -593,6 +599,8 @@ async function applyTag() {
 }
 
 // ─── Helpers ───
+const COLOR_HEX = {'שחור':'#1a1a1a','לבן':'#f5f5f5','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8','אדום':'#dc2626','בורדו':'#881337','ירוק':'#16a34a','זית':'#6b7c3f','חאקי':'#8B8B4B','חום':'#92400e','קאמל':'#c2956c','בז׳':'#d4b896','ניוד':'#c4956a','אפור':'#6b7280','ורוד':'#ec4899','סגול':'#7c3aed','לילך':'#a78bfa','צהוב':'#eab308','חרדל':'#b45309','כתום':'#ea580c','זהב':'#d97706','כסף':'#9ca3af','מנטה':'#6ee7b7','אפרסק':'#fca5a5','אבן':'#a8a29e','פרחוני':'#f472b6','צבעוני':'#8b5cf6'};
+function getColorBg(c) { return COLOR_HEX[c] || '#888'; }
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

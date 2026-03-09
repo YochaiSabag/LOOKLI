@@ -76,7 +76,6 @@ function normalizeColor(c) {
   }
   
   unknownColors.add(c);
-  console.log(`    ❓ צבע לא מזוהה: "${c}" - שקול להוסיף ל-colorMap`);
   return 'אחר';
 }
 
@@ -110,7 +109,6 @@ function detectCategory(title) {
   if (/סרפן|pinafore/i.test(t)) return 'סרפן';
   if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
   if (/חצאית|skirt/i.test(t)) return 'חצאית';
-  if (/טי.?שרט|t.?shirt|tshirt/i.test(t)) return 'חולצה';
   if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
   if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
   if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
@@ -145,7 +143,7 @@ function detectFit(title, description = '') {
   const text = (title || '').toLowerCase();
   const fullText = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/ישרה|straight/i.test(text)) return 'ישרה';
-  if (/a.?line|איי.?ליין|\bA\b.*גיזרה|גיזרה.*\bA\b/i.test(text)) return 'מתרחבת';
+  if (/a.?line|איי.?ליין/i.test(text)) return 'A';
   if (/מתרחב|flare|התרחבות/i.test(text)) return 'מתרחבת';
   if (/רפוי|רחב|loose|relaxed|wide/i.test(text)) return 'רפויה';
   if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
@@ -177,8 +175,7 @@ function detectPattern(title, description = '') {
 
 function detectFabric(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
-  if (/ז'מס|זמס|ג'מס|גמס|jamss?|jams/i.test(text)) return "ז'מס";
-  if (/סרוג|סריג|knit|knitted/i.test(text)) return 'סריג';
+  if (/סריג|knit|knitted/i.test(text)) return 'סריג';
   if (/אריג|woven/i.test(text)) return 'אריג';
   if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
   if (/פיקה|pique/i.test(text)) return 'פיקה';
@@ -192,15 +189,14 @@ function detectFabric(title, description = '') {
   if (/לייקרה|lycra|spandex/i.test(text)) return 'לייקרה';
   if (/טריקו|tricot/i.test(text)) return 'טריקו';
   if (/רשת|mesh|net/i.test(text)) return 'רשת';
-  if (/ג[׳']ינס|גינס|ג'ינס|ג׳ינס|jeans|דנים|denim/i.test(text)) return "ג'ינס";
+  if (/ג׳ינס|ג'ינס|jeans|דנים|denim/i.test(text)) return 'ג׳ינס';
   if (/קורדרוי|corduroy/i.test(text)) return 'קורדרוי';
   if (/כותנה|cotton/i.test(text)) return 'כותנה';
   if (/פשתן|linen/i.test(text)) return 'פשתן';
   if (/משי|silk/i.test(text)) return 'משי';
   if (/צמר|wool/i.test(text)) return 'צמר';
   if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
-  if (/\bעור\b|leather|faux.?leather|דמוי.?עור|מעור/i.test(text)) return 'עור';
-  if (/פרווה|פרוה|fur|faux.?fur/i.test(text)) return 'פרווה';
+  if (/פרווה|fur|faux.?fur/i.test(text)) return 'פרווה';
   return '';
 }
 
@@ -208,11 +204,11 @@ function detectDesignDetails(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
   const details = [];
   // צווארון
-  if (/צווארון\s*וי|\bוי\b|v.?neck/i.test(text)) details.push('צווארון V');
+  if (/צווארון\s*וי|v.?neck/i.test(text)) details.push('צווארון V');
   if (/צווארון\s*עגול|round.?neck|crew.?neck/i.test(text)) details.push('צווארון עגול');
   if (/גולף|turtle.?neck|mock.?neck/i.test(text)) details.push('גולף');
   if (/סטרפלס|strapless|חשוף.?כתפ/i.test(text)) details.push('סטרפלס');
-  // חשוף כתפיים הוסר מעיצוב לפי בקשה
+  if (/כתפיי?ה|off.?shoulder|חשוף/i.test(text) && !/חשוף.?כתפ/.test(text)) details.push('חשוף כתפיים');
   if (/קולר|choker|halter/i.test(text)) details.push('קולר');
   if (/סירה|boat.?neck|bateau/i.test(text)) details.push('צווארון סירה');
   // שרוולים
@@ -574,10 +570,17 @@ async function saveProduct(product) {
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
-         color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
-         category=EXCLUDED.category, description=EXCLUDED.description, 
-         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, last_seen=NOW()`,
+         color=COALESCE(EXCLUDED.color, products.color),
+         colors=COALESCE(EXCLUDED.colors, products.colors),
+         style=COALESCE(EXCLUDED.style, products.style),
+         fit=COALESCE(EXCLUDED.fit, products.fit),
+         category=COALESCE(EXCLUDED.category, products.category),
+         description=EXCLUDED.description, 
+         color_sizes=EXCLUDED.color_sizes,
+         pattern=COALESCE(EXCLUDED.pattern, products.pattern),
+         fabric=COALESCE(EXCLUDED.fabric, products.fabric),
+         design_details=COALESCE(EXCLUDED.design_details, products.design_details),
+         last_seen=NOW()`,
       ['AVIYAH', product.title, product.price || 0, product.originalPrice || null, 
        product.images[0] || '', product.images, product.sizes, product.mainColor, 
        product.colors, product.style || null, product.fit || null, product.category, 

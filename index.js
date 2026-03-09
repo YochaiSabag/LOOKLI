@@ -277,8 +277,6 @@ app.get("/api/products", async (req, res) => {
         i += styles.length * 2;
       }
     }
-    // המר fit=A → מתרחבת (A-line)
-    if (fit) fit = fit.split(',').map(f => (f === 'A' || f === 'a' || f === 'a-line') ? '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea' : f).join(',');
     if (fit) { 
       const fits = fit.split(',').filter(Boolean);
       if (fits.length === 1) {
@@ -494,7 +492,7 @@ function analyzeQuery(query) {
   const colorMap = { 
     '\u05e9\u05d7\u05d5\u05e8': ['\u05e9\u05d7\u05d5\u05e8', '\u05e9\u05d7\u05d5\u05e8\u05d4'], 
     '\u05dc\u05d1\u05df': ['\u05dc\u05d1\u05df', '\u05dc\u05d1\u05e0\u05d4'], 
-    '\u05db\u05d7\u05d5\u05dc': ['\u05db\u05d7\u05d5\u05dc', '\u05db\u05d7\u05d5\u05dc\u05d4', '\u05e0\u05d9\u05d9\u05d1\u05d9', '\u05d8\u05d5\u05e8\u05e7\u05d9\u05d6', 'turquoise', 'teal', 'aqua', 'cyan'], 
+    '\u05db\u05d7\u05d5\u05dc': ['\u05db\u05d7\u05d5\u05dc', '\u05db\u05d7\u05d5\u05dc\u05d4', '\u05e0\u05d9\u05d9\u05d1\u05d9'], 
     '\u05d0\u05d3\u05d5\u05dd': ['\u05d0\u05d3\u05d5\u05dd', '\u05d0\u05d3\u05d5\u05de\u05d4'], 
     '\u05d9\u05e8\u05d5\u05e7': ['\u05d9\u05e8\u05d5\u05e7', '\u05d9\u05e8\u05d5\u05e7\u05d4', '\u05d6\u05d9\u05ea', '\u05d7\u05d0\u05e7\u05d9'], 
     '\u05d7\u05d5\u05dd': ['\u05d7\u05d5\u05dd', '\u05d7\u05d5\u05de\u05d4'], 
@@ -514,7 +512,7 @@ function analyzeQuery(query) {
   };
   const categoryMap = { 
     '\u05e9\u05de\u05dc\u05d4': ['\u05e9\u05de\u05dc\u05d4', '\u05e9\u05de\u05dc\u05ea', '\u05e9\u05de\u05dc\u05d5\u05ea'], 
-    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4', '\u05d8\u05d9 \u05e9\u05e8\u05d8', 't-shirt', 'tshirt', 't shirt'], 
+    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4'], 
     '\u05d7\u05e6\u05d0\u05d9\u05ea': ['\u05d7\u05e6\u05d0\u05d9\u05ea', '\u05d7\u05e6\u05d0\u05d9\u05d5\u05ea'], 
     '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd': ['\u05de\u05db\u05e0\u05e1', '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd'], 
     '\u05e7\u05e8\u05d3\u05d9\u05d2\u05df': ['\u05e7\u05e8\u05d3\u05d9\u05d2\u05df'],
@@ -549,13 +547,11 @@ function analyzeQuery(query) {
     '\u05de\u05e2\u05d8\u05e4\u05ea': ['\u05de\u05e2\u05d8\u05e4\u05ea', '\u05de\u05e2\u05d8\u05e4\u05d4', 'wrap'],
     '\u05d4\u05e8\u05d9\u05d5\u05df': ['\u05d4\u05e8\u05d9\u05d5\u05df', 'maternity', 'pregnancy'],
     '\u05d4\u05e0\u05e7\u05d4': ['\u05d4\u05e0\u05e7\u05d4', 'nursing', 'breastfeed'],
-    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist'],
-    '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea': ['\u05de\u05ea\u05e8\u05d7\u05d1\u05ea', 'flare', '\u05d0\u05d9\u05d9 \u05dc\u05d9\u05d9\u05df', 'a-line', 'a line', '\u05d0 \u05dc\u05d9\u05d9\u05df', '\u05d2\u05d9\u05d6\u05e8\u05d4 a', '\u05d2\u05d9\u05d6\u05e8\u05ea a', '\u05d2\u05d9\u05d6\u05e8\u05d4 \u05d0', '\u05d2\u05d9\u05d6\u05e8\u05ea \u05d0']
+    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist']
   };
   // בד
   const fabricMap = {
-    '\u05d6\'\u05de\u05e1': ['\u05d6\'\u05de\u05e1', '\u05d6\u05de\u05e1', '\u05d2\'\u05de\u05e1', '\u05d2\u05de\u05e1', 'jams'],
-    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2', '\u05e1\u05e8\u05d5\u05d2'],
+    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2'],
     '\u05d0\u05e8\u05d9\u05d2': ['\u05d0\u05e8\u05d9\u05d2'],
     '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', '\u05d2\u05e8\u05e1\u05d9', '\u05d2\'\u05e8\u05e1\u05d9', 'jersey'],
     '\u05e9\u05d9\u05e4\u05d5\u05df': ['\u05e9\u05d9\u05e4\u05d5\u05df', 'chiffon'],
@@ -568,11 +564,10 @@ function analyzeQuery(query) {
     '\u05dc\u05d9\u05d9\u05e7\u05e8\u05d4': ['\u05dc\u05d9\u05d9\u05e7\u05e8\u05d4', 'lycra'],
     '\u05d8\u05e8\u05d9\u05e7\u05d5': ['\u05d8\u05e8\u05d9\u05e7\u05d5', 'tricot'],
     '\u05e8\u05e9\u05ea': ['\u05e8\u05e9\u05ea'],
-    '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', '\u05d2\'\u05d9\u05e0\u05e1', '\u05d2\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd', 'denim'],
+    '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd'],
     '\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9': ['\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9', 'corduroy'],
     '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique'],
-    'עור': ['עור', 'leather', 'מעור', 'דמוי עור', 'faux leather'],
-    'פרווה': ['פרווה', 'פרוה', 'fur', 'faux fur'],
+    'פרווה': ['פרווה', 'fur', 'faux fur'],
     '\u05db\u05d5\u05ea\u05e0\u05d4': ['\u05db\u05d5\u05ea\u05e0\u05d4', 'cotton'],
     '\u05e4\u05e9\u05ea\u05df': ['\u05e4\u05e9\u05ea\u05df', 'linen'],
     '\u05de\u05e9\u05d9': ['\u05de\u05e9\u05d9', 'silk'],
@@ -590,7 +585,7 @@ function analyzeQuery(query) {
   };
   // עיצוב
   const designMap = {
-    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck', '\u05d5\u05d9', '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df \u05d5\u05d9'],
+    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck'],
     '\u05d2\u05d5\u05dc\u05e3': ['\u05d2\u05d5\u05dc\u05e3', 'turtleneck'],
     '\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd': ['\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd', 'buttons'],
     '\u05d7\u05d2\u05d5\u05e8\u05d4': ['\u05d7\u05d2\u05d5\u05e8\u05d4', 'belt'],
@@ -609,11 +604,6 @@ function analyzeQuery(query) {
 
 
   // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
-  // זיהוי "גיזרה A" / "גיזרת A" כמתרחבת - לפני שבירה למילים
-  if (/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa]\b/i.test(processedQuery) || /\b[Aa]\s*\u05dc\u05d9\u05d9\u05df/i.test(processedQuery)) {
-    if (!analysis.fit) analysis.fit = '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea';
-    processedQuery = processedQuery.replace(/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa]\b/gi, '').replace(/\b[Aa]\s*\u05dc\u05d9\u05d9\u05df/gi, '').trim();
-  }
   const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
   const usedRanges = []; // track which char ranges were matched by phrases
   
@@ -925,11 +915,12 @@ function adminAuth(req, res, next) {
     const [user, pass] = decoded.split(':');
     if (pass === ADMIN_PASSWORD) return next();
   }
-  // בדוק query param: ?pwd=xxx (לנוחות)
+  // בדוק query param: ?pwd=xxx — הגדר cookie ואז redirect לURL נקי (בלי סיסמה)
   if (req.query.pwd === ADMIN_PASSWORD) {
-    // שלח cookie session קצר
-    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/admin; HttpOnly; Max-Age=86400`);
-    return next();
+    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/admin; HttpOnly; Max-Age=31536000`);
+    const otherParams = Object.entries(req.query).filter(([k]) => k !== 'pwd');
+    const cleanUrl = req.path + (otherParams.length ? '?' + otherParams.map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&') : '');
+    return res.redirect(302, cleanUrl);
   }
   // בדוק cookie
   const cookies = req.headers.cookie || '';
@@ -1535,7 +1526,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'field and value required' });
 
     // שדות מותרים בלבד
-    const allowedFields = ['style', 'category', 'fit', 'fabric', 'pattern', 'color'];
+    const allowedFields = ['style', 'category', 'fit', 'fabric', 'pattern'];
     if (!allowedFields.includes(field))
       return res.status(400).json({ error: 'Invalid field: ' + field });
 

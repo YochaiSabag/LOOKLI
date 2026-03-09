@@ -917,7 +917,7 @@ function adminAuth(req, res, next) {
   }
   // בדוק query param: ?pwd=xxx — הגדר cookie ואז redirect לURL נקי (בלי סיסמה)
   if (req.query.pwd === ADMIN_PASSWORD) {
-    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/admin; HttpOnly; Max-Age=31536000`);
+    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/; HttpOnly; Max-Age=31536000`);
     const otherParams = Object.entries(req.query).filter(([k]) => k !== 'pwd');
     const cleanUrl = req.path + (otherParams.length ? '?' + otherParams.map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&') : '');
     return res.redirect(302, cleanUrl);

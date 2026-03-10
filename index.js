@@ -1613,8 +1613,8 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       // הוסף לfits[] בדיוק כמו design_details — ללא דריסה
       result = await pool.query(
         `UPDATE products SET
-          fit = $1,
-          fits = (SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, CASE WHEN fit IS NOT NULL THEN ARRAY[fit] ELSE '{}'::text[] END), $1)) v)
+          fit = $1::text,
+          fits = (SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, CASE WHEN fit IS NOT NULL THEN ARRAY[fit::text] ELSE ARRAY[]::text[] END), $1::text)) v)
         WHERE id = ANY($2::int[]) RETURNING id`,
         [value.trim(), numIds]
       );

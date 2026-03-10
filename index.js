@@ -1097,6 +1097,77 @@ app.get("/admin/sponsored", adminAuth, (req, res) => {
 });
 
 
+// ===== ADMIN: TEST ALERT =====
+// POST /api/admin/test-alert — שלח מייל בדיקה לעצמך
+app.post('/api/admin/test-alert', adminAuth, async (req, res) => {
+  try {
+    // שלוף משתמש ראשון עם התראה פעילה
+    const r = await pool.query(`
+      SELECT pa.*, u.email AS user_email, p.title, p.image_url, p.store, p.price, p.source_url
+      FROM price_alerts pa
+      JOIN users u ON u.id = pa.user_id
+      LEFT JOIN products p ON p.source_url = pa.product_source_url
+      WHERE pa.active = true LIMIT 1
+    `);
+    if (r.rows.length === 0) return res.json({ ok: false, msg: 'אין התראות פעילות' });
+    const a = r.rows[0];
+
+    const BREVO_KEY  = process.env.BREVO_API_KEY;
+    const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
+    const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
+
+    if (!BREVO_KEY) return res.json({ ok: false, msg: 'חסר BREVO_API_KEY' });
+
+    // שלח מייל בדיקה
+    const html = buildAlertEmail({
+      type: 'price', title: a.title || 'מוצר בדיקה',
+      image: a.image_url, store: a.store,
+      oldVal: a.price ? (parseFloat(a.price)+50).toFixed(0) : '200',
+      newVal: a.price ? parseFloat(a.price).toFixed(0) : '150',
+      url: a.source_url || SITE_URL,
+      siteUrl: SITE_URL
+    });
+
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
+        to: [{ email: a.user_email }],
+        subject: '🧪 בדיקה — מייל התראת LOOKLI',
+        htmlContent: html
+      })
+    });
+    if (resp.ok) res.json({ ok: true, sent_to: a.user_email, product: a.title });
+    else { const e = await resp.json(); res.json({ ok: false, error: e }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// helper לבניית מייל (גרסה inline לroute הזה)
+function buildAlertEmail({ type, title, image, store, oldVal, newVal, url, siteUrl }) {
+  const isPrice = type === 'price';
+  const body = isPrice
+    ? \`<p style="font-size:16px">המחיר של <strong>\${title}</strong> ירד!</p>
+       <p style="font-size:22px;color:#e0a1c0;font-weight:900">₪\${newVal} <span style="text-decoration:line-through;font-size:14px;color:#999">₪\${oldVal}</span></p>\`
+    : \`<p style="font-size:16px">מידה <strong>\${newVal}</strong> של <strong>\${title}</strong> חזרה למלאי!</p>\`;
+  return \`<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
+  <body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;direction:rtl">
+    <div style="max-width:520px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+      <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:24px 28px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#fff">LOOKLI</div>
+      </div>
+      <div style="padding:28px">
+        \${image ? \`<img src="\${image}" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:20px"/>\` : ''}
+        \${body}
+        <a href="\${url}" style="display:block;margin-top:20px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">לרכישה ←</a>
+      </div>
+      <div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">
+        קיבלת מייל זה כי הגדרת התראה ב-LOOKLI
+      </div>
+    </div>
+  </body></html>\`;
+}
+
 // ===== GOOGLE OAUTH =====
 
 // GET /auth/google — redirect לגוגל
@@ -1739,5 +1810,52 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[]`);
     await pool.query(`UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND (fits IS NULL OR fits = '{}')`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_fits ON products USING gin(fits)`);
+    // ── users table ──────────────────────────────────────────────
+    await pool.query(`CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash TEXT,
+      name VARCHAR(200),
+      google_id VARCHAR(100),
+      avatar TEXT,
+      plan VARCHAR(20) DEFAULT 'free',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id) WHERE google_id IS NOT NULL`);
+
+    // ── saved_products table ──────────────────────────────────────
+    await pool.query(`CREATE TABLE IF NOT EXISTS saved_products (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      product_source_url TEXT NOT NULL,
+      product_title TEXT,
+      product_price DECIMAL(10,2),
+      product_image TEXT,
+      product_store VARCHAR(100),
+      saved_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id, product_source_url)
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_saved_user ON saved_products(user_id)`);
+
+    // ── price_alerts table ────────────────────────────────────────
+    await pool.query(`CREATE TABLE IF NOT EXISTS price_alerts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      product_source_url TEXT NOT NULL,
+      product_id INTEGER,
+      alert_price BOOLEAN DEFAULT false,
+      alert_size VARCHAR(20),
+      last_price DECIMAL(10,2),
+      last_sizes TEXT[],
+      active BOOLEAN DEFAULT true,
+      triggered_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id, product_source_url)
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(active) WHERE active=true`);
+
   } catch(e) { console.error('clicks table init:', e.message); }
 });

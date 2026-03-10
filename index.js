@@ -1143,31 +1143,23 @@ app.post('/api/admin/test-alert', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// helper לבניית מייל (גרסה inline לroute הזה)
+// helper לבניית מייל
 function buildAlertEmail({ type, title, image, store, oldVal, newVal, url, siteUrl }) {
   const isPrice = type === 'price';
-  const body = isPrice
-    ? \`<p style="font-size:16px">המחיר של <strong>\${title}</strong> ירד!</p>
-       <p style="font-size:22px;color:#e0a1c0;font-weight:900">₪\${newVal} <span style="text-decoration:line-through;font-size:14px;color:#999">₪\${oldVal}</span></p>\`
-    : \`<p style="font-size:16px">מידה <strong>\${newVal}</strong> של <strong>\${title}</strong> חזרה למלאי!</p>\`;
-  return \`<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
-  <body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;direction:rtl">
-    <div style="max-width:520px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-      <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:24px 28px;text-align:center">
-        <div style="font-size:28px;font-weight:900;color:#fff">LOOKLI</div>
-      </div>
-      <div style="padding:28px">
-        \${image ? \`<img src="\${image}" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:20px"/>\` : ''}
-        \${body}
-        <a href="\${url}" style="display:block;margin-top:20px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">לרכישה ←</a>
-      </div>
-      <div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">
-        קיבלת מייל זה כי הגדרת התראה ב-LOOKLI
-      </div>
-    </div>
-  </body></html>\`;
+  const imgHtml = image ? '<img src="' + image + '" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:20px"/>' : '';
+  const bodyHtml = isPrice
+    ? '<p style="font-size:16px">המחיר של <strong>' + title + '</strong> ירד!</p><p style="font-size:22px;color:#e0a1c0;font-weight:900">₪' + newVal + ' <span style="text-decoration:line-through;font-size:14px;color:#999">₪' + oldVal + '</span></p>'
+    : '<p style="font-size:16px">מידה <strong>' + newVal + '</strong> של <strong>' + title + '</strong> חזרה למלאי!</p>';
+  return '<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>'
+    + '<body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;direction:rtl">'
+    + '<div style="max-width:520px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">'
+    + '<div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:24px 28px;text-align:center">'
+    + '<div style="font-size:28px;font-weight:900;color:#fff">LOOKLI</div></div>'
+    + '<div style="padding:28px">' + imgHtml + bodyHtml
+    + '<a href="' + url + '" style="display:block;margin-top:20px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">לרכישה \u2190</a>'
+    + '</div><div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">'
+    + 'קיבלת מייל זה כי הגדרת התראה ב-LOOKLI</div></div></body></html>';
 }
-
 // ===== GOOGLE OAUTH =====
 
 // GET /auth/google — redirect לגוגל

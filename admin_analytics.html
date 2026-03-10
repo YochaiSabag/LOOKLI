@@ -265,7 +265,8 @@
         <option value="28" selected>28 ימים אחרונים</option>
         <option value="90">90 ימים אחרונים</option>
       </select>
-      <button onclick="testAlert()" style="padding:8px 14px;background:#c48cb3;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מייל התראה</button>
+      <button onclick="testAlert('price')" style="padding:8px 14px;background:#c48cb3;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מחיר</button>
+      <button onclick="testAlert('size')" style="padding:8px 14px;background:#7c6fcf;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מידה</button>
       <span class="badge">GA4</span>
     </div>
   </div>
@@ -388,14 +389,16 @@ function esc(s) {
 
 loadData();
 
-  async function testAlert() {
+  async function testAlert(type) {
     const pwd = new URLSearchParams(location.search).get('pwd') || '';
     const r = await fetch('/api/admin/test-alert' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
-      method: 'POST', credentials: 'include'
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type })
     });
     const d = await r.json();
-    if (d.ok) alert('✅ מייל בדיקה נשלח ל: ' + d.sent_to + '\nמוצר: ' + d.product);
-    else alert('❌ ' + (d.msg || d.error || 'שגיאה'));
+    if (d.ok) alert('✅ מייל ' + (type==='price'?'מחיר':'מידה') + ' נשלח ל: ' + d.sent_to + '\nמוצר: ' + d.product);
+    else alert('❌ ' + (d.msg || JSON.stringify(d.error) || 'שגיאה'));
   }
 </script>
 </body>

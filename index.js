@@ -1101,32 +1101,44 @@ app.get("/admin/sponsored", adminAuth, (req, res) => {
 // POST /api/admin/test-alert — שלח מייל בדיקה לעצמך
 app.post('/api/admin/test-alert', adminAuth, async (req, res) => {
   try {
-    // שלוף משתמש ראשון עם התראה פעילה
+    const { type = 'price' } = req.body; // type: 'price' | 'size'
+
     const r = await pool.query(`
-      SELECT pa.*, u.email AS user_email, p.title, p.image_url, p.store, p.price, p.source_url
+      SELECT pa.*, u.email AS user_email,
+             p.title, p.image_url, p.store, p.price, p.sizes, p.source_url
       FROM price_alerts pa
       JOIN users u ON u.id = pa.user_id
       LEFT JOIN products p ON p.source_url = pa.product_source_url
-      WHERE pa.active = true LIMIT 1
-    `);
-    if (r.rows.length === 0) return res.json({ ok: false, msg: 'אין התראות פעילות' });
-    const a = r.rows[0];
+      WHERE pa.active = true
+        AND (($1 = 'price' AND pa.alert_price = true)
+          OR ($1 = 'size'  AND pa.alert_size IS NOT NULL))
+      LIMIT 1
+    `, [type]);
 
+    if (r.rows.length === 0)
+      return res.json({ ok: false, msg: 'אין התראת ' + type + ' פעילה. הגדר קודם התראה מהסוג הזה.' });
+
+    const a = r.rows[0];
     const BREVO_KEY  = process.env.BREVO_API_KEY;
     const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
     const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
-
     if (!BREVO_KEY) return res.json({ ok: false, msg: 'חסר BREVO_API_KEY' });
 
-    // שלח מייל בדיקה
-    const html = buildAlertEmail({
-      type: 'price', title: a.title || 'מוצר בדיקה',
-      image: a.image_url, store: a.store,
-      oldVal: a.price ? (parseFloat(a.price)+50).toFixed(0) : '200',
-      newVal: a.price ? parseFloat(a.price).toFixed(0) : '150',
-      url: a.source_url || SITE_URL,
-      siteUrl: SITE_URL
-    });
+    let subject, html;
+    if (type === 'size') {
+      const testSize = (a.alert_size === 'any')
+        ? ((a.sizes && a.sizes[0]) || 'M')
+        : a.alert_size;
+      subject = '🧪 בדיקה — מידה חזרה למלאי! ' + (a.title || '');
+      html = buildAlertEmail({ type: 'size', title: a.title || 'מוצר', image: a.image_url,
+        store: a.store, newVal: testSize, url: a.source_url || SITE_URL, siteUrl: SITE_URL });
+    } else {
+      const fakeOld = a.price ? (parseFloat(a.price) + 50).toFixed(0) : '200';
+      const fakeNew = a.price ? parseFloat(a.price).toFixed(0) : '150';
+      subject = '🧪 בדיקה — המחיר ירד! ' + (a.title || '');
+      html = buildAlertEmail({ type: 'price', title: a.title || 'מוצר', image: a.image_url,
+        store: a.store, oldVal: fakeOld, newVal: fakeNew, url: a.source_url || SITE_URL, siteUrl: SITE_URL });
+    }
 
     const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -1134,14 +1146,14 @@ app.post('/api/admin/test-alert', adminAuth, async (req, res) => {
       body: JSON.stringify({
         sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
         to: [{ email: a.user_email }],
-        subject: '🧪 בדיקה — מייל התראת LOOKLI',
-        htmlContent: html
+        subject, htmlContent: html
       })
     });
-    if (resp.ok) res.json({ ok: true, sent_to: a.user_email, product: a.title });
+    if (resp.ok) res.json({ ok: true, type, sent_to: a.user_email, product: a.title });
     else { const e = await resp.json(); res.json({ ok: false, error: e }); }
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
 
 // helper לבניית מייל
 function buildAlertEmail({ type, title, image, store, oldVal, newVal, url, siteUrl }) {

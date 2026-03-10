@@ -280,6 +280,9 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
         <button class="field-btn" data-field="color" onclick="selectField('color',this)">
           <span class="field-icon">🌈</span> צבע
         </button>
+        <button class="field-btn" data-field="design_details" onclick="selectField('design_details',this)">
+          <span class="field-icon">✂️</span> עיצוב
+        </button>
       </div>
     </div>
 
@@ -301,6 +304,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       </button>
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
+      <button class="clear-btn" id="clearDesignBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearDesign()">נקה עיצוב לנבחרים</button>
     </div>
 
   </aside>
@@ -349,6 +353,7 @@ const PRESETS = {
   fabric: ["ז'מס",'סריג','שיפון','כותנה','סאטן','תחרה','קטיפה','אריג',"ג'רסי",'פשתן','משי','צמר','עור','פרווה','לייקרה','טריקו','רשת'],
   pattern: ['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי'],
   color: ['שחור','לבן','שמנת','כחול','תכלת','אדום','בורדו','ירוק','זית','חאקי','חום','קאמל','בז׳','ניוד','אפור','ורוד','סגול','לילך','צהוב','חרדל','כתום','זהב','כסף','פרחוני','צבעוני','מנטה','אפרסק','אבן'],
+  design_details: ['צווארון V','צווארון עגול','צווארון גבוה','גולף','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','שסע','מעטפת','חשוף כתפיים'],
 };
 
 // ─── Init ───
@@ -392,8 +397,12 @@ function applyFilter() {
   filtered = allProducts.filter(p => {
     if (q && !p.title?.toLowerCase().includes(q)) return false;
     if (store && p.store !== store) return false;
-    const fieldVal = p[currentField];
-    const isUntagged = !fieldVal || fieldVal === 'אחר';
+    const fieldVal = currentField === 'design_details'
+      ? (p.design_details && p.design_details.length > 0 ? p.design_details.join(', ') : null)
+      : currentField === 'fit'
+        ? (p.fits && p.fits.length > 0 ? p.fits.join(', ') : p.fit)
+        : p[currentField];
+    const isUntagged = !fieldVal || fieldVal === 'אחר' || fieldVal === '';
     if (fieldF === 'untagged' && !isUntagged) return false;
     if (fieldF === 'tagged' && isUntagged) return false;
     return true;
@@ -439,7 +448,11 @@ function renderGrid() {
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
           ${p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : (!p.color || p.color === 'אחר' ? '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>' : '')}
-          ${currentField === 'fit' && p.fits && p.fits.length > 0 ? p.fits.map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('') : (fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : '')}
+          ${currentField === 'fit' && p.fits && p.fits.length > 0
+            ? p.fits.map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('')
+            : currentField === 'design_details' && p.design_details && p.design_details.length > 0
+              ? p.design_details.map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4">${escHtml(d)}</span>`).join('')
+              : (fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : '')}
         </div>
         <div class="card-store">${escHtml(store)}</div>
       </div>
@@ -521,6 +534,23 @@ function updateSelectionUI() {
 }
 
 // ─── Field selector ───
+async function clearDesign() {
+  if (selected.size === 0) return;
+  const ids = [...selected];
+  const pwdParam = urlPwd ? `?pwd=${encodeURIComponent(urlPwd)}` : '';
+  const r = await fetch('/api/admin/tag-products/clear-design' + pwdParam, {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  });
+  const data = await r.json();
+  if (r.ok) {
+    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) p.design_details = []; });
+    showToast(`ניקוי עיצוב ל-${ids.length} מוצרים`, 'success');
+    clearSelection(); applyFilter();
+  } else showToast('שגיאה: ' + data.error, 'error');
+}
+
 async function clearFits() {
   if (selected.size === 0) return;
   const ids = [...selected];
@@ -547,6 +577,7 @@ function selectField(field, btn) {
   document.getElementById('valueInput').value = '';
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
+  document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
   applyFilter();
   updateSelectionUI();
 }

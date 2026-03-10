@@ -1575,6 +1575,20 @@ app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
   }
 });
 
+// ─── Admin: Clear design_details ────────────────────────────────────────────
+app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'ids required' });
+    const numIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
+    const result = await pool.query(
+      `UPDATE products SET design_details = '{}' WHERE id = ANY($1::int[]) RETURNING id`,
+      [numIds]
+    );
+    res.json({ ok: true, cleared: result.rowCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Admin: Tag products API ─────────────────────────────────────────────────
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   try {
@@ -1585,7 +1599,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'field and value required' });
 
     // שדות מותרים בלבד
-    const allowedFields = ['style', 'category', 'fit', 'fabric', 'pattern', 'color'];
+    const allowedFields = ['style', 'category', 'fit', 'fabric', 'pattern', 'color', 'design_details'];
     if (!allowedFields.includes(field))
       return res.status(400).json({ error: 'Invalid field: ' + field });
 
@@ -1596,11 +1610,24 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
 
     let result;
     if (field === 'fit') {
-      // fit: עדכן גם fit (ישן) וגם fits[] (חדש - multi-value)
-      // array_append מוסיף רק אם לא קיים
+      try {
+        result = await pool.query(
+          `UPDATE products SET fit = $1, fits = (
+            SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, '{}'), $1)) v
+          ) WHERE id = ANY($2::int[]) RETURNING id`,
+          [value.trim(), numIds]
+        );
+      } catch(e) {
+        result = await pool.query(
+          `UPDATE products SET fit = $1 WHERE id = ANY($2::int[]) RETURNING id`,
+          [value.trim(), numIds]
+        );
+      }
+    } else if (field === 'design_details') {
+      // design_details הוא TEXT[] — הוסף ערך למערך (ללא כפילויות)
       result = await pool.query(
-        `UPDATE products SET fit = $1, fits = (
-          SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, '{}'), $1)) v
+        `UPDATE products SET design_details = (
+          SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(design_details, '{}'), $1)) v
         ) WHERE id = ANY($2::int[]) RETURNING id`,
         [value.trim(), numIds]
       );

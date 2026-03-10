@@ -144,7 +144,7 @@ app.get("/api/filters", async (req, res) => {
       }
     }
     if (color) { 
-      const LIGHT_COLORS = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      const LIGHT_COLORS = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה', "בז'", 'ניוד'];
       let colors = color.split(',').filter(Boolean);
       // "בהיר" → הרחב לכל הצבעים הבהירים
       if (colors.includes('בהיר')) {
@@ -224,7 +224,7 @@ app.get("/api/products", async (req, res) => {
     if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
     
     if (color) { 
-      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה', "בז'", 'ניוד'];
       let colors = color.split(',').filter(Boolean);
       if (colors.includes('בהיר')) {
         colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS2])];
@@ -514,7 +514,7 @@ function analyzeQuery(query) {
     '\u05d7\u05d5\u05dd': ['\u05d7\u05d5\u05dd', '\u05d7\u05d5\u05de\u05d4'], 
     '\u05d1\u05d6\u05f3': ['\u05d1\u05d6\u05f3', '\u05d1\u05d6', '\u05e0\u05d9\u05d5\u05d3'], 
     '\u05d0\u05e4\u05d5\u05e8': ['\u05d0\u05e4\u05d5\u05e8', '\u05d0\u05e4\u05d5\u05e8\u05d4'], 
-    '\u05d5\u05e8\u05d5\u05d3': ['\u05d5\u05e8\u05d5\u05d3', '\u05d5\u05e8\u05d5\u05d3\u05d4'], 
+    '\u05d5\u05e8\u05d5\u05d3': ['\u05d5\u05e8\u05d5\u05d3', '\u05d5\u05e8\u05d5\u05d3\u05d4', '\u05e4\u05d5\u05d3\u05e8\u05d4', 'powder', 'pink', '\u05e4\u05d5\u05e7\u05e1\u05d9\u05d4'], 
     '\u05d1\u05d5\u05e8\u05d3\u05d5': ['\u05d1\u05d5\u05e8\u05d3\u05d5'], 
     '\u05e9\u05de\u05e0\u05ea': ['\u05e9\u05de\u05e0\u05ea', 'cream'], 
     '\u05e1\u05d2\u05d5\u05dc': ['\u05e1\u05d2\u05d5\u05dc', '\u05e1\u05d2\u05d5\u05dc\u05d4', '\u05dc\u05d9\u05dc\u05da'],
@@ -624,9 +624,9 @@ function analyzeQuery(query) {
 
   // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
   // גיזרה A / a-line → מתרחבת
-  if (/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa]\b/i.test(processedQuery) || /\ba[\s-]line\b/i.test(processedQuery)) {
+  if (/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa\u05d0\u05d9]\b/i.test(processedQuery) || /\ba[\s-]?line\b/i.test(processedQuery) || /\u05d0\u05d9\u05d9?\s*\u05dc\u05d9\u05d9\u05df/i.test(processedQuery)) {
     if (!analysis.fit) analysis.fit = '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea';
-    processedQuery = processedQuery.replace(/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa]\b/gi,'').replace(/\ba[\s-]line\b/gi,'').trim();
+    processedQuery = processedQuery.replace(/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa\u05d0\u05d9]\b/gi,'').replace(/\ba[\s-]?line\b/gi,'').replace(/\u05d0\u05d9\u05d9?\s*\u05dc\u05d9\u05d9\u05df/gi,'').trim();
   }
     const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
   const usedRanges = []; // track which char ranges were matched by phrases
@@ -645,6 +645,12 @@ function analyzeQuery(query) {
     'צווארון סירה': 'צווארון סירה'
   };
   
+  // טי שרט / טי שארט → חולצה (לפני פירוק למילים)
+  if (/\u05d8\u05d9\s*\u05e9[\u05e8\u05d0]\u05d8/.test(processedQuery) || /t[\s-]?shirt/i.test(processedQuery)) {
+    if (!analysis.category) analysis.category = '\u05d7\u05d5\u05dc\u05e6\u05d4';
+    processedQuery = processedQuery.replace(/\u05d8\u05d9\s*\u05e9[\u05e8\u05d0]\u05d8/g,'').replace(/t[\s-]?shirt/gi,'').trim();
+  }
+
   for (const [phrase, designName] of Object.entries(multiWordDesign)) {
     if (fullText.includes(phrase)) {
       analysis.designDetails.push(designName);

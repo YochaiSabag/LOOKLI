@@ -1392,16 +1392,16 @@ function removeFilter(type){
 
 function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
 
-function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
+function selectStore(s){checkHideHero();activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
 function selectCategory(c){checkHideHero();if(!c){activeCategory='';activeCategories=[];}else{activeCategory='';var idx=activeCategories.indexOf(c);if(idx!==-1)activeCategories.splice(idx,1);else activeCategories.push(c);}renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectColor(c){checkHideHero();if(!c){activeColor='';activeColors=[];}else{activeColor='';var idx=activeColors.indexOf(c);if(idx!==-1)activeColors.splice(idx,1);else activeColors.push(c);}renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
 function selectSize(s){checkHideHero();if(!s){activeSize='';activeSizes=[];}else{activeSize='';var idx=activeSizes.indexOf(s);if(idx!==-1)activeSizes.splice(idx,1);else activeSizes.push(s);}renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectStyle(s){checkHideHero();if(!s){activeStyle='';activeStyles=[];}else{activeStyle='';var idx=activeStyles.indexOf(s);if(idx!==-1)activeStyles.splice(idx,1);else activeStyles.push(s);}renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectFit(f){checkHideHero();if(!f){activeFit='';activeFits=[];}else{activeFit='';var idx=activeFits.indexOf(f);if(idx!==-1)activeFits.splice(idx,1);else activeFits.push(f);}renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectFabric(f){checkHideHero();if(!f){activeFabric='';activeFabrics=[];}else{activeFabric='';var idx=activeFabrics.indexOf(f);if(idx!==-1)activeFabrics.splice(idx,1);else activeFabrics.push(f);}renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
+function selectPattern(p){checkHideHero();activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDesign(d){checkHideHero();activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDiscount(d){checkHideHero();activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
 
 // === Multi-Select Modal ===
 var msCurrentType='';

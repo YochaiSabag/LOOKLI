@@ -398,7 +398,7 @@ function applyFilter() {
     if (q && !p.title?.toLowerCase().includes(q)) return false;
     if (store && p.store !== store) return false;
     const fieldVal = currentField === 'design_details'
-      ? (p.design_details && p.design_details.length > 0 ? p.design_details.join(', ') : null)
+      ? (p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details) ? (Array.isArray(p.design_details) ? p.design_details.join(', ') : p.design_details) : null)
       : currentField === 'fit'
         ? (p.fits && p.fits.length > 0 ? p.fits.join(', ') : p.fit)
         : p[currentField];
@@ -448,10 +448,10 @@ function renderGrid() {
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
           ${p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : (!p.color || p.color === 'אחר' ? '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>' : '')}
-          ${currentField === 'fit' && p.fits && p.fits.length > 0
-            ? p.fits.map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('')
-            : currentField === 'design_details' && p.design_details && p.design_details.length > 0
-              ? p.design_details.map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4">${escHtml(d)}</span>`).join('')
+          ${currentField === 'fit' && p.fits && (Array.isArray(p.fits) ? p.fits.length > 0 : p.fits)
+            ? (Array.isArray(p.fits) ? p.fits : [p.fits]).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('')
+            : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)
+              ? (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4">${escHtml(d)}</span>`).join('')
               : (fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : '')}
         </div>
         <div class="card-store">${escHtml(store)}</div>
@@ -631,9 +631,19 @@ async function applyTag() {
     if (!r.ok) throw new Error(data.error || 'שגיאה');
 
     // עדכן local state
+    const ARRAY_FIELDS = ['fit', 'fits', 'design_details'];
     ids.forEach(id => {
       const p = allProducts.find(x => x.id === id);
-      if (p) p[currentField] = currentValue.trim();
+      if (!p) return;
+      if (currentField === 'fit') {
+        p.fit = currentValue.trim();
+        p.fits = [...new Set([...(p.fits || []), currentValue.trim()])];
+      } else if (currentField === 'design_details') {
+        const dd = Array.isArray(p.design_details) ? p.design_details : (p.design_details ? [p.design_details] : []);
+        p.design_details = [...new Set([...dd, currentValue.trim()])];
+      } else {
+        p[currentField] = currentValue.trim();
+      }
     });
 
     showToast(`✅ עודכנו ${ids.length} מוצרים → ${currentField}: "${currentValue}"`, 'success');

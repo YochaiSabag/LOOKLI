@@ -534,6 +534,10 @@
     .auth-btn .auth-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
     /* ===== AUTH MODAL ===== */
+    .google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;border:1.5px solid #e0e0e0;border-radius:10px;background:#fff;color:#3c4043;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:box-shadow .15s,background .15s;margin-bottom:4px}
+    .google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);background:#f8f8f8}
+    .auth-divider{display:flex;align-items:center;gap:10px;color:#9ca3af;font-size:12px;margin:12px 0}
+    .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:#e5e7eb}
     .auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
     .auth-modal-bg.open{display:flex}
     .auth-modal{background:#fff;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
@@ -1786,6 +1790,12 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         </div>
         <div class="auth-error" id="authError"></div>
         <div class="auth-success" id="authSuccess"></div>
+        <!-- Google login -->
+        <a href="/auth/google" class="google-btn" id="googleAuthBtn">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+          המשך עם Google
+        </a>
+        <div class="auth-divider"><span>או</span></div>
         <!-- Login form -->
         <div id="loginForm">
           <div class="auth-field">
@@ -1862,6 +1872,26 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   // ===== AUTH STATE =====
   let currentUser = null;
   let savedUrls = new Set();
+
+  // טפל בredirect מ-Google OAuth
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const t = p.get('auth_token'), n = p.get('auth_name'), e = p.get('auth_error');
+    if (t) {
+      localStorage.setItem('lookli_token', t);
+      if (n) localStorage.setItem('lookli_user_name', decodeURIComponent(n));
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    if (e) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setTimeout(() => {
+        openAuthModal();
+        const el = document.getElementById('authError');
+        if (el) { el.textContent = 'שגיאת Google: ' + decodeURIComponent(e); el.style.display='block'; }
+      }, 400);
+    }
+  })();
+
   let authToken = localStorage.getItem('lookli_token') || null;
 
   // Init on load

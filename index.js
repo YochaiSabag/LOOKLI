@@ -1097,6 +1097,78 @@ app.get("/admin/sponsored", adminAuth, (req, res) => {
 });
 
 
+// ===== GOOGLE OAUTH =====
+
+// GET /auth/google — redirect לגוגל
+app.get('/auth/google', (req, res) => {
+  const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+  if (!CLIENT_ID) return res.status(500).send('GOOGLE_CLIENT_ID חסר ב-Railway Variables');
+  const redirect = encodeURIComponent(process.env.GOOGLE_REDIRECT_URI || 'https://lookli-production.up.railway.app/auth/google/callback');
+  const scope = encodeURIComponent('openid email profile');
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${redirect}&response_type=code&scope=${scope}&prompt=select_account`);
+});
+
+// GET /auth/google/callback — גוגל מחזיר code
+app.get('/auth/google/callback', async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.redirect('/?auth_error=no_code');
+
+  const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
+  const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+  const REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI || 'https://lookli-production.up.railway.app/auth/google/callback';
+
+  try {
+    // 1. החלף code ב-access_token
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, redirect_uri: REDIRECT_URI, grant_type: 'authorization_code' })
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) throw new Error('לא התקבל access_token');
+
+    // 2. שלוף פרטי משתמש מגוגל
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: 'Bearer ' + tokenData.access_token }
+    });
+    const profile = await profileRes.json();
+    const { id: googleId, email, name, picture } = profile;
+    if (!email) throw new Error('לא התקבל email מגוגל');
+
+    // 3. מצא או צור משתמש ב-DB
+    let user;
+    // נסה למצא לפי google_id
+    const byGoogle = await pool.query('SELECT * FROM users WHERE google_id=$1', [googleId]);
+    if (byGoogle.rows.length > 0) {
+      user = byGoogle.rows[0];
+      // עדכן avatar/name אם השתנה
+      await pool.query('UPDATE users SET avatar=$1, name=COALESCE(name,$2), updated_at=NOW() WHERE id=$3', [picture, name, user.id]);
+    } else {
+      // נסה למצא לפי email (משתמש רשום ידנית)
+      const byEmail = await pool.query('SELECT * FROM users WHERE email=$1', [email.toLowerCase()]);
+      if (byEmail.rows.length > 0) {
+        user = byEmail.rows[0];
+        await pool.query('UPDATE users SET google_id=$1, avatar=$2, updated_at=NOW() WHERE id=$3', [googleId, picture, user.id]);
+      } else {
+        // משתמש חדש
+        const ins = await pool.query(
+          'INSERT INTO users(email, name, google_id, avatar) VALUES($1,$2,$3,$4) RETURNING *',
+          [email.toLowerCase(), name, googleId, picture]
+        );
+        user = ins.rows[0];
+      }
+    }
+
+    // 4. צור JWT ו-redirect לדף הבית עם token
+    const token = createToken(user.id, user.email);
+    res.redirect(`/?auth_token=${encodeURIComponent(token)}&auth_name=${encodeURIComponent(user.name || user.email)}`);
+
+  } catch(err) {
+    console.error('Google auth error:', err.message);
+    res.redirect('/?auth_error=' + encodeURIComponent(err.message));
+  }
+});
+
 // ===== PRICE & STOCK ALERTS =====
 
 // GET /api/alerts — כל ההתראות של המשתמש
@@ -1659,6 +1731,10 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    // migration: google OAuth support
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`);
+    try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL`); } catch(e){}
     // migration: fits TEXT[] לגיזרות מרובות
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[]`);
     await pool.query(`UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND (fits IS NULL OR fits = '{}')`);

@@ -1610,19 +1610,14 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
 
     let result;
     if (field === 'fit') {
-      try {
-        result = await pool.query(
-          `UPDATE products SET fit = $1, fits = (
-            SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, '{}'), $1)) v
-          ) WHERE id = ANY($2::int[]) RETURNING id`,
-          [value.trim(), numIds]
-        );
-      } catch(e) {
-        result = await pool.query(
-          `UPDATE products SET fit = $1 WHERE id = ANY($2::int[]) RETURNING id`,
-          [value.trim(), numIds]
-        );
-      }
+      // הוסף לfits[] בדיוק כמו design_details — ללא דריסה
+      result = await pool.query(
+        `UPDATE products SET
+          fit = $1,
+          fits = (SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, CASE WHEN fit IS NOT NULL THEN ARRAY[fit] ELSE '{}'::text[] END), $1)) v)
+        WHERE id = ANY($2::int[]) RETURNING id`,
+        [value.trim(), numIds]
+      );
     } else if (field === 'design_details') {
       // design_details הוא TEXT[] — הוסף ערך למערך (ללא כפילויות)
       result = await pool.query(
@@ -1664,5 +1659,9 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    // migration: fits TEXT[] לגיזרות מרובות
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[]`);
+    await pool.query(`UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND (fits IS NULL OR fits = '{}')`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_fits ON products USING gin(fits)`);
   } catch(e) { console.error('clicks table init:', e.message); }
 });

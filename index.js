@@ -131,15 +131,17 @@ app.get("/api/filters", async (req, res) => {
     if (fit) {
       const fits = fit.split(',').filter(Boolean);
       if (fits.length > 1) {
-        baseWhere += ` AND fit = ANY($${paramIndex}::text[])`; baseParams.push(fits); paramIndex++;
+        // multi: תמיכה ב-fit ישן וב-fits[] חדש
+        baseWhere += ` AND (fit = ANY($${paramIndex}::text[]) OR fits && $${paramIndex}::text[])`;
+        baseParams.push(fits); paramIndex++;
       } else if (fits[0] === '\u05d0\u05e8\u05d5\u05db\u05d4') {
-        baseWhere += ` AND (fit = $${paramIndex} OR fit = '\u05d0\u05e8\u05d5\u05da' OR title ILIKE '%\u05de\u05e7\u05e1\u05d9%' OR title ILIKE '%maxi%')`;
+        baseWhere += ` AND (fit = $${paramIndex} OR fit = '\u05d0\u05e8\u05d5\u05da' OR $${paramIndex} = ANY(COALESCE(fits,'{}')) OR title ILIKE '%\u05de\u05e7\u05e1\u05d9%' OR title ILIKE '%maxi%')`;
         baseParams.push(fits[0]); paramIndex++;
       } else if (fits[0] === '\u05de\u05d9\u05d3\u05d9') {
-        baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE '%\u05de\u05d9\u05d3\u05d9%' OR title ILIKE '%midi%' OR title ILIKE '%\u05d0\u05de\u05e6\u05e2%')`;
+        baseWhere += ` AND (fit = $${paramIndex} OR $${paramIndex} = ANY(COALESCE(fits,'{}')) OR title ILIKE '%\u05de\u05d9\u05d3\u05d9%' OR title ILIKE '%midi%' OR title ILIKE '%\u05d0\u05de\u05e6\u05e2%')`;
         baseParams.push(fits[0]); paramIndex++;
       } else {
-        baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE $${paramIndex + 1})`;
+        baseWhere += ` AND (fit = $${paramIndex} OR $${paramIndex} = ANY(COALESCE(fits,'{}')) OR title ILIKE $${paramIndex + 1})`;
         baseParams.push(fits[0], `%${fits[0]}%`); paramIndex += 2;
       }
     }
@@ -170,7 +172,7 @@ app.get("/api/filters", async (req, res) => {
       pool.query(`SELECT DISTINCT unnest(sizes) AS size FROM products WHERE ${baseWhere} AND sizes IS NOT NULL`, baseParams),
       pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`, [...baseParams, ...baseParams]),
       pool.query(`SELECT DISTINCT style FROM products WHERE ${baseWhere} AND style IS NOT NULL AND style != '' ORDER BY style`, baseParams),
-      pool.query(`SELECT DISTINCT fit FROM products WHERE ${baseWhere} AND fit IS NOT NULL AND fit != '' ORDER BY fit`, baseParams),
+      pool.query(`SELECT DISTINCT unnest(COALESCE(fits, ARRAY[fit])) AS fit FROM products WHERE ${baseWhere} AND (fit IS NOT NULL OR fits IS NOT NULL) ORDER BY fit`, baseParams),
       pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`, baseParams),
       pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`, baseParams),
       pool.query(`SELECT DISTINCT pattern FROM products WHERE ${baseWhere} AND pattern IS NOT NULL AND pattern != '' ORDER BY pattern`, baseParams),
@@ -213,7 +215,7 @@ function expandSize(size) {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
     const params = [];
     let i = 1;
 
@@ -417,7 +419,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
     const params = [];
     let i = 1;
 
@@ -628,6 +630,11 @@ function analyzeQuery(query) {
     if (!analysis.fit) analysis.fit = '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea';
     processedQuery = processedQuery.replace(/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa\u05d0\u05d9]\b/gi,'').replace(/\ba[\s-]?line\b/gi,'').replace(/\u05d0\u05d9\u05d9?\s*\u05dc\u05d9\u05d9\u05df/gi,'').trim();
   }
+  // גיזרה "אי" / "איי ליין" → מתרחבת
+  if (/איי?\s*ליין/i.test(processedQuery) || /גיזר[הת]?\s*אי\b/.test(processedQuery)) {
+    if (!analysis.fit) analysis.fit = 'מתרחבת';
+    processedQuery = processedQuery.replace(/איי?\s*ליין/gi,'').replace(/גיזר[הת]?\s*אי\b/gi,'').trim();
+  }
     const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
   const usedRanges = []; // track which char ranges were matched by phrases
   
@@ -645,7 +652,12 @@ function analyzeQuery(query) {
     'צווארון סירה': 'צווארון סירה'
   };
   
-  // טי שרט / טי שארט → חולצה (לפני פירוק למילים)
+  // שמלת אירוח / חלוק → category חלוק
+  if (/שמלת?\s*אירוח|חלוק/i.test(processedQuery)) {
+    if (!analysis.category) analysis.category = 'חלוק';
+    processedQuery = processedQuery.replace(/שמלת?\s*אירוח/gi,'חלוק').trim();
+  }
+    // טי שרט / טי שארט → חולצה (לפני פירוק למילים)
   if (/\u05d8\u05d9\s*\u05e9[\u05e8\u05d0]\u05d8/.test(processedQuery) || /t[\s-]?shirt/i.test(processedQuery)) {
     if (!analysis.category) analysis.category = '\u05d7\u05d5\u05dc\u05e6\u05d4';
     processedQuery = processedQuery.replace(/\u05d8\u05d9\s*\u05e9[\u05e8\u05d0]\u05d8/g,'').replace(/t[\s-]?shirt/gi,'').trim();
@@ -1546,6 +1558,23 @@ app.get('/admin/tagger', adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_tagger.html'));
 });
 
+// ─── Admin: Clear fits ───────────────────────────────────────────────────────
+app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ error: 'ids required' });
+    const numIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
+    const result = await pool.query(
+      `UPDATE products SET fit = NULL, fits = '{}' WHERE id = ANY($1::int[]) RETURNING id`,
+      [numIds]
+    );
+    res.json({ ok: true, cleared: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Admin: Tag products API ─────────────────────────────────────────────────
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   try {
@@ -1565,10 +1594,22 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
     if (numIds.length === 0)
       return res.status(400).json({ error: 'No valid ids' });
 
-    const result = await pool.query(
-      `UPDATE products SET ${field} = $1 WHERE id = ANY($2::int[]) RETURNING id`,
-      [value.trim(), numIds]
-    );
+    let result;
+    if (field === 'fit') {
+      // fit: עדכן גם fit (ישן) וגם fits[] (חדש - multi-value)
+      // array_append מוסיף רק אם לא קיים
+      result = await pool.query(
+        `UPDATE products SET fit = $1, fits = (
+          SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, '{}'), $1)) v
+        ) WHERE id = ANY($2::int[]) RETURNING id`,
+        [value.trim(), numIds]
+      );
+    } else {
+      result = await pool.query(
+        `UPDATE products SET ${field} = $1 WHERE id = ANY($2::int[]) RETURNING id`,
+        [value.trim(), numIds]
+      );
+    }
 
     res.json({ ok: true, updated: result.rowCount, field, value });
   } catch (err) {

@@ -300,6 +300,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
         שמור תיוג
       </button>
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
+      <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
     </div>
 
   </aside>
@@ -438,7 +439,7 @@ function renderGrid() {
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
           ${p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : (!p.color || p.color === 'אחר' ? '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>' : '')}
-          ${fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : ''}
+          ${currentField === 'fit' && p.fits && p.fits.length > 0 ? p.fits.map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('') : (fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : '')}
         </div>
         <div class="card-store">${escHtml(store)}</div>
       </div>
@@ -520,6 +521,23 @@ function updateSelectionUI() {
 }
 
 // ─── Field selector ───
+async function clearFits() {
+  if (selected.size === 0) return;
+  const ids = [...selected];
+  const r = await fetch('/api/admin/tag-products/clear-fits' + (urlPwd ? `?pwd=${encodeURIComponent(urlPwd)}` : ''), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  });
+  const data = await r.json();
+  if (r.ok) {
+    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) { p.fit = null; p.fits = []; } });
+    showToast(`ניקוי גיזרות ל-${ids.length} מוצרים`, 'success');
+    clearSelection(); applyFilter();
+  } else showToast('שגיאה: ' + data.error, 'error');
+}
+
 function selectField(field, btn) {
   currentField = field;
   document.querySelectorAll('.field-btn').forEach(b => b.classList.remove('active'));
@@ -528,6 +546,7 @@ function selectField(field, btn) {
   currentValue = '';
   document.getElementById('valueInput').value = '';
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
+  document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
   applyFilter();
   updateSelectionUI();
 }

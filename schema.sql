@@ -85,3 +85,11 @@ CREATE TRIGGER update_products_updated_at
     BEFORE UPDATE ON products
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+-- Migration: fit → fits (TEXT array for multi-value support)
+DO $$ BEGIN
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[];
+  -- העתק ערכים קיימים
+  UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND fits IS NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_products_fits ON products USING gin(fits);

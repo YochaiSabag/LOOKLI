@@ -455,6 +455,40 @@ loadData();
   }
   fillAlertUrls();
 
+  async function runDbTest() {
+    const url   = document.getElementById('simUrl').value;
+    const price = document.getElementById('dbTestPrice').value;
+    const sizes = document.getElementById('dbTestSize').value;
+    if (!url) return alert('בחר מוצר מהרשימה');
+    if (!price && !sizes) return alert('הזן מחיר חדש או מידות חדשות');
+
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    const body = { product_source_url: url };
+    if (price) body.new_price = parseFloat(price);
+    if (sizes) body.new_sizes = sizes.split(',').map(s => s.trim()).filter(Boolean);
+
+    const r = await fetch('/api/admin/db-test-alert' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    const box = document.getElementById('dbTestResult');
+    if (d.ok) {
+      box.style.color = d.sent > 0 ? '#22c55e' : '#f59e0b';
+      box.textContent = 'נשלחו: ' + d.sent + ' התראות\n'
+        + (d.changes.price ? 'מחיר: ' + d.changes.price + '\n' : '')
+        + (d.changes.sizes ? 'מידות: ' + d.changes.sizes + '\n' : '')
+        + d.results.map(x => x.sent
+            ? '✅ ' + x.type + ' → ' + x.email
+            : '⚠️ ' + x.type + ': ' + x.reason
+          ).join('\n');
+    } else {
+      box.style.color = '#ef4444';
+      box.textContent = '❌ ' + (d.msg || d.error);
+    }
+  }
+
 </script>
 
 <!-- סימולציה -->
@@ -485,7 +519,20 @@ loadData();
   <button onclick="simulateChange()" style="width:100%;padding:10px;background:linear-gradient(135deg,#d191b0,#7c6fcf);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
     🚀 הפעל סימולציה ושלח מייל
   </button>
-  <pre id="simResult" style="margin-top:12px;font-size:12px;white-space:pre-wrap;font-family:inherit"></pre>
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">
+  <h4 style="margin:0 0 12px;color:#e2d9f3;font-size:13px">🔴 בדיקה אמיתית — שינוי ב-DB + הרצת התראות</h4>
+  <p style="font-size:11px;color:#9ca3af;margin:0 0 10px">משנה ערך בDB → בודק התראות → שולח מייל → מחזיר לערך המקורי</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <input id="dbTestPrice" type="number" placeholder="מחיר חדש (נמוך)" style="padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px"/>
+    <input id="dbTestSize" type="text" placeholder='מידות חדשות (M,L,XL)' style="padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px"/>
+  </div>
+  <button onclick="runDbTest()" style="width:100%;padding:10px;background:linear-gradient(135deg,#ef4444,#c026d3);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+    🔴 שנה DB + הרץ התראות אמיתיות
+  </button>
+  <pre id="dbTestResult" style="margin-top:10px;font-size:12px;white-space:pre-wrap;font-family:inherit;color:#22c55e"></pre>
+</div>
+
+<pre id="simResult" style="margin-top:12px;font-size:12px;white-space:pre-wrap;font-family:inherit"></pre>
 </div>
 
 </body>

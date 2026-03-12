@@ -434,8 +434,7 @@ loadData();
       box.textContent = d.results.map(r =>
         r.sent ? '✅ נשלח ל-' + r.email + ' (' + (r.type==='price' ? '₪'+r.oldVal+'→₪'+r.newVal : 'מידה '+r.newVal) + ')'
                : '⚠️ לא הופעל: ' + r.reason
-      ).join('
-');
+      ).join(' | ');
     } else {
       box.style.color = '#ef4444';
       box.textContent = '❌ ' + (d.msg || d.error || 'שגיאה');

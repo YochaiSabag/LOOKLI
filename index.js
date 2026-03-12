@@ -1261,6 +1261,55 @@ app.post('/api/admin/db-test-alert', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===== PREVIEW TOKENS =====
+
+// POST /api/admin/preview-token — יצירת קישור זמני
+app.post('/api/admin/preview-token', adminAuth, async (req, res) => {
+  try {
+    const { hours = 24, label = '' } = req.body;
+    const token = randomBytes(16).toString('hex');
+    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    await pool.query(
+      `INSERT INTO preview_tokens (token, label, expires_at) VALUES ($1, $2, $3)`,
+      [token, label, expiresAt]
+    );
+    const SITE_URL = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
+    res.json({ ok: true, token, expires_at: expiresAt,
+      url: SITE_URL + '/?preview=' + token });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/admin/preview-tokens — רשימת כל הטוקנים
+app.get('/api/admin/preview-tokens', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT * FROM preview_tokens ORDER BY created_at DESC LIMIT 50`);
+    res.json({ tokens: r.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/admin/preview-token/:token — ביטול טוקן
+app.delete('/api/admin/preview-token/:token', adminAuth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM preview_tokens WHERE token=$1`, [req.params.token]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/verify-preview — בדיקת טוקן מהclient
+app.get('/api/verify-preview', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.json({ valid: false });
+  try {
+    const r = await pool.query(
+      `SELECT * FROM preview_tokens WHERE token=$1 AND expires_at > NOW()`, [token]);
+    if (r.rows.length === 0) return res.json({ valid: false, reason: 'פג תוקף או לא קיים' });
+    // עדכן last_used
+    await pool.query(`UPDATE preview_tokens SET uses=uses+1, last_used=NOW() WHERE token=$1`, [token]);
+    res.json({ valid: true, expires_at: r.rows[0].expires_at, label: r.rows[0].label });
+  } catch(e) { res.status(500).json({ valid: false }); }
+});
+
 // ===== ADMIN: רשימת מוצרים עם התראות =====
 app.get('/api/admin/alert-urls', adminAuth, async (req, res) => {
   try {
@@ -2030,6 +2079,16 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`);
     try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL`); } catch(e){}
+    // migration: preview_tokens
+    await pool.query(`CREATE TABLE IF NOT EXISTS preview_tokens (
+      id SERIAL PRIMARY KEY,
+      token VARCHAR(64) UNIQUE NOT NULL,
+      label VARCHAR(200) DEFAULT '',
+      expires_at TIMESTAMP NOT NULL,
+      uses INTEGER DEFAULT 0,
+      last_used TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
     // migration: fits TEXT[] לגיזרות מרובות
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[]`);
     await pool.query(`UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND (fits IS NULL OR fits = '{}')`);

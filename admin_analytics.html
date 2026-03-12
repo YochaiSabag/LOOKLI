@@ -453,6 +453,68 @@ loadData();
         d.items.map(x => '<option value="'+x.url+'">'+x.title+' ('+x.store+')</option>').join('');
     } catch(e) {}
   }
+  // ── Preview Tokens ──
+  async function createPreviewToken() {
+    const label = document.getElementById('ptLabel').value.trim();
+    const hours = parseInt(document.getElementById('ptHours').value) || 24;
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    const r = await fetch('/api/admin/preview-token' + (pwd?'?pwd='+encodeURIComponent(pwd):''), {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, hours })
+    });
+    const d = await r.json();
+    const box = document.getElementById('ptResult');
+    if (d.ok) {
+      box.innerHTML = '<div style="background:#0f2a1a;border:1px solid #22c55e;border-radius:8px;padding:12px">'
+        + '<div style="color:#22c55e;font-weight:700;margin-bottom:6px">✅ קישור נוצר! תוקף עד: ' + new Date(d.expires_at).toLocaleString('he-IL') + '</div>'
+        + '<div style="display:flex;gap:8px;align-items:center">'
+        + '<input value="' + d.url + '" readonly style="flex:1;padding:6px 10px;background:#1a1a2e;border:1px solid #22c55e;border-radius:6px;color:#e2e8f0;font-size:12px"/>'
+        + '<button onclick="navigator.clipboard.writeText('' + d.url + '');this.textContent='✓ הועתק!'" style="padding:6px 12px;background:#22c55e;border:none;border-radius:6px;color:#000;font-weight:700;cursor:pointer;font-size:12px">העתק</button>'
+        + '</div></div>';
+      loadPreviewTokens();
+    } else {
+      box.innerHTML = '<div style="color:#ef4444">❌ ' + (d.error||'שגיאה') + '</div>';
+    }
+  }
+
+  async function loadPreviewTokens() {
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    try {
+      const r = await fetch('/api/admin/preview-tokens' + (pwd?'?pwd='+encodeURIComponent(pwd):''), { credentials: 'include' });
+      const d = await r.json();
+      const list = document.getElementById('ptList');
+      if (!d.tokens || d.tokens.length === 0) { list.textContent = 'אין קישורים פעילים'; return; }
+      const now = new Date();
+      list.innerHTML = '<table style="width:100%;border-collapse:collapse">'
+        + '<tr style="color:#6b7280;border-bottom:1px solid rgba(255,255,255,.05)">'
+        + '<th style="text-align:right;padding:6px 4px;font-weight:500">תיאור</th>'
+        + '<th style="text-align:right;padding:6px 4px;font-weight:500">תפוגה</th>'
+        + '<th style="text-align:right;padding:6px 4px;font-weight:500">שימושים</th>'
+        + '<th></th></tr>'
+        + d.tokens.map(t => {
+          const exp = new Date(t.expires_at);
+          const active = exp > now;
+          const hoursLeft = Math.max(0, Math.round((exp - now) / 36e5));
+          return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+            + '<td style="padding:7px 4px;color:' + (active?'#e2e8f0':'#6b7280') + '">' + (t.label||'—') + '</td>'
+            + '<td style="padding:7px 4px;color:' + (active?'#22c55e':'#ef4444') + '">' + (active ? 'עוד ' + hoursLeft + 'ש'' : 'פג תוקף') + '</td>'
+            + '<td style="padding:7px 4px;color:#9ca3af;text-align:center">' + (t.uses||0) + '</td>'
+            + '<td style="padding:7px 4px;text-align:left">'
+            + '<button onclick="deleteToken('' + t.token + '')" style="padding:3px 8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:4px;color:#ef4444;cursor:pointer;font-size:11px">ביטול</button>'
+            + '</td></tr>';
+        }).join('') + '</table>';
+    } catch(e) { document.getElementById('ptList').textContent = 'שגיאה בטעינה'; }
+  }
+
+  async function deleteToken(token) {
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    await fetch('/api/admin/preview-token/' + token + (pwd?'?pwd='+encodeURIComponent(pwd):''), {
+      method: 'DELETE', credentials: 'include' });
+    loadPreviewTokens();
+  }
+
+  loadPreviewTokens();
   fillAlertUrls();
 
   async function runDbTest() {
@@ -490,6 +552,24 @@ loadData();
   }
 
 </script>
+
+<!-- Preview Tokens -->
+<div style="margin:24px auto;max-width:700px;background:#1e1e2e;border-radius:14px;padding:24px;border:1px solid rgba(255,255,255,.08)">
+  <h3 style="margin:0 0 16px;color:#e2d9f3;font-size:15px">🔗 קישורי הצגה זמניים לחנויות</h3>
+  <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;margin-bottom:14px;align-items:end">
+    <div>
+      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">תיאור (לדוגמה: "חנות ליצ'י")</label>
+      <input id="ptLabel" placeholder="שם החנות / תיאור" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
+    </div>
+    <div>
+      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">שעות תוקף</label>
+      <input id="ptHours" type="number" value="24" min="1" max="720" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
+    </div>
+    <button onclick="createPreviewToken()" style="padding:8px 16px;background:linear-gradient(135deg,#d191b0,#c48cb3);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">+ צור קישור</button>
+  </div>
+  <div id="ptResult" style="margin-bottom:12px;font-size:13px"></div>
+  <div id="ptList" style="font-size:12px;color:#9ca3af">טוען...</div>
+</div>
 
 <!-- סימולציה -->
 <div style="margin:24px auto;max-width:700px;background:#1e1e2e;border-radius:14px;padding:24px;border:1px solid rgba(255,255,255,.08)">

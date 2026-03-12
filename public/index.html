@@ -1892,6 +1892,26 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     }
   })();
 
+  // ── Preview Token ──
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const token = p.get('preview');
+    if (!token) return;
+    sessionStorage.setItem('preview_token', token);
+    window.history.replaceState({}, '', window.location.pathname);
+    fetch('/api/verify-preview?token=' + encodeURIComponent(token))
+      .then(r => r.json())
+      .then(d => {
+        if (!d.valid) {
+          document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;direction:rtl;background:#f9f9f9">'
+            + '<div style="text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1)">'
+            + '<div style="font-size:48px;margin-bottom:16px">\u23F0</div>'
+            + '<h2 style="color:#1f2937;margin-bottom:8px">\u05E7\u05D9\u05E9\u05D5\u05E8 \u05D6\u05D4 \u05E4\u05D2 \u05EA\u05D5\u05E7\u05E3</h2>'
+            + '<p style="color:#6b7280">\u05D0\u05E0\u05D0 \u05D1\u05E7\u05E9\u05D9 \u05E7\u05D9\u05E9\u05D5\u05E8 \u05D7\u05D3\u05E9</p></div></div>';
+        }
+      }).catch(() => {});
+  })();
+
   let authToken = localStorage.getItem('lookli_token') || null;
 
   // Init on load

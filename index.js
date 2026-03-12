@@ -1092,6 +1092,10 @@ app.delete("/api/sponsored/:id", async (req,res) => {
 });
 
 // Serve admin UI
+app.get("/admin/tasks", adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_tasks.html'));
+});
+
 app.get("/admin/sponsored", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_sponsored.html'));
 });

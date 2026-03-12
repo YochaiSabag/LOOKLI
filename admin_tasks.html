@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOOKLI — משימות</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a26;
+  --surface3: #22223a;
+  --border: #2a2a3a;
+  --accent: #c084fc;
+  --accent2: #818cf8;
+  --green: #34d399;
+  --pink: #f472b6;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --text: #f1f0ff;
+  --muted: #6b7280;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(ellipse 60% 40% at 20% 10%,rgba(192,132,252,0.07) 0%,transparent 60%),
+  radial-gradient(ellipse 50% 30% at 80% 80%,rgba(129,140,248,0.05) 0%,transparent 60%);
+  pointer-events:none;z-index:0}
+
+.wrap{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:32px 20px}
+
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
+.logo{font-size:24px;font-weight:900;letter-spacing:-1px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-nav{display:flex;gap:8px}
+.nav-btn{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);
+  color:var(--muted);font-size:12px;font-family:inherit;cursor:pointer;text-decoration:none;
+  transition:all .2s}
+.nav-btn:hover{color:var(--text);border-color:var(--accent)}
+
+/* ── Toolbar ── */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.add-btn{display:flex;align-items:center;gap:6px;padding:9px 18px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;
+  font-family:inherit;cursor:pointer;transition:opacity .2s}
+.add-btn:hover{opacity:.85}
+.filter-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:3px}
+.filter-tab{padding:6px 14px;border-radius:7px;border:none;background:transparent;
+  color:var(--muted);font-size:12px;font-family:inherit;cursor:pointer;transition:all .2s;white-space:nowrap}
+.filter-tab.active{background:var(--surface3);color:var(--text);font-weight:600}
+.search-box{flex:1;min-width:160px;padding:8px 12px;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;
+  font-family:inherit;outline:none;transition:border-color .2s}
+.search-box:focus{border-color:var(--accent)}
+.search-box::placeholder{color:var(--muted)}
+.person-filter{padding:8px 12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:13px;font-family:inherit;outline:none;cursor:pointer}
+
+/* ── Stats bar ── */
+.stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:13px}
+.stat-dot{width:8px;height:8px;border-radius:50%}
+.stat-num{font-weight:700;font-size:16px}
+.stat-label{color:var(--muted);font-size:12px}
+
+/* ── Person sections ── */
+.person-section{margin-bottom:28px}
+.person-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;user-select:none}
+.person-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.person-name{font-weight:700;font-size:15px}
+.person-count{font-size:12px;color:var(--muted);background:var(--surface2);
+  padding:2px 8px;border-radius:20px}
+.person-toggle{margin-right:auto;color:var(--muted);font-size:12px;transition:transform .2s}
+.person-toggle.collapsed{transform:rotate(180deg)}
+
+/* ── Task cards ── */
+.tasks-list{display:flex;flex-direction:column;gap:8px}
+.task-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;display:flex;align-items:flex-start;gap:12px;
+  transition:all .2s;position:relative;overflow:hidden}
+.task-card:hover{border-color:rgba(192,132,252,.3);background:var(--surface2)}
+.task-card.done{opacity:.55}
+.task-card.done .task-title{text-decoration:line-through;color:var(--muted)}
+
+/* priority stripe */
+.task-card::before{content:'';position:absolute;right:0;top:0;bottom:0;width:3px;border-radius:0 12px 12px 0}
+.task-card.p-high::before{background:var(--red)}
+.task-card.p-medium::before{background:var(--yellow)}
+.task-card.p-low::before{background:var(--green)}
+
+.task-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);
+  flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .2s;margin-top:1px}
+.task-check:hover{border-color:var(--accent)}
+.task-card.done .task-check{background:var(--green);border-color:var(--green)}
+.task-check svg{display:none}
+.task-card.done .task-check svg{display:block}
+
+.task-body{flex:1;min-width:0}
+.task-title{font-size:14px;font-weight:500;line-height:1.4;margin-bottom:4px;word-break:break-word}
+.task-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.task-tag{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600}
+.tag-priority-high{background:rgba(248,113,113,.15);color:var(--red)}
+.tag-priority-medium{background:rgba(251,191,36,.15);color:var(--yellow)}
+.tag-priority-low{background:rgba(52,211,153,.15);color:var(--green)}
+.task-due{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:3px}
+.task-due.overdue{color:var(--red)}
+.task-due.today{color:var(--yellow)}
+.task-notes{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+
+.task-actions{display:flex;gap:4px;opacity:0;transition:opacity .2s;flex-shrink:0}
+.task-card:hover .task-actions{opacity:1}
+.task-action-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--muted);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .2s}
+.task-action-btn:hover{color:var(--text);border-color:var(--accent)}
+.task-action-btn.del:hover{color:var(--red);border-color:var(--red)}
+
+/* ── Modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;
+  align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:28px;width:100%;max-width:480px;position:relative}
+.modal h3{font-size:17px;font-weight:700;margin-bottom:20px}
+.modal-close{position:absolute;top:16px;left:16px;background:none;border:none;
+  color:var(--muted);cursor:pointer;font-size:18px;line-height:1;transition:color .2s}
+.modal-close:hover{color:var(--text)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;padding:9px 12px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:9px;
+  color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
+.field input:focus,.field select,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:70px}
+.field select{cursor:pointer}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.btn-save{padding:9px 22px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;border-radius:9px;color:#fff;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer}
+.btn-cancel{padding:9px 16px;background:none;border:1px solid var(--border);border-radius:9px;
+  color:var(--muted);font-size:13px;font-family:inherit;cursor:pointer;transition:all .2s}
+.btn-cancel:hover{color:var(--text);border-color:var(--text)}
+
+/* ── Empty ── */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty svg{opacity:.3;margin-bottom:12px}
+.empty p{font-size:14px}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--surface3);border:1px solid var(--border);border-radius:10px;
+  padding:10px 20px;font-size:13px;opacity:0;pointer-events:none;
+  transition:all .3s;z-index:200;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo">LOOKLI</div>
+    <div class="header-nav">
+      <a href="/admin/analytics" class="nav-btn">📊 אנליטיקס</a>
+      <a href="/admin/tagger" class="nav-btn">🏷️ טאגר</a>
+      <a href="/admin/sponsored" class="nav-btn">⭐ ממומן</a>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="add-btn" onclick="openModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      משימה חדשה
+    </button>
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="setFilter('all',this)">הכל</button>
+      <button class="filter-tab" onclick="setFilter('open',this)">פתוח</button>
+      <button class="filter-tab" onclick="setFilter('done',this)">הושלם</button>
+      <button class="filter-tab" onclick="setFilter('overdue',this)">באיחור</button>
+    </div>
+    <input class="search-box" id="searchBox" placeholder="חיפוש משימה..." oninput="render()"/>
+    <select class="person-filter" id="personFilter" onchange="render()">
+      <option value="">כל האנשים</option>
+    </select>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats" id="statsBar"></div>
+
+  <!-- Tasks -->
+  <div id="tasksContainer"></div>
+
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h3 id="modalTitle">משימה חדשה</h3>
+    <div class="field">
+      <label>כותרת</label>
+      <input id="fTitle" placeholder="מה צריך לעשות?" maxlength="200"/>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>אחראי</label>
+        <select id="fPerson"></select>
+      </div>
+      <div class="field">
+        <label>עדיפות</label>
+        <select id="fPriority">
+          <option value="medium">🟡 בינונית</option>
+          <option value="high">🔴 גבוהה</option>
+          <option value="low">🟢 נמוכה</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>קטגוריה</label>
+        <select id="fCategory">
+          <option value="">ללא</option>
+          <option value="dev">💻 פיתוח</option>
+          <option value="design">🎨 עיצוב</option>
+          <option value="content">✍️ תוכן</option>
+          <option value="marketing">📣 שיווק</option>
+          <option value="ops">⚙️ תפעול</option>
+          <option value="other">📌 אחר</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>תאריך יעד</label>
+        <input id="fDue" type="date"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>הערות</label>
+      <textarea id="fNotes" placeholder="פרטים נוספים..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">ביטול</button>
+      <button class="btn-save" onclick="saveTask()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+const STORAGE_KEY = 'lookli_tasks_v2';
+const PERSONS_KEY = 'lookli_persons_v1';
+
+const DEFAULT_PERSONS = ['נעמי','יועי','שירה','דן'];
+const PERSON_COLORS = ['#c084fc','#f472b6','#34d399','#818cf8','#fbbf24','#f87171','#38bdf8'];
+
+let tasks = [];
+let persons = [];
+let filter = 'all';
+let editId = null;
+
+// ── Load ──
+function load() {
+  try { tasks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e){ tasks=[]; }
+  try { persons = JSON.parse(localStorage.getItem(PERSONS_KEY)) || DEFAULT_PERSONS; } catch(e){ persons=DEFAULT_PERSONS; }
+}
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  localStorage.setItem(PERSONS_KEY, JSON.stringify(persons));
+}
+
+// ── Helpers ──
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function today() { return new Date().toISOString().slice(0,10); }
+function isOverdue(due) { return due && due < today(); }
+function isToday(due)   { return due && due === today(); }
+
+function personColor(name) {
+  const idx = persons.indexOf(name);
+  return PERSON_COLORS[idx % PERSON_COLORS.length] || '#c084fc';
+}
+function personInitials(name) {
+  return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+const CATEGORY_LABELS = {
+  dev:'💻 פיתוח', design:'🎨 עיצוב', content:'✍️ תוכן',
+  marketing:'📣 שיווק', ops:'⚙️ תפעול', other:'📌 אחר'
+};
+const PRIORITY_LABELS = { high:'🔴 גבוהה', medium:'🟡 בינונית', low:'🟢 נמוכה' };
+
+// ── Filter ──
+function setFilter(f, btn) {
+  filter = f;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function filteredTasks() {
+  const q = (document.getElementById('searchBox')?.value||'').toLowerCase();
+  const p = document.getElementById('personFilter')?.value||'';
+  return tasks.filter(t => {
+    if (p && t.person !== p) return false;
+    if (q && !t.title.toLowerCase().includes(q) && !(t.notes||'').toLowerCase().includes(q)) return false;
+    if (filter === 'open')    return !t.done;
+    if (filter === 'done')    return t.done;
+    if (filter === 'overdue') return !t.done && isOverdue(t.due);
+    return true;
+  });
+}
+
+// ── Stats ──
+function renderStats() {
+  const all   = tasks.length;
+  const done  = tasks.filter(t=>t.done).length;
+  const open  = tasks.filter(t=>!t.done).length;
+  const over  = tasks.filter(t=>!t.done && isOverdue(t.due)).length;
+  const todayN= tasks.filter(t=>!t.done && isToday(t.due)).length;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat"><div class="stat-dot" style="background:var(--accent)"></div>
+      <span class="stat-num">${all}</span><span class="stat-label">סה"כ</span></div>
+    <div class="stat"><div class="stat-dot" style="background:#60a5fa"></div>
+      <span class="stat-num">${open}</span><span class="stat-label">פתוחות</span></div>
+    <div class="stat"><div class="stat-dot" style="background:var(--green)"></div>
+      <span class="stat-num">${done}</span><span class="stat-label">הושלמו</span></div>
+    ${over ? `<div class="stat"><div class="stat-dot" style="background:var(--red)"></div>
+      <span class="stat-num">${over}</span><span class="stat-label">באיחור</span></div>` : ''}
+    ${todayN ? `<div class="stat"><div class="stat-dot" style="background:var(--yellow)"></div>
+      <span class="stat-num">${todayN}</span><span class="stat-label">להיום</span></div>` : ''}
+  `;
+}
+
+// ── Render ──
+function render() {
+  renderStats();
+  fillPersonFilter();
+
+  const ft = filteredTasks();
+  const container = document.getElementById('tasksContainer');
+
+  if (ft.length === 0) {
+    container.innerHTML = `<div class="empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      <p>אין משימות ${filter==='done'?'שהושלמו':filter==='overdue'?'באיחור':''}</p>
+    </div>`;
+    return;
+  }
+
+  // קבץ לפי אנשים
+  const byPerson = {};
+  const personFilter = document.getElementById('personFilter')?.value||'';
+
+  ft.forEach(t => {
+    const key = t.person || 'ללא שיוך';
+    if (!byPerson[key]) byPerson[key] = [];
+    byPerson[key].push(t);
+  });
+
+  // מיון: קודם אנשים לפי סדר persons, אח"כ 'ללא שיוך'
+  const orderedKeys = [
+    ...persons.filter(p => byPerson[p]),
+    ...Object.keys(byPerson).filter(k => !persons.includes(k))
+  ];
+
+  container.innerHTML = orderedKeys.map(person => {
+    const personTasks = byPerson[person];
+    const color = personColor(person);
+    const open = personTasks.filter(t=>!t.done).length;
+    return `
+    <div class="person-section">
+      <div class="person-header" onclick="toggleSection('sec-${btoa(person).replace(/=/g,'')}')">
+        <div class="person-avatar" style="background:${color}22;color:${color}">${personInitials(person)}</div>
+        <span class="person-name">${person}</span>
+        <span class="person-count">${open} פתוחות מתוך ${personTasks.length}</span>
+        <span class="person-toggle" id="tog-${btoa(person).replace(/=/g,'')}">▲</span>
+      </div>
+      <div class="tasks-list" id="sec-${btoa(person).replace(/=/g,'')}">
+        ${personTasks.map(t => taskCardHTML(t)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const tog = document.getElementById('tog-' + id.replace('sec-',''));
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    if(tog) tog.classList.remove('collapsed');
+  } else {
+    el.style.display = 'none';
+    if(tog) tog.classList.add('collapsed');
+  }
+}
+
+function taskCardHTML(t) {
+  const doneClass  = t.done ? ' done' : '';
+  const prioClass  = ' p-' + (t.priority||'medium');
+  const dueTxt = t.due
+    ? (isOverdue(t.due) && !t.done ? `<span class="task-due overdue">⚠️ ${formatDate(t.due)}</span>`
+      : isToday(t.due) && !t.done  ? `<span class="task-due today">📅 היום</span>`
+      : `<span class="task-due">📅 ${formatDate(t.due)}</span>`)
+    : '';
+  const catTxt = t.category ? `<span class="task-tag" style="background:rgba(192,132,252,.12);color:var(--accent)">${CATEGORY_LABELS[t.category]||t.category}</span>` : '';
+  const prioTxt = `<span class="task-tag tag-priority-${t.priority||'medium'}">${PRIORITY_LABELS[t.priority||'medium']}</span>`;
+
+  return `<div class="task-card${doneClass}${prioClass}" id="tc-${t.id}">
+    <div class="task-check" onclick="toggleDone('${t.id}')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="task-body">
+      <div class="task-title">${escHtml(t.title)}</div>
+      <div class="task-meta">${prioTxt}${catTxt}${dueTxt}</div>
+      ${t.notes ? `<div class="task-notes">${escHtml(t.notes)}</div>` : ''}
+    </div>
+    <div class="task-actions">
+      <button class="task-action-btn" onclick="openModal('${t.id}')" title="עריכה">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="task-action-btn del" onclick="deleteTask('${t.id}')" title="מחיקה">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y.slice(2)}`;
+}
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Toggle done ──
+function toggleDone(id) {
+  const t = tasks.find(x=>x.id===id);
+  if (!t) return;
+  t.done = !t.done;
+  t.doneAt = t.done ? new Date().toISOString() : null;
+  save(); render();
+  showToast(t.done ? '✅ משימה הושלמה!' : '↩️ משימה נפתחה מחדש');
+}
+
+// ── Delete ──
+function deleteTask(id) {
+  if (!confirm('למחוק את המשימה?')) return;
+  tasks = tasks.filter(t=>t.id!==id);
+  save(); render();
+  showToast('🗑️ משימה נמחקה');
+}
+
+// ── Modal ──
+function fillPersonSelect() {
+  const sel = document.getElementById('fPerson');
+  sel.innerHTML = persons.map(p => `<option value="${p}">${p}</option>`).join('') +
+    '<option value="">ללא שיוך</option>';
+}
+
+function fillPersonFilter() {
+  const sel = document.getElementById('personFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">כל האנשים</option>' +
+    persons.map(p=>`<option value="${p}"${p===cur?' selected':''}>${p}</option>`).join('');
+}
+
+function openModal(id) {
+  editId = id || null;
+  fillPersonSelect();
+  document.getElementById('modalTitle').textContent = id ? 'עריכת משימה' : 'משימה חדשה';
+
+  if (id) {
+    const t = tasks.find(x=>x.id===id);
+    if (!t) return;
+    document.getElementById('fTitle').value    = t.title || '';
+    document.getElementById('fPerson').value   = t.person || '';
+    document.getElementById('fPriority').value = t.priority || 'medium';
+    document.getElementById('fCategory').value = t.category || '';
+    document.getElementById('fDue').value      = t.due || '';
+    document.getElementById('fNotes').value    = t.notes || '';
+  } else {
+    document.getElementById('fTitle').value    = '';
+    document.getElementById('fPriority').value = 'medium';
+    document.getElementById('fCategory').value = '';
+    document.getElementById('fDue').value      = '';
+    document.getElementById('fNotes').value    = '';
+  }
+
+  document.getElementById('modalBg').classList.add('open');
+  setTimeout(()=>document.getElementById('fTitle').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+  editId = null;
+}
+
+function saveTask() {
+  const title = document.getElementById('fTitle').value.trim();
+  if (!title) { document.getElementById('fTitle').focus(); return; }
+
+  if (editId) {
+    const t = tasks.find(x=>x.id===editId);
+    if (t) {
+      t.title    = title;
+      t.person   = document.getElementById('fPerson').value || '';
+      t.priority = document.getElementById('fPriority').value;
+      t.category = document.getElementById('fCategory').value;
+      t.due      = document.getElementById('fDue').value;
+      t.notes    = document.getElementById('fNotes').value.trim();
+      t.updatedAt = new Date().toISOString();
+    }
+  } else {
+    tasks.unshift({
+      id: uid(), title,
+      person:   document.getElementById('fPerson').value || '',
+      priority: document.getElementById('fPriority').value,
+      category: document.getElementById('fCategory').value,
+      due:      document.getElementById('fDue').value,
+      notes:    document.getElementById('fNotes').value.trim(),
+      done: false, createdAt: new Date().toISOString()
+    });
+  }
+
+  save(); closeModal(); render();
+  showToast(editId ? '✏️ משימה עודכנה' : '✅ משימה נוספה');
+}
+
+// ── Toast ──
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+// ── Keyboard ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.metaKey||e.ctrlKey) && e.key==='Enter' && document.getElementById('modalBg').classList.contains('open')) saveTask();
+});
+
+// ── Init ──
+load();
+render();
+</script>
+</body>
+</html>

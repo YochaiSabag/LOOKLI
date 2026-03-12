@@ -267,6 +267,7 @@
       </select>
       <button onclick="testAlert('price')" style="padding:8px 14px;background:#c48cb3;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מחיר</button>
       <button onclick="testAlert('size')" style="padding:8px 14px;background:#7c6fcf;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מידה</button>
+      <a href="/admin/tasks" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#9ca3af;font-size:12px;text-decoration:none">✅ משימות</a>
       <span class="badge">GA4</span>
     </div>
   </div>
@@ -470,7 +471,7 @@ loadData();
         + '<div style="color:#22c55e;font-weight:700;margin-bottom:6px">✅ קישור נוצר! תוקף עד: ' + new Date(d.expires_at).toLocaleString('he-IL') + '</div>'
         + '<div style="display:flex;gap:8px;align-items:center">'
         + '<input value="' + d.url + '" readonly style="flex:1;padding:6px 10px;background:#1a1a2e;border:1px solid #22c55e;border-radius:6px;color:#e2e8f0;font-size:12px"/>'
-        + '<button onclick="navigator.clipboard.writeText('' + d.url + '');this.textContent='✓ הועתק!'" style="padding:6px 12px;background:#22c55e;border:none;border-radius:6px;color:#000;font-weight:700;cursor:pointer;font-size:12px">העתק</button>'
+        + '<button onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent=\'✓ הועתק!\'" data-url="' + d.url + '" style="padding:6px 12px;background:#22c55e;border:none;border-radius:6px;color:#000;font-weight:700;cursor:pointer;font-size:12px">העתק</button>'
         + '</div></div>';
       loadPreviewTokens();
     } else {

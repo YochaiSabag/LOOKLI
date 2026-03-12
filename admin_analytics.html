@@ -400,6 +400,94 @@ loadData();
     if (d.ok) alert('✅ מייל ' + (type==='price'?'מחיר':'מידה') + ' נשלח ל: ' + d.sent_to + '\nמוצר: ' + d.product);
     else alert('❌ ' + (d.msg || JSON.stringify(d.error) || 'שגיאה'));
   }
+
+  // ── Simulate change ──
+  async function loadAlertProducts() {
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    const r = await fetch('/api/alerts/all' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), { credentials: 'include' });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return d.alerts || [];
+  }
+
+  async function simulateChange() {
+    const type = document.getElementById('simType').value;
+    const url  = document.getElementById('simUrl').value.trim();
+    const price = document.getElementById('simPrice').value.trim();
+    const size  = document.getElementById('simSize').value.trim();
+
+    if (!url) return alert('הזן URL מוצר');
+    if (type === 'price' && !price) return alert('הזן מחיר חדש');
+    if (type === 'size' && !size) return alert('הזן מידה');
+
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    const r = await fetch('/api/admin/simulate-change' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, product_source_url: url,
+        new_price: price || null, remove_size: size || null })
+    });
+    const d = await r.json();
+    const box = document.getElementById('simResult');
+    if (d.ok) {
+      box.style.color = '#22c55e';
+      box.textContent = d.results.map(r =>
+        r.sent ? '✅ נשלח ל-' + r.email + ' (' + (r.type==='price' ? '₪'+r.oldVal+'→₪'+r.newVal : 'מידה '+r.newVal) + ')'
+               : '⚠️ לא הופעל: ' + r.reason
+      ).join('
+');
+    } else {
+      box.style.color = '#ef4444';
+      box.textContent = '❌ ' + (d.msg || d.error || 'שגיאה');
+    }
+  }
+
+  // טען URLים של מוצרים עם התראות לdropdown
+  async function fillAlertUrls() {
+    const pwd = new URLSearchParams(location.search).get('pwd') || '';
+    try {
+      const r = await fetch('/api/admin/alert-urls' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), { credentials: 'include' });
+      if (!r.ok) return;
+      const d = await r.json();
+      const sel = document.getElementById('simUrl');
+      sel.innerHTML = '<option value="">-- בחר מוצר --</option>' +
+        d.items.map(x => '<option value="'+x.url+'">'+x.title+' ('+x.store+')</option>').join('');
+    } catch(e) {}
+  }
+  fillAlertUrls();
+
 </script>
+
+<!-- סימולציה -->
+<div style="margin:24px auto;max-width:700px;background:#1e1e2e;border-radius:14px;padding:24px;border:1px solid rgba(255,255,255,.08)">
+  <h3 style="margin:0 0 16px;color:#e2d9f3;font-size:15px">🔬 סימולציה — בדיקת מנגנון התראות</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">סוג שינוי</label>
+      <select id="simType" onchange="document.getElementById('priceRow').style.display=this.value==='price'?'':'none';document.getElementById('sizeRow').style.display=this.value==='size'?'':'none'"
+        style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px">
+        <option value="price">📉 ירידת מחיר</option>
+        <option value="size">📦 חזרת מידה</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">מוצר</label>
+      <select id="simUrl" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px"></select>
+    </div>
+  </div>
+  <div id="priceRow" style="margin-bottom:12px">
+    <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">מחיר חדש (נמוך מהמקורי)</label>
+    <input id="simPrice" type="number" placeholder="לדוגמה: 89" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
+  </div>
+  <div id="sizeRow" style="display:none;margin-bottom:12px">
+    <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">מידה שחזרה</label>
+    <input id="simSize" type="text" placeholder="לדוגמה: M או 38" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
+  </div>
+  <button onclick="simulateChange()" style="width:100%;padding:10px;background:linear-gradient(135deg,#d191b0,#7c6fcf);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+    🚀 הפעל סימולציה ושלח מייל
+  </button>
+  <pre id="simResult" style="margin-top:12px;font-size:12px;white-space:pre-wrap;font-family:inherit"></pre>
+</div>
+
 </body>
 </html>

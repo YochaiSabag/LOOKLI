@@ -1155,6 +1155,120 @@ app.post('/api/admin/test-alert', adminAuth, async (req, res) => {
 });
 
 
+// ===== ADMIN: רשימת מוצרים עם התראות =====
+app.get('/api/admin/alert-urls', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT DISTINCT pa.product_source_url AS url, p.title, p.store,
+             bool_or(pa.alert_price) AS has_price, array_agg(pa.alert_size) FILTER (WHERE pa.alert_size IS NOT NULL) AS sizes
+      FROM price_alerts pa
+      LEFT JOIN products p ON p.source_url = pa.product_source_url
+      WHERE pa.active = true
+      GROUP BY pa.product_source_url, p.title, p.store
+    `);
+    res.json({ items: r.rows.map(x => ({
+      url: x.url, title: x.title || x.url.slice(-40),
+      store: x.store || '', has_price: x.has_price, sizes: x.sizes
+    }))});
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: SIMULATE PRICE/SIZE CHANGE & RUN ALERTS =====
+app.post('/api/admin/simulate-change', adminAuth, async (req, res) => {
+  try {
+    const { type, product_source_url, new_price, remove_size } = req.body;
+    // type: 'price' | 'size'
+    // new_price: מחיר חדש נמוך יותר
+    // remove_size: מידה שנחזיר למלאי (תחילה נסיר, אח"כ נחזיר)
+
+    const BREVO_KEY  = process.env.BREVO_API_KEY;
+    const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
+    const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
+
+    if (!BREVO_KEY) return res.json({ ok: false, msg: 'חסר BREVO_API_KEY' });
+
+    // 1. שלוף מוצר + התראות רלוונטיות
+    const alertsQ = await pool.query(`
+      SELECT pa.*, u.email AS user_email,
+             p.title, p.image_url, p.store, p.price AS orig_price, p.sizes AS orig_sizes, p.source_url
+      FROM price_alerts pa
+      JOIN users u ON u.id = pa.user_id
+      LEFT JOIN products p ON p.source_url = pa.product_source_url
+      WHERE pa.active = true
+        AND pa.product_source_url = $1
+    `, [product_source_url]);
+
+    if (alertsQ.rows.length === 0)
+      return res.json({ ok: false, msg: 'לא נמצאה התראה פעילה על המוצר הזה' });
+
+    const results = [];
+
+    for (const alert of alertsQ.rows) {
+      let triggered = false;
+      let emailType, oldVal, newVal;
+
+      if (type === 'price' && new_price && alert.alert_price) {
+        const origPrice = parseFloat(alert.orig_price || alert.last_price || 999);
+        const simPrice  = parseFloat(new_price);
+        if (simPrice < origPrice) {
+          triggered = true;
+          emailType = 'price';
+          oldVal = origPrice.toFixed(0);
+          newVal = simPrice.toFixed(0);
+          // עדכן last_price ב-DB כדי שהבדיקה הבאה תהיה נקייה
+          await pool.query('UPDATE price_alerts SET last_price=$1 WHERE id=$2', [simPrice, alert.id]);
+        }
+      }
+
+      if (type === 'size' && remove_size && alert.alert_size) {
+        const origSizes = alert.orig_sizes || [];
+        const watchSize = alert.alert_size;
+        // בדוק שהמידה קיימת כרגע ולא היתה קיימת קודם (last_sizes)
+        const lastSizes = alert.last_sizes || [];
+        const sizeIsBack = watchSize === 'any'
+          ? origSizes.some(s => !lastSizes.includes(s))
+          : origSizes.includes(watchSize) && !lastSizes.includes(watchSize);
+
+        // הדמה: נטען שהמידה חזרה
+        if (origSizes.length > 0 || watchSize !== 'any') {
+          triggered = true;
+          emailType = 'size';
+          newVal = watchSize === 'any' ? (origSizes[0] || remove_size) : watchSize;
+          // עדכן last_sizes ל-[] כדי שהמידה תיחשב "חדשה"
+          await pool.query('UPDATE price_alerts SET last_sizes=$1 WHERE id=$2', [[], alert.id]);
+        }
+      }
+
+      if (triggered) {
+        const html = buildAlertEmail({
+          type: emailType, title: alert.title || 'מוצר', image: alert.image_url,
+          store: alert.store, oldVal, newVal,
+          url: alert.source_url || SITE_URL, siteUrl: SITE_URL
+        });
+        const subject = emailType === 'price'
+          ? ('💰 המחיר ירד! ' + (alert.title || ''))
+          : ('📦 מידה ' + newVal + ' חזרה למלאי! ' + (alert.title || ''));
+
+        const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
+            to: [{ email: alert.user_email }],
+            subject, htmlContent: html
+          })
+        });
+        results.push({ email: alert.user_email, type: emailType, sent: resp.ok, newVal, oldVal });
+      } else {
+        results.push({ email: alert.user_email, type, triggered: false,
+          reason: type === 'price' ? 'מחיר לא נמוך מהמחיר המקורי או אין התראת מחיר' : 'אין התראת מידה או מידה לא נמצאה' });
+      }
+    }
+
+    res.json({ ok: true, results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // helper לבניית מייל
 function buildAlertEmail({ type, title, image, store, oldVal, newVal, url, siteUrl }) {
   const isPrice = type === 'price';

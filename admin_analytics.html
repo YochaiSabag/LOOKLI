@@ -499,10 +499,10 @@ loadData();
           const hoursLeft = Math.max(0, Math.round((exp - now) / 36e5));
           return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
             + '<td style="padding:7px 4px;color:' + (active?'#e2e8f0':'#6b7280') + '">' + (t.label||'—') + '</td>'
-            + '<td style="padding:7px 4px;color:' + (active?'#22c55e':'#ef4444') + '">' + (active ? 'עוד ' + hoursLeft + 'ש'' : 'פג תוקף') + '</td>'
+            + '<td style="padding:7px 4px;color:' + (active?'#22c55e':'#ef4444') + '">' + (active ? 'עוד ' + hoursLeft + 'ש\'' : 'פג תוקף') + '</td>'
             + '<td style="padding:7px 4px;color:#9ca3af;text-align:center">' + (t.uses||0) + '</td>'
             + '<td style="padding:7px 4px;text-align:left">'
-            + '<button onclick="deleteToken('' + t.token + '')" style="padding:3px 8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:4px;color:#ef4444;cursor:pointer;font-size:11px">ביטול</button>'
+            + '<button onclick="deleteToken(this.dataset.tok)" data-tok="' + t.token + '" style="padding:3px 8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:4px;color:#ef4444;cursor:pointer;font-size:11px">ביטול</button>'
             + '</td></tr>';
         }).join('') + '</table>';
     } catch(e) { document.getElementById('ptList').textContent = 'שגיאה בטעינה'; }

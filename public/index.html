@@ -1240,7 +1240,8 @@ async function runRegularSearch(){
   if(window._sortVal&&window._sortVal!=='new')params.set("sort",window._sortVal);
   const res=await fetch("/api/products?"+params);
   const data=await res.json();
-  allProducts=data;currentPage=1;renderPage();
+  allProducts = (window._sortVal === 'new' || !window._sortVal) ? interleaveByStore(data) : data;
+  currentPage=1;renderPage();
   document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
     updateSeoMeta(document.getElementById("q").value.trim());
     loadSponsored(document.getElementById('q').value.trim());
@@ -1826,6 +1827,26 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
 
 // ── Custom sort dropdown ──
 window._sortVal = 'new';
+
+// ערבוב מוצרים לפי חנות — Round Robin
+function interleaveByStore(products) {
+  const byStore = {};
+  products.forEach(p => {
+    const s = p.store || 'OTHER';
+    if (!byStore[s]) byStore[s] = [];
+    byStore[s].push(p);
+  });
+  const queues = Object.values(byStore);
+  const result = [];
+  let i = 0;
+  while (result.length < products.length) {
+    const q = queues[i % queues.length];
+    if (q && q.length > 0) result.push(q.shift());
+    i++;
+    if (queues.every(q => q.length === 0)) break;
+  }
+  return result;
+}
 function toggleSortMenu() {
   const btn = document.getElementById('sortBtn');
   const menu = document.getElementById('sortMenu');

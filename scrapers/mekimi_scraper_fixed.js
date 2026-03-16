@@ -723,27 +723,15 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,ARRAY[$11]::text[],$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
-         color=COALESCE(EXCLUDED.color, products.color),
-         colors=COALESCE(EXCLUDED.colors, products.colors),
-         style=COALESCE(EXCLUDED.style, products.style),
-         fit=COALESCE(EXCLUDED.fit, products.fit),
-         fits=CASE WHEN EXCLUDED.fit IS NOT NULL THEN (
-           SELECT array_agg(DISTINCT v) FROM unnest(
-             array_append(COALESCE(products.fits, ARRAY[]::text[]), EXCLUDED.fit)
-           ) v
-         ) ELSE products.fits END,
-         category=COALESCE(EXCLUDED.category, products.category),
-         description=EXCLUDED.description, 
-         color_sizes=EXCLUDED.color_sizes,
-         pattern=COALESCE(EXCLUDED.pattern, products.pattern),
-         fabric=COALESCE(EXCLUDED.fabric, products.fabric),
-         design_details=COALESCE(EXCLUDED.design_details, products.design_details),
-         last_seen=NOW()`,
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
+         category=EXCLUDED.category, description=EXCLUDED.description, 
+         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
+         design_details=EXCLUDED.design_details, last_seen=NOW()`,
       ['MEKIMI', product.title, product.price || 0, product.originalPrice || null, 
        product.images[0] || '', product.images, product.sizes, product.mainColor, 
        product.colors, product.style || null, product.fit || null, product.category, 

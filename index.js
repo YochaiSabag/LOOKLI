@@ -15,12 +15,6 @@ const app = express();
 // ===== SEO helpers (robots.txt + sitemap.xml) =====
 const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
 
-// ===== חנויות מוסתרות — הוסף/הסר שמות כאן =====
-const HIDDEN_STORES = [
-  'MEKIMI',
-  'CHEMISE',
-];
-
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
   res.send(`User-agent: *
@@ -108,9 +102,9 @@ function calculateShipping(store, price) {
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
-    let baseWhere = HIDDEN_STORES.length > 0 ? `store != ALL($1::text[])` : `1=1`;
-    const baseParams = HIDDEN_STORES.length > 0 ? [HIDDEN_STORES] : [];
-    let paramIndex = HIDDEN_STORES.length > 0 ? 2 : 1;
+    let baseWhere = '1=1';
+    const baseParams = [];
+    let paramIndex = 1;
     
     if (store) { baseWhere += ` AND store = $${paramIndex++}`; baseParams.push(store); }
     if (category) { 
@@ -219,9 +213,9 @@ function expandSize(size) {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE ${HIDDEN_STORES.length > 0 ? 'store != ALL($1::text[])' : '1=1'}`;
-    const params = HIDDEN_STORES.length > 0 ? [HIDDEN_STORES] : [];
-    let i = HIDDEN_STORES.length > 0 ? 2 : 1;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    const params = [];
+    let i = 1;
 
     // סינון אקססוריז - לא מציגים גומיות שיער וכדומה
     sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;

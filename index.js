@@ -4,7 +4,6 @@ import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
-import { GoogleAuth } from "google-auth-library";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +13,12 @@ const app = express();
 
 // ===== SEO helpers (robots.txt + sitemap.xml) =====
 const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
+
+// ===== חנויות מוסתרות — הוסף/הסר שמות כאן =====
+const HIDDEN_STORES = [
+  'MEKIMI',
+  'CHEMISE',
+];
 
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
@@ -102,9 +107,9 @@ function calculateShipping(store, price) {
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
-    let baseWhere = '1=1';
-    const baseParams = [];
-    let paramIndex = 1;
+    let baseWhere = `store != ALL($1::text[])`;
+    const baseParams = [HIDDEN_STORES];
+    let paramIndex = 2;
     
     if (store) { baseWhere += ` AND store = $${paramIndex++}`; baseParams.push(store); }
     if (category) { 
@@ -131,22 +136,20 @@ app.get("/api/filters", async (req, res) => {
     if (fit) {
       const fits = fit.split(',').filter(Boolean);
       if (fits.length > 1) {
-        // multi: תמיכה ב-fit ישן וב-fits[] חדש
-        baseWhere += ` AND (fit = ANY($${paramIndex}::text[]) OR fits && $${paramIndex}::text[])`;
-        baseParams.push(fits); paramIndex++;
+        baseWhere += ` AND fit = ANY($${paramIndex}::text[])`; baseParams.push(fits); paramIndex++;
       } else if (fits[0] === '\u05d0\u05e8\u05d5\u05db\u05d4') {
-        baseWhere += ` AND (fit = $${paramIndex} OR fit = '\u05d0\u05e8\u05d5\u05da' OR $${paramIndex} = ANY(COALESCE(fits,'{}')) OR title ILIKE '%\u05de\u05e7\u05e1\u05d9%' OR title ILIKE '%maxi%')`;
+        baseWhere += ` AND (fit = $${paramIndex} OR fit = '\u05d0\u05e8\u05d5\u05da' OR title ILIKE '%\u05de\u05e7\u05e1\u05d9%' OR title ILIKE '%maxi%')`;
         baseParams.push(fits[0]); paramIndex++;
       } else if (fits[0] === '\u05de\u05d9\u05d3\u05d9') {
-        baseWhere += ` AND (fit = $${paramIndex} OR $${paramIndex} = ANY(COALESCE(fits,'{}')) OR title ILIKE '%\u05de\u05d9\u05d3\u05d9%' OR title ILIKE '%midi%' OR title ILIKE '%\u05d0\u05de\u05e6\u05e2%')`;
+        baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE '%\u05de\u05d9\u05d3\u05d9%' OR title ILIKE '%midi%' OR title ILIKE '%\u05d0\u05de\u05e6\u05e2%')`;
         baseParams.push(fits[0]); paramIndex++;
       } else {
-        baseWhere += ` AND (fit = $${paramIndex} OR $${paramIndex} = ANY(COALESCE(fits,'{}')) OR title ILIKE $${paramIndex + 1})`;
+        baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE $${paramIndex + 1})`;
         baseParams.push(fits[0], `%${fits[0]}%`); paramIndex += 2;
       }
     }
     if (color) { 
-      const LIGHT_COLORS = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה', "בז'", 'ניוד'];
+      const LIGHT_COLORS = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
       let colors = color.split(',').filter(Boolean);
       // "בהיר" → הרחב לכל הצבעים הבהירים
       if (colors.includes('בהיר')) {
@@ -172,7 +175,7 @@ app.get("/api/filters", async (req, res) => {
       pool.query(`SELECT DISTINCT unnest(sizes) AS size FROM products WHERE ${baseWhere} AND sizes IS NOT NULL`, baseParams),
       pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`, [...baseParams, ...baseParams]),
       pool.query(`SELECT DISTINCT style FROM products WHERE ${baseWhere} AND style IS NOT NULL AND style != '' ORDER BY style`, baseParams),
-      pool.query(`SELECT DISTINCT unnest(COALESCE(fits, ARRAY[fit])) AS fit FROM products WHERE ${baseWhere} AND (fit IS NOT NULL OR fits IS NOT NULL) ORDER BY fit`, baseParams),
+      pool.query(`SELECT DISTINCT fit FROM products WHERE ${baseWhere} AND fit IS NOT NULL AND fit != '' ORDER BY fit`, baseParams),
       pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`, baseParams),
       pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`, baseParams),
       pool.query(`SELECT DISTINCT pattern FROM products WHERE ${baseWhere} AND pattern IS NOT NULL AND pattern != '' ORDER BY pattern`, baseParams),
@@ -215,18 +218,18 @@ function expandSize(size) {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
-    const params = [];
-    let i = 1;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE store != ALL($1::text[])`;
+    const params = [HIDDEN_STORES];
+    let i = 2;
 
     // סינון אקססוריז - לא מציגים גומיות שיער וכדומה
-    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'תכשיט', 'קשתות', 'גומי שיער'))`;
-    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%' AND title NOT ILIKE '%קשת%שיער%' AND title NOT ILIKE '%תכשיט%'`;
+    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;
+    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
 
     if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
     
     if (color) { 
-      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה', "בז'", 'ניוד'];
+      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
       let colors = color.split(',').filter(Boolean);
       if (colors.includes('בהיר')) {
         colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS2])];
@@ -279,7 +282,6 @@ app.get("/api/products", async (req, res) => {
         i += styles.length * 2;
       }
     }
-    if (fit) fit = fit.split(',').map(f=>(f==='A'||f==='a'||f==='a-line')?'\u05de\u05ea\u05e8\u05d7\u05d1\u05ea':f).join(',');
     if (fit) { 
       const fits = fit.split(',').filter(Boolean);
       if (fits.length === 1) {
@@ -376,21 +378,6 @@ app.get("/api/products", async (req, res) => {
       });
     }
     
-    // צבע מבוקש → יופיע ראשון ב-colors[]
-    if (color) {
-      const reqColors = color.split(',').filter(Boolean);
-      rows = rows.map(p => {
-        if (p.colors && p.colors.length > 1) {
-          const sorted = [...p.colors].sort((a,b) => {
-            const aM = reqColors.includes(a) ? 0 : 1;
-            const bM = reqColors.includes(b) ? 0 : 1;
-            return aM - bM;
-          });
-          return { ...p, colors: sorted };
-        }
-        return p;
-      });
-    }
     res.json(rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("products error:", err.message);
@@ -419,7 +406,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
     const params = [];
     let i = 1;
 
@@ -510,13 +497,13 @@ function analyzeQuery(query) {
   const colorMap = { 
     '\u05e9\u05d7\u05d5\u05e8': ['\u05e9\u05d7\u05d5\u05e8', '\u05e9\u05d7\u05d5\u05e8\u05d4'], 
     '\u05dc\u05d1\u05df': ['\u05dc\u05d1\u05df', '\u05dc\u05d1\u05e0\u05d4'], 
-    '\u05db\u05d7\u05d5\u05dc': ['\u05db\u05d7\u05d5\u05dc', '\u05db\u05d7\u05d5\u05dc\u05d4', '\u05e0\u05d9\u05d9\u05d1\u05d9', '\u05d8\u05d5\u05e8\u05e7\u05d9\u05d6', 'turquoise', 'teal', 'aqua', 'cyan'], 
+    '\u05db\u05d7\u05d5\u05dc': ['\u05db\u05d7\u05d5\u05dc', '\u05db\u05d7\u05d5\u05dc\u05d4', '\u05e0\u05d9\u05d9\u05d1\u05d9'], 
     '\u05d0\u05d3\u05d5\u05dd': ['\u05d0\u05d3\u05d5\u05dd', '\u05d0\u05d3\u05d5\u05de\u05d4'], 
     '\u05d9\u05e8\u05d5\u05e7': ['\u05d9\u05e8\u05d5\u05e7', '\u05d9\u05e8\u05d5\u05e7\u05d4', '\u05d6\u05d9\u05ea', '\u05d7\u05d0\u05e7\u05d9'], 
     '\u05d7\u05d5\u05dd': ['\u05d7\u05d5\u05dd', '\u05d7\u05d5\u05de\u05d4'], 
     '\u05d1\u05d6\u05f3': ['\u05d1\u05d6\u05f3', '\u05d1\u05d6', '\u05e0\u05d9\u05d5\u05d3'], 
     '\u05d0\u05e4\u05d5\u05e8': ['\u05d0\u05e4\u05d5\u05e8', '\u05d0\u05e4\u05d5\u05e8\u05d4'], 
-    '\u05d5\u05e8\u05d5\u05d3': ['\u05d5\u05e8\u05d5\u05d3', '\u05d5\u05e8\u05d5\u05d3\u05d4', '\u05e4\u05d5\u05d3\u05e8\u05d4', 'powder', 'pink', '\u05e4\u05d5\u05e7\u05e1\u05d9\u05d4'], 
+    '\u05d5\u05e8\u05d5\u05d3': ['\u05d5\u05e8\u05d5\u05d3', '\u05d5\u05e8\u05d5\u05d3\u05d4'], 
     '\u05d1\u05d5\u05e8\u05d3\u05d5': ['\u05d1\u05d5\u05e8\u05d3\u05d5'], 
     '\u05e9\u05de\u05e0\u05ea': ['\u05e9\u05de\u05e0\u05ea', 'cream'], 
     '\u05e1\u05d2\u05d5\u05dc': ['\u05e1\u05d2\u05d5\u05dc', '\u05e1\u05d2\u05d5\u05dc\u05d4', '\u05dc\u05d9\u05dc\u05da'],
@@ -530,7 +517,7 @@ function analyzeQuery(query) {
   };
   const categoryMap = { 
     '\u05e9\u05de\u05dc\u05d4': ['\u05e9\u05de\u05dc\u05d4', '\u05e9\u05de\u05dc\u05ea', '\u05e9\u05de\u05dc\u05d5\u05ea'], 
-    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4', '\u05d8\u05d9 \u05e9\u05e8\u05d8', 't-shirt', 'tshirt', 't shirt'], 
+    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4'], 
     '\u05d7\u05e6\u05d0\u05d9\u05ea': ['\u05d7\u05e6\u05d0\u05d9\u05ea', '\u05d7\u05e6\u05d0\u05d9\u05d5\u05ea'], 
     '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd': ['\u05de\u05db\u05e0\u05e1', '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd'], 
     '\u05e7\u05e8\u05d3\u05d9\u05d2\u05df': ['\u05e7\u05e8\u05d3\u05d9\u05d2\u05df'],
@@ -565,13 +552,11 @@ function analyzeQuery(query) {
     '\u05de\u05e2\u05d8\u05e4\u05ea': ['\u05de\u05e2\u05d8\u05e4\u05ea', '\u05de\u05e2\u05d8\u05e4\u05d4', 'wrap'],
     '\u05d4\u05e8\u05d9\u05d5\u05df': ['\u05d4\u05e8\u05d9\u05d5\u05df', 'maternity', 'pregnancy'],
     '\u05d4\u05e0\u05e7\u05d4': ['\u05d4\u05e0\u05e7\u05d4', 'nursing', 'breastfeed'],
-    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist'],
-    '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea': ['\u05de\u05ea\u05e8\u05d7\u05d1\u05ea', 'flare', '\u05d0\u05d9\u05d9 \u05dc\u05d9\u05d9\u05df', 'a-line', 'a line', '\u05d2\u05d9\u05d6\u05e8\u05d4 a', '\u05d2\u05d9\u05d6\u05e8\u05ea a', '\u05d2\u05d9\u05d6\u05e8\u05d4 \u05d0']
+    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist']
   };
   // בד
   const fabricMap = {
-    '\u05d6\'\u05de\u05e1': ['\u05d6\'\u05de\u05e1', '\u05d6\u05de\u05e1', '\u05d2\'\u05de\u05e1', '\u05d2\u05de\u05e1', 'jams'],
-    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2', '\u05e1\u05e8\u05d5\u05d2'],
+    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2'],
     '\u05d0\u05e8\u05d9\u05d2': ['\u05d0\u05e8\u05d9\u05d2'],
     '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', '\u05d2\u05e8\u05e1\u05d9', '\u05d2\'\u05e8\u05e1\u05d9', 'jersey'],
     '\u05e9\u05d9\u05e4\u05d5\u05df': ['\u05e9\u05d9\u05e4\u05d5\u05df', 'chiffon'],
@@ -584,11 +569,10 @@ function analyzeQuery(query) {
     '\u05dc\u05d9\u05d9\u05e7\u05e8\u05d4': ['\u05dc\u05d9\u05d9\u05e7\u05e8\u05d4', 'lycra'],
     '\u05d8\u05e8\u05d9\u05e7\u05d5': ['\u05d8\u05e8\u05d9\u05e7\u05d5', 'tricot'],
     '\u05e8\u05e9\u05ea': ['\u05e8\u05e9\u05ea'],
-    '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', '\u05d2\'\u05d9\u05e0\u05e1', '\u05d2\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd', 'denim'],
+    '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd'],
     '\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9': ['\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9', 'corduroy'],
     '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique'],
-    '\u05e2\u05d5\u05e8': ['\u05e2\u05d5\u05e8', 'leather', '\u05de\u05e2\u05d5\u05e8', '\u05d3\u05de\u05d5\u05d9 \u05e2\u05d5\u05e8', 'faux leather'],
-    '\u05e4\u05e8\u05d5\u05d5\u05d4': ['\u05e4\u05e8\u05d5\u05d5\u05d4', '\u05e4\u05e8\u05d5\u05d4', 'fur', 'faux fur'],
+    'פרווה': ['פרווה', 'fur', 'faux fur'],
     '\u05db\u05d5\u05ea\u05e0\u05d4': ['\u05db\u05d5\u05ea\u05e0\u05d4', 'cotton'],
     '\u05e4\u05e9\u05ea\u05df': ['\u05e4\u05e9\u05ea\u05df', 'linen'],
     '\u05de\u05e9\u05d9': ['\u05de\u05e9\u05d9', 'silk'],
@@ -606,7 +590,7 @@ function analyzeQuery(query) {
   };
   // עיצוב
   const designMap = {
-    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck', '\u05d5\u05d9', '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df \u05d5\u05d9'],
+    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck'],
     '\u05d2\u05d5\u05dc\u05e3': ['\u05d2\u05d5\u05dc\u05e3', 'turtleneck'],
     '\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd': ['\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd', 'buttons'],
     '\u05d7\u05d2\u05d5\u05e8\u05d4': ['\u05d7\u05d2\u05d5\u05e8\u05d4', 'belt'],
@@ -625,17 +609,7 @@ function analyzeQuery(query) {
 
 
   // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
-  // גיזרה A / a-line → מתרחבת
-  if (/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa\u05d0\u05d9]\b/i.test(processedQuery) || /\ba[\s-]?line\b/i.test(processedQuery) || /\u05d0\u05d9\u05d9?\s*\u05dc\u05d9\u05d9\u05df/i.test(processedQuery)) {
-    if (!analysis.fit) analysis.fit = '\u05de\u05ea\u05e8\u05d7\u05d1\u05ea';
-    processedQuery = processedQuery.replace(/\u05d2\u05d9\u05d6\u05e8[\u05d4\u05ea]?\s*[Aa\u05d0\u05d9]\b/gi,'').replace(/\ba[\s-]?line\b/gi,'').replace(/\u05d0\u05d9\u05d9?\s*\u05dc\u05d9\u05d9\u05df/gi,'').trim();
-  }
-  // גיזרה "אי" / "איי ליין" → מתרחבת
-  if (/איי?\s*ליין/i.test(processedQuery) || /גיזר[הת]?\s*אי\b/.test(processedQuery)) {
-    if (!analysis.fit) analysis.fit = 'מתרחבת';
-    processedQuery = processedQuery.replace(/איי?\s*ליין/gi,'').replace(/גיזר[הת]?\s*אי\b/gi,'').trim();
-  }
-    const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
+  const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
   const usedRanges = []; // track which char ranges were matched by phrases
   
   // Multi-word design details
@@ -652,17 +626,6 @@ function analyzeQuery(query) {
     'צווארון סירה': 'צווארון סירה'
   };
   
-  // שמלת אירוח / חלוק → category חלוק
-  if (/שמלת?\s*אירוח|חלוק/i.test(processedQuery)) {
-    if (!analysis.category) analysis.category = 'חלוק';
-    processedQuery = processedQuery.replace(/שמלת?\s*אירוח/gi,'חלוק').trim();
-  }
-    // טי שרט / טי שארט → חולצה (לפני פירוק למילים)
-  if (/\u05d8\u05d9\s*\u05e9[\u05e8\u05d0]\u05d8/.test(processedQuery) || /t[\s-]?shirt/i.test(processedQuery)) {
-    if (!analysis.category) analysis.category = '\u05d7\u05d5\u05dc\u05e6\u05d4';
-    processedQuery = processedQuery.replace(/\u05d8\u05d9\s*\u05e9[\u05e8\u05d0]\u05d8/g,'').replace(/t[\s-]?shirt/gi,'').trim();
-  }
-
   for (const [phrase, designName] of Object.entries(multiWordDesign)) {
     if (fullText.includes(phrase)) {
       analysis.designDetails.push(designName);
@@ -957,12 +920,11 @@ function adminAuth(req, res, next) {
     const [user, pass] = decoded.split(':');
     if (pass === ADMIN_PASSWORD) return next();
   }
-  // בדוק query param: ?pwd=xxx — הגדר cookie ואז redirect לURL נקי (בלי סיסמה)
+  // בדוק query param: ?pwd=xxx (לנוחות)
   if (req.query.pwd === ADMIN_PASSWORD) {
-    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/; HttpOnly; Max-Age=31536000`);
-    const otherParams = Object.entries(req.query).filter(([k]) => k !== 'pwd');
-    const cleanUrl = req.path + (otherParams.length ? '?' + otherParams.map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&') : '');
-    return res.redirect(302, cleanUrl);
+    // שלח cookie session קצר
+    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/admin; HttpOnly; Max-Age=86400`);
+    return next();
   }
   // בדוק cookie
   const cookies = req.headers.cookie || '';
@@ -1092,430 +1054,10 @@ app.delete("/api/sponsored/:id", async (req,res) => {
 });
 
 // Serve admin UI
-app.get("/admin/tasks", adminAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin_tasks.html'));
-});
-
 app.get("/admin/sponsored", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_sponsored.html'));
 });
 
-
-// ===== ADMIN: TEST ALERT =====
-// POST /api/admin/test-alert — שלח מייל בדיקה לעצמך
-app.post('/api/admin/test-alert', adminAuth, async (req, res) => {
-  try {
-    const { type = 'price' } = req.body; // type: 'price' | 'size'
-
-    const r = await pool.query(`
-      SELECT pa.*, u.email AS user_email,
-             p.title, p.image_url, p.store, p.price, p.sizes, p.source_url
-      FROM price_alerts pa
-      JOIN users u ON u.id = pa.user_id
-      LEFT JOIN products p ON p.source_url = pa.product_source_url
-      WHERE pa.active = true
-        AND (($1 = 'price' AND pa.alert_price = true)
-          OR ($1 = 'size'  AND pa.alert_size IS NOT NULL))
-      LIMIT 1
-    `, [type]);
-
-    if (r.rows.length === 0)
-      return res.json({ ok: false, msg: 'אין התראת ' + type + ' פעילה. הגדר קודם התראה מהסוג הזה.' });
-
-    const a = r.rows[0];
-    const BREVO_KEY  = process.env.BREVO_API_KEY;
-    const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
-    const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
-    if (!BREVO_KEY) return res.json({ ok: false, msg: 'חסר BREVO_API_KEY' });
-
-    let subject, html;
-    if (type === 'size') {
-      const testSize = (a.alert_size === 'any')
-        ? ((a.sizes && a.sizes[0]) || 'M')
-        : a.alert_size;
-      subject = '🧪 בדיקה — מידה חזרה למלאי! ' + (a.title || '');
-      html = buildAlertEmail({ type: 'size', title: a.title || 'מוצר', image: a.image_url,
-        store: a.store, newVal: testSize, url: a.source_url || SITE_URL, siteUrl: SITE_URL });
-    } else {
-      const fakeOld = a.price ? (parseFloat(a.price) + 50).toFixed(0) : '200';
-      const fakeNew = a.price ? parseFloat(a.price).toFixed(0) : '150';
-      subject = '🧪 בדיקה — המחיר ירד! ' + (a.title || '');
-      html = buildAlertEmail({ type: 'price', title: a.title || 'מוצר', image: a.image_url,
-        store: a.store, oldVal: fakeOld, newVal: fakeNew, url: a.source_url || SITE_URL, siteUrl: SITE_URL });
-    }
-
-    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
-        to: [{ email: a.user_email }],
-        subject, htmlContent: html
-      })
-    });
-    if (resp.ok) res.json({ ok: true, type, sent_to: a.user_email, product: a.title });
-    else { const e = await resp.json(); res.json({ ok: false, error: e }); }
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-
-// ===== ADMIN: שינוי מחיר/מידה ב-DB + הרצת התראות =====
-app.post('/api/admin/db-test-alert', adminAuth, async (req, res) => {
-  try {
-    const { product_source_url, new_price, new_sizes } = req.body;
-    // new_price: מספר — ישנה את המחיר בDB
-    // new_sizes: מערך — ישנה את המידות בDB
-    if (!product_source_url) return res.status(400).json({ error: 'חסר product_source_url' });
-
-    const BREVO_KEY  = process.env.BREVO_API_KEY;
-    const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
-    const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
-    if (!BREVO_KEY) return res.json({ ok: false, msg: 'חסר BREVO_API_KEY' });
-
-    // 1. שמור ערכים מקוריים
-    const origQ = await pool.query(
-      'SELECT price, sizes FROM products WHERE source_url=$1', [product_source_url]);
-    if (origQ.rows.length === 0) return res.json({ ok: false, msg: 'מוצר לא נמצא' });
-    const { price: origPrice, sizes: origSizes } = origQ.rows[0];
-
-    // 2. עדכן DB
-    if (new_price !== undefined && new_price !== null) {
-      await pool.query('UPDATE products SET price=$1 WHERE source_url=$2', [new_price, product_source_url]);
-    }
-    if (new_sizes !== undefined && new_sizes !== null) {
-      await pool.query('UPDATE products SET sizes=$1 WHERE source_url=$2', [new_sizes, product_source_url]);
-    }
-
-    // 3. שלוף התראות + מוצר מעודכן
-    const alertsQ = await pool.query(`
-      SELECT pa.*, u.email AS user_email,
-             p.title, p.image_url, p.store, p.price AS cur_price, p.sizes AS cur_sizes, p.source_url
-      FROM price_alerts pa
-      JOIN users u ON u.id = pa.user_id
-      JOIN products p ON p.source_url = pa.product_source_url
-      WHERE pa.active = true AND pa.product_source_url = $1
-    `, [product_source_url]);
-
-    const results = [];
-    let sent = 0;
-
-    for (const alert of alertsQ.rows) {
-      // ── בדיקת מחיר ──
-      if (alert.alert_price && alert.cur_price && alert.last_price) {
-        const prev = parseFloat(alert.last_price);
-        const curr = parseFloat(alert.cur_price);
-        if (curr < prev) {
-          const html = buildAlertEmail({ type: 'price', title: alert.title, image: alert.image_url,
-            store: alert.store, oldVal: prev.toFixed(0), newVal: curr.toFixed(0),
-            url: alert.source_url, siteUrl: SITE_URL });
-          const r = await fetch('https://api.brevo.com/v3/smtp/email', {
-            method: 'POST', headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
-              to: [{ email: alert.user_email }],
-              subject: '💰 המחיר ירד! ' + alert.title, htmlContent: html })
-          });
-          if (r.ok) {
-            await pool.query('UPDATE price_alerts SET last_price=$1, triggered_at=NOW() WHERE id=$2', [curr, alert.id]);
-            results.push({ type: 'price', sent: true, email: alert.user_email, prev, curr });
-            sent++;
-          }
-        } else {
-          results.push({ type: 'price', sent: false, reason: 'מחיר ' + curr + ' לא נמוך מlast_price ' + prev });
-        }
-      }
-
-      // ── בדיקת מידה ──
-      if (alert.alert_size && alert.cur_sizes) {
-        const prevSizes = alert.last_sizes || [];
-        const watchSize = alert.alert_size;
-        const sizeBack = watchSize === 'any'
-          ? alert.cur_sizes.some(s => !prevSizes.includes(s))
-          : alert.cur_sizes.includes(watchSize) && !prevSizes.includes(watchSize);
-        if (sizeBack) {
-          const newVal = watchSize === 'any'
-            ? alert.cur_sizes.find(s => !prevSizes.includes(s))
-            : watchSize;
-          const html = buildAlertEmail({ type: 'size', title: alert.title, image: alert.image_url,
-            store: alert.store, newVal, url: alert.source_url, siteUrl: SITE_URL });
-          const r = await fetch('https://api.brevo.com/v3/smtp/email', {
-            method: 'POST', headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
-              to: [{ email: alert.user_email }],
-              subject: '📦 מידה ' + newVal + ' חזרה! ' + alert.title, htmlContent: html })
-          });
-          if (r.ok) {
-            await pool.query('UPDATE price_alerts SET last_sizes=$1, triggered_at=NOW() WHERE id=$2', [alert.cur_sizes, alert.id]);
-            results.push({ type: 'size', sent: true, email: alert.user_email, size: newVal });
-            sent++;
-          }
-        } else {
-          results.push({ type: 'size', sent: false,
-            reason: 'מידה ' + watchSize + ' לא חדשה. cur:' + (alert.cur_sizes||[]).join(',') + ' last:' + prevSizes.join(',') });
-        }
-      }
-    }
-
-    // 4. החזר DB לערכים מקוריים
-    if (new_price !== undefined) await pool.query('UPDATE products SET price=$1 WHERE source_url=$2', [origPrice, product_source_url]);
-    if (new_sizes !== undefined) await pool.query('UPDATE products SET sizes=$1 WHERE source_url=$2', [origSizes, product_source_url]);
-
-    res.json({ ok: true, sent, results,
-      changes: { price: new_price ? origPrice + '→' + new_price + '→' + origPrice : null,
-                 sizes: new_sizes ? JSON.stringify(origSizes) + '→restored' : null } });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ===== PREVIEW TOKENS =====
-
-// POST /api/admin/preview-token — יצירת קישור זמני
-app.post('/api/admin/preview-token', adminAuth, async (req, res) => {
-  try {
-    const { hours = 24, label = '' } = req.body;
-    const token = randomBytes(16).toString('hex');
-    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
-    await pool.query(
-      `INSERT INTO preview_tokens (token, label, expires_at) VALUES ($1, $2, $3)`,
-      [token, label, expiresAt]
-    );
-    const SITE_URL = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
-    res.json({ ok: true, token, expires_at: expiresAt,
-      url: SITE_URL + '/?preview=' + token });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /api/admin/preview-tokens — רשימת כל הטוקנים
-app.get('/api/admin/preview-tokens', adminAuth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `SELECT * FROM preview_tokens ORDER BY created_at DESC LIMIT 50`);
-    res.json({ tokens: r.rows });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE /api/admin/preview-token/:token — ביטול טוקן
-app.delete('/api/admin/preview-token/:token', adminAuth, async (req, res) => {
-  try {
-    await pool.query(`DELETE FROM preview_tokens WHERE token=$1`, [req.params.token]);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /api/verify-preview — בדיקת טוקן מהclient
-app.get('/api/verify-preview', async (req, res) => {
-  const { token } = req.query;
-  if (!token) return res.json({ valid: false });
-  try {
-    const r = await pool.query(
-      `SELECT * FROM preview_tokens WHERE token=$1 AND expires_at > NOW()`, [token]);
-    if (r.rows.length === 0) return res.json({ valid: false, reason: 'פג תוקף או לא קיים' });
-    // עדכן last_used
-    await pool.query(`UPDATE preview_tokens SET uses=uses+1, last_used=NOW() WHERE token=$1`, [token]);
-    res.json({ valid: true, expires_at: r.rows[0].expires_at, label: r.rows[0].label });
-  } catch(e) { res.status(500).json({ valid: false }); }
-});
-
-// ===== ADMIN: רשימת מוצרים עם התראות =====
-app.get('/api/admin/alert-urls', adminAuth, async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT DISTINCT pa.product_source_url AS url, p.title, p.store,
-             bool_or(pa.alert_price) AS has_price, array_agg(pa.alert_size) FILTER (WHERE pa.alert_size IS NOT NULL) AS sizes
-      FROM price_alerts pa
-      LEFT JOIN products p ON p.source_url = pa.product_source_url
-      WHERE pa.active = true
-      GROUP BY pa.product_source_url, p.title, p.store
-    `);
-    res.json({ items: r.rows.map(x => ({
-      url: x.url, title: x.title || x.url.slice(-40),
-      store: x.store || '', has_price: x.has_price, sizes: x.sizes
-    }))});
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ===== ADMIN: SIMULATE PRICE/SIZE CHANGE & RUN ALERTS =====
-app.post('/api/admin/simulate-change', adminAuth, async (req, res) => {
-  try {
-    const { type, product_source_url, new_price, remove_size } = req.body;
-    // type: 'price' | 'size'
-    // new_price: מחיר חדש נמוך יותר
-    // remove_size: מידה שנחזיר למלאי (תחילה נסיר, אח"כ נחזיר)
-
-    const BREVO_KEY  = process.env.BREVO_API_KEY;
-    const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
-    const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
-
-    if (!BREVO_KEY) return res.json({ ok: false, msg: 'חסר BREVO_API_KEY' });
-
-    // 1. שלוף מוצר + התראות רלוונטיות
-    const alertsQ = await pool.query(`
-      SELECT pa.*, u.email AS user_email,
-             p.title, p.image_url, p.store, p.price AS orig_price, p.sizes AS orig_sizes, p.source_url
-      FROM price_alerts pa
-      JOIN users u ON u.id = pa.user_id
-      LEFT JOIN products p ON p.source_url = pa.product_source_url
-      WHERE pa.active = true
-        AND pa.product_source_url = $1
-    `, [product_source_url]);
-
-    if (alertsQ.rows.length === 0)
-      return res.json({ ok: false, msg: 'לא נמצאה התראה פעילה על המוצר הזה' });
-
-    const results = [];
-
-    for (const alert of alertsQ.rows) {
-      let triggered = false;
-      let emailType, oldVal, newVal;
-
-      if (type === 'price' && new_price && alert.alert_price) {
-        const origPrice = parseFloat(alert.orig_price || alert.last_price || 999);
-        const simPrice  = parseFloat(new_price);
-        if (simPrice < origPrice) {
-          triggered = true;
-          emailType = 'price';
-          oldVal = origPrice.toFixed(0);
-          newVal = simPrice.toFixed(0);
-          // עדכן last_price ב-DB כדי שהבדיקה הבאה תהיה נקייה
-          await pool.query('UPDATE price_alerts SET last_price=$1 WHERE id=$2', [simPrice, alert.id]);
-        }
-      }
-
-      if (type === 'size' && remove_size && alert.alert_size) {
-        const origSizes = alert.orig_sizes || [];
-        const watchSize = alert.alert_size;
-        // בדוק שהמידה קיימת כרגע ולא היתה קיימת קודם (last_sizes)
-        const lastSizes = alert.last_sizes || [];
-        const sizeIsBack = watchSize === 'any'
-          ? origSizes.some(s => !lastSizes.includes(s))
-          : origSizes.includes(watchSize) && !lastSizes.includes(watchSize);
-
-        // הדמה: נטען שהמידה חזרה
-        if (origSizes.length > 0 || watchSize !== 'any') {
-          triggered = true;
-          emailType = 'size';
-          newVal = watchSize === 'any' ? (origSizes[0] || remove_size) : watchSize;
-          // עדכן last_sizes ל-[] כדי שהמידה תיחשב "חדשה"
-          await pool.query('UPDATE price_alerts SET last_sizes=$1 WHERE id=$2', [[], alert.id]);
-        }
-      }
-
-      if (triggered) {
-        const html = buildAlertEmail({
-          type: emailType, title: alert.title || 'מוצר', image: alert.image_url,
-          store: alert.store, oldVal, newVal,
-          url: alert.source_url || SITE_URL, siteUrl: SITE_URL
-        });
-        const subject = emailType === 'price'
-          ? ('💰 המחיר ירד! ' + (alert.title || ''))
-          : ('📦 מידה ' + newVal + ' חזרה למלאי! ' + (alert.title || ''));
-
-        const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sender: { name: 'LOOKLI התראות', email: FROM_EMAIL },
-            to: [{ email: alert.user_email }],
-            subject, htmlContent: html
-          })
-        });
-        results.push({ email: alert.user_email, type: emailType, sent: resp.ok, newVal, oldVal });
-      } else {
-        results.push({ email: alert.user_email, type, triggered: false,
-          reason: type === 'price' ? 'מחיר לא נמוך מהמחיר המקורי או אין התראת מחיר' : 'אין התראת מידה או מידה לא נמצאה' });
-      }
-    }
-
-    res.json({ ok: true, results });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// helper לבניית מייל
-function buildAlertEmail({ type, title, image, store, oldVal, newVal, url, siteUrl }) {
-  const isPrice = type === 'price';
-  const imgHtml = image ? '<img src="' + image + '" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:20px"/>' : '';
-  const bodyHtml = isPrice
-    ? '<p style="font-size:16px">המחיר של <strong>' + title + '</strong> ירד!</p><p style="font-size:22px;color:#e0a1c0;font-weight:900">₪' + newVal + ' <span style="text-decoration:line-through;font-size:14px;color:#999">₪' + oldVal + '</span></p>'
-    : '<p style="font-size:16px">מידה <strong>' + newVal + '</strong> של <strong>' + title + '</strong> חזרה למלאי!</p>';
-  return '<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>'
-    + '<body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;direction:rtl">'
-    + '<div style="max-width:520px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">'
-    + '<div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:24px 28px;text-align:center">'
-    + '<div style="font-size:28px;font-weight:900;color:#fff">LOOKLI</div></div>'
-    + '<div style="padding:28px">' + imgHtml + bodyHtml
-    + '<a href="' + url + '" style="display:block;margin-top:20px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">לרכישה \u2190</a>'
-    + '</div><div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">'
-    + 'קיבלת מייל זה כי הגדרת התראה ב-LOOKLI</div></div></body></html>';
-}
-// ===== GOOGLE OAUTH =====
-
-// GET /auth/google — redirect לגוגל
-app.get('/auth/google', (req, res) => {
-  const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-  if (!CLIENT_ID) return res.status(500).send('GOOGLE_CLIENT_ID חסר ב-Railway Variables');
-  const redirect = encodeURIComponent(process.env.GOOGLE_REDIRECT_URI || 'https://lookli-production.up.railway.app/auth/google/callback');
-  const scope = encodeURIComponent('openid email profile');
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${redirect}&response_type=code&scope=${scope}&prompt=select_account`);
-});
-
-// GET /auth/google/callback — גוגל מחזיר code
-app.get('/auth/google/callback', async (req, res) => {
-  const { code } = req.query;
-  if (!code) return res.redirect('/?auth_error=no_code');
-
-  const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
-  const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-  const REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI || 'https://lookli-production.up.railway.app/auth/google/callback';
-
-  try {
-    // 1. החלף code ב-access_token
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, redirect_uri: REDIRECT_URI, grant_type: 'authorization_code' })
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error('לא התקבל access_token');
-
-    // 2. שלוף פרטי משתמש מגוגל
-    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: 'Bearer ' + tokenData.access_token }
-    });
-    const profile = await profileRes.json();
-    const { id: googleId, email, name, picture } = profile;
-    if (!email) throw new Error('לא התקבל email מגוגל');
-
-    // 3. מצא או צור משתמש ב-DB
-    let user;
-    // נסה למצא לפי google_id
-    const byGoogle = await pool.query('SELECT * FROM users WHERE google_id=$1', [googleId]);
-    if (byGoogle.rows.length > 0) {
-      user = byGoogle.rows[0];
-      // עדכן avatar/name אם השתנה
-      await pool.query('UPDATE users SET avatar=$1, name=COALESCE(name,$2), updated_at=NOW() WHERE id=$3', [picture, name, user.id]);
-    } else {
-      // נסה למצא לפי email (משתמש רשום ידנית)
-      const byEmail = await pool.query('SELECT * FROM users WHERE email=$1', [email.toLowerCase()]);
-      if (byEmail.rows.length > 0) {
-        user = byEmail.rows[0];
-        await pool.query('UPDATE users SET google_id=$1, avatar=$2, updated_at=NOW() WHERE id=$3', [googleId, picture, user.id]);
-      } else {
-        // משתמש חדש
-        const ins = await pool.query(
-          'INSERT INTO users(email, name, google_id, avatar) VALUES($1,$2,$3,$4) RETURNING *',
-          [email.toLowerCase(), name, googleId, picture]
-        );
-        user = ins.rows[0];
-      }
-    }
-
-    // 4. צור JWT ו-redirect לדף הבית עם token
-    const token = createToken(user.id, user.email);
-    res.redirect(`/?auth_token=${encodeURIComponent(token)}&auth_name=${encodeURIComponent(user.name || user.email)}`);
-
-  } catch(err) {
-    console.error('Google auth error:', err.message);
-    res.redirect('/?auth_error=' + encodeURIComponent(err.message));
-  }
-});
 
 // ===== PRICE & STOCK ALERTS =====
 
@@ -1873,7 +1415,7 @@ app.post("/api/saved/check", authMiddleware, async (req, res) => {
 
 
 // ── GA4 Analytics Dashboard ──────────────────────────────────────────
-// GoogleAuth imported at top of file
+const { GoogleAuth } = require('google-auth-library');
 const GA4_PROPERTY = 'properties/526435013';
 
 async function getGA4Token() {
@@ -1973,93 +1515,6 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
-// ─── Admin: Tagger UI ───────────────────────────────────────────────────────
-app.get('/admin/tagger', adminAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin_tagger.html'));
-});
-
-// ─── Admin: Clear fits ───────────────────────────────────────────────────────
-app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0)
-      return res.status(400).json({ error: 'ids required' });
-    const numIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
-    const result = await pool.query(
-      `UPDATE products SET fit = NULL, fits = '{}' WHERE id = ANY($1::int[]) RETURNING id`,
-      [numIds]
-    );
-    res.json({ ok: true, cleared: result.rowCount });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ─── Admin: Clear design_details ────────────────────────────────────────────
-app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'ids required' });
-    const numIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
-    const result = await pool.query(
-      `UPDATE products SET design_details = '{}' WHERE id = ANY($1::int[]) RETURNING id`,
-      [numIds]
-    );
-    res.json({ ok: true, cleared: result.rowCount });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ─── Admin: Tag products API ─────────────────────────────────────────────────
-app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
-  try {
-    const { ids, field, value } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0)
-      return res.status(400).json({ error: 'ids required' });
-    if (!field || !value)
-      return res.status(400).json({ error: 'field and value required' });
-
-    // שדות מותרים בלבד
-    const allowedFields = ['style', 'category', 'fit', 'fabric', 'pattern', 'color', 'design_details'];
-    if (!allowedFields.includes(field))
-      return res.status(400).json({ error: 'Invalid field: ' + field });
-
-    // sanitize ids
-    const numIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
-    if (numIds.length === 0)
-      return res.status(400).json({ error: 'No valid ids' });
-
-    let result;
-    if (field === 'fit') {
-      // הוסף לfits[] בדיוק כמו design_details — ללא דריסה
-      result = await pool.query(
-        `UPDATE products SET
-          fit = $1::text,
-          fits = (SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(fits, CASE WHEN fit IS NOT NULL THEN ARRAY[fit::text] ELSE ARRAY[]::text[] END), $1::text)) v)
-        WHERE id = ANY($2::int[]) RETURNING id`,
-        [value.trim(), numIds]
-      );
-    } else if (field === 'design_details') {
-      // design_details הוא TEXT[] — הוסף ערך למערך (ללא כפילויות)
-      result = await pool.query(
-        `UPDATE products SET design_details = (
-          SELECT array_agg(DISTINCT v) FROM unnest(array_append(COALESCE(design_details, '{}'), $1)) v
-        ) WHERE id = ANY($2::int[]) RETURNING id`,
-        [value.trim(), numIds]
-      );
-    } else {
-      result = await pool.query(
-        `UPDATE products SET ${field} = $1 WHERE id = ANY($2::int[]) RETURNING id`,
-        [value.trim(), numIds]
-      );
-    }
-
-    res.json({ ok: true, updated: result.rowCount, field, value });
-  } catch (err) {
-    console.error('tag-products error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
@@ -2079,70 +1534,5 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
-    // migration: google OAuth support
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(100)`);
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`);
-    try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL`); } catch(e){}
-    // migration: preview_tokens
-    await pool.query(`CREATE TABLE IF NOT EXISTS preview_tokens (
-      id SERIAL PRIMARY KEY,
-      token VARCHAR(64) UNIQUE NOT NULL,
-      label VARCHAR(200) DEFAULT '',
-      expires_at TIMESTAMP NOT NULL,
-      uses INTEGER DEFAULT 0,
-      last_used TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`);
-    // migration: fits TEXT[] לגיזרות מרובות
-    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[]`);
-    await pool.query(`UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND (fits IS NULL OR fits = '{}')`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_fits ON products USING gin(fits)`);
-    // ── users table ──────────────────────────────────────────────
-    await pool.query(`CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash TEXT,
-      name VARCHAR(200),
-      google_id VARCHAR(100),
-      avatar TEXT,
-      plan VARCHAR(20) DEFAULT 'free',
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
-    )`);
-    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
-    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id) WHERE google_id IS NOT NULL`);
-
-    // ── saved_products table ──────────────────────────────────────
-    await pool.query(`CREATE TABLE IF NOT EXISTS saved_products (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      product_source_url TEXT NOT NULL,
-      product_title TEXT,
-      product_price DECIMAL(10,2),
-      product_image TEXT,
-      product_store VARCHAR(100),
-      saved_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(user_id, product_source_url)
-    )`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_saved_user ON saved_products(user_id)`);
-
-    // ── price_alerts table ────────────────────────────────────────
-    await pool.query(`CREATE TABLE IF NOT EXISTS price_alerts (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      product_source_url TEXT NOT NULL,
-      product_id INTEGER,
-      alert_price BOOLEAN DEFAULT false,
-      alert_size VARCHAR(20),
-      last_price DECIMAL(10,2),
-      last_sizes TEXT[],
-      active BOOLEAN DEFAULT true,
-      triggered_at TIMESTAMP,
-      created_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(user_id, product_source_url)
-    )`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(active) WHERE active=true`);
-
   } catch(e) { console.error('clicks table init:', e.message); }
 });

@@ -1509,6 +1509,8 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
+app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
+app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);

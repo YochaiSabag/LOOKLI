@@ -72,8 +72,6 @@ const pool = new Pool({
 });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-// שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
 
 // ===== נעילת אתר — רק דרך קישור זמני =====
 const SITE_LOCKED = process.env.SITE_LOCKED === 'true';
@@ -81,24 +79,21 @@ const previewTokens = new Map();
 
 if (SITE_LOCKED) {
   app.use((req, res, next) => {
-    // מעבר חופשי: admin, api, קבצים סטטיים, טוקן validation
+    // מעבר חופשי: admin, api, קבצים סטטיים שלא html
     if (
       req.path.startsWith('/admin') ||
       req.path.startsWith('/api/') ||
-      req.path.startsWith('/public/') ||
       req.path.match(/\.(js|css|png|jpg|svg|ico|webp|woff2?)$/)
     ) return next();
 
     // בדיקת טוקן בcookie
     const cookieToken = (req.headers.cookie || '').match(/preview_token=([a-f0-9]+)/)?.[1];
-    // בדיקת טוקן ב-query
     const queryToken = req.query.preview;
     const token = queryToken || cookieToken;
 
     if (token) {
       const entry = previewTokens.get(token);
       if (entry && Date.now() < entry.expiresAt) {
-        // שמור בcookie כדי שלא יצטרכו טוקן בכל בקשה
         if (queryToken) {
           res.setHeader('Set-Cookie', `preview_token=${token}; Path=/; Max-Age=${Math.floor((entry.expiresAt - Date.now()) / 1000)}`);
         }
@@ -106,10 +101,13 @@ if (SITE_LOCKED) {
       }
     }
 
-    // חסום — מחזיר דף פשוט
+    // חסום
     res.status(403).send(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>LOOKLI</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0f;color:#f1f0ff;text-align:center}.box{padding:40px}.logo{font-size:32px;font-weight:900;background:linear-gradient(135deg,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}.msg{color:#6b7280;font-size:15px}</style></head><body><div class="box"><div class="logo">LOOKLI</div><div class="msg">האתר בשלבי בנייה — נחזור בקרוב ✨</div></div></body></html>`);
   });
 }
+
+app.use(express.static(path.join(__dirname, "public")));
+// שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));

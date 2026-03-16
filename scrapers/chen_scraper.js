@@ -228,8 +228,12 @@ async function getAllProductUrls(page) {
   const allUrls = new Set();
 
   const categories = [
-    // ⚠️ מצב בדיקה - עמוד אחד בלבד. אחרי אישור החזר maxPages המקוריים
-    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/', label: 'שמלות', maxPages: 1 },
+    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/',        label: 'שמלות',           maxPages: 50 },
+    { base: 'https://www.chen-fashion.com/product-category/new-collection-2/',                       label: 'new-collection-2', maxPages: 50 },
+    { base: 'https://www.chen-fashion.com/product-category/new-collection/',                         label: 'new-collection',   maxPages: 50 },
+    { base: 'https://www.chen-fashion.com/product-category/sale-%d7%a7%d7%99%d7%a5/',               label: 'sale-קיץ',         maxPages: 50 },
+    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', label: 'חצאיות',           maxPages: 50 },
+    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', label: 'חולצות',           maxPages: 50 },
   ];
 
   for (const cat of categories) {

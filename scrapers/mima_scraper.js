@@ -305,7 +305,7 @@ async function dismissPopups(page) {
 // ======================================================================
 // איסוף קישורי מוצרים מדף הבית של מימה (infinite scroll)
 // ======================================================================
-async function getAllProductUrls(page, maxProducts = 10) {
+async function getAllProductUrls(page, maxProducts = 99999) {
   console.log('\n📂 איסוף קישורים מ-mima-shop.co.il...\n');
   
   const allUrls = new Set();
@@ -846,7 +846,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = 5; // בדיקה
+const MAX_PRODUCTS = 99999;
 
 const browser = await chromium.launch({ headless: false, slowMo: 50 });
 const context = await browser.newContext({

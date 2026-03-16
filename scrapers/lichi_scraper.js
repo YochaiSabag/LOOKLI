@@ -775,7 +775,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = 10;
+const MAX_PRODUCTS = 99999;
 
 const browser = await chromium.launch({ headless: false, slowMo: 30 });
 const context = await browser.newContext({

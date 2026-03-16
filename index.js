@@ -75,33 +75,40 @@ app.use(express.json());
 
 // ===== נעילת אתר — רק דרך קישור זמני =====
 const SITE_LOCKED = process.env.SITE_LOCKED === 'true';
-const previewTokens = new Map();
+
+async function isValidPreviewToken(token) {
+  if (!token) return false;
+  try {
+    const r = await pool.query(
+      `SELECT 1 FROM preview_tokens WHERE token=$1 AND expires_at > NOW()`,
+      [token]
+    );
+    return r.rows.length > 0;
+  } catch(e) { return false; }
+}
 
 if (SITE_LOCKED) {
-  app.use((req, res, next) => {
-    // מעבר חופשי: admin, api, קבצים סטטיים שלא html
+  app.use(async (req, res, next) => {
     if (
       req.path.startsWith('/admin') ||
       req.path.startsWith('/api/') ||
       req.path.match(/\.(js|css|png|jpg|svg|ico|webp|woff2?)$/)
     ) return next();
 
-    // בדיקת טוקן בcookie
     const cookieToken = (req.headers.cookie || '').match(/preview_token=([a-f0-9]+)/)?.[1];
     const queryToken = req.query.preview;
     const token = queryToken || cookieToken;
 
-    if (token) {
-      const entry = previewTokens.get(token);
-      if (entry && Date.now() < entry.expiresAt) {
-        if (queryToken) {
-          res.setHeader('Set-Cookie', `preview_token=${token}; Path=/; Max-Age=${Math.floor((entry.expiresAt - Date.now()) / 1000)}`);
-        }
-        return next();
+    if (token && await isValidPreviewToken(token)) {
+      if (queryToken) {
+        // קרא את תוקף הטוקן מה-DB לcookie
+        const r = await pool.query(`SELECT expires_at FROM preview_tokens WHERE token=$1`, [token]);
+        const maxAge = r.rows[0] ? Math.floor((new Date(r.rows[0].expires_at) - Date.now()) / 1000) : 86400;
+        res.setHeader('Set-Cookie', `preview_token=${token}; Path=/; Max-Age=${maxAge}`);
       }
+      return next();
     }
 
-    // חסום
     res.status(403).send(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>LOOKLI</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0f;color:#f1f0ff;text-align:center}.box{padding:40px}.logo{font-size:32px;font-weight:900;background:linear-gradient(135deg,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}.msg{color:#6b7280;font-size:15px}</style></head><body><div class="box"><div class="logo">LOOKLI</div><div class="msg">האתר בשלבי בנייה — נחזור בקרוב ✨</div></div></body></html>`);
   });
 }
@@ -1598,25 +1605,34 @@ app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirna
 
 // ===== קישורי הצגה זמניים =====
 // POST /api/admin/preview-token — יצירת טוקן זמני
-app.post('/api/admin/preview-token', adminAuth, (req, res) => {
+app.post('/api/admin/preview-token', adminAuth, async (req, res) => {
   const { hours = 24, note = '' } = req.body;
   const token = randomBytes(16).toString('hex');
-  const expiresAt = Date.now() + hours * 60 * 60 * 1000;
-  previewTokens.set(token, { expiresAt, note });
-  setTimeout(() => previewTokens.delete(token), hours * 60 * 60 * 1000);
-  const url = `${process.env.SITE_URL || 'https://lookli.co.il'}/?preview=${token}`;
-  res.json({ ok: true, url, hours, expiresAt, note });
+  try {
+    await pool.query(
+      `INSERT INTO preview_tokens (token, note, expires_at) VALUES ($1, $2, NOW() + ($3 || ' hours')::interval)`,
+      [token, note, hours]
+    );
+    const expiresAt = Date.now() + hours * 60 * 60 * 1000;
+    const url = `${process.env.SITE_URL || 'https://lookli-production.up.railway.app'}/?preview=${token}`;
+    res.json({ ok: true, url, hours, expiresAt, note });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/preview-token/:token — אימות טוקן (ציבורי)
-app.get('/api/preview-token/:token', (req, res) => {
-  const entry = previewTokens.get(req.params.token);
-  if (!entry) return res.status(404).json({ valid: false });
-  if (Date.now() > entry.expiresAt) {
-    previewTokens.delete(req.params.token);
-    return res.status(410).json({ valid: false, expired: true });
+app.get('/api/preview-token/:token', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT expires_at, note FROM preview_tokens WHERE token=$1 AND expires_at > NOW()`,
+      [req.params.token]
+    );
+    if (!r.rows.length) return res.status(404).json({ valid: false });
+    res.json({ valid: true, expiresAt: new Date(r.rows[0].expires_at).getTime(), note: r.rows[0].note });
+  } catch(e) {
+    res.status(500).json({ valid: false });
   }
-  res.json({ valid: true, store: entry.store, expiresAt: entry.expiresAt });
 });
 
 app.listen(PORT, async () => {
@@ -1634,6 +1650,13 @@ app.listen(PORT, async () => {
       clicked_at TIMESTAMP DEFAULT NOW()
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at DESC)`);
+    // טבלת טוקני תצוגה זמניים
+    await pool.query(`CREATE TABLE IF NOT EXISTS preview_tokens (
+      token VARCHAR(64) PRIMARY KEY,
+      note TEXT,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);

@@ -315,20 +315,12 @@
     </div>
   </div>
 
-  <!-- קישורי הצגה זמניים -->
   <div class="preview-card">
-    <div class="card-title">🔗 קישורי הצגה זמניים לחנויות</div>
+    <div class="card-title">🔗 קישורי הצגה זמניים</div>
     <div class="preview-row">
       <div class="preview-field">
-        <label>חנות</label>
-        <select id="previewStore">
-          <option value="MEKIMI">MEKIMI</option>
-          <option value="LICHI">LICHI</option>
-          <option value="MIMA">MIMA</option>
-          <option value="AVIYAH">AVIYAH</option>
-          <option value="CHEMISE">CHEMISE</option>
-          <option value="CHEN">CHEN</option>
-        </select>
+        <label>הערה (לזיהוי בלבד)</label>
+        <input type="text" id="previewNote" placeholder='למשל: "שליחה ללקוח X"' style="width:220px">
       </div>
       <div class="preview-field">
         <label>תוקף (שעות)</label>
@@ -468,14 +460,14 @@ loadData();
   }
 
   async function createPreviewLink() {
-    const store = document.getElementById('previewStore').value;
+    const note = document.getElementById('previewNote').value || '';
     const hours = parseInt(document.getElementById('previewHours').value) || 24;
     const pwd = new URLSearchParams(location.search).get('pwd') || '';
     try {
       const r = await fetch('/api/admin/preview-token' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store, hours })
+        body: JSON.stringify({ hours, note })
       });
       const d = await r.json();
       if (!d.ok) { alert('❌ ' + (d.error || 'שגיאה')); return; }
@@ -485,7 +477,7 @@ loadData();
       const exp = new Date(d.expiresAt);
       document.getElementById('previewExpiry').style.display = 'block';
       document.getElementById('previewExpiry').textContent =
-        `⏱ פג תוקף: ${exp.toLocaleDateString('he-IL')} ${exp.toLocaleTimeString('he-IL')} (${hours} שעות)`;
+        `⏱ פג תוקף: ${exp.toLocaleDateString('he-IL')} ${exp.toLocaleTimeString('he-IL')} (${hours} שעות)${note ? ' · ' + note : ''}`;
     } catch(e) {
       alert('❌ שגיאה: ' + e.message);
     }

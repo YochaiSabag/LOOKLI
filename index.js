@@ -1550,15 +1550,13 @@ app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirnam
 // ===== קישורי הצגה זמניים =====
 // POST /api/admin/preview-token — יצירת טוקן זמני
 app.post('/api/admin/preview-token', adminAuth, (req, res) => {
-  const { store, hours = 24 } = req.body;
-  if (!store) return res.status(400).json({ error: 'חסר store' });
+  const { hours = 24, note = '' } = req.body;
   const token = randomBytes(16).toString('hex');
   const expiresAt = Date.now() + hours * 60 * 60 * 1000;
-  previewTokens.set(token, { store, expiresAt });
-  // ניקוי אוטומטי לאחר פקיעה
+  previewTokens.set(token, { expiresAt, note });
   setTimeout(() => previewTokens.delete(token), hours * 60 * 60 * 1000);
   const url = `${process.env.SITE_URL || 'https://lookli.co.il'}/?preview=${token}`;
-  res.json({ ok: true, url, store, hours, expiresAt });
+  res.json({ ok: true, url, hours, expiresAt, note });
 });
 
 // GET /api/preview-token/:token — אימות טוקן (ציבורי)

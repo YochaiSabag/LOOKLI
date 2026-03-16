@@ -1544,6 +1544,7 @@ app.get('/api/analytics', async (req, res) => {
 
 app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
+app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 
 // ===== קישורי הצגה זמניים =====
 // POST /api/admin/preview-token — יצירת טוקן זמני

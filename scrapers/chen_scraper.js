@@ -228,12 +228,8 @@ async function getAllProductUrls(page) {
   const allUrls = new Set();
 
   const categories = [
-    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/',        label: 'שמלות',           maxPages: 30 },
-    { base: 'https://www.chen-fashion.com/product-category/new-collection-2/',                       label: 'new-collection-2', maxPages: 20 },
-    { base: 'https://www.chen-fashion.com/product-category/new-collection/',                         label: 'new-collection',   maxPages: 20 },
-    { base: 'https://www.chen-fashion.com/product-category/sale-%d7%a7%d7%99%d7%a5/',               label: 'sale-קיץ',         maxPages: 20 },
-    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', label: 'חצאיות',           maxPages: 20 },
-    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', label: 'חולצות',           maxPages: 20 },
+    // ⚠️ מצב בדיקה - עמוד אחד בלבד. אחרי אישור החזר maxPages המקוריים
+    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/', label: 'שמלות', maxPages: 1 },
   ];
 
   for (const cat of categories) {
@@ -573,7 +569,7 @@ async function saveProduct(product) {
   try {
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,

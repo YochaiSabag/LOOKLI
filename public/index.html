@@ -1238,8 +1238,22 @@ async function runRegularSearch(){
   const sliderMax=document.getElementById("priceRange").max;
   if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
   if(window._sortVal&&window._sortVal!=='new')params.set("sort",window._sortVal);
-  const res=await fetch("/api/products?"+params);
-  const data=await res.json();
+  
+  const cacheKey = params.toString();
+  if (!window._productCache) window._productCache = {};
+  
+  let data;
+  if (window._productCache[cacheKey]) {
+    data = window._productCache[cacheKey];
+  } else {
+    const res = await fetch("/api/products?" + params);
+    data = await res.json();
+    window._productCache[cacheKey] = data;
+    // ניקוי cache אם גדל מדי (מעל 10 entries)
+    const keys = Object.keys(window._productCache);
+    if (keys.length > 10) delete window._productCache[keys[0]];
+  }
+  
   allProducts = (window._sortVal === 'new' || !window._sortVal) ? interleaveByStore(data) : data;
   currentPage=1;renderPage();
   document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
@@ -2642,6 +2656,54 @@ document.addEventListener('click', e => {
     btn.disabled = false; btn.textContent = 'שמור התראה';
     document.getElementById('alertPopupBg').classList.remove('open');
   }
+</script>
+<style>
+#cookieBanner{
+  position:fixed;bottom:0;left:0;right:0;
+  background:#fff;
+  border-top:1px solid #f0e6f0;
+  padding:14px 24px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  z-index:9998;
+  box-shadow:0 -4px 20px rgba(0,0,0,.08);
+  font-family:inherit;
+  transform:translateY(100%);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+  flex-wrap:wrap;
+}
+#cookieBanner.show{transform:translateY(0)}
+#cookieBanner p{margin:0;font-size:13px;color:#787878;flex:1;min-width:200px}
+#cookieBanner a{color:#e0a1c0;font-weight:600;text-decoration:none}
+#cookieBanner a:hover{text-decoration:underline}
+#cookieAccept{
+  padding:9px 22px;
+  background:#e0a1c0;
+  color:#fff;border:none;border-radius:20px;
+  font-family:inherit;font-size:13px;font-weight:700;
+  cursor:pointer;white-space:nowrap;
+  transition:background .2s,transform .15s;
+  flex-shrink:0;
+}
+#cookieAccept:hover{background:#c48cb3;transform:translateY(-1px)}
+</style>
+
+<div id="cookieBanner">
+  <p>האתר משתמש ב-cookies ו-Google Analytics לשיפור חוויית הגלישה. המידע אינו נמסר לצדדים שלישיים לצורכי פרסום. <a href="/about.html">מידע נוסף</a></p>
+  <button id="cookieAccept" onclick="acceptCookies()">הבנתי ✓</button>
+</div>
+
+<script>
+(function(){
+  if(!localStorage.getItem('cookieConsent')){
+    setTimeout(()=>document.getElementById('cookieBanner')?.classList.add('show'), 800);
+  }
+})();
+function acceptCookies(){
+  localStorage.setItem('cookieConsent','1');
+  const b=document.getElementById('cookieBanner');
+  b.style.transform='translateY(100%)';
+  setTimeout(()=>b.remove(),400);
+}
 </script>
 </body>
 </html>

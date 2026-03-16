@@ -245,21 +245,19 @@ async function getAllProductUrls(page, maxProducts = 10) {
   console.log('\n📂 איסוף קישורים מ-lichi-shop.com...\n');
   const allUrls = new Set();
   
-  // כל הקטגוריות (חוץ מנעליים)
+  // קטגוריות מעודכנות
   const categories = [
-    'https://lichi-shop.com/product-category/sets/',
-    'https://lichi-shop.com/product-category/skirts/',
-    'https://lichi-shop.com/product-category/dresses/',
-    'https://lichi-shop.com/product-category/shirts/',
     'https://lichi-shop.com/product-category/sale-2/',
+    'https://lichi-shop.com/product-category/shirts/',
+    'https://lichi-shop.com/product-category/dresses/',
+    'https://lichi-shop.com/product-category/skirts/',
+    'https://lichi-shop.com/product-category/sets/',
+    'https://lichi-shop.com/shop/',
   ];
   
   for (const catUrl of categories) {
-    if (allUrls.size >= maxProducts) break;
-    
     // עבור על דפים בכל קטגוריה
-    for (let pageNum = 1; pageNum <= 5; pageNum++) {
-      if (allUrls.size >= maxProducts) break;
+    for (let pageNum = 1; pageNum <= 50; pageNum++) {
       
       const url = pageNum === 1 ? catUrl : `${catUrl}page/${pageNum}/`;
       try {
@@ -267,10 +265,23 @@ async function getAllProductUrls(page, maxProducts = 10) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(2000);
         
-        // גלילה למטה
-        for (let i = 0; i < 3; i++) {
+        // גלילה חכמה — ממתין לטעינת מוצרים נוספים
+        let lastCount = 0;
+        let noChangeCycles = 0;
+        for (let i = 0; i < 20; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1000);
+          await page.waitForTimeout(2500);
+          const count = await page.evaluate(() =>
+            document.querySelectorAll('a[href*="/product/"]').length
+          );
+          console.log(`      גלילה ${i+1}: ${count} קישורים`);
+          if (count === lastCount) {
+            noChangeCycles++;
+            if (noChangeCycles >= 3) break; // 3 גלילות ברצף ללא שינוי — עוצר
+          } else {
+            noChangeCycles = 0;
+          }
+          lastCount = count;
         }
         
         const urls = await page.evaluate(() => 
@@ -284,7 +295,6 @@ async function getAllProductUrls(page, maxProducts = 10) {
         urls.forEach(u => allUrls.add(u));
         console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
         
-        // אם לא נוספו חדשים, אין עוד דפים
         if (allUrls.size === prevSize) break;
       } catch (e) {
         console.log(`    ✗ ${e.message.substring(0, 30)}`);

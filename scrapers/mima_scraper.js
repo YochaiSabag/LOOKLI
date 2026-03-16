@@ -583,12 +583,17 @@ async function scrapeProduct(page, url) {
         // לחיצה על dropdown לפתיחה
         const dropdownExists = await page.$('[data-hook="dropdown-base"]');
         if (!dropdownExists) {
-          console.log(`      ⚠️ dropdown לא נמצא - מנסה fallback...`);
-          return await readSizesFromPageData();
+          console.log(`      ⚠️ dropdown לא נמצא - ממתין...`);
+          await page.waitForTimeout(3000);
+          const retryDropdown = await page.$('[data-hook="dropdown-base"]');
+          if (!retryDropdown) {
+            console.log(`      ✗ dropdown לא נמצא - מדלג`);
+            return {};
+          }
         }
         
         await page.click('[data-hook="dropdown-base"]');
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(2000);
         
         const sizes = await page.evaluate(() => {
           const result = {};
@@ -600,11 +605,29 @@ async function scrapeProduct(page, url) {
           return result;
         });
         
-        // אם לא מצאנו מידות, נסה fallback
+        // אם ריק — נסה פעם נוספת אחרי המתנה
         if (Object.keys(sizes).length === 0) {
-          console.log(`      ⚠️ dropdown ריק - מנסה fallback...`);
+          console.log(`      ⚠️ dropdown ריק - מנסה שוב...`);
+          await page.waitForTimeout(2000);
+          const retryClick = await page.$('[data-hook="dropdown-base"]');
+          if (retryClick) await retryClick.click();
+          await page.waitForTimeout(2000);
+          const retrySizes = await page.evaluate(() => {
+            const result = {};
+            document.querySelectorAll('[data-hook="dropdown-content-option"]').forEach(opt => {
+              const title = opt.getAttribute('title');
+              const disabled = opt.getAttribute('aria-disabled') === 'true';
+              if (title && title.trim()) result[title.trim()] = !disabled;
+            });
+            return result;
+          });
+          if (Object.keys(retrySizes).length === 0) {
+            console.log(`      ✗ dropdown נכשל - מדלג`);
+            await page.keyboard.press('Escape');
+            return {};
+          }
           await page.keyboard.press('Escape');
-          return await readSizesFromPageData();
+          return retrySizes;
         }
         
         // סגירת dropdown
@@ -614,8 +637,7 @@ async function scrapeProduct(page, url) {
         return sizes;
       } catch(e) {
         console.log(`      ⚠️ שגיאה בקריאת מידות: ${e.message.substring(0, 40)}`);
-        // fallback
-        return await readSizesFromPageData();
+        return {};
       }
     }
     

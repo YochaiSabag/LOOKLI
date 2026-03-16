@@ -534,10 +534,6 @@
     .auth-btn .auth-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
     /* ===== AUTH MODAL ===== */
-    .google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;border:1.5px solid #e0e0e0;border-radius:10px;background:#fff;color:#3c4043;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:box-shadow .15s,background .15s;margin-bottom:4px}
-    .google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);background:#f8f8f8}
-    .auth-divider{display:flex;align-items:center;gap:10px;color:#9ca3af;font-size:12px;margin:12px 0}
-    .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:#e5e7eb}
     .auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
     .auth-modal-bg.open{display:flex}
     .auth-modal{background:#fff;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
@@ -982,7 +978,8 @@ const storeLogos={
   'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
   'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png',
   'AVIYAH':'https://aviyahyosef.com/wp-content/uploads/2023/09/logo-white.png',
-  'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg'
+  'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg',
+  'CHEN':'/chen-logo.png'
 };
 
 // חנויות שהלוגו שלהן לבן וצריכות רקע כהה
@@ -1337,7 +1334,7 @@ function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes"
 function renderColorGrid(){const div=document.getElementById("colorGrid");var noSel=!activeColor&&activeColors.length===0;div.innerHTML=`<div class="color-opt${noSel?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>{var isA=activeColor===c||activeColors.indexOf(c)!==-1;return `<div class="color-opt${isA?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`}).join('')}
 function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");var noSel=!activeSize&&activeSizes.length===0;div.innerHTML=`<div class="size-opt${noSel?' active':''}" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>{var isA=activeSize===s||activeSizes.indexOf(s)!==-1;return `<div class="size-opt${isA?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`}).join('')}
 function renderStyleBoxes(){const div=document.getElementById("styleBoxes");var consolidated=['שבת/ערב','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'];var styles=consolidated.filter(s=>s==='שבת/ערב'?dbStyles.some(d=>['ערב','חגיגי','אלגנטי'].includes(d)):dbStyles.includes(s));if(styles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';var noSel=!activeStyle&&activeStyles.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectStyle('')">הכל</div>`+styles.map(s=>{var isA=activeStyle===s||activeStyles.indexOf(s)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`}).join('')}
-function renderFitBoxes(){const div=document.getElementById("fitBoxes");const allFits=dbFits.length>0?dbFits:[];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';var noSel=!activeFit&&activeFits.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFit('')">הכל</div>`+allFits.map(f=>{var isA=activeFit===f||activeFits.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
+function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';var noSel=!activeFit&&activeFits.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFit('')">הכל</div>`+allFits.map(f=>{var isA=activeFit===f||activeFits.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
 function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';var noSel=!activeFabric&&activeFabrics.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>{var isA=activeFabric===f||activeFabrics.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
 function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
 function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
@@ -1396,16 +1393,16 @@ function removeFilter(type){
 
 function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
 
-function selectStore(s){checkHideHero();activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
+function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
 function selectCategory(c){checkHideHero();if(!c){activeCategory='';activeCategories=[];}else{activeCategory='';var idx=activeCategories.indexOf(c);if(idx!==-1)activeCategories.splice(idx,1);else activeCategories.push(c);}renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectColor(c){checkHideHero();if(!c){activeColor='';activeColors=[];}else{activeColor='';var idx=activeColors.indexOf(c);if(idx!==-1)activeColors.splice(idx,1);else activeColors.push(c);}renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
 function selectSize(s){checkHideHero();if(!s){activeSize='';activeSizes=[];}else{activeSize='';var idx=activeSizes.indexOf(s);if(idx!==-1)activeSizes.splice(idx,1);else activeSizes.push(s);}renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectStyle(s){checkHideHero();if(!s){activeStyle='';activeStyles=[];}else{activeStyle='';var idx=activeStyles.indexOf(s);if(idx!==-1)activeStyles.splice(idx,1);else activeStyles.push(s);}renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectFit(f){checkHideHero();if(!f){activeFit='';activeFits=[];}else{activeFit='';var idx=activeFits.indexOf(f);if(idx!==-1)activeFits.splice(idx,1);else activeFits.push(f);}renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
 function selectFabric(f){checkHideHero();if(!f){activeFabric='';activeFabrics=[];}else{activeFabric='';var idx=activeFabrics.indexOf(f);if(idx!==-1)activeFabrics.splice(idx,1);else activeFabrics.push(f);}renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectPattern(p){checkHideHero();activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectDesign(d){checkHideHero();activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectDiscount(d){checkHideHero();activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
+function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
+function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
 
 // === Multi-Select Modal ===
 var msCurrentType='';
@@ -1638,9 +1635,11 @@ function renderHeroStep(){
     cubesDiv.innerHTML=styles.map(function(s){var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'style\',\''+escapeHtml(s)+'\',this)">'+heroIconHtml(s,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(s)+'</span></div>'}).join('');
     
   } else if(heroStep==='fit'){
-    if(!dbFits||dbFits.length===0){heroStep='fabric';renderHeroStep();return}
+    var popF=['ארוכה','מידי','קצרה','מותן','הריון','הנקה','מעטפת'];
+    var avail=popF.slice();
+    if(dbFits.length>0){dbFits.forEach(function(f){if(avail.indexOf(f)===-1)avail.push(f)})}
     labelDiv.textContent='\u05D0\u05D9\u05D6\u05D5 \u05D2\u05D9\u05D6\u05E8\u05D4?';
-    cubesDiv.innerHTML=dbFits.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fit\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
+    cubesDiv.innerHTML=avail.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fit\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
     
   } else if(heroStep==='fabric'){
     if(!dbFabrics||dbFabrics.length===0){heroStep='done';renderHeroStep();return}
@@ -1790,12 +1789,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
         </div>
         <div class="auth-error" id="authError"></div>
         <div class="auth-success" id="authSuccess"></div>
-        <!-- Google login -->
-        <a href="/auth/google" class="google-btn" id="googleAuthBtn">
-          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
-          המשך עם Google
-        </a>
-        <div class="auth-divider"><span>או</span></div>
         <!-- Login form -->
         <div id="loginForm">
           <div class="auth-field">
@@ -1872,46 +1865,6 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
   // ===== AUTH STATE =====
   let currentUser = null;
   let savedUrls = new Set();
-
-  // טפל בredirect מ-Google OAuth
-  (function() {
-    const p = new URLSearchParams(window.location.search);
-    const t = p.get('auth_token'), n = p.get('auth_name'), e = p.get('auth_error');
-    if (t) {
-      localStorage.setItem('lookli_token', t);
-      if (n) localStorage.setItem('lookli_user_name', decodeURIComponent(n));
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    if (e) {
-      window.history.replaceState({}, '', window.location.pathname);
-      setTimeout(() => {
-        openAuthModal();
-        const el = document.getElementById('authError');
-        if (el) { el.textContent = 'שגיאת Google: ' + decodeURIComponent(e); el.style.display='block'; }
-      }, 400);
-    }
-  })();
-
-  // ── Preview Token ──
-  (function() {
-    const p = new URLSearchParams(window.location.search);
-    const token = p.get('preview');
-    if (!token) return;
-    sessionStorage.setItem('preview_token', token);
-    window.history.replaceState({}, '', window.location.pathname);
-    fetch('/api/verify-preview?token=' + encodeURIComponent(token))
-      .then(r => r.json())
-      .then(d => {
-        if (!d.valid) {
-          document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;direction:rtl;background:#f9f9f9">'
-            + '<div style="text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1)">'
-            + '<div style="font-size:48px;margin-bottom:16px">\u23F0</div>'
-            + '<h2 style="color:#1f2937;margin-bottom:8px">\u05E7\u05D9\u05E9\u05D5\u05E8 \u05D6\u05D4 \u05E4\u05D2 \u05EA\u05D5\u05E7\u05E3</h2>'
-            + '<p style="color:#6b7280">\u05D0\u05E0\u05D0 \u05D1\u05E7\u05E9\u05D9 \u05E7\u05D9\u05E9\u05D5\u05E8 \u05D7\u05D3\u05E9</p></div></div>';
-        }
-      }).catch(() => {});
-  })();
-
   let authToken = localStorage.getItem('lookli_token') || null;
 
   // Init on load

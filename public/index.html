@@ -1743,7 +1743,31 @@ selectStore=function(s){checkHideHero();_origSelectStore(s)};
 var _origRunAI=runAISearch;
 runAISearch=async function(){checkHideHero();await _origRunAI()};
 
-(async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch();window.scrollTo(0,0)})();
+(async function(){
+  // בדיקת טוקן הצגה זמני
+  const previewToken = new URLSearchParams(location.search).get('preview');
+  if (previewToken) {
+    try {
+      const r = await fetch('/api/preview-token/' + previewToken);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.valid && d.store) {
+          activeStore = d.store;
+          const exp = new Date(d.expiresAt);
+          const banner = document.createElement('div');
+          banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:700;z-index:9999;direction:rtl';
+          banner.textContent = `🔗 תצוגת חנות: ${d.store} · תוקף עד ${exp.toLocaleDateString('he-IL')} ${exp.toLocaleTimeString('he-IL')}`;
+          document.body.prepend(banner);
+        }
+      }
+    } catch(e) {}
+  }
+  await initFilters();
+  renderHeroStep();
+  skipScrollOnSearch=true;
+  await runRegularSearch();
+  window.scrollTo(0,0);
+})();
 </script>
 
   <!-- ALERT POPUP -->

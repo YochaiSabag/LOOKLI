@@ -75,6 +75,42 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 // שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
 
+// ===== נעילת אתר — רק דרך קישור זמני =====
+const SITE_LOCKED = process.env.SITE_LOCKED === 'true';
+const previewTokens = new Map();
+
+if (SITE_LOCKED) {
+  app.use((req, res, next) => {
+    // מעבר חופשי: admin, api, קבצים סטטיים, טוקן validation
+    if (
+      req.path.startsWith('/admin') ||
+      req.path.startsWith('/api/') ||
+      req.path.startsWith('/public/') ||
+      req.path.match(/\.(js|css|png|jpg|svg|ico|webp|woff2?)$/)
+    ) return next();
+
+    // בדיקת טוקן בcookie
+    const cookieToken = (req.headers.cookie || '').match(/preview_token=([a-f0-9]+)/)?.[1];
+    // בדיקת טוקן ב-query
+    const queryToken = req.query.preview;
+    const token = queryToken || cookieToken;
+
+    if (token) {
+      const entry = previewTokens.get(token);
+      if (entry && Date.now() < entry.expiresAt) {
+        // שמור בcookie כדי שלא יצטרכו טוקן בכל בקשה
+        if (queryToken) {
+          res.setHeader('Set-Cookie', `preview_token=${token}; Path=/; Max-Age=${Math.floor((entry.expiresAt - Date.now()) / 1000)}`);
+        }
+        return next();
+      }
+    }
+
+    // חסום — מחזיר דף פשוט
+    res.status(403).send(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>LOOKLI</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0f;color:#f1f0ff;text-align:center}.box{padding:40px}.logo{font-size:32px;font-weight:900;background:linear-gradient(135deg,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}.msg{color:#6b7280;font-size:15px}</style></head><body><div class="box"><div class="logo">LOOKLI</div><div class="msg">האתר בשלבי בנייה — נחזור בקרוב ✨</div></div></body></html>`);
+  });
+}
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -1510,7 +1546,31 @@ app.get('/api/analytics', async (req, res) => {
 
 app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
-app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
+
+// ===== קישורי הצגה זמניים =====
+// POST /api/admin/preview-token — יצירת טוקן זמני
+app.post('/api/admin/preview-token', adminAuth, (req, res) => {
+  const { store, hours = 24 } = req.body;
+  if (!store) return res.status(400).json({ error: 'חסר store' });
+  const token = randomBytes(16).toString('hex');
+  const expiresAt = Date.now() + hours * 60 * 60 * 1000;
+  previewTokens.set(token, { store, expiresAt });
+  // ניקוי אוטומטי לאחר פקיעה
+  setTimeout(() => previewTokens.delete(token), hours * 60 * 60 * 1000);
+  const url = `${process.env.SITE_URL || 'https://lookli.co.il'}/?preview=${token}`;
+  res.json({ ok: true, url, store, hours, expiresAt });
+});
+
+// GET /api/preview-token/:token — אימות טוקן (ציבורי)
+app.get('/api/preview-token/:token', (req, res) => {
+  const entry = previewTokens.get(req.params.token);
+  if (!entry) return res.status(404).json({ valid: false });
+  if (Date.now() > entry.expiresAt) {
+    previewTokens.delete(req.params.token);
+    return res.status(410).json({ valid: false, expired: true });
+  }
+  res.json({ valid: true, store: entry.store, expiresAt: entry.expiresAt });
+});
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);

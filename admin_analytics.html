@@ -252,6 +252,43 @@
     padding: 20px 0;
   }
   .footer strong { color: var(--accent); }
+
+  /* Preview token */
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 32px;
+  }
+  .preview-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .preview-field { display: flex; flex-direction: column; gap: 6px; }
+  .preview-field label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .preview-field select, .preview-field input {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 14px; border-radius: 10px;
+    font-family: 'Heebo', sans-serif; font-size: 14px; outline: none;
+  }
+  .preview-btn {
+    padding: 10px 20px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; border: none; border-radius: 10px; cursor: pointer;
+    font-family: 'Heebo', sans-serif; font-size: 14px; font-weight: 700;
+    transition: opacity 0.2s; white-space: nowrap;
+  }
+  .preview-btn:hover { opacity: 0.85; }
+  .preview-result {
+    margin-top: 16px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; display: flex; gap: 12px;
+    align-items: center; flex-wrap: wrap;
+  }
+  .preview-url { flex: 1; font-size: 13px; color: var(--accent); word-break: break-all; }
+  .copy-btn {
+    padding: 8px 16px; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; cursor: pointer;
+    font-family: 'Heebo', sans-serif; font-size: 13px; font-weight: 700;
+    transition: border-color 0.2s; white-space: nowrap;
+  }
+  .copy-btn:hover { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -267,7 +304,6 @@
       </select>
       <button onclick="testAlert('price')" style="padding:8px 14px;background:#c48cb3;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מחיר</button>
       <button onclick="testAlert('size')" style="padding:8px 14px;background:#7c6fcf;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🧪 בדיקת מידה</button>
-      <a href="/admin/tasks" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#9ca3af;font-size:12px;text-decoration:none">✅ משימות</a>
       <span class="badge">GA4</span>
     </div>
   </div>
@@ -277,6 +313,35 @@
       <div class="spinner"></div>
       <div>טוען נתונים מ-Google Analytics...</div>
     </div>
+  </div>
+
+  <!-- קישורי הצגה זמניים -->
+  <div class="preview-card">
+    <div class="card-title">🔗 קישורי הצגה זמניים לחנויות</div>
+    <div class="preview-row">
+      <div class="preview-field">
+        <label>חנות</label>
+        <select id="previewStore">
+          <option value="MEKIMI">MEKIMI</option>
+          <option value="LICHI">LICHI</option>
+          <option value="MIMA">MIMA</option>
+          <option value="AVIYAH">AVIYAH</option>
+          <option value="CHEMISE">CHEMISE</option>
+          <option value="CHEN">CHEN</option>
+        </select>
+      </div>
+      <div class="preview-field">
+        <label>תוקף (שעות)</label>
+        <input type="number" id="previewHours" value="24" min="1" max="720" style="width:90px">
+      </div>
+      <button class="preview-btn" onclick="createPreviewLink()">⚡ צור קישור</button>
+    </div>
+    <div id="previewResult" style="display:none" class="preview-result">
+      <div class="preview-url" id="previewUrl"></div>
+      <button class="copy-btn" onclick="copyPreview()">📋 העתק</button>
+      <a id="previewOpen" href="#" target="_blank" class="copy-btn">🔍 פתח</a>
+    </div>
+    <div id="previewExpiry" style="font-size:12px;color:var(--muted);margin-top:8px;display:none"></div>
   </div>
 
   <div class="footer">נתונים מאומתים על ידי <strong>Google Analytics</strong> · מופעל ע"י LOOKLI</div>
@@ -402,219 +467,38 @@ loadData();
     else alert('❌ ' + (d.msg || JSON.stringify(d.error) || 'שגיאה'));
   }
 
-  // ── Simulate change ──
-  async function loadAlertProducts() {
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    const r = await fetch('/api/alerts/all' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), { credentials: 'include' });
-    if (!r.ok) return [];
-    const d = await r.json();
-    return d.alerts || [];
-  }
-
-  async function simulateChange() {
-    const type = document.getElementById('simType').value;
-    const url  = document.getElementById('simUrl').value.trim();
-    const price = document.getElementById('simPrice').value.trim();
-    const size  = document.getElementById('simSize').value.trim();
-
-    if (!url) return alert('הזן URL מוצר');
-    if (type === 'price' && !price) return alert('הזן מחיר חדש');
-    if (type === 'size' && !size) return alert('הזן מידה');
-
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    const r = await fetch('/api/admin/simulate-change' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, product_source_url: url,
-        new_price: price || null, remove_size: size || null })
-    });
-    const d = await r.json();
-    const box = document.getElementById('simResult');
-    if (d.ok) {
-      box.style.color = '#22c55e';
-      box.textContent = d.results.map(r =>
-        r.sent ? '✅ נשלח ל-' + r.email + ' (' + (r.type==='price' ? '₪'+r.oldVal+'→₪'+r.newVal : 'מידה '+r.newVal) + ')'
-               : '⚠️ לא הופעל: ' + r.reason
-      ).join(' | ');
-    } else {
-      box.style.color = '#ef4444';
-      box.textContent = '❌ ' + (d.msg || d.error || 'שגיאה');
-    }
-  }
-
-  // טען URLים של מוצרים עם התראות לdropdown
-  async function fillAlertUrls() {
+  async function createPreviewLink() {
+    const store = document.getElementById('previewStore').value;
+    const hours = parseInt(document.getElementById('previewHours').value) || 24;
     const pwd = new URLSearchParams(location.search).get('pwd') || '';
     try {
-      const r = await fetch('/api/admin/alert-urls' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), { credentials: 'include' });
-      if (!r.ok) return;
+      const r = await fetch('/api/admin/preview-token' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store, hours })
+      });
       const d = await r.json();
-      const sel = document.getElementById('simUrl');
-      sel.innerHTML = '<option value="">-- בחר מוצר --</option>' +
-        d.items.map(x => '<option value="'+x.url+'">'+x.title+' ('+x.store+')</option>').join('');
-    } catch(e) {}
-  }
-  // ── Preview Tokens ──
-  async function createPreviewToken() {
-    const label = document.getElementById('ptLabel').value.trim();
-    const hours = parseInt(document.getElementById('ptHours').value) || 24;
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    const r = await fetch('/api/admin/preview-token' + (pwd?'?pwd='+encodeURIComponent(pwd):''), {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, hours })
-    });
-    const d = await r.json();
-    const box = document.getElementById('ptResult');
-    if (d.ok) {
-      box.innerHTML = '<div style="background:#0f2a1a;border:1px solid #22c55e;border-radius:8px;padding:12px">'
-        + '<div style="color:#22c55e;font-weight:700;margin-bottom:6px">✅ קישור נוצר! תוקף עד: ' + new Date(d.expires_at).toLocaleString('he-IL') + '</div>'
-        + '<div style="display:flex;gap:8px;align-items:center">'
-        + '<input value="' + d.url + '" readonly style="flex:1;padding:6px 10px;background:#1a1a2e;border:1px solid #22c55e;border-radius:6px;color:#e2e8f0;font-size:12px"/>'
-        + '<button onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent=\'✓ הועתק!\'" data-url="' + d.url + '" style="padding:6px 12px;background:#22c55e;border:none;border-radius:6px;color:#000;font-weight:700;cursor:pointer;font-size:12px">העתק</button>'
-        + '</div></div>';
-      loadPreviewTokens();
-    } else {
-      box.innerHTML = '<div style="color:#ef4444">❌ ' + (d.error||'שגיאה') + '</div>';
+      if (!d.ok) { alert('❌ ' + (d.error || 'שגיאה')); return; }
+      document.getElementById('previewUrl').textContent = d.url;
+      document.getElementById('previewOpen').href = d.url;
+      document.getElementById('previewResult').style.display = 'flex';
+      const exp = new Date(d.expiresAt);
+      document.getElementById('previewExpiry').style.display = 'block';
+      document.getElementById('previewExpiry').textContent =
+        `⏱ פג תוקף: ${exp.toLocaleDateString('he-IL')} ${exp.toLocaleTimeString('he-IL')} (${hours} שעות)`;
+    } catch(e) {
+      alert('❌ שגיאה: ' + e.message);
     }
   }
 
-  async function loadPreviewTokens() {
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    try {
-      const r = await fetch('/api/admin/preview-tokens' + (pwd?'?pwd='+encodeURIComponent(pwd):''), { credentials: 'include' });
-      const d = await r.json();
-      const list = document.getElementById('ptList');
-      if (!d.tokens || d.tokens.length === 0) { list.textContent = 'אין קישורים פעילים'; return; }
-      const now = new Date();
-      list.innerHTML = '<table style="width:100%;border-collapse:collapse">'
-        + '<tr style="color:#6b7280;border-bottom:1px solid rgba(255,255,255,.05)">'
-        + '<th style="text-align:right;padding:6px 4px;font-weight:500">תיאור</th>'
-        + '<th style="text-align:right;padding:6px 4px;font-weight:500">תפוגה</th>'
-        + '<th style="text-align:right;padding:6px 4px;font-weight:500">שימושים</th>'
-        + '<th></th></tr>'
-        + d.tokens.map(t => {
-          const exp = new Date(t.expires_at);
-          const active = exp > now;
-          const hoursLeft = Math.max(0, Math.round((exp - now) / 36e5));
-          return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
-            + '<td style="padding:7px 4px;color:' + (active?'#e2e8f0':'#6b7280') + '">' + (t.label||'—') + '</td>'
-            + '<td style="padding:7px 4px;color:' + (active?'#22c55e':'#ef4444') + '">' + (active ? 'עוד ' + hoursLeft + 'ש\'' : 'פג תוקף') + '</td>'
-            + '<td style="padding:7px 4px;color:#9ca3af;text-align:center">' + (t.uses||0) + '</td>'
-            + '<td style="padding:7px 4px;text-align:left">'
-            + '<button onclick="deleteToken(this.dataset.tok)" data-tok="' + t.token + '" style="padding:3px 8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:4px;color:#ef4444;cursor:pointer;font-size:11px">ביטול</button>'
-            + '</td></tr>';
-        }).join('') + '</table>';
-    } catch(e) { document.getElementById('ptList').textContent = 'שגיאה בטעינה'; }
-  }
-
-  async function deleteToken(token) {
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    await fetch('/api/admin/preview-token/' + token + (pwd?'?pwd='+encodeURIComponent(pwd):''), {
-      method: 'DELETE', credentials: 'include' });
-    loadPreviewTokens();
-  }
-
-  loadPreviewTokens();
-  fillAlertUrls();
-
-  async function runDbTest() {
-    const url   = document.getElementById('simUrl').value;
-    const price = document.getElementById('dbTestPrice').value;
-    const sizes = document.getElementById('dbTestSize').value;
-    if (!url) return alert('בחר מוצר מהרשימה');
-    if (!price && !sizes) return alert('הזן מחיר חדש או מידות חדשות');
-
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    const body = { product_source_url: url };
-    if (price) body.new_price = parseFloat(price);
-    if (sizes) body.new_sizes = sizes.split(',').map(s => s.trim()).filter(Boolean);
-
-    const r = await fetch('/api/admin/db-test-alert' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+  function copyPreview() {
+    const url = document.getElementById('previewUrl').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✅ הועתק!';
+      setTimeout(() => btn.textContent = '📋 העתק', 2000);
     });
-    const d = await r.json();
-    const box = document.getElementById('dbTestResult');
-    if (d.ok) {
-      box.style.color = d.sent > 0 ? '#22c55e' : '#f59e0b';
-      box.textContent = 'נשלחו: ' + d.sent + ' התראות\n'
-        + (d.changes.price ? 'מחיר: ' + d.changes.price + '\n' : '')
-        + (d.changes.sizes ? 'מידות: ' + d.changes.sizes + '\n' : '')
-        + d.results.map(x => x.sent
-            ? '✅ ' + x.type + ' → ' + x.email
-            : '⚠️ ' + x.type + ': ' + x.reason
-          ).join('\n');
-    } else {
-      box.style.color = '#ef4444';
-      box.textContent = '❌ ' + (d.msg || d.error);
-    }
   }
-
 </script>
-
-<!-- Preview Tokens -->
-<div style="margin:24px auto;max-width:700px;background:#1e1e2e;border-radius:14px;padding:24px;border:1px solid rgba(255,255,255,.08)">
-  <h3 style="margin:0 0 16px;color:#e2d9f3;font-size:15px">🔗 קישורי הצגה זמניים לחנויות</h3>
-  <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;margin-bottom:14px;align-items:end">
-    <div>
-      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">תיאור (לדוגמה: "חנות ליצ'י")</label>
-      <input id="ptLabel" placeholder="שם החנות / תיאור" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
-    </div>
-    <div>
-      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">שעות תוקף</label>
-      <input id="ptHours" type="number" value="24" min="1" max="720" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
-    </div>
-    <button onclick="createPreviewToken()" style="padding:8px 16px;background:linear-gradient(135deg,#d191b0,#c48cb3);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">+ צור קישור</button>
-  </div>
-  <div id="ptResult" style="margin-bottom:12px;font-size:13px"></div>
-  <div id="ptList" style="font-size:12px;color:#9ca3af">טוען...</div>
-</div>
-
-<!-- סימולציה -->
-<div style="margin:24px auto;max-width:700px;background:#1e1e2e;border-radius:14px;padding:24px;border:1px solid rgba(255,255,255,.08)">
-  <h3 style="margin:0 0 16px;color:#e2d9f3;font-size:15px">🔬 סימולציה — בדיקת מנגנון התראות</h3>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div>
-      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">סוג שינוי</label>
-      <select id="simType" onchange="document.getElementById('priceRow').style.display=this.value==='price'?'':'none';document.getElementById('sizeRow').style.display=this.value==='size'?'':'none'"
-        style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px">
-        <option value="price">📉 ירידת מחיר</option>
-        <option value="size">📦 חזרת מידה</option>
-      </select>
-    </div>
-    <div>
-      <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">מוצר</label>
-      <select id="simUrl" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px"></select>
-    </div>
-  </div>
-  <div id="priceRow" style="margin-bottom:12px">
-    <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">מחיר חדש (נמוך מהמקורי)</label>
-    <input id="simPrice" type="number" placeholder="לדוגמה: 89" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
-  </div>
-  <div id="sizeRow" style="display:none;margin-bottom:12px">
-    <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">מידה שחזרה</label>
-    <input id="simSize" type="text" placeholder="לדוגמה: M או 38" style="width:100%;padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px;box-sizing:border-box"/>
-  </div>
-  <button onclick="simulateChange()" style="width:100%;padding:10px;background:linear-gradient(135deg,#d191b0,#7c6fcf);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
-    🚀 הפעל סימולציה ושלח מייל
-  </button>
-  <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">
-  <h4 style="margin:0 0 12px;color:#e2d9f3;font-size:13px">🔴 בדיקה אמיתית — שינוי ב-DB + הרצת התראות</h4>
-  <p style="font-size:11px;color:#9ca3af;margin:0 0 10px">משנה ערך בDB → בודק התראות → שולח מייל → מחזיר לערך המקורי</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-    <input id="dbTestPrice" type="number" placeholder="מחיר חדש (נמוך)" style="padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px"/>
-    <input id="dbTestSize" type="text" placeholder='מידות חדשות (M,L,XL)' style="padding:8px;background:#2a2a3e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:13px"/>
-  </div>
-  <button onclick="runDbTest()" style="width:100%;padding:10px;background:linear-gradient(135deg,#ef4444,#c026d3);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
-    🔴 שנה DB + הרץ התראות אמיתיות
-  </button>
-  <pre id="dbTestResult" style="margin-top:10px;font-size:12px;white-space:pre-wrap;font-family:inherit;color:#22c55e"></pre>
-</div>
-
-<pre id="simResult" style="margin-top:12px;font-size:12px;white-space:pre-wrap;font-family:inherit"></pre>
-</div>
-
 </body>
 </html>

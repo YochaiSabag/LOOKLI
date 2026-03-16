@@ -2688,14 +2688,14 @@ document.addEventListener('click', e => {
 </style>
 
 <div id="cookieBanner">
-  <p>האתר משתמש ב-cookies ו-Google Analytics לשיפור חוויית הגלישה. המידע אינו נמסר לצדדים שלישיים לצורכי פרסום. <a href="/about.html">מידע נוסף</a></p>
+  <p>האתר משתמש ב-cookies לצורך התחברות ושמירת העדפות, וב-Google Analytics למדידת תנועה — המידע אינו משותף עם צדדים שלישיים לפרסום.</p>
   <button id="cookieAccept" onclick="acceptCookies()">הבנתי ✓</button>
 </div>
 
 <script>
 (function(){
   if(!localStorage.getItem('cookieConsent')){
-    setTimeout(()=>document.getElementById('cookieBanner')?.classList.add('show'), 800);
+    setTimeout(()=>document.getElementById('cookieBanner')?.classList.add('show'), 8000);
   }
 })();
 function acceptCookies(){

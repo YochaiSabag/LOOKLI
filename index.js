@@ -251,7 +251,30 @@ function expandSize(size) {
   return [size];
 }
 
-app.get("/api/products", async (req, res) => {
+// מילון כינויי צבעים — שם נרדף → צבע נורמלי ב-DB
+const COLOR_ALIASES = {
+  'מוקה': 'חום', 'moka': 'חום', 'mocha': 'חום', 'קפה': 'חום', 'שוקולד': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
+  'קאמל': 'קאמל', 'cognac': 'קאמל',
+  'ניוד': 'בז׳', 'nude': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
+  'נייבי': 'כחול', 'navy': 'כחול', 'cobalt': 'כחול', 'indigo': 'כחול', 'דנים': 'כחול', 'denim': 'כחול',
+  'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו',
+  'שמנת': 'שמנת', 'ivory': 'שמנת', 'ecru': 'שמנת', 'cream': 'שמנת', 'vanilla': 'שמנת',
+  'לילך': 'סגול', 'lavender': 'סגול', 'lilac': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
+  'קורל': 'ורוד', 'coral': 'ורוד', 'salmon': 'ורוד', 'blush': 'ורוד', 'פודרה': 'ורוד', 'powder': 'ורוד',
+  'חרדל': 'צהוב', 'mustard': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב',
+  'זית': 'ירוק', 'olive': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'חאקי': 'ירוק', 'khaki': 'ירוק',
+  'פוקסיה': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד',
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  'מנטה': 'מנטה', 'mint': 'מנטה',
+  'טורקיז': 'תכלת', 'turquoise': 'תכלת', 'aqua': 'תכלת',
+  'ראסט': 'כתום', 'rust': 'כתום', 'tangerine': 'כתום',
+  'אבן': 'אבן', 'stone': 'אבן',
+  'שזיף': 'סגול',
+  'זהב': 'זהב', 'golden': 'זהב',
+  'כסף': 'כסף', 'silver': 'כסף',
+};
+
+
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
     let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
@@ -262,7 +285,19 @@ app.get("/api/products", async (req, res) => {
     sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;
     sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
 
-    if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
+    if (q) {
+      const qLower = q.toLowerCase().trim();
+      const aliasColor = COLOR_ALIASES[qLower] || COLOR_ALIASES[q];
+      
+      if (aliasColor) {
+        // מחפש בכותרת + בצבע הנורמלי
+        sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
+        params.push(`%${q}%`, aliasColor); i += 2;
+      } else {
+        sql += ` AND title ILIKE $${i++}`;
+        params.push(`%${q}%`);
+      }
+    }
     
     if (color) { 
       const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
@@ -387,14 +422,19 @@ app.get("/api/products", async (req, res) => {
     if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
 
+    const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
+
     if (sort === 'price_asc') {
       sql += ` ORDER BY price ASC`;
     } else if (sort === 'price_desc') {
       sql += ` ORDER BY price DESC`;
     } else if (sort === 'popular') {
       sql += ` ORDER BY (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
+    } else if (aliasColor && q) {
+      // כינוי צבע: מוצרים עם השם המדויק בכותרת קודם, שאר לפי id
+      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
+      params.push(`%${q}%`); i++;
     } else {
-      // ברירת מחדל: חדש→ישן מגוון — ממיין לפי חנות ותאריך בצורה מסורגת
       sql += ` ORDER BY (id % 7), id DESC`;
     }
     sql += ` LIMIT 2000`;

@@ -952,7 +952,7 @@ function adminAuth(req, res, next) {
   // בדוק query param: ?pwd=xxx (לנוחות)
   if (req.query.pwd === ADMIN_PASSWORD) {
     // שלח cookie session קצר
-    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/admin; HttpOnly; Max-Age=86400`);
+    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/; HttpOnly; Max-Age=86400`);
     return next();
   }
   // בדוק cookie
@@ -1544,6 +1544,56 @@ app.get('/api/analytics', async (req, res) => {
 
 app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
+app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
+
+// ===== TAGGER API =====
+app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
+  try {
+    const { ids, field, value } = req.body;
+    if (!ids?.length || !field || value === undefined) return res.status(400).json({ error: 'חסרים פרמטרים' });
+    const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
+    if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
+
+    if (field === 'design_details') {
+      await pool.query(
+        `UPDATE products SET design_details = array_append(COALESCE(design_details,'{}'), $1), updated_at=NOW()
+         WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
+        [value, ids]
+      );
+    } else if (field === 'fit') {
+      await pool.query(
+        `UPDATE products SET fit=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        [value, ids]
+      );
+    } else {
+      await pool.query(
+        `UPDATE products SET ${field}=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        [value, ids]
+      );
+    }
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
+    await pool.query(`UPDATE products SET design_details=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
+    await pool.query(`UPDATE products SET fit=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 
 // ===== קישורי הצגה זמניים =====

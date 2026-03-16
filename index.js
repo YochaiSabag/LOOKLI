@@ -387,8 +387,17 @@ app.get("/api/products", async (req, res) => {
     if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
 
-    sql += sort === 'price_asc' ? ` ORDER BY price ASC` : sort === 'price_desc' ? ` ORDER BY price DESC` : ` ORDER BY id DESC`;
-    sql += ` LIMIT 200`;
+    if (sort === 'price_asc') {
+      sql += ` ORDER BY price ASC`;
+    } else if (sort === 'price_desc') {
+      sql += ` ORDER BY price DESC`;
+    } else if (sort === 'popular') {
+      sql += ` ORDER BY (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
+    } else {
+      // ברירת מחדל: חדש→ישן מגוון — ממיין לפי חנות ותאריך בצורה מסורגת
+      sql += ` ORDER BY (id % 7), id DESC`;
+    }
+    sql += ` LIMIT 2000`;
 
     const result = await pool.query(sql, params);
     let rows = result.rows;

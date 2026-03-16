@@ -17,7 +17,8 @@
     "scrape:mima": "node ./scrapers/mima_scraper.js && node ./check_alerts.js",
     "scrape:aviyah": "node ./scrapers/aviyah_scraper.js && node ./check_alerts.js",
     "scrape:chemise": "node ./scrapers/chemise_scraper.js && node ./check_alerts.js",
-    "scrape:all": "node ./scrapers/mekimi_scraper_fixed.js && node ./scrapers/lichi_scraper.js && node ./scrapers/mima_scraper.js && node ./scrapers/aviyah_scraper.js && node ./scrapers/chemise_scraper.js && node ./check_alerts.js",
+    "scrape:chen": "node ./scrapers/chen_scraper.js && node ./check_alerts.js",
+    "scrape:all": "node ./scrapers/mekimi_scraper_fixed.js && node ./scrapers/lichi_scraper.js && node ./scrapers/mima_scraper.js && node ./scrapers/aviyah_scraper.js && node ./scrapers/chemise_scraper.js && node ./scrapers/chen_scraper.js && node ./check_alerts.js",
     "alerts": "node ./check_alerts.js"
   },
   "dependencies": {

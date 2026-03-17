@@ -100,7 +100,7 @@ const SKIP_KEYWORDS = [
   'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
   'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
   // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
+  'בגד ים','xxxxxx','בגדי ים',
   // ילדות
   'ילדה','ילדות','ג׳וניור','junior','kids',
   // אחר
@@ -526,7 +526,7 @@ async function scrapeProduct(page, url, isEvening = false) {
     // בדיקת ג'ינס בכותרת → כחול
     const titleLower = (data.title || '').toLowerCase();
     if (titleLower.includes("ג'ינס") || titleLower.includes("ג׳ינס") || titleLower.includes('jeans') || titleLower.includes('denim')) {
-      if (!rawColors.length) rawColors.push('כחול');
+      if (!(data.rawColors || []).length) { data.rawColors = data.rawColors || []; data.rawColors.push('כחול'); }
     }
     // רק מילים שמתאימות בדיוק לצבעים ידועים ב-colorMap
     let titleColor = null;

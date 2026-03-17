@@ -54,6 +54,29 @@ function shouldSkip(title) {
   });
 }
 
+function detectCategory(title) {
+  const t = (title || '').toLowerCase();
+  if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
+  if (/סוודר|sweater/i.test(t)) return 'סוודר';
+  if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
+  if (/סרפן|pinafore/i.test(t)) return 'סרפן';
+  if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
+  if (/חצאית|skirt/i.test(t)) return 'חצאית';
+  if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
+  if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
+  if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
+  if (/וסט|vest/i.test(t)) return 'וסט';
+  if (/עליונית/i.test(t)) return 'עליונית';
+  if (/מעיל|coat/i.test(t)) return 'מעיל';
+  if (/שכמיה|cape|poncho|פונצ׳ו/i.test(t)) return 'עליונית';
+  if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
+  if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
+  if (/סט|set/i.test(t)) return 'סט';
+  if (/בייסיק|basic/i.test(t)) return 'בייסיק';
+  if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  return null;
+}
+
 function detectStyle(title, description = '') {
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף|חגיג|celebration|festive|אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'ערב';

@@ -99,7 +99,7 @@ const SKIP_KEYWORDS = [
   'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
   'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
   // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
+  'בגד ים','xxxxxx','בגדי ים',
   // ילדות
   'ילדה','ילדות','ג׳וניור','junior','kids',
   // אחר
@@ -265,11 +265,6 @@ async function getAllProductUrls(page, maxProducts = 99999) {
   
   // קטגוריות מעודכנות
   const categories = [
-    'https://lichi-shop.com/product-category/sale-2/',
-    'https://lichi-shop.com/product-category/shirts/',
-    'https://lichi-shop.com/product-category/dresses/',
-    'https://lichi-shop.com/product-category/skirts/',
-    'https://lichi-shop.com/product-category/sets/',
     'https://lichi-shop.com/shop/',
   ];
   
@@ -286,16 +281,16 @@ async function getAllProductUrls(page, maxProducts = 99999) {
         // גלילה חכמה — ממתין לטעינת מוצרים נוספים
         let lastCount = 0;
         let noChangeCycles = 0;
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 50; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(2500);
+          await page.waitForTimeout(10000);
           const count = await page.evaluate(() =>
             document.querySelectorAll('a[href*="/product/"]').length
           );
           console.log(`      גלילה ${i+1}: ${count} קישורים`);
           if (count === lastCount) {
             noChangeCycles++;
-            if (noChangeCycles >= 3) break; // 3 גלילות ברצף ללא שינוי — עוצר
+            if (noChangeCycles >= 5) break; // 5 גלילות ברצף ללא שינוי — עוצר
           } else {
             noChangeCycles = 0;
           }

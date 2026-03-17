@@ -18,6 +18,8 @@
     "scrape:aviyah": "node ./scrapers/aviyah_scraper.js && node ./check_alerts.js",
     "scrape:chemise": "node ./scrapers/chemise_scraper.js && node ./check_alerts.js",
     "scrape:chen": "node ./scrapers/chen_scraper.js && node ./check_alerts.js",
+    "scrape:ordman": "node ./scrapers/ordman_scraper.js && node ./check_alerts.js",
+    "scrape:rare": "node ./scrapers/rare_scraper.js && node ./check_alerts.js",
     "scrape:avivit": "node ./scrapers/avivit_scraper.js && node ./check_alerts.js",
     "scrape:run": "node ./run_scrapers.js",
     "scrape:all": "node ./run_scrapers.js all",

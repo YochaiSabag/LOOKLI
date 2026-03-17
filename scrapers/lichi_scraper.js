@@ -109,19 +109,22 @@ const SKIP_KEYWORDS = [
 function shouldSkip(title) {
   if (!title) return false;
   const t = title.toLowerCase().trim();
-  return SKIP_KEYWORDS.some(k => {
+  for (const k of SKIP_KEYWORDS) {
     const kl = k.toLowerCase();
+    let match = false;
     if (kl.includes(' ')) {
-      // ביטוי של שתי מילים — חיפוש רגיל
-      return t.includes(kl);
+      match = t.includes(kl);
+    } else {
+      const idx = t.indexOf(kl);
+      if (idx !== -1) {
+        const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
+        const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
+        match = before && after;
+      }
     }
-    // מילה בודדת — בדוק גבולות
-    const idx = t.indexOf(kl);
-    if (idx === -1) return false;
-    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
-    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
-    return before && after;
-  });
+    if (match) return true;
+  }
+  return false;
 }
 
 function detectCategory(title) {
@@ -278,31 +281,43 @@ async function getAllProductUrls(page, maxProducts = 99999) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(2000);
         
-        // גלילה חכמה — ממתין לטעינת מוצרים נוספים
+        // Infinite scroll — גולל ומחכה לרשת בכל פעם
         let lastCount = 0;
         let noChangeCycles = 0;
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 30; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(10000);
-          const count = await page.evaluate(() =>
-            document.querySelectorAll('a[href*="/product/"]').length
-          );
-          console.log(`      גלילה ${i+1}: ${count} קישורים`);
+          // חכה שהרשת תסיים לטעון מוצרים חדשים
+          try {
+            await page.waitForLoadState('networkidle', { timeout: 8000 });
+          } catch(e) {}
+          await page.waitForTimeout(2000);
+
+          const count = await page.evaluate(() => {
+            const seen = new Set();
+            document.querySelectorAll('a.woocommerce-LoopProduct-link').forEach(a => {
+              seen.add(a.href.split('?')[0]);
+            });
+            return seen.size;
+          });
+
+          console.log(`      גלילה ${i+1}: ${count} מוצרים`);
           if (count === lastCount) {
             noChangeCycles++;
-            if (noChangeCycles >= 5) break; // 5 גלילות ברצף ללא שינוי — עוצר
+            if (noChangeCycles >= 5) { console.log('      ⏹ עוצר'); break; }
           } else {
             noChangeCycles = 0;
           }
           lastCount = count;
         }
         
-        const urls = await page.evaluate(() => 
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('lichi-shop.com/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
+        const urls = await page.evaluate(() => {
+          const seen = new Set();
+          document.querySelectorAll('a.woocommerce-LoopProduct-link').forEach(a => {
+            const href = a.href.split('?')[0];
+            if (href.includes('lichi-shop.com/product/')) seen.add(href);
+          });
+          return [...seen];
+        });
         
         const prevSize = allUrls.size;
         urls.forEach(u => allUrls.add(u));

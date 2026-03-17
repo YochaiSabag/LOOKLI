@@ -16,130 +16,41 @@ await db.connect();
 console.log('🚀 MIMA Scraper - Wix Store');
 
 // ======================================================================
-// מיפוי צבעים - זהה למקימי
 // ======================================================================
-const colorMap = {
-  'black': 'שחור', 'שחור': 'שחור',
-  'white': 'לבן', 'לבן': 'לבן',
-  'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
-  'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
-  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק',
-  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום',
-  'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
-  'beige': 'בז׳', 'בז': 'בז׳', 'nude': 'בז׳', 'ניוד': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
-  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור',
-  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד',
-  'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
-  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב',
-  'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
-  'זהב': 'זהב', 'golden': 'זהב',
-  'silver': 'כסף', 'כסף': 'כסף',
-  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו',
-  'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
-  'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
-  // מנטה - צבע עצמאי
-  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
-  // אפרסק - צבע עצמאי
-  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
-  // בננה → צהוב
-  'בננה': 'צהוב', 'banana': 'צהוב',
-  // כסוף → כסף
-  'כסוף': 'כסף',
-  // שמות דוגמא שמשמשים כשמות וריאנט ב-Wix (לא צבע אמיתי)
-  'חלק': null, 'משבצות': null, 'פסים': null, 'נקודות': null, 'הדפס': null,
-  
-  // צבעים מיוחדים
-  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
-  // חדש
-  'מוקה': 'חום', 'moka': 'חום',
-  'שזיף': 'סגול',
-  'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
-  'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
-  'פודרה': 'ורוד', 'powder': 'ורוד',
-  'אבן': 'אבן',
-  'בהיר': 'בהיר',
-  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
-  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
-  'בננה': 'צהוב', 'banana': 'צהוב',
-  'כסוף': 'כסף'
-};
-
-// צבעים לא מזוהים
-const unknownColors = new Set();
-
-function normalizeColor(c) {
-  if (!c) return null;
-  const trimmed = c.trim();
-  const lower = trimmed.toLowerCase();
-  const noSpaces = lower.replace(/[-_\s]/g, '');
-  
-  // בדיקה ישירה (ללא רווחים)
-  if (noSpaces in colorMap) return colorMap[noSpaces];
-  // בדיקה ישירה (עם רווחים)
-  if (lower in colorMap) return colorMap[lower];
-  
-  // בדיקה מילה-מילה: "כחול מעושן" → כחול, "פרחוני רכה" → פרחוני
-  const words = lower.split(/\s+/);
-  for (const word of words) {
-    if (word in colorMap && colorMap[word] !== null) return colorMap[word];
-  }
-  
-  // חיפוש חלקי (רק צבעים אמיתיים)
-  for (const [key, val] of Object.entries(colorMap)) {
-    if (val === null) continue;
-    if (lower.includes(key) || key.includes(lower)) return val;
-  }
-  
-  unknownColors.add(trimmed);
-  return 'אחר';
-}
-
+// סינון מוצרים לא רלוונטיים — רק בגדי נשים בוגרות
 // ======================================================================
-// מיפוי מידות - זהה למקימי
-// ======================================================================
-const sizeMapping = {
-  'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
-  '34': ['XS'], '36': ['XS', 'S'], '38': ['S', 'M'], '40': ['M', 'L'],
-  '42': ['L', 'XL'], '44': ['XL', 'XXL'], '46': ['XXL', 'XXXL'], '48': ['XXXL'], '50': ['XXXL']
-};
+const SKIP_KEYWORDS = [
+  // תכשיטים ואקססוריז
+  'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט',
+  'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
+  'גומייה','מטפחת','קשת','שעון','שיער',
+  // נעליים
+  'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
+  'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
+  // בגד ים
+  'בגד ים','ביקיני','בגדי ים',
+  // ילדות
+  'ילדה','ילדות','ג׳וניור','junior','kids',
+  // אחר
+  'פיג׳מה','פיגמה','גרביון','גרביים','גרבי',
+];
 
-function normalizeSize(s) {
-  if (!s) return [];
-  const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
-  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
-  if (sizeMapping[val]) return sizeMapping[val];
-  return [];
-}
-
-// ======================================================================
-// UNIFIED DETECT FUNCTIONS - v2
-// ======================================================================
-
-function detectCategory(title) {
-  const t = (title || '').toLowerCase();
-  // סדר חשוב - ספציפי קודם
-  if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
-  if (/סוודר|sweater/i.test(t)) return 'סוודר';
-  if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
-  if (/סרפן|pinafore/i.test(t)) return 'סרפן';
-  if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
-  if (/חצאית|skirt/i.test(t)) return 'חצאית';
-  if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
-  if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
-  if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
-  if (/וסט|vest/i.test(t)) return 'וסט';
-  if (/עליונית/i.test(t)) return 'עליונית';
-  if (/מעיל|coat/i.test(t)) return 'מעיל';
-  if (/שכמיה|cape|poncho|פונצ׳ו/i.test(t)) return 'עליונית';
-  if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
-  if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
-  if (/סט|set/i.test(t)) return 'סט';
-  if (/בייסיק|basic/i.test(t)) return 'בייסיק';
-  if (/גולף|turtleneck/i.test(t)) return 'חולצה';
-  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
-  // מכנסיים - לא מציגים
-  return null;
+function shouldSkip(title) {
+  if (!title) return false;
+  const t = title.toLowerCase().trim();
+  return SKIP_KEYWORDS.some(k => {
+    const kl = k.toLowerCase();
+    if (kl.includes(' ')) {
+      // ביטוי של שתי מילים — חיפוש רגיל
+      return t.includes(kl);
+    }
+    // מילה בודדת — בדוק גבולות
+    const idx = t.indexOf(kl);
+    if (idx === -1) return false;
+    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
+    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
+    return before && after;
+  });
 }
 
 function detectStyle(title, description = '') {
@@ -545,6 +456,7 @@ async function scrapeProduct(page, url) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
+    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
     
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);

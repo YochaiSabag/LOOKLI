@@ -17,304 +17,41 @@ await db.connect();
 console.log('🚀 Mekimi Scraper - COMPLETE FIX');
 
 // ======================================================================
-// מיפוי צבעים - כל הצבעים שרוצים לתמוך בהם
-// איך להוסיף צבע חדש:
-// 1. הוסף את הצבע באנגלית (lowercase) כ-key
-// 2. הצבע העברי המנורמל כ-value
-// לדוגמה: 'turquoise': 'תכלת' - כל מוצר עם צבע turquoise יהפוך ל"תכלת"
 // ======================================================================
-const colorMap = {
-  // שחור
-  'black': 'שחור', 
-  'שחור': 'שחור',
-  
-  // לבן
-  'white': 'לבן', 
-  'לבן': 'לבן',
-  
-  // כחול
-  'blue': 'כחול', 
-  'כחול': 'כחול', 
-  'navy': 'כחול', 
-  'נייבי': 'כחול',
-  'royal': 'כחול',
-  'cobalt': 'כחול',
-  'denim': 'כחול',
-  'indigo': 'כחול',
-  
-  // אדום
-  'red': 'אדום', 
-  'אדום': 'אדום',
-  'scarlet': 'אדום',
-  'crimson': 'אדום',
-  
-  // ירוק - כולל snake (#6)
-  'green': 'ירוק', 
-  'ירוק': 'ירוק', 
-  'olive': 'ירוק', 
-  'זית': 'ירוק', 
-  'khaki': 'ירוק', 
-  'חאקי': 'ירוק', 
-  'snake': 'ירוק',        // #6 - snake = ירוק
-  'emerald': 'ירוק',
-  'forest': 'ירוק',
-  'sage': 'ירוק',
-  'teal': 'ירוק',
-  'army': 'ירוק',
-  'ירוק-זית': 'ירוק',
-  'olive-green': 'ירוק',
-  'dark-green': 'ירוק',
-  'darkgreen': 'ירוק',
-  'ירוקזית': 'ירוק',
-  'hunter': 'ירוק',
-  
-  // חום - כולל קפה (#7)
-  'brown': 'חום', 
-  'חום': 'חום', 
-  'tan': 'חום', 
-  'chocolate': 'חום',
-  'coffee': 'חום',         // #7 - coffee = חום
-  'קפה': 'חום',            // #7 - קפה = חום
-  'mocha': 'חום',
-  'espresso': 'חום',
-  'chestnut': 'חום',
-  
-  // קאמל
-  'camel': 'קאמל', 
-  'קאמל': 'קאמל',
-  'cognac': 'קאמל',
-  
-  // בז׳
-  'beige': 'בז׳', 
-  'בז': 'בז׳', 
-  'nude': 'בז׳', 
-  'ניוד': 'בז׳',
-  'sand': 'בז׳',
-  'taupe': 'בז׳',
-  
-  // אפור
-  'gray': 'אפור', 
-  'grey': 'אפור', 
-  'אפור': 'אפור',
-  'charcoal': 'אפור',
-  'slate': 'אפור',
-  'ash': 'אפור',
-  
-  // ורוד
-  'pink': 'ורוד', 
-  'ורוד': 'ורוד', 
-  'coral': 'ורוד', 
-  'קורל': 'ורוד',
-  'blush': 'ורוד',
-  'rose': 'ורוד',
-  'fuchsia': 'ורוד',
-  'magenta': 'ורוד',
-  'salmon': 'ורוד',
-  
-  // סגול
-  'purple': 'סגול', 
-  'סגול': 'סגול', 
-  'lilac': 'סגול', 
-  'לילך': 'סגול',
-  'lavender': 'סגול',
-  'violet': 'סגול',
-  'plum': 'סגול',
-  'mauve': 'סגול',
-  
-  // צהוב
-  'yellow': 'צהוב', 
-  'צהוב': 'צהוב', 
-  'mustard': 'צהוב', 
-  'חרדל': 'צהוב',
-  'gold': 'צהוב',
-  'lemon': 'צהוב',
-  
-  // כתום
-  'orange': 'כתום', 
-  'כתום': 'כתום',
-  'tangerine': 'כתום',
-  'rust': 'כתום',
-  
-  // זהב
-  'זהב': 'זהב',
-  'golden': 'זהב',
-  
-  // כסף
-  'silver': 'כסף', 
-  'כסף': 'כסף',
-  
-  // בורדו
-  'bordo': 'בורדו', 
-  'בורדו': 'בורדו', 
-  'burgundy': 'בורדו', 
-  'wine': 'בורדו',
-  'maroon': 'בורדו',
-  'oxblood': 'בורדו',
-  'cherry': 'בורדו',
-  'plum': 'בורדו',
-  
-  // שמנת - כולל stone (#5)
-  'cream': 'שמנת', 
-  'שמנת': 'שמנת', 
-  'ivory': 'שמנת', 
-  'offwhite': 'שמנת',
-  'off-white': 'שמנת',
-  'stone': 'שמנת',        // #5 - stone = שמנת
-  'bone': 'שמנת',
-  'ecru': 'שמנת',
-  'vanilla': 'שמנת',
-  
-  // תכלת
-  'turquoise': 'תכלת', 
-  'tourquise': 'תכלת',
-  'תכלת': 'תכלת', 
-  'טורקיז': 'תכלת',
-  'aqua': 'תכלת',
-  'cyan': 'תכלת',
-  'skyblue': 'תכלת',
-  'sky': 'תכלת',
-  
-  // צבעים מיוחדים - מיפוי לפי הגיון
-  'dots': 'שחור',          // dots = נקודות, בד"כ שחור על לבן
-  'flower': 'ורוד',        // flower = פרחוני
-  'breek': 'חום',          // breek/brick = לבנה/חום
-  'brick': 'חום',
-  
-  // צבעים מיוחדים
-  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
-  // מנטה - צבע עצמאי
-  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
-  // אפרסק - צבע עצמאי
-  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
-  // בננה → צהוב
-  'בננה': 'צהוב', 'banana': 'צהוב',
-  // כסוף → כסף
-  'כסוף': 'כסף',
-  // חדש/מעודכן
-  'מוקה': 'חום', 'moka': 'חום',
-  'שזיף': 'סגול',
-  'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
-  'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
-  'פודרה': 'ורוד', 'powder': 'ורוד',
-  'אבן': 'אבן', 'stone': 'אבן',
-  'בהיר': 'בהיר',
-  // ג'ינס בכותרת → כחול (לאביה)
-  "גי'נס": 'כחול', 'ג׳ינס': 'כחול', 'jeans': 'כחול', 'denim': 'כחול',
-};
-
-// רשימת צבעים לא מזוהים - לדיווח
-const unknownColors = new Set();
-
+// סינון מוצרים לא רלוונטיים — רק בגדי נשים בוגרות
 // ======================================================================
-// פונקציה לנרמול צבע - ממירה כל שם צבע לצבע העברי המתאים
-// ======================================================================
-function normalizeColor(c) {
-  if (!c) return null;
-  const original = c;
-  const lower = c.toLowerCase().trim();
-  const noSpaces = lower.replace(/[-_\s]/g, '');
-  
-  // חיפוש ישיר
-  if (colorMap[noSpaces]) return colorMap[noSpaces];
-  if (colorMap[lower]) return colorMap[lower];
-  
-  // בדיקה מילה-מילה: "כחול מעושן" → כחול
-  const words = lower.split(/\s+/);
-  for (const word of words) {
-    if (colorMap[word]) return colorMap[word];
-  }
-  
-  // חיפוש חלקי
-  for (const [key, val] of Object.entries(colorMap)) {
-    if (lower.includes(key) || key.includes(lower)) return val;
-  }
-  
-  // צבע לא מזוהה - שמור לדיווח
-  unknownColors.add(original);
-  return 'אחר';
-}
+const SKIP_KEYWORDS = [
+  // תכשיטים ואקססוריז
+  'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט',
+  'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
+  'גומייה','מטפחת','קשת','שעון','שיער',
+  // נעליים
+  'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
+  'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
+  // בגד ים
+  'בגד ים','ביקיני','בגדי ים',
+  // ילדות
+  'ילדה','ילדות','ג׳וניור','junior','kids',
+  // אחר
+  'פיג׳מה','פיגמה','גרביון','גרביים','גרבי',
+];
 
-// ======================================================================
-// מיפוי מידות - המרה למידות אוניברסליות
-// לפי הטבלה: כל מידה אירופאית מופיעה בשתי מידות בינלאומיות
-// למשל: 44 → L + XL (לפי טווח 44-46)
-// ======================================================================
-const sizeMapping = {
-  // מידות מספריות (מידה) -> מה הן מייצגות
-  'Y': ['XS'],
-  '0': ['S'],
-  '1': ['M'],
-  '2': ['L'],
-  '3': ['XL'],
-  '4': ['XXL'],
-  '5': ['XXXL'],
-  // מידות אירופאיות - כל מידה מופיעה בשתי מידות בינלאומיות לפי הטבלה
-  '34': ['XS'],           // 34-36 → XS
-  '36': ['XS', 'S'],      // 36-38 → XS + S
-  '38': ['S', 'M'],       // 38-40 → S + M
-  '40': ['M', 'L'],       // 40-42 → M + L
-  '42': ['L', 'XL'],      // 42-44 → L + XL
-  '44': ['XL', 'XXL'],    // 44-46 → XL + XXL
-  '46': ['XXL', 'XXXL'],  // 46-48 → XXL + XXXL
-  '48': ['XXXL'],         // 48-50 → XXXL
-  '50': ['XXXL']
-};
-
-// מיפוי הפוך - מידה בינלאומית מציגה את כל המספרים התואמים
-const universalToNumbers = {
-  'XS': ['Y', '34', '36'],
-  'S': ['0', '36', '38'],
-  'M': ['1', '38', '40'],
-  'L': ['2', '40', '42'],
-  'XL': ['3', '42', '44'],
-  'XXL': ['4', '44', '46'],
-  'XXXL': ['5', '46', '48', '50']
-};
-
-function normalizeSize(s) {
-  if (!s) return [];
-  const val = s.toString().toUpperCase().trim();
-  
-  // מידות אוניברסליות - מחזיר כמו שזה
-  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
-  
-  // ONE SIZE
-  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
-  
-  // מידות מספריות 0-5 או אירופאיות 34-46
-  if (sizeMapping[val]) return sizeMapping[val];
-  
-  return [];
-}
-
-// ======================================================================
-// UNIFIED DETECT FUNCTIONS - v2
-// ======================================================================
-
-function detectCategory(title) {
-  const t = (title || '').toLowerCase();
-  // סדר חשוב - ספציפי קודם
-  if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
-  if (/סוודר|sweater/i.test(t)) return 'סוודר';
-  if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
-  if (/סרפן|pinafore/i.test(t)) return 'סרפן';
-  if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
-  if (/חצאית|skirt/i.test(t)) return 'חצאית';
-  if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
-  if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
-  if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
-  if (/וסט|vest/i.test(t)) return 'וסט';
-  if (/עליונית/i.test(t)) return 'עליונית';
-  if (/מעיל|coat/i.test(t)) return 'מעיל';
-  if (/שכמיה|cape|poncho|פונצ׳ו/i.test(t)) return 'עליונית';
-  if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
-  if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
-  if (/סט|set/i.test(t)) return 'סט';
-  if (/בייסיק|basic/i.test(t)) return 'בייסיק';
-  if (/גולף|turtleneck/i.test(t)) return 'חולצה';
-  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
-  // מכנסיים - לא מציגים
-  return null;
+function shouldSkip(title) {
+  if (!title) return false;
+  const t = title.toLowerCase().trim();
+  return SKIP_KEYWORDS.some(k => {
+    const kl = k.toLowerCase();
+    if (kl.includes(' ')) {
+      // ביטוי של שתי מילים — חיפוש רגיל
+      return t.includes(kl);
+    }
+    // מילה בודדת — בדוק גבולות
+    const idx = t.indexOf(kl);
+    if (idx === -1) return false;
+    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
+    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
+    return before && after;
+  });
 }
 
 function detectStyle(title, description = '') {
@@ -585,6 +322,7 @@ async function scrapeProduct(page, url) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
+    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
     
     // זיהוי סגנון, גיזרה וקטגוריה - עכשיו כולל תיאור
     const style = detectStyle(data.title, data.description);

@@ -29,7 +29,7 @@ const SKIP_KEYWORDS = [
   'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
   'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
   // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
+  'בגד ים','xxxxxx','בגדי ים',
   // ילדות
   'ילדה','ילדות','ג׳וניור','junior','kids',
   // אחר
@@ -78,6 +78,8 @@ function detectCategory(title) {
 }
 
 function detectStyle(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף|חגיג|celebration|festive|אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'ערב';
   if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|daily|everyday|יום.?יום/i.test(text)) return 'יום חול';
   if (/קלאסי|classic|נצחי|timeless/i.test(text)) return 'קלאסי';
   if (/מינימליסט|minimal|נקי|clean/i.test(text)) return 'מינימליסטי';

@@ -1556,6 +1556,14 @@ function trackOutClick(el) {
   });
 }
 
+function titleToSlug(title){
+  return (title||'').trim()
+    .replace(/\s+/g,'-')
+    .replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'')
+    .toLowerCase()
+    .replace(/-+/g,'-')
+    .replace(/^-|-$/g,'');
+}
 async function openProduct(id){
   history.pushState({productId:id},'',`/product/${id}`);
   document.title='LOOKLI – טוען מוצר…';
@@ -1570,6 +1578,8 @@ async function openProduct(id){
   try{
     const p=await(await fetch("/api/product/"+id)).json();
     document.title=`${p.title||'מוצר'} – LOOKLI`;
+    const slug=titleToSlug(p.title);
+    if(slug) history.replaceState({productId:id},'',`/product/${slug}`);
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
@@ -1603,8 +1613,25 @@ window.addEventListener('popstate',e=>{
   if(e.state?.productId){openProduct(e.state.productId);}
   else{document.getElementById("modalBackdrop").classList.remove("open");document.title='LOOKLI – מנוע חיפוש לאופנה צנועה';}
 });
-// כניסה ישירה ל-/product/ID
-(function(){const m=location.pathname.match(/^\/product\/(\d+)$/);if(m){window.addEventListener('DOMContentLoaded',()=>openProduct(m[1]));}})();
+// כניסה ישירה ל-/product/slug או /product/ID
+(function(){
+  const m=location.pathname.match(/^\/product\/(.+)$/);
+  if(m){
+    const slugOrId=m[1];
+    window.addEventListener('DOMContentLoaded',async()=>{
+      // אם מספר — פתח לפי ID
+      if(/^\d+$/.test(slugOrId)){
+        openProduct(slugOrId);
+      } else {
+        // חפש לפי slug
+        try{
+          const p=await(await fetch('/api/product/slug/'+slugOrId)).json();
+          if(p.id) openProduct(p.id);
+        }catch(e){}
+      }
+    });
+  }
+})();
 
 document.getElementById("q").addEventListener("input",handleSearchInput);
 document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});

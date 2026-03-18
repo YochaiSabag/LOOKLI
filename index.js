@@ -120,8 +120,8 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// SPA route — מוצר ספציפי
-app.get("/product/:id", (req, res) => {
+// SPA route — מוצר לפי slug או ID
+app.get("/product/:slug", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
@@ -472,6 +472,36 @@ app.get("/api/products", async (req, res) => {
     res.json(rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("products error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+// API — מוצר לפי slug (כותרת מנורמלת)
+app.get("/api/product/slug/:slug", async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    // נסה קודם לפי ID אם ה-slug הוא מספר
+    if (/^\d+$/.test(slug)) {
+      const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [parseInt(slug)]);
+      if (result.rows.length) {
+        const product = result.rows[0];
+        product.shipping = calculateShipping(product.store, product.price);
+        return res.json(product);
+      }
+    }
+    // חפש לפי slug — השווה את ה-title מנורמל
+    const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [0]); // placeholder
+    // חיפוש אמיתי — title → slug
+    const all = await pool.query(
+      `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+      [slug.toLowerCase()]
+    );
+    if (!all.rows.length) return res.status(404).json({ error: "Not found" });
+    const product = all.rows[0];
+    product.shipping = calculateShipping(product.store, product.price);
+    res.json(product);
+  } catch (err) {
+    console.error("slug error:", err.message);
     res.status(500).json({ error: "DB error" });
   }
 });

@@ -5,12 +5,34 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
 import { GoogleAuth } from "google-auth-library";
+import rateLimit from "express-rate-limit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const { Pool } = pkg;
 const app = express();
+
+// ===== Rate Limiting =====
+// API כללי — 100 בקשות לדקה
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'יותר מדי בקשות — נסה שוב בעוד דקה' }
+});
+
+// חיפוש — 30 בקשות לדקה
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'יותר מדי חיפושים — נסה שוב בעוד דקה' }
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/products', searchLimiter);
+app.use('/api/ai-search', searchLimiter);
 
 // ===== SEO helpers (robots.txt + sitemap.xml) =====
 const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";

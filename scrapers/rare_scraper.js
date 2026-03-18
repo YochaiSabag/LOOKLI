@@ -90,7 +90,7 @@ const SKIP_KEYWORDS = [
   'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט','כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
   'גומייה','מטפחת','קשת','שעון','קישוט שיער','שיער',
   'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון','כפכף','בלרינה','מוקסין','אספדריל','קבקב',
-  'בגד ים','ביקיני','בגדי ים',
+  'בגד ים','xxxxxx','בגדי ים',
   'ילדה','ילדות',"ג'וניור",'junior','kids',
   "פיג'מה",'פיגמה','גרביון','גרביים',
 ];
@@ -225,44 +225,28 @@ async function getAllProductUrls(page) {
   await page.goto('https://rare.co.il/all', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
 
-  // גלילה — האתר טוען מוצרים בגלילה
-  let lastCount = 0;
-  let noChangeCycles = 0;
-  for (let i = 0; i < 50; i++) {
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    try {
-      await page.waitForLoadState('networkidle', { timeout: 5000 });
-    } catch(e) {}
-    await page.waitForTimeout(2000);
+  // טען את העמוד וחכה
+  await page.waitForTimeout(3000);
 
-    const count = await page.evaluate(() =>
-      document.querySelectorAll('a[href*="rare.co.il/Cat_"]').length
-    );
-    console.log(`  גלילה ${i+1}: ${count} מוצרים`);
-    if (count === lastCount) {
-      noChangeCycles++;
-      if (noChangeCycles >= 4) break;
-    } else {
-      noChangeCycles = 0;
-    }
-    lastCount = count;
-  }
+  // גלול פעם אחת למטה ובחזרה — לטעינת כל המוצרים
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(2000);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(1000);
 
-  // איסוף כל הקישורים
+  // איסוף קישורים — לפי PicID מ-hidden inputs
   const urls = await page.evaluate(() => {
     const seen = new Set();
-    // קישורי מוצר ישירים
-    document.querySelectorAll('a[href]').forEach(a => {
-      const href = a.href;
-      if (href.includes('rare.co.il/Cat_') || href.match(/rare\.co\.il\/\d+/)) {
-        seen.add(href.split('?')[0]);
-      }
+    const base = 'https://rare.co.il/catalog.asp?page=newshowprod.asp&prodid=';
+    document.querySelectorAll('input[name="PicID"]').forEach(input => {
+      const picid = input.value;
+      if (picid) seen.add(base + picid);
     });
     return [...seen];
   });
 
   urls.forEach(u => allUrls.add(u));
-  console.log(`\n  ✓ סה"כ: ${allUrls.size} קישורים\n`);
+  console.log(`\n  ✓ סה"כ: ${allUrls.size} קישורים ייחודיים\n`);
   return [...allUrls];
 }
 
@@ -333,30 +317,55 @@ async function scrapeProduct(page, url) {
       const descEl = document.querySelector('.CssCatProductAdjusted_PicDesc span[itemprop="description"]');
       const description = descEl?.innerText?.trim().replace(/טבלת מידות בתחתית העמוד[\s\S]*/i, '').trim() || '';
 
-      // === מידות ===
-      const rawSizes = [];
+      // === מידות — רשימה בלבד, בדיקת מלאי תיעשה אחרי ===
+      const sizeItems = [];
       document.querySelectorAll('ul.clsUlChooseProduct li.clsLIChooseProduct').forEach(li => {
         const text = li.querySelector('span.cls_elm_extra_product_Li_Text')?.innerText?.trim() || '';
-        const isDisabled = li.classList.contains('clsDisabled') || li.style.opacity === '0.3' ||
-                           li.getAttribute('data-inventory') === '0' ||
-                           li.classList.contains('outofstock');
-        if (text) rawSizes.push({ name: text, disabled: isDisabled });
+        if (text) sizeItems.push(text);
       });
 
-      // fallback: select options
-      if (rawSizes.length === 0) {
-        document.querySelectorAll('select.clsSelectChooseProduct option').forEach(opt => {
-          const val = opt.textContent?.trim();
-          if (!val || val.includes('בחירת') || val === '---') return;
-          rawSizes.push({ name: val, disabled: opt.disabled });
-        });
-      }
-
-      return { title, price, originalPrice, images, description, rawSizes };
+      return { title, price, originalPrice, images, description, sizeItems };
     });
 
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ דלג: ${data.title.substring(0, 30)}`); return null; }
+
+    // === בדיקת מלאי לכל מידה בלחיצה ===
+    const rawSizes = [];
+    for (const sizeName of (data.sizeItems || [])) {
+      try {
+        // לחץ על המידה
+        await page.evaluate((name) => {
+          const li = [...document.querySelectorAll('ul.clsUlChooseProduct li.clsLIChooseProduct')]
+            .find(el => el.querySelector('span.cls_elm_extra_product_Li_Text')?.innerText?.trim() === name);
+          if (li) li.click();
+        }, sizeName);
+        await page.waitForTimeout(600);
+
+        // בדוק אם מופיע "אזל במלאי"
+        const isOutOfStock = await page.evaluate(() => {
+          const inv = document.querySelector('.CssCatProductAdjusted_InventoryDesc');
+          return inv ? inv.innerText.includes('אזל') || inv.innerText.includes('אין במלאי') : false;
+        });
+        rawSizes.push({ name: sizeName, disabled: isOutOfStock });
+      } catch(e) {
+        rawSizes.push({ name: sizeName, disabled: false });
+      }
+    }
+
+    // fallback אם אין מידות
+    if (rawSizes.length === 0) {
+      const fallback = await page.evaluate(() => {
+        const sizes = [];
+        document.querySelectorAll('select.clsSelectChooseProduct option').forEach(opt => {
+          const val = opt.textContent?.trim();
+          if (!val || val.includes('בחירת') || val === '---') return;
+          sizes.push({ name: val, disabled: opt.disabled });
+        });
+        return sizes;
+      });
+      rawSizes.push(...fallback);
+    }
 
     // זיהוי מטא-דאטה
     const category = detectCategory(data.title);
@@ -366,11 +375,12 @@ async function scrapeProduct(page, url) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
 
-    console.log(`    Raw sizes: ${data.rawSizes.map(s => s.name + (s.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
+    console.log(`    Raw sizes:`);
+    rawSizes.forEach(s => console.log(`      ${s.disabled ? '✗' : '✓'} ${s.name}`));
 
     // עיבוד מידות
     const availableSizes = new Set();
-    for (const size of data.rawSizes) {
+    for (const size of rawSizes) {
       if (size.disabled) continue;
       normalizeSize(size.name).forEach(s => availableSizes.add(s));
     }

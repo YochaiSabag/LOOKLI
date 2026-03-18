@@ -81,8 +81,10 @@ const sizeMapping = {
 
 function normalizeSize(s) {
   if (!s) return [];
-  const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|2?XXL|XXXL)$/i.test(val)) return [val.replace('2XL','XXL')];
+  let val = s.toString().toUpperCase().trim();
+  // המרות מיוחדות
+  val = val.replace(/^2XL$/,'XXL').replace(/^3XL$/,'XXXL').replace(/^4XL$/,'XXXL');
+  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
   if (sizeMapping[val]) return sizeMapping[val];
   return [];
@@ -100,7 +102,7 @@ const SKIP_KEYWORDS = [
   'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
   'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
   // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
+  'בגד ים','xxxxxx','בגדי ים',
   // ילדות
   'ילדה','ילדות','ג׳וניור','junior','kids',
   // אחר
@@ -389,41 +391,36 @@ async function scrapeProduct(page, url) {
 
       // === צבעים ומידות (WooCommerce variation swatches) ===
       const rawColors = [];
-      const rawSizes = [];
+      const rawSizesMap = new Map(); // dedup לפי שם
 
-      document.querySelectorAll('.variable-items-wrapper li').forEach(el => {
-        const attrName = (
+      document.querySelectorAll('.single-product-variable-items li, .variable-items-wrapper:not(.archive-variable-items) li').forEach(el => {
+        let attrName = (
           el.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') ||
           el.getAttribute('data-attribute_name') || ''
-        ).toLowerCase();
+        );
+        try { attrName = decodeURIComponent(attrName).toLowerCase(); } catch(e) { attrName = attrName.toLowerCase(); }
+        
         const title = el.getAttribute('data-title') || el.getAttribute('title') || '';
         const isDisabled = el.classList.contains('disabled');
         if (!title) return;
 
-        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color')) {
+        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color') || attrName.includes('tzba')) {
           rawColors.push({ name: title, disabled: isDisabled });
-        } else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('pa_size')) {
-          rawSizes.push({ name: title, disabled: isDisabled });
+        } else {
+          // dedup — שמור רק אם לא קיים, או אם הגרסה הנוכחית במלאי
+          if (!rawSizesMap.has(title) || (!isDisabled && rawSizesMap.get(title).disabled)) {
+            rawSizesMap.set(title, { name: title, disabled: isDisabled });
+          }
         }
       });
+      const rawSizes = [...rawSizesMap.values()];
 
       // fallback: select
-      if (rawColors.length === 0) {
-        document.querySelectorAll('select').forEach(sel => {
-          const name = (sel.name || sel.id || '').toLowerCase();
-          if (name.includes('color') || name.includes('pa_color') || name.includes('צבע')) {
-            Array.from(sel.options).forEach(opt => {
-              const val = opt.textContent?.trim();
-              if (!val || /בחירת|choose/i.test(val)) return;
-              rawColors.push({ name: val, disabled: opt.disabled });
-            });
-          }
-        });
-      }
       if (rawSizes.length === 0) {
         document.querySelectorAll('select').forEach(sel => {
-          const name = (sel.name || sel.id || '').toLowerCase();
-          if (name.includes('size') || name.includes('pa_size') || name.includes('מידה')) {
+          let name = sel.name || sel.id || '';
+          try { name = decodeURIComponent(name).toLowerCase(); } catch(e) { name = name.toLowerCase(); }
+          if (name.includes('size') || name.includes('pa_size') || name.includes('מידה') || name.includes('מידה')) {
             Array.from(sel.options).forEach(opt => {
               const val = opt.textContent?.trim();
               if (!val || /בחירת|choose/i.test(val)) return;
@@ -457,85 +454,55 @@ async function scrapeProduct(page, url) {
     const designDetails = detectDesignDetails(data.title, data.description);
 
     console.log(`    Raw colors: ${data.rawColors.map(c => c.name + (c.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
-    console.log(`    Raw sizes:  ${data.rawSizes.map(s => s.name + (s.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
+    console.log(`    Raw sizes:`);
+    data.rawSizes.forEach(s => console.log(`      ${s.disabled ? '✗' : '✓'} ${s.name}`));
 
     const colorSizesMap = {};
     const availableSizes = new Set();
     const availableColors = new Set();
 
-    if (data.variationsData && data.variationsData.length > 0) {
-      console.log(`    📋 ${data.variationsData.length} וריאציות ב-JSON`);
-
-      for (const v of data.variationsData) {
-        if (!v.is_in_stock) continue;
-        const attrs = v.attributes || {};
-        let colorVal = null, sizeVal = null;
-
-        for (const [key, val] of Object.entries(attrs)) {
-          const k = key.toLowerCase();
-          if (k.includes('color') || k.includes('צבע')) colorVal = val;
-          else if (k.includes('size') || k.includes('מידה')) sizeVal = val;
-        }
-
-        let normColor = null;
-        if (colorVal) {
-          let displayColor = colorVal;
-          try { displayColor = decodeURIComponent(colorVal); } catch(e) {}
-          for (const rc of data.rawColors) {
-            const rcL = rc.name.toLowerCase();
-            const dcL = displayColor.toLowerCase();
-            if (rcL === dcL || rcL.includes(dcL) || dcL.includes(rcL)) { displayColor = rc.name; break; }
-          }
-          normColor = normalizeColor(displayColor);
-        }
-
-        let normSizes = [];
-        if (sizeVal) {
-          let displaySize = sizeVal;
-          try { displaySize = decodeURIComponent(sizeVal); } catch(e) {}
-          normSizes = normalizeSize(displaySize);
-        }
-
-        if (normSizes.length > 0) {
-          for (const ns of normSizes) {
-            availableSizes.add(ns);
-            if (normColor) {
-              availableColors.add(normColor);
-              if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
-              if (!colorSizesMap[normColor].includes(ns)) colorSizesMap[normColor].push(ns);
-            }
-          }
-          console.log(`      ✓ ${normColor || '-'} + ${normSizes.join('/')}`);
+    // אורדמן — swatches בלבד
+    for (const color of data.rawColors) {
+      if (color.disabled) continue;
+      const normColor = normalizeColor(color.name);
+      if (!normColor) continue;
+      availableColors.add(normColor);
+      if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
+      for (const size of data.rawSizes) {
+        if (size.disabled) continue;
+        const normSizes = normalizeSize(size.name);
+        for (const ns of normSizes) {
+          availableSizes.add(ns);
+          if (!colorSizesMap[normColor].includes(ns)) colorSizesMap[normColor].push(ns);
         }
       }
-    } else {
-      console.log(`    ⚠️ אין JSON - משתמש ב-swatches`);
-      for (const color of data.rawColors) {
-        if (color.disabled) continue;
-        const normColor = normalizeColor(color.name);
-        if (!normColor) continue;
-        availableColors.add(normColor);
-        if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
-        for (const size of data.rawSizes) {
-          if (size.disabled) continue;
-          const normSizes = normalizeSize(size.name);
-          for (const ns of normSizes) {
-            availableSizes.add(ns);
-            if (!colorSizesMap[normColor].includes(ns)) colorSizesMap[normColor].push(ns);
-          }
-        }
-      }
-      if (data.rawColors.length === 0) {
-        for (const size of data.rawSizes) {
-          if (size.disabled) continue;
-          normalizeSize(size.name).forEach(s => availableSizes.add(s));
-        }
+    }
+    if (data.rawColors.length === 0) {
+      for (const size of data.rawSizes) {
+        if (size.disabled) continue;
+        normalizeSize(size.name).forEach(s => availableSizes.add(s));
       }
     }
 
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
-    const mainColor = uniqueColors[0] || null;
+
+    // באורדמן אין בורר צבע — חלץ מהכותרת
+    let mainColor = uniqueColors[0] || null;
+    if (!mainColor) {
+      // פרחוני/פרחונית = אחר
+      if (/פרחוני|פרחונית|floral/i.test(data.title)) {
+        mainColor = 'פרחוני';
+      } else {
+        // חפש צבע מהכותרת — רק התאמה מדויקת ב-colorMap
+        const words = (data.title || '').split(/[\s\-–,/]+/);
+        for (const word of words) {
+          if (word.length < 2) continue;
+          const lower = word.toLowerCase().trim();
+          if (colorMap[lower]) { mainColor = colorMap[lower]; break; }
+        }
+      }
+    }
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
@@ -561,7 +528,7 @@ async function scrapeProduct(page, url) {
       price: data.price,
       originalPrice: data.originalPrice,
       images: data.images,
-      colors: uniqueColors,
+      colors: mainColor ? [mainColor] : [],
       sizes: uniqueSizes,
       mainColor,
       category,
@@ -684,7 +651,7 @@ async function runHealthCheck(scraped, failed) {
   if (failRate > 15) problems.push(`⚠️ אחוז כשלונות גבוה: ${failRate.toFixed(1)}%`);
 
   const total = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='ORDMAN'`);
-  console.log(`\n📊 סה"כ AVIVIT ב-DB: ${total.rows[0].c}`);
+  console.log(`\n📊 סה"כ ORDMAN ב-DB: ${total.rows[0].c}`);
 
   if (problems.length > 0) {
     console.log(`\n${'='.repeat(50)}\n🚨 נמצאו בעיות:`);

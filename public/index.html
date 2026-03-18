@@ -285,6 +285,54 @@
       .main{flex:1;padding:20px 24px;min-height:60vh}
       .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
       .meta{color:var(--muted);font-size:14px;font-weight:700}
+      /* Custom sort dropdown */
+      .sort-wrap{position:relative;display:inline-block;user-select:none}
+      .sort-btn{
+      display:flex;align-items:center;gap:10px;
+      padding:9px 16px;
+      background:#fff;
+      border:1.5px solid #e0d0e8;
+      border-radius:24px;
+      color:#666;
+      font-family:inherit;font-size:14px;font-weight:700;
+      cursor:pointer;
+      transition:border-color .2s,color .2s,box-shadow .2s;
+      box-shadow:0 1px 5px rgba(0,0,0,.07);
+      white-space:nowrap;
+      min-width:130px;
+      justify-content:space-between;
+      }
+      .sort-btn:hover{border-color:var(--accent);color:var(--accent)}
+      .sort-btn.open{border-color:var(--accent);color:var(--accent);box-shadow:0 2px 10px rgba(224,161,192,.25)}
+      .sort-arrow{
+      width:16px;height:16px;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      transition:transform .2s;
+      }
+      .sort-btn.open .sort-arrow{transform:rotate(180deg)}
+      .sort-arrow svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .sort-menu{
+      position:absolute;left:0;top:calc(100% + 6px);
+      background:#fff;
+      border:1.5px solid #e0d0e8;
+      border-radius:16px;
+      box-shadow:0 8px 24px rgba(0,0,0,.1);
+      overflow:hidden;
+      z-index:200;
+      min-width:100%;
+      display:none;
+      flex-direction:column;
+      }
+      .sort-menu.open{display:flex}
+      .sort-item{
+      padding:11px 18px;
+      font-family:inherit;font-size:14px;font-weight:600;
+      color:#555;cursor:pointer;
+      transition:background .15s,color .15s;
+      text-align:right;
+      }
+      .sort-item:hover{background:#fdf0f7;color:var(--accent)}
+      .sort-item.active{background:linear-gradient(135deg,#fce8f3,#f8e0ef);color:var(--accent);font-weight:700}
 
       /* Ads sidebar */
       .ads-sidebar{width:200px;flex-shrink:0;padding:16px 10px;display:none;position:sticky;top:136px;height:fit-content;max-height:calc(100vh - 150px);overflow-y:auto;scrollbar-width:none}
@@ -641,12 +689,12 @@
       .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px);z-index:4}
     </style>
     <!-- Google tag (gtag.js) -->
-    <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-6BG63T2LEF"></script>
+    <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-1KF0KR6VS8"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-6BG63T2LEF', {
+      gtag('config', 'G-1KF0KR6VS8', {
       link_attribution: true,
       allow_enhanced_conversions: true
       });
@@ -855,11 +903,22 @@
       <main class="main">
         <div class="toolbar">
           <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
-          <select id="sort" onchange="runRegularSearch()" style="padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-size:13px;font-weight:600">
-            <option value="new">חדש → ישן</option>
-            <option value="price_asc">מחיר ↑</option>
-            <option value="price_desc">מחיר ↓</option>
-          </select>
+          <div class="sort-wrap" id="sortWrap">
+            <button class="sort-btn" id="sortBtn" onclick="toggleSortMenu()">
+              <span id="sortLabel">חדש → ישן</span>
+              <span class="sort-arrow">
+                <svg viewBox="0 0 24 24">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </span>
+            </button>
+            <div class="sort-menu" id="sortMenu">
+              <div class="sort-item active" data-val="new" onclick="selectSort('new','חדש → ישן',this)">חדש → ישן</div>
+              <div class="sort-item" data-val="popular" onclick="selectSort('popular','פופולרי',this)">פופולרי</div>
+              <div class="sort-item" data-val="price_asc" onclick="selectSort('price_asc','מחיר ↑',this)">מחיר ↑</div>
+              <div class="sort-item" data-val="price_desc" onclick="selectSort('price_desc','מחיר ↓',this)">מחיר ↓</div>
+            </div>
+          </div>
         </div>
         <div class="grid" id="grid"></div>
       </main>
@@ -1000,7 +1059,11 @@
       'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
       'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png',
       'AVIYAH':'https://aviyahyosef.com/wp-content/uploads/2023/09/logo-white.png',
-      'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg'
+      'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg',
+      'CHEN':'/chen-logo.png',
+      'AVIVIT':'https://avivit-weizman.co.il//wp-content/uploads/2025/06/%D7%A2%D7%99%D7%A6%D7%95%D7%91-%D7%9C%D7%9C%D7%90-%D7%A9%D7%9D-3.png',
+      'RARE':'https://rare.co.il/490081_4076.webp',
+      'ORDMAN':'https://www.ordman.co.il/wp-content/uploads/2025/09/%D7%98%D7%A7%D7%A1%D7%98-%D7%94%D7%A4%D7%A1%D7%A7%D7%94-%D7%A9%D7%9C%D7%9A-50-e1757934226395.png'
       };
 
       // חנויות שהלוגו שלהן לבן וצריכות רקע כהה
@@ -1211,28 +1274,43 @@
       const maxPrice=document.getElementById("priceRange").value;
       const sliderMax=document.getElementById("priceRange").max;
       if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice=""
-  if(document.getElementById=""("sort").value)params.set=""("sort",document.getElementById=""("sort").value=""
-  const="" res="await" fetch=""("/api/products?"+params=""
-  const="" data="await" res.json=""
-  allProducts=""data;currentPage="1;renderPage"
-  document.getElementById=""("metaToolbar").textContent="${data.length} מוצרים"
-    updateSeoMeta(document.getElementById=``("q").value.trim=""
-    loadSponsored(document.getElementById=""('q').value.trim=''
-}
+  if(window._sortVal=""&&window._sortVal!=='new')params.set("sort",window._sortVal);
+
+      const cacheKey = params.toString();
+      if (!window._productCache) window._productCache = {};
+
+      let data;
+      if (window._productCache[cacheKey]) {
+      data = window._productCache[cacheKey];
+      } else {
+      const res = await fetch("/api/products?" + params);
+      data = await res.json();
+      window._productCache[cacheKey] = data;
+      // ניקוי cache אם גדל מדי (מעל 10 entries)
+      const keys = Object.keys(window._productCache);
+      if (keys.length > 10) delete window._productCache[keys[0]];
+      }
+
+      allProducts = (window._sortVal === 'new' || !window._sortVal) ? interleaveByStore(data) : data;
+      currentPage=1;renderPage();
+      document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
+      updateSeoMeta(document.getElementById("q").value.trim());
+      loadSponsored(document.getElementById('q').value.trim());
+      }
 
 
 
-function='' getActiveProducts=''
+      function getActiveProducts(){
 
-  return='' allProducts=''
-}
+      return allProducts;
+      }
 
-function='' renderPage=''
-  const='' active = 'getActiveProducts'
-  const='' end = 'currentPage*itemsPerPage'
-  renderProducts(active.slice(0,end=''), false=''
-  updateLoadMoreButtonFiltered(active.length=''
-  setTimeout(loadSidebarAds='', 100=''); // עדכן מודעות לפי מוצרים נוכחיים
+      function renderPage(){
+      const active = getActiveProducts();
+      const end = currentPage*itemsPerPage;
+      renderProducts(active.slice(0,end), false);
+      updateLoadMoreButtonFiltered(active.length);
+      setTimeout(loadSidebarAds, 100); // עדכן מודעות לפי מוצרים נוכחיים
       }
 
       function loadMore(){
@@ -1887,7 +1965,76 @@ function='' renderPage=''
               var _origRunAI=runAISearch;
               runAISearch=async function(){checkHideHero();await _origRunAI()};
 
-              (async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch();window.scrollTo(0,0)})();
+              (async function(){
+              // בדיקת טוקן הצגה זמני
+              const previewToken = new URLSearchParams(location.search).get('preview');
+              if (previewToken) {
+              try {
+              const r = await fetch('/api/preview-token/' + previewToken);
+              if (r.ok) {
+              const d = await r.json();
+              if (d.valid) {
+              const exp = new Date(d.expiresAt);
+              const banner = document.createElement('div');
+              banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:700;z-index:9999;direction:rtl';
+              banner.textContent = `🔗 תצוגה זמנית · תוקף עד ${exp.toLocaleDateString('he-IL')} ${exp.toLocaleTimeString('he-IL')}`;
+              document.body.prepend(banner);
+              }
+              }
+              } catch(e) {}
+              }
+              await initFilters();
+              renderHeroStep();
+              skipScrollOnSearch=true;
+              await runRegularSearch();
+              window.scrollTo(0,0);
+              })();
+
+              // ── Custom sort dropdown ──
+              window._sortVal = 'new';
+
+              // ערבוב מוצרים לפי חנות — Round Robin
+              function interleaveByStore(products) {
+              const byStore = {};
+              products.forEach(p => {
+              const s = p.store || 'OTHER';
+              if (!byStore[s]) byStore[s] = [];
+              byStore[s].push(p);
+              });
+              const queues = Object.values(byStore);
+              const result = [];
+              let i = 0;
+              while (result.length < products.length) {
+    const q = queues[i % queues.length];
+    if (q && q.length > 0) result.push(q.shift());
+              i++;
+              if (queues.every(q => q.length === 0)) break;
+              }
+              return result;
+              }
+              function toggleSortMenu() {
+              const btn = document.getElementById('sortBtn');
+              const menu = document.getElementById('sortMenu');
+              btn.classList.toggle('open');
+              menu.classList.toggle('open');
+              }
+              function selectSort(val, label, el) {
+              window._sortVal = val;
+              document.getElementById('sortLabel').textContent = label;
+              document.querySelectorAll('.sort-item').forEach(i => i.classList.remove('active'));
+              el.classList.add('active');
+              document.getElementById('sortBtn').classList.remove('open');
+              document.getElementById('sortMenu').classList.remove('open');
+              runRegularSearch();
+              }
+              // סגירה בלחיצה מחוץ לתפריט
+              document.addEventListener('click', e => {
+              const wrap = document.getElementById('sortWrap');
+              if (wrap && !wrap.contains(e.target)) {
+              document.getElementById('sortBtn')?.classList.remove('open');
+              document.getElementById('sortMenu')?.classList.remove('open');
+              }
+              });
             </script>
 
     <!-- ALERT POPUP -->
@@ -2680,5 +2827,53 @@ function='' renderPage=''
           document.getElementById('alertPopupBg').classList.remove('open');
           }
         </script>
+    <style>
+      #cookieBanner{
+      position:fixed;bottom:0;left:0;right:0;
+      background:#fff;
+      border-top:1px solid #f0e6f0;
+      padding:14px 24px;
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+      z-index:9998;
+      box-shadow:0 -4px 20px rgba(0,0,0,.08);
+      font-family:inherit;
+      transform:translateY(100%);
+      transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+      flex-wrap:wrap;
+      }
+      #cookieBanner.show{transform:translateY(0)}
+      #cookieBanner p{margin:0;font-size:13px;color:#787878;flex:1;min-width:200px}
+      #cookieBanner a{color:#e0a1c0;font-weight:600;text-decoration:none}
+      #cookieBanner a:hover{text-decoration:underline}
+      #cookieAccept{
+      padding:9px 22px;
+      background:#e0a1c0;
+      color:#fff;border:none;border-radius:20px;
+      font-family:inherit;font-size:13px;font-weight:700;
+      cursor:pointer;white-space:nowrap;
+      transition:background .2s,transform .15s;
+      flex-shrink:0;
+      }
+      #cookieAccept:hover{background:#c48cb3;transform:translateY(-1px)}
+    </style>
+
+    <div id="cookieBanner">
+      <p>האתר משתמש ב-cookies לצורך התחברות ושמירת העדפות, וב-Google Analytics למדידת תנועה — המידע אינו משותף עם צדדים שלישיים לפרסום.</p>
+      <button id="cookieAccept" onclick="acceptCookies()">הבנתי ✓</button>
+    </div>
+
+    <script>
+      (function(){
+      if(!localStorage.getItem('cookieConsent')){
+      setTimeout(()=>document.getElementById('cookieBanner')?.classList.add('show'), 8000);
+      }
+      })();
+      function acceptCookies(){
+      localStorage.setItem('cookieConsent','1');
+      const b=document.getElementById('cookieBanner');
+      b.style.transform='translateY(100%)';
+      setTimeout(()=>b.remove(),400);
+      }
+    </script>
   </body>
 </html>

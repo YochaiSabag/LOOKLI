@@ -13,7 +13,7 @@ const pool = new Pool({
 });
 
 const BREVO_KEY  = process.env.BREVO_API_KEY;
-const SITE_URL   = process.env.SITE_URL || 'https://lookli-production.up.railway.app';
+const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
 const FROM_NAME  = 'LOOKLI התראות';
 

@@ -14,6 +14,12 @@ const { Pool } = pkg;
 const app = express();
 app.set('trust proxy', 1); // Railway רץ מאחורי proxy
 
+// Google Sign In — דורש COOP מסוים
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
 // ===== Rate Limiting =====
 // API כללי — 100 בקשות לדקה
 const apiLimiter = rateLimit({

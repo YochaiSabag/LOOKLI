@@ -1456,6 +1456,54 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+// POST /api/auth/google — התחברות עם Google
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "חסר credential" });
+
+    // אמת את ה-token מול Google
+    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+    const payload = await googleRes.json();
+
+    if (payload.error) return res.status(401).json({ error: "Token לא תקין" });
+    if (payload.aud !== '1037279869077-935i5v7lva8q7t0gff3fa4m6rjtf5mn5.apps.googleusercontent.com') {
+      return res.status(401).json({ error: "Client ID לא תואם" });
+    }
+
+    const { email, name, sub: googleId } = payload;
+    if (!email) return res.status(400).json({ error: "לא נמצא אימייל" });
+
+    const emailLower = email.toLowerCase().trim();
+
+    // בדוק אם המשתמש קיים
+    let user = (await pool.query('SELECT * FROM users WHERE email=$1', [emailLower])).rows[0];
+
+    if (!user) {
+      // הרשמה אוטומטית
+      const result = await pool.query(
+        'INSERT INTO users (email, name, password_hash, newsletter, created_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *',
+        [emailLower, name || emailLower.split('@')[0], 'google_oauth_' + googleId, true]
+      );
+      user = result.rows[0];
+    }
+
+    const token = createHmac('sha256', process.env.JWT_SECRET || 'lookli-secret-2026')
+      .update(`${user.id}:${user.email}:${Date.now()}`)
+      .digest('hex');
+
+    await pool.query(
+      'UPDATE users SET last_login=NOW() WHERE id=$1',
+      [user.id]
+    );
+
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  } catch (err) {
+    console.error('google auth error:', err.message);
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
 // POST /api/auth/register
 app.post("/api/auth/register", async (req, res) => {
   try {

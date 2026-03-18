@@ -1990,6 +1990,8 @@ document.addEventListener('click', e => {
         <div class="auth-success" id="authSuccess"></div>
         <!-- Login form -->
         <div id="loginForm">
+          <div id="googleLoginBtn" style="display:flex;justify-content:center;margin-bottom:16px"></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"><span style="color:#9ca3af;font-size:12px">או עם אימייל</span><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"></div>
           <div class="auth-field">
             <label>אימייל</label>
             <input type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email"/>
@@ -2003,11 +2005,12 @@ document.addEventListener('click', e => {
             זכור אותי
           </label>
           <button class="auth-submit" id="loginBtn" onclick="doLogin()">התחברות</button>
-          <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"><span style="color:#9ca3af;font-size:12px">או</span><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"></div>
-          <div id="googleLoginBtn" style="display:flex;justify-content:center"></div>
+        </div>
         </div>
         <!-- Register form -->
         <div id="registerForm" style="display:none">
+          <div id="googleRegisterBtn" style="display:flex;justify-content:center;margin-bottom:16px"></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"><span style="color:#9ca3af;font-size:12px">או עם אימייל</span><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"></div>
           <div class="auth-field">
             <label>שם (אופציונלי)</label>
             <input type="text" id="regName" placeholder="השם שלך"/>
@@ -2025,8 +2028,7 @@ document.addEventListener('click', e => {
             <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
           </label>
           <button class="auth-submit" id="registerBtn" onclick="doRegister()" disabled style="opacity:.45;cursor:not-allowed">יצירת חשבון</button>
-          <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"><span style="color:#9ca3af;font-size:12px">או</span><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"></div>
-          <div id="googleRegisterBtn" style="display:flex;justify-content:center"></div>
+        </div>
         </div>
         <!-- Profile (when logged in) -->
         <div id="profileForm" style="display:none">

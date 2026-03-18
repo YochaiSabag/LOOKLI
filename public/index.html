@@ -2208,10 +2208,11 @@ document.addEventListener('click', e => {
       });
       const data = await res.json();
       if (!res.ok) return showAuthError(data.error || 'שגיאה בהתחברות עם Google');
-      localStorage.setItem('token', data.token);
-      currentUser = data.user;
-      updateAuthUI();
-      closeAuthModal();
+      localStorage.setItem('lookli_token', data.token);
+      authToken = data.token;
+      setUser(data.user);
+      showAuthSuccess('התחברת בהצלחה!');
+      setTimeout(closeAuthModal, 900);
     } catch(e) {
       showAuthError('שגיאה בהתחברות עם Google');
     }

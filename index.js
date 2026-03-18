@@ -23,28 +23,6 @@ Sitemap: ${SITE_URL}/sitemap.xml
 `);
 });
 
-app.get("/sitemap.xml", (req, res) => {
-  res.type("application/xml");
-  const now = new Date().toISOString();
-  const urls = [
-    { loc: `${SITE_URL}/`, priority: "1.0" },
-    { loc: `${SITE_URL}/about.html`, priority: "0.6" },
-    { loc: `${SITE_URL}/contact.html`, priority: "0.6" },
-  ];
-
-  const xml =
-`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map(u => `  <url>
-    <loc>${u.loc}</loc>
-    <lastmod>${now}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>${u.priority}</priority>
-  </url>`).join("\n")}
-</urlset>`;
-
-  res.send(xml);
-});
 // ================================================
 
 app.get("/api/debug/version", (req, res) => {
@@ -112,6 +90,51 @@ if (SITE_LOCKED) {
     res.status(403).send(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>LOOKLI</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0f;color:#f1f0ff;text-align:center}.box{padding:40px}.logo{font-size:32px;font-weight:900;background:linear-gradient(135deg,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}.msg{color:#6b7280;font-size:15px}</style></head><body><div class="box"><div class="logo">LOOKLI</div><div class="msg">האתר בשלבי בנייה — נחזור בקרוב ✨</div></div></body></html>`);
   });
 }
+
+// sitemap.xml דינמי — חייב לפני express.static
+app.get("/sitemap.xml", async (req, res) => {
+  try {
+    const base = process.env.SITE_URL || 'https://lookli.co.il';
+    const products = await pool.query(
+      `SELECT id, title, last_seen FROM products WHERE title IS NOT NULL ORDER BY last_seen DESC`
+    );
+
+    const staticUrls = [
+      { loc: `${base}/`, priority: '1.0', changefreq: 'daily' },
+      { loc: `${base}/about.html`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${base}/contact.html`, priority: '0.5', changefreq: 'monthly' },
+    ];
+
+    const productUrls = products.rows.map(p => {
+      const slug = (p.title || '').trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g, '')
+        .toLowerCase()
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/, '');
+      const lastmod = p.last_seen ? new Date(p.last_seen).toISOString().split('T')[0] : '';
+      return { loc: `${base}/product/${slug || p.id}`, priority: '0.8', changefreq: 'weekly', lastmod };
+    });
+
+    const allUrls = [...staticUrls, ...productUrls];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${allUrls.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    ${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(xml);
+  } catch (err) {
+    console.error('sitemap error:', err.message);
+    res.status(500).send('Error generating sitemap');
+  }
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 // שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה

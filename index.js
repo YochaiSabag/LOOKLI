@@ -12,6 +12,7 @@ const __dirname = path.dirname(__filename);
 
 const { Pool } = pkg;
 const app = express();
+app.set('trust proxy', 1); // Railway רץ מאחורי proxy
 
 // ===== Rate Limiting =====
 // API כללי — 100 בקשות לדקה
@@ -1491,11 +1492,6 @@ app.post("/api/auth/google", async (req, res) => {
     const token = createHmac('sha256', process.env.JWT_SECRET || 'lookli-secret-2026')
       .update(`${user.id}:${user.email}:${Date.now()}`)
       .digest('hex');
-
-    await pool.query(
-      'UPDATE users SET last_login=NOW() WHERE id=$1',
-      [user.id]
-    );
 
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {

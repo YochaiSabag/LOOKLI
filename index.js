@@ -170,7 +170,16 @@ ${allUrls.map(u => `  <url>
   }
 });
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  maxAge: '7d',        // תמונות, CSS, JS — cache שבוע
+  etag: true,
+  setHeaders: (res, filePath) => {
+    // index.html — אל תכניס לcache (תמיד עדכני)
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
 // שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
 
 app.get("/", (req, res) => {

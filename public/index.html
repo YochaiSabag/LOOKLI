@@ -1557,6 +1557,8 @@ function trackOutClick(el) {
 }
 
 async function openProduct(id){
+  history.pushState({productId:id},'',`/product/${id}`);
+  document.title='LOOKLI – טוען מוצר…';
   document.getElementById("modalBackdrop").classList.add("open");
   document.getElementById("modalTitle").textContent="טוען…";
   document.getElementById("modalDesc").textContent="";
@@ -1567,6 +1569,7 @@ async function openProduct(id){
   document.getElementById("modalDots").innerHTML="";
   try{
     const p=await(await fetch("/api/product/"+id)).json();
+    document.title=`${p.title||'מוצר'} – LOOKLI`;
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
@@ -1589,7 +1592,19 @@ async function openProduct(id){
   }catch(e){document.getElementById("modalTitle").textContent="שגיאה בטעינה"}
 }
 
-function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById("modalBackdrop").classList.remove("open")}
+function closeModal(e){
+  if(e&&e.target!==e.currentTarget)return;
+  document.getElementById("modalBackdrop").classList.remove("open");
+  document.title='LOOKLI – מנוע חיפוש לאופנה צנועה';
+  if(location.pathname.startsWith('/product/')){history.pushState({},'','/');}
+}
+// כפתור חזרה בדפדפן
+window.addEventListener('popstate',e=>{
+  if(e.state?.productId){openProduct(e.state.productId);}
+  else{document.getElementById("modalBackdrop").classList.remove("open");document.title='LOOKLI – מנוע חיפוש לאופנה צנועה';}
+});
+// כניסה ישירה ל-/product/ID
+(function(){const m=location.pathname.match(/^\/product\/(\d+)$/);if(m){window.addEventListener('DOMContentLoaded',()=>openProduct(m[1]));}})();
 
 document.getElementById("q").addEventListener("input",handleSearchInput);
 document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});

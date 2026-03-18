@@ -1040,9 +1040,19 @@ const storeLogos={
   'ORDMAN':'https://www.ordman.co.il/wp-content/uploads/2025/09/%D7%98%D7%A7%D7%A1%D7%98-%D7%94%D7%A4%D7%A1%D7%A7%D7%94-%D7%A9%D7%9C%D7%9A-50-e1757934226395.png'
 };
 
+// פונקציה שמחזירה לוגו — קודם בודקת קובץ מקומי בפובליק, אחר כך URL חיצוני
+function getStoreLogo(store) {
+  // אם יש קובץ מקומי בשם החנות — השתמש בו (png/jpg/svg/webp)
+  const localExts = ['png','jpg','svg','webp'];
+  for (const ext of localExts) {
+    const path = `/${store.toLowerCase()}-logo.${ext}`;
+    // נחזיר את הנתיב המקומי אם קיים — הדפדפן ינסה וישתמש ב-onerror לfallback
+  }
+  return storeLogos[store] || null;
+}
+
 // חנויות שהלוגו שלהן לבן וצריכות רקע כהה
 const darkBgStores = new Set(['AVIYAH', 'CHEMISE']);
-const blackLogoStores = new Set(['ORDMAN']);
 
 const colorData={
   // עברית
@@ -1357,10 +1367,12 @@ function renderProducts(products,append=false){
     }
     
     const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
-    const logoImgStyle = blackLogoStores.has(store) ? 'style="filter:brightness(0)"' : '';
+    const localLogo = `/${store.toLowerCase()}-logo.png`;
+    const fallbackLogo = storeLogos[store] || '';
+    const logoHTML = fallbackLogo ? `<div class="card-logo" ${logoBgClass}><img src="${localLogo}" alt="${store}" onerror="this.src='${fallbackLogo}'"></div>` : '';
     const isSaved = savedUrls.has(p.source_url||'');
     const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
-    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}" ${logoImgStyle}></div>`:''}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
   }
 }
 
@@ -1392,7 +1404,7 @@ async function initFilters(){
   
   const storeDiv=document.getElementById("storeLogos");
   storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
-  (data.stores||[]).forEach(s=>{const logo=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const imgStyle=blackLogoStores.has(s)?'style="filter:brightness(0)"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${logo?`<img src="${logo}" alt="${s}" ${imgStyle}>`:`<span>${s.substring(0,3)}</span>`}</div>`});
+  (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const local=`/${s.toLowerCase()}-logo.png`;const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${fallback?`<img src="${local}" alt="${s}" onerror="this.src='${fallback}'">`:`<span>${s.substring(0,3)}</span>`}</div>`});
   
   renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
   

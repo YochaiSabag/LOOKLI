@@ -177,9 +177,54 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// SPA route — מוצר לפי slug או ID
-app.get("/product/:slug", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// SPA route — מוצר לפי slug או ID (עם SSR למטא-טאגים)
+app.get("/product/:slug", async (req, res) => {
+  const slug = req.params.slug;
+  try {
+    // חפש מוצר לפי ID או slug
+    let product = null;
+    if (/^\d+$/.test(slug)) {
+      const r = await pool.query('SELECT * FROM products WHERE id=$1', [parseInt(slug)]);
+      product = r.rows[0];
+    } else {
+      const r = await pool.query(
+        `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u0590-\\u05FFa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+        [slug.toLowerCase()]
+      );
+      product = r.rows[0];
+    }
+
+    if (!product) return res.sendFile(path.join(__dirname, "public", "index.html"));
+
+    // בנה HTML עם OG tags מלאים
+    const base = process.env.SITE_URL || 'https://www.lookli.co.il';
+    const title = product.title || 'מוצר';
+    const desc = product.description || `${title} ב-${product.store} — ₪${product.price}`;
+    const img = (product.images?.[0]) || product.image_url || '';
+    const url = `${base}/product/${slug}`;
+
+    const html = await res.sendFile(path.join(__dirname, "public", "index.html"), {}, async (err) => {});
+
+    // קרא את ה-index.html והזרק meta tags
+    const fs = await import('fs');
+    let indexHtml = fs.readFileSync(path.join(__dirname, "public", "index.html"), 'utf8');
+    indexHtml = indexHtml.replace(
+      '</head>',
+      `<meta property="og:title" content="${title} – LOOKLI"/>
+<meta property="og:description" content="${desc.substring(0,200)}"/>
+<meta property="og:image" content="${img}"/>
+<meta property="og:url" content="${url}"/>
+<meta property="og:type" content="product"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="${title} – LOOKLI"/>
+<meta name="twitter:image" content="${img}"/>
+<title>${title} – LOOKLI</title>
+</head>`
+    );
+    res.send(indexHtml);
+  } catch(err) {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  }
 });
 
 app.get("/health", (req, res) => {

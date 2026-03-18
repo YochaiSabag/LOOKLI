@@ -1583,6 +1583,26 @@ async function openProduct(id){
     if(slug) history.replaceState({productId:id},'',`/product/${slug}`);
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
+
+    // JSON-LD Schema — לSEO
+    let ldScript = document.getElementById('product-jsonld');
+    if (!ldScript) { ldScript = document.createElement('script'); ldScript.id='product-jsonld'; ldScript.type='application/ld+json'; document.head.appendChild(ldScript); }
+    ldScript.textContent = JSON.stringify({
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": p.title || '',
+      "image": p.images?.length ? p.images : (p.image_url ? [p.image_url] : []),
+      "description": p.description || '',
+      "brand": { "@type": "Brand", "name": p.store || '' },
+      "offers": {
+        "@type": "Offer",
+        "url": `https://www.lookli.co.il/product/${titleToSlug(p.title)}`,
+        "priceCurrency": "ILS",
+        "price": p.price || 0,
+        "availability": "https://schema.org/InStock",
+        "seller": { "@type": "Organization", "name": p.store || '' }
+      }
+    });
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
     document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');

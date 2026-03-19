@@ -197,7 +197,7 @@ app.get("/product/:slug", async (req, res) => {
       product = r.rows[0];
     } else {
       const r = await pool.query(
-        `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u0590-\\u05FFa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+        `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
         [slug.toLowerCase()]
       );
       product = r.rows[0];

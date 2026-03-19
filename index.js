@@ -46,6 +46,30 @@ app.use('/api/', apiLimiter);
 app.use('/api/products', searchLimiter);
 app.use('/api/ai-search', searchLimiter);
 
+// ===== הגנת API =====
+
+// חסימת בוטים ידועים
+const BOT_AGENTS = ['python-requests', 'scrapy', 'wget', 'curl/', 'go-http', 'java/', 'okhttp', 'axios/0', 'node-fetch', 'httpx'];
+app.use('/api/', (req, res, next) => {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  if (BOT_AGENTS.some(b => ua.includes(b))) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  next();
+});
+
+// Origin check — רק lookli.co.il יכול לקרוא לAPI
+app.use('/api/', (req, res, next) => {
+  // דלג על admin routes
+  if (req.path.startsWith('/admin')) return next();
+  const origin = req.headers.origin || '';
+  const referer = req.headers.referer || '';
+  const allowed = ['lookli.co.il', 'www.lookli.co.il', 'lookli-production.up.railway.app', 'localhost'];
+  const isAllowed = !origin || allowed.some(d => origin.includes(d)) || allowed.some(d => referer.includes(d));
+  if (!isAllowed) return res.status(403).json({ error: 'Access denied' });
+  next();
+});
+
 // ===== SEO helpers (robots.txt + sitemap.xml) =====
 const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
 

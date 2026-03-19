@@ -2090,6 +2090,37 @@ document.addEventListener('click', e => {
     </div>
   </div>
 
+  <!-- PROFILE PANEL -->
+  <div class="saved-panel-bg" id="profilePanelBg" onclick="if(event.target===this)closeProfilePanel()" style="justify-content:flex-end">
+    <div class="saved-panel" onclick="event.stopPropagation()" style="border-radius:0">
+      <div class="saved-panel-head">
+        <h3>הפרופיל שלי</h3>
+        <button class="saved-panel-close" onclick="closeProfilePanel()">✕</button>
+      </div>
+      <div class="saved-panel-body" style="padding:20px">
+        <!-- אווטאר ופרטים -->
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px;font-weight:800;margin:0 auto 12px" id="profileAvatar2">?</div>
+          <div style="font-weight:700;font-size:17px;margin-bottom:4px" id="profileName2">-</div>
+          <div style="color:#9ca3af;font-size:13px" id="profileEmail2">-</div>
+          <div style="margin-top:8px" id="profilePlanBadge2"></div>
+        </div>
+        <!-- כפתורים -->
+        <button class="auth-submit" style="margin-bottom:10px" onclick="closeProfilePanel();openSavedPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          המוצרים השמורים שלי
+        </button>
+        <!-- היסטוריית צפייה -->
+        <div style="margin-top:20px">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:#374151;border-bottom:1px solid #f3f4f6;padding-bottom:8px">📋 צפיתי לאחרונה</div>
+          <div id="recentlyViewedList2" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto"></div>
+        </div>
+        <!-- יציאה -->
+        <button class="auth-logout-btn" style="margin-top:20px" onclick="doLogout();closeProfilePanel()">יציאה מהחשבון</button>
+      </div>
+    </div>
+  </div>
+
   <!-- SAVED PRODUCTS PANEL -->
   <div class="saved-panel-bg" id="savedPanelBg" onclick="closeSavedIfBg(event)">
     <div class="saved-panel" onclick="event.stopPropagation()">
@@ -2196,13 +2227,51 @@ document.addEventListener('click', e => {
   // ===== AUTH MODAL =====
   function openAuthModal() {
     if (currentUser) {
-      // Show profile
-      switchAuthTab('profile');
-    } else {
-      switchAuthTab('login');
+      openProfilePanel();
+      return;
     }
+    switchAuthTab('login');
     document.getElementById('authModalBg').classList.add('open');
     clearAuthMessages();
+  }
+
+  function openProfilePanel() {
+    const el = document.getElementById('profilePanelBg');
+    if (!el) return;
+    el.classList.add('open');
+    if (currentUser) {
+      const initials = (currentUser.name || currentUser.email || '?')[0].toUpperCase();
+      document.getElementById('profileAvatar2').textContent = initials;
+      document.getElementById('profileName2').textContent = currentUser.name || '—';
+      document.getElementById('profileEmail2').textContent = currentUser.email || '';
+      const badge = document.getElementById('profilePlanBadge2');
+      if (badge) badge.innerHTML = currentUser.plan === 'premium'
+        ? '<span style="background:#fef3c7;color:#d97706;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⭐ Premium</span>'
+        : '<span style="background:#f3f4f6;color:#9ca3af;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">חשבון חינמי</span>';
+    }
+    renderRecentlyViewed2();
+  }
+
+  function closeProfilePanel() {
+    document.getElementById('profilePanelBg')?.classList.remove('open');
+  }
+
+  function renderRecentlyViewed2() {
+    const el = document.getElementById('recentlyViewedList2');
+    if (!el) return;
+    try {
+      const recent = JSON.parse(localStorage.getItem('lookli_recent') || '[]');
+      if (!recent.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:13px;text-align:center;padding:20px">עוד לא צפית במוצרים</div>'; return; }
+      el.innerHTML = recent.map(p => `
+        <div onclick="closeProfilePanel();openProduct(${p.id})" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:1px solid #f3f4f6;transition:background .15s" onmouseenter="this.style.background='#fdf2f8'" onmouseleave="this.style.background=''">
+          <img src="${escapeHtml(p.image||'')}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.title||'')}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:2px">${escapeHtml(p.store||'')} · ₪${p.price||''}</div>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg>
+        </div>`).join('');
+    } catch(e) {}
   }
 
   function closeAuthModal() {

@@ -1584,6 +1584,9 @@ async function openProduct(id){
     const slug=titleToSlug(p.title);
     if(slug) history.replaceState({productId:id},'',`/product/${slug}`);
 
+    // שמור בהיסטוריית צפייה
+    addToRecentlyViewed(p);
+
     // שלב 1 — נתונים וכפתור רכישה (מיידי)
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
@@ -2077,6 +2080,10 @@ document.addEventListener('click', e => {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             המוצרים השמורים שלי
           </button>
+          <div style="margin-top:16px">
+            <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:#374151">צפיתי לאחרונה</div>
+            <div id="recentlyViewedList" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto"></div>
+          </div>
           <button class="auth-logout-btn" onclick="doLogout()">יציאה מהחשבון</button>
         </div>
       </div>
@@ -2117,6 +2124,39 @@ document.addEventListener('click', e => {
       setUser(data.user);
     } catch(e) {}
   })();
+
+  // ===== היסטוריית צפייה =====
+  const MAX_RECENT = 20;
+
+  function addToRecentlyViewed(product) {
+    try {
+      let recent = JSON.parse(localStorage.getItem('lookli_recent') || '[]');
+      // הסר אם כבר קיים
+      recent = recent.filter(p => p.id !== product.id);
+      // הוסף בהתחלה
+      recent.unshift({ id: product.id, title: product.title, price: product.price, image: product.images?.[0] || product.image_url || '', store: product.store });
+      // שמור עד MAX_RECENT
+      if (recent.length > MAX_RECENT) recent = recent.slice(0, MAX_RECENT);
+      localStorage.setItem('lookli_recent', JSON.stringify(recent));
+    } catch(e) {}
+  }
+
+  function renderRecentlyViewed() {
+    const el = document.getElementById('recentlyViewedList');
+    if (!el) return;
+    try {
+      const recent = JSON.parse(localStorage.getItem('lookli_recent') || '[]');
+      if (!recent.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:13px">עוד לא צפית במוצרים</div>'; return; }
+      el.innerHTML = recent.map(p => `
+        <div onclick="closeAuthModal();openProduct(${p.id})" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:1px solid #f3f4f6;transition:background .15s" onmouseenter="this.style.background='#fdf2f8'" onmouseleave="this.style.background=''">
+          <img src="${escapeHtml(p.image||'')}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.title||'')}</div>
+            <div style="font-size:12px;color:#9ca3af">${escapeHtml(p.store||'')} · ₪${p.price||''}</div>
+          </div>
+        </div>`).join('');
+    } catch(e) {}
+  }
 
   function setUser(user) {
     currentUser = user;
@@ -2194,6 +2234,7 @@ document.addEventListener('click', e => {
           '<span style="background:#fef3c7;color:#d97706;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⭐ Premium</span>' :
           '<span style="background:#f3f4f6;color:#9ca3af;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">חשבון חינמי</span>';
       }
+      renderRecentlyViewed();
     } else {
       tabs.style.display = 'flex';
       document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));

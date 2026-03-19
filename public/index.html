@@ -379,7 +379,7 @@
     
     /* Card elements */
     .card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-    .card-logo img{max-width:90%;max-height:90%;object-fit:contain}
+    .card-logo img{width:100%;height:100%;object-fit:contain}
     .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
     .card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
@@ -412,7 +412,7 @@
     
     /* Modal Gallery */
     .gallery{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#f9f9f9}
-    .gallery-carousel{position:relative;width:100%;overflow:hidden;background:#f3f4f6}
+    .gallery-carousel{position:relative;width:100%;overflow:hidden;background:#f3f4f6;aspect-ratio:3/4}
     .gallery-carousel-inner{display:flex;transition:transform .3s ease}
     .gallery-carousel-slide{min-width:100%;display:flex;align-items:center;justify-content:center}
     .gallery-carousel-slide img{width:100%;height:auto;object-fit:contain;max-height:75vh}
@@ -1357,7 +1357,7 @@ function renderProducts(products,append=false){
       const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
       carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
     }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
+      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
     
     let colorDotsHTML='';

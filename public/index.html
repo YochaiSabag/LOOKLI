@@ -1339,6 +1339,7 @@ function renderProducts(products,append=false){
   const grid=document.getElementById("grid");
   if(!append)grid.innerHTML="";
   if(!products?.length&&!append){grid.innerHTML='<div class="empty">לא נמצאו תוצאות</div>';return}
+  let cardIndex = append ? grid.children.length : 0;
   
   for(const p of products){
     const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
@@ -1356,7 +1357,7 @@ function renderProducts(products,append=false){
       const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
       carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
     }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
+      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
     
     let colorDotsHTML='';
@@ -1385,6 +1386,7 @@ function renderProducts(products,append=false){
     const isSaved = savedUrls.has(p.source_url||'');
     const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
     grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+    cardIndex++;
   }
 }
 
@@ -2044,7 +2046,7 @@ document.addEventListener('click', e => {
         <div class="auth-success" id="authSuccess"></div>
         <!-- Login form -->
         <div id="loginForm">
-          <div id="googleLoginBtn" style="display:flex;justify-content:center;margin-bottom:16px"></div>
+          <div id="googleLoginBtn" style="display:flex;justify-content:center;margin-bottom:16px;min-height:44px"></div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"><span style="color:#9ca3af;font-size:12px">או עם אימייל</span><hr style="flex:1;border:none;border-top:1px solid #e5e7eb"></div>
           <div class="auth-field">
             <label>אימייל</label>
@@ -2382,7 +2384,11 @@ document.addEventListener('click', e => {
   }
 
   // אתחל כשה-GSI script נטען
-  window.addEventListener('load', () => setTimeout(initGoogleSignIn, 500));
+  window.addEventListener('load', () => {
+    // דחה אתחולים לא קריטיים לאחר הטעינה
+    const idle = window.requestIdleCallback || (cb => setTimeout(cb, 200));
+    idle(() => initGoogleSignIn());
+  });
 
   async function doLogin() {
     const email = document.getElementById('loginEmail').value.trim();

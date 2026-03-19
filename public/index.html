@@ -521,6 +521,7 @@
     .hero-nav-btn.primary:hover{background:var(--accent-dark)}
     .hero-nav-btn.primary.pulse{animation:heroPulse 1.5s ease-in-out infinite}
     @keyframes heroPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     .hero-nav-btn.disabled{opacity:.35;pointer-events:none}
     .hero-no-results{color:#e74c3c;font-size:15px;font-weight:600;margin-top:14px;padding:14px 24px;background:#fff5f5;border-radius:12px;display:inline-block}
     
@@ -1575,15 +1576,45 @@ async function openProduct(id){
   document.getElementById("modalKpi").innerHTML="";
   document.getElementById("modalColors").innerHTML="";
   document.getElementById("modalThumbs").innerHTML="";
-  document.getElementById("modalCarouselInner").innerHTML="";
+  document.getElementById("modalCarouselInner").innerHTML='<div class="gallery-carousel-slide" style="display:flex;align-items:center;justify-content:center;height:300px"><div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div></div>';
   document.getElementById("modalDots").innerHTML="";
   try{
     const p=await(await fetch("/api/product/"+id)).json();
     document.title=`${p.title||'מוצר'} – LOOKLI`;
     const slug=titleToSlug(p.title);
     if(slug) history.replaceState({productId:id},'',`/product/${slug}`);
+
+    // שלב 1 — נתונים וכפתור רכישה (מיידי)
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
+    document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
+
+    const kpis=[],isOnSale=p.original_price&&p.original_price>p.price,disc=calcDiscount(p.price,p.original_price);
+    if(p.store)kpis.push(`<span>חנות: ${escapeHtml(p.store)}</span>`);
+    if(isOnSale){kpis.push(`<span class="sale-kpi">₪${p.price} <s>₪${p.original_price}</s> (${disc}%-)</span>`)}else if(p.price){kpis.push(`<span>מחיר: ₪${p.price}</span>`)}
+    if(p.sizes?.length)kpis.push(`<span>מידות: ${p.sizes.map(formatSize).join(', ')}</span>`);
+    if(p.category)kpis.push(`<span>סוג: ${escapeHtml(p.category)}</span>`);
+    if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
+    document.getElementById("modalKpi").innerHTML=kpis.join("");
+
+    const colors=p.colors||(p.color?[p.color]:[]);
+    const colorsDiv=document.getElementById("modalColors");
+    if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
+
+    // שלב 2 — תמונה ראשית
+    modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
+    if(modalImages.length){
+      const mainImg = new Image();
+      mainImg.onload = () => {
+        document.getElementById("modalCarouselInner").innerHTML=modalImages.map((img,i)=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="${i===0?'eager':'lazy'}"></div>`).join('');
+        document.getElementById("modalDots").innerHTML=modalImages.map((_,i)=>`<button class="gallery-dot${i===0?' active':''}" onclick="goToModalSlide(${i})"></button>`).join('');
+        // שלב 3 — תמונות משנה (אחרי התמונה הראשית)
+        setTimeout(()=>{
+          document.getElementById("modalThumbs").innerHTML=modalImages.map((img,i)=>`<div class="gallery-thumb${i===0?' active':''}" onclick="goToModalSlide(${i})"><img src="${escapeHtml(img)}" loading="lazy"></div>`).join('');
+        }, 100);
+      };
+      mainImg.src = modalImages[0];
+    }
 
     // JSON-LD Schema — לSEO
     let ldScript = document.getElementById('product-jsonld');
@@ -1604,23 +1635,6 @@ async function openProduct(id){
         "seller": { "@type": "Organization", "name": p.store || '' }
       }
     });
-    document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
-    modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
-    document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');
-    document.getElementById("modalDots").innerHTML=modalImages.map((_,i)=>`<button class="gallery-dot${i===0?' active':''}" onclick="goToModalSlide(${i})"></button>`).join('');
-    document.getElementById("modalThumbs").innerHTML=modalImages.map((img,i)=>`<div class="gallery-thumb${i===0?' active':''}" onclick="goToModalSlide(${i})"><img src="${escapeHtml(img)}" loading="lazy"></div>`).join('');
-    
-    const kpis=[],isOnSale=p.original_price&&p.original_price>p.price,disc=calcDiscount(p.price,p.original_price);
-    if(p.store)kpis.push(`<span>חנות: ${escapeHtml(p.store)}</span>`);
-    if(isOnSale){kpis.push(`<span class="sale-kpi">₪${p.price} <s>₪${p.original_price}</s> (${disc}%-)</span>`)}else if(p.price){kpis.push(`<span>מחיר: ₪${p.price}</span>`)}
-    if(p.sizes?.length)kpis.push(`<span>מידות: ${p.sizes.map(formatSize).join(', ')}</span>`);
-    if(p.category)kpis.push(`<span>סוג: ${escapeHtml(p.category)}</span>`);
-    if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
-    document.getElementById("modalKpi").innerHTML=kpis.join("");
-    
-    const colors=p.colors||(p.color?[p.color]:[]);
-    const colorsDiv=document.getElementById("modalColors");
-    if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
   }catch(e){document.getElementById("modalTitle").textContent="שגיאה בטעינה"}
 }
 

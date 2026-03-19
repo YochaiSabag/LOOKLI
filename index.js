@@ -1554,9 +1554,7 @@ app.post("/api/auth/google", async (req, res) => {
       user = result.rows[0];
     }
 
-    const token = createHmac('sha256', process.env.JWT_SECRET || 'lookli-secret-2026')
-      .update(`${user.id}:${user.email}:${Date.now()}`)
-      .digest('hex');
+    const token = createToken(user.id, user.email);
 
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {

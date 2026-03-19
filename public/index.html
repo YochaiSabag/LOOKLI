@@ -1370,9 +1370,11 @@ function renderProducts(products,append=false){
     }
     
     const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
-    const localLogo = `/${store.toLowerCase()}-logo.png`;
+    const localLogoStores = new Set(['CHEN']); // רק חנויות עם לוגו מקומי ידוע
+    const localLogo = localLogoStores.has(store) ? `/${store.toLowerCase()}-logo.png` : null;
     const fallbackLogo = storeLogos[store] || '';
-    const logoHTML = fallbackLogo ? `<div class="card-logo" ${logoBgClass}><img src="${localLogo}" alt="${store}" onerror="this.src='${fallbackLogo}'"></div>` : '';
+    const logoSrc = localLogo || fallbackLogo;
+    const logoHTML = logoSrc ? `<div class="card-logo" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
     const isSaved = savedUrls.has(p.source_url||'');
     const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
     grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
@@ -1407,7 +1409,7 @@ async function initFilters(){
   
   const storeDiv=document.getElementById("storeLogos");
   storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
-  (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const local=`/${s.toLowerCase()}-logo.png`;const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${fallback?`<img src="${local}" alt="${s}" onerror="this.src='${fallback}'">`:`<span>${s.substring(0,3)}</span>`}</div>`});
+  (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const localOnly=new Set(['CHEN']);const src=localOnly.has(s)?`/${s.toLowerCase()}-logo.png`:fallback;storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${src?`<img src="${src}" alt="${s}"${!localOnly.has(s)?'':` onerror="this.src='${fallback}'"`}>`:`<span>${s.substring(0,3)}</span>`}</div>`});
   
   renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
   

@@ -1127,6 +1127,21 @@ function getColorHex(n){
 }
 function formatSize(s){return s?s.replace(/^EU_/i,''):s}
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+
+// מצמצם URL של תמונה לגודל כרטיסייה (~400px)
+function thumbUrl(url) {
+  if (!url) return url;
+  // WooCommerce — החלף גודל קיים ל-400x600
+  if (url.includes('wp-content/uploads')) {
+    // אם יש כבר גודל כמו -1708x2560 — החלף ל-400x600
+    return url.replace(/-\d+x\d+(\.\w+)$/, '-400x600$1');
+  }
+  // Wix — הוסף פרמטרי resize
+  if (url.includes('wixstatic.com')) {
+    return url.replace(/\/v1\/fill\/[^/]+\//, '/v1/fill/w_400,h_600,al_c,q_80,usm_0.66_1.00_0.01,enc_avif/');
+  }
+  return url;
+}
 function buildSaveBtn(url, title, price, image, store, isSaved, hasSale) {
   const topPos = hasSale ? '50px' : '8px';
   const cls = 'card-save-btn' + (isSaved ? ' saved' : '');
@@ -1344,6 +1359,7 @@ function renderProducts(products,append=false){
   for(const p of products){
     const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
     const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
+    const thumbImages = images.map(thumbUrl); // גודל מצומצם לכרטיסיות
     const colors=p.colors||(p.color?[p.color]:[]);
     const sizes=(p.sizes||[]).map(formatSize);
     const originalPrice=parseFloat(p.original_price)||0;
@@ -1353,11 +1369,11 @@ function renderProducts(products,append=false){
     
     let carouselHTML='';
     if(images.length>1){
-      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="var _c=this.closest(\'.card\');if(_c)_c.style.display=\'none\'"':''}>\u200B</div>`).join('');
-      const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
+      const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="var _c=this.closest(\'.card\');if(_c)_c.style.display=\'none\'"':''}>\u200B</div>`).join('');
+      const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
       carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
     }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
+      carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
     
     let colorDotsHTML='';
@@ -1575,6 +1591,21 @@ function shareProduct() {
   const url = window.location.href;
   const text = `מצאתי את זה ב-LOOKLI 🛍️\n${title}\n${url}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function resizeImg(url, width) {
+  if (!url) return url;
+  try {
+    // WooCommerce — מחליף -WxH ב-URL
+    if (url.match(/\-\d+x\d+\.(jpg|jpeg|png|webp)/i)) {
+      return url.replace(/\-\d+x\d+(\.(jpg|jpeg|png|webp))/i, `-${width}x${Math.round(width*4/3)}$1`);
+    }
+    // Wix CDN — תומך בפרמטרים
+    if (url.includes('wixstatic.com')) {
+      return url.replace(/w_\d+/, `w_${width}`).replace(/h_\d+/, `h_${Math.round(width*4/3)}`);
+    }
+    return url;
+  } catch(e) { return url; }
 }
 
 function titleToSlug(title){

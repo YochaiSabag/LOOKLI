@@ -769,7 +769,7 @@
   <div class="wrap">
     <!-- SIDEBAR -->
     <aside class="filters" id="filtersPanel">
-      <button class="filter-close-btn" onclick="toggleMobileFilters()">✕</button>
+      <button class="filter-close-btn" onclick="toggleMobileFilters()" aria-label="סגור פילטרים">✕</button>
       
       <div class="filter-section open" id="storeSection">
         <div class="filter-header" onclick="toggleFilter('storeSection')">
@@ -937,7 +937,7 @@
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-head">
         <div class="modal-title" id="modalTitle">פרטי מוצר</div>
-        <button class="close-btn" onclick="closeModal()">✕</button>
+        <button class="close-btn" onclick="closeModal()" aria-label="סגור">✕</button>
       </div>
       <div class="modal-body">
         <div class="gallery">
@@ -1353,9 +1353,9 @@ function renderProducts(products,append=false){
     
     let carouselHTML='';
     if(images.length>1){
-      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="var _c=this.closest(\'.card\');if(_c)_c.style.display=\'none\'"':''}>\u200B</div>`).join('');
+      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="var _c=this.closest(\'.card\');if(_c)_c.style.display=\'none\'"':''}>\u200B</div>`).join('');
       const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
-      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
+      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
     }else if(images.length===1){
       carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
@@ -2032,7 +2032,7 @@ document.addEventListener('click', e => {
   <!-- AUTH MODAL -->
   <div class="auth-modal-bg" id="authModalBg" onclick="closeAuthIfBg(event)">
     <div class="auth-modal" onclick="event.stopPropagation()" style="position:relative">
-      <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
+      <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="סגור">✕</button>
       <div class="auth-modal-head">
         <h2 id="authModalTitle">ברוכה הבאה ל-LOOKLI</h2>
         <p id="authModalSub">שמרי מוצרים אהובים וגשי אליהם בכל זמן</p>
@@ -2113,7 +2113,7 @@ document.addEventListener('click', e => {
     <div class="saved-panel" onclick="event.stopPropagation()" style="border-radius:0">
       <div class="saved-panel-head">
         <h3>הפרופיל שלי</h3>
-        <button class="saved-panel-close" onclick="closeProfilePanel()">✕</button>
+        <button class="saved-panel-close" onclick="closeProfilePanel()" aria-label="סגור פרופיל">✕</button>
       </div>
       <div class="saved-panel-body" style="padding:20px">
         <!-- אווטאר ופרטים -->
@@ -2144,7 +2144,7 @@ document.addEventListener('click', e => {
     <div class="saved-panel" onclick="event.stopPropagation()">
       <div class="saved-panel-head">
         <h3>המוצרים השמורים שלי <span class="saved-count" id="savedPanelCount">0</span></h3>
-        <button class="saved-panel-close" onclick="closeSavedPanel()">✕</button>
+        <button class="saved-panel-close" onclick="closeSavedPanel()" aria-label="סגור">✕</button>
       </div>
       <div class="user-profile-bar" id="savedProfileBar"></div>
       <div class="saved-panel-body" id="savedPanelBody">

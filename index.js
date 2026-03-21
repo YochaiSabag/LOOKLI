@@ -683,6 +683,50 @@ app.get("/api/product/:id", async (req, res) => {
   }
 });
 
+// מוצרים דומים — דירוג לפי תאימות שדות
+app.get("/api/similar/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+    const src = await pool.query(
+      `SELECT id, category, color, colors, style, fit, store, price FROM products WHERE id = $1`,
+      [id]
+    );
+    if (!src.rows.length) return res.status(404).json({ error: "Not found" });
+    const p = src.rows[0];
+
+    // מצא מוצרים עם לפחות קטגוריה זהה
+    const candidates = await pool.query(
+      `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store
+       FROM products
+       WHERE id != $1
+         AND category = $2
+       ORDER BY RANDOM()
+       LIMIT 80`,
+      [id, p.category]
+    );
+
+    // דרג לפי ניקוד תאימות
+    const scored = candidates.rows.map(c => {
+      let score = 3; // קטגוריה זהה = בסיס
+      const pColors = [p.color, ...(p.colors||[])].filter(Boolean);
+      const cColors = [c.color, ...(c.colors||[])].filter(Boolean);
+      if (pColors.some(col => cColors.includes(col))) score += 2;
+      if (p.style && c.style === p.style) score += 1;
+      if (p.fit && c.fit === p.fit) score += 1;
+      if (c.store !== p.store) score += 0.5; // עדיפות קלה לחנות שונה (גיוון)
+      return { ...c, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    res.json(scored.slice(0, 8).map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+  } catch (err) {
+    console.error("similar error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
 app.post("/api/ai-search", async (req, res) => {
   try {
     const { query } = req.body;
@@ -755,7 +799,13 @@ function analyzeQuery(query) {
   const storeMap = {
     'MEKIMI': ['mekimi', '\u05de\u05e7\u05d9\u05de\u05d9'],
     'LICHI': ['lichi', '\u05dc\u05d9\u05e6\u05f3\u05d9', '\u05dc\u05d9\u05e6\u05d9'],
-    'MIMA': ['mima', '\u05de\u05d9\u05de\u05d4', '\u05de\u05d9\u05de\u05d0']
+    'MIMA': ['mima', '\u05de\u05d9\u05de\u05d4', '\u05de\u05d9\u05de\u05d0'],
+    'CHEN': ['chen', '\u05d7\u05df'],
+    'AVIYAH': ['aviyah', '\u05d0\u05d1\u05d9\u05d4', '\u05d0\u05d1\u05d9\u05d4 \u05d9\u05d5\u05e1\u05e3'],
+    'CHEMISE': ['chemise', '\u05e9\u05de\u05d9\u05d6'],
+    'AVIVIT': ['avivit', '\u05d0\u05d1\u05d9\u05d1\u05d9\u05ea'],
+    'RARE': ['rare', '\u05e8\u05d9\u05d9\u05e8'],
+    'ORDMAN': ['ordman', '\u05d0\u05d5\u05e8\u05d3\u05de\u05df']
   };
 
   // מיפוי מידות עברית -> אנגלית

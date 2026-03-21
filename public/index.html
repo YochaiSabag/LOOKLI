@@ -403,9 +403,9 @@
     /* הbackdrop עצמו לא גולל — הגלילה בתוך הwrapper הפנימי */
     .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:16px;overflow:hidden;backdrop-filter:blur(4px);align-items:flex-start;justify-content:center}
     .modal-backdrop.open{display:flex}
-    .modal-backdrop > div{max-height:calc(100vh - 32px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
-    .modal-backdrop > div::-webkit-scrollbar{width:5px}
-    .modal-backdrop > div::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
+    #modalWrapper{max-height:calc(100vh - 32px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
+    #modalWrapper::-webkit-scrollbar{width:5px}
+    #modalWrapper::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
     .modal{width:min(1000px,100%);background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
     .modal-head{padding:8px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
     .modal-title{font-weight:800;font-size:15px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -939,7 +939,7 @@
   
   <!-- MODAL -->
   <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
-    <div onclick="event.stopPropagation()" style="width:min(1000px,100%);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.25);display:flex;flex-direction:column">
+    <div id="modalWrapper" onclick="event.stopPropagation()" style="width:min(1000px,100%);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.25);display:flex;flex-direction:column">
     <div class="modal" style="box-shadow:none;border-radius:0;width:100%;flex-shrink:0;max-height:none">
       <div class="modal-head">
         <div class="modal-title" id="modalTitle">פרטי מוצר</div>
@@ -1636,7 +1636,8 @@ async function openProduct(id){
   history.pushState({productId:id},'',`/product/${id}`);
   document.title='LOOKLI – טוען מוצר…';
   document.getElementById("modalBackdrop").classList.add("open");
-  document.getElementById("modalBackdrop").scrollTop = 0;
+  document.getElementById("modalWrapper").scrollTop = 0;
+  document.body.style.overflow = 'hidden';
   document.getElementById("modalTitle").textContent="טוען…";
   document.getElementById("modalDesc").textContent="";
   document.getElementById("modalKpi").innerHTML="";
@@ -1736,13 +1737,14 @@ async function openProduct(id){
 function closeModal(e){
   if(e&&e.target!==e.currentTarget)return;
   document.getElementById("modalBackdrop").classList.remove("open");
+  document.body.style.overflow = '';
   document.title='LOOKLI – מנוע חיפוש לאופנה צנועה';
   if(location.pathname.startsWith('/product/')){history.pushState({},'','/');}
 }
 // כפתור חזרה בדפדפן
 window.addEventListener('popstate',e=>{
   if(e.state?.productId){openProduct(e.state.productId);}
-  else{document.getElementById("modalBackdrop").classList.remove("open");document.title='LOOKLI – מנוע חיפוש לאופנה צנועה';}
+  else{document.getElementById("modalBackdrop").classList.remove("open");document.body.style.overflow='';document.title='LOOKLI – מנוע חיפוש לאופנה צנועה';}
 });
 // כניסה ישירה ל-/product/slug או /product/ID
 (function(){

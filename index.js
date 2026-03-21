@@ -711,7 +711,7 @@ app.get("/api/similar/:id", async (req, res) => {
     const pDesign = p.design_details || [];
 
     const scored = candidates.rows.map(c => {
-      let score = 0;
+      let score = 4; // קטגוריה זהה = בסיס
       const cColors = [c.color, ...(c.colors||[])].filter(Boolean);
       if (pColors.some(col => cColors.includes(col))) score += 3; // צבע
       if (p.style && c.style === p.style) score += 2;             // סגנון
@@ -723,15 +723,31 @@ app.get("/api/similar/:id", async (req, res) => {
       score += sharedDesign;                                        // עיצוב
       if (c.store !== p.store) score += 0.5;                       // גיוון חנויות
       return { ...c, score };
-    });
+    }).filter(c => c.score >= 8); // מינימום 8 נקודות — קטגוריה + צבע + עוד משהו
 
-    // מינימום 3 נקודות להצגה
-    const filtered = scored
-      .filter(c => c.score >= 3)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4);
+    if (!scored.length) return res.json([]);
 
-    res.json(filtered.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+    scored.sort((a, b) => b.score - a.score);
+
+    // גיוון חנויות — מקסימום 1 מוצר לחנות, אלא אם אין ברירה
+    const storeSeen = {};
+    const diverse = [];
+    const leftovers = [];
+    for (const item of scored) {
+      if (!storeSeen[item.store]) {
+        storeSeen[item.store] = 1;
+        diverse.push(item);
+      } else {
+        leftovers.push(item);
+      }
+      if (diverse.length === 4) break;
+    }
+    // אם פחות מ-4 — מלא מהשאריות
+    const result = diverse.length < 4
+      ? [...diverse, ...leftovers.slice(0, 4 - diverse.length)]
+      : diverse;
+
+    res.json(result.slice(0,4).map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("similar error:", err.message);
     res.status(500).json({ error: "DB error" });

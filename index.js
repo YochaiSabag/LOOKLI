@@ -690,37 +690,48 @@ app.get("/api/similar/:id", async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
 
     const src = await pool.query(
-      `SELECT id, category, color, colors, style, fit, store, price FROM products WHERE id = $1`,
+      `SELECT id, category, color, colors, style, fit, store, price, pattern, fabric, design_details FROM products WHERE id = $1`,
       [id]
     );
     if (!src.rows.length) return res.status(404).json({ error: "Not found" });
     const p = src.rows[0];
 
-    // מצא מוצרים עם לפחות קטגוריה זהה
+    if (!p.category) return res.json([]);
+
     const candidates = await pool.query(
-      `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store
+      `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, pattern, fabric, design_details
        FROM products
-       WHERE id != $1
-         AND category = $2
+       WHERE id != $1 AND category = $2
        ORDER BY RANDOM()
-       LIMIT 80`,
+       LIMIT 120`,
       [id, p.category]
     );
 
-    // דרג לפי ניקוד תאימות
+    const pColors = [p.color, ...(p.colors||[])].filter(Boolean);
+    const pDesign = p.design_details || [];
+
     const scored = candidates.rows.map(c => {
-      let score = 3; // קטגוריה זהה = בסיס
-      const pColors = [p.color, ...(p.colors||[])].filter(Boolean);
+      let score = 0;
       const cColors = [c.color, ...(c.colors||[])].filter(Boolean);
-      if (pColors.some(col => cColors.includes(col))) score += 2;
-      if (p.style && c.style === p.style) score += 1;
-      if (p.fit && c.fit === p.fit) score += 1;
-      if (c.store !== p.store) score += 0.5; // עדיפות קלה לחנות שונה (גיוון)
+      if (pColors.some(col => cColors.includes(col))) score += 3; // צבע
+      if (p.style && c.style === p.style) score += 2;             // סגנון
+      if (p.fit && c.fit === p.fit) score += 2;                   // גזרה
+      if (p.pattern && c.pattern === p.pattern) score += 2;       // דוגמה
+      if (p.fabric && c.fabric === p.fabric) score += 1;          // סוג בד
+      const cDesign = c.design_details || [];
+      const sharedDesign = pDesign.filter(d => cDesign.includes(d)).length;
+      score += sharedDesign;                                        // עיצוב
+      if (c.store !== p.store) score += 0.5;                       // גיוון חנויות
       return { ...c, score };
     });
 
-    scored.sort((a, b) => b.score - a.score);
-    res.json(scored.slice(0, 8).map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+    // מינימום 3 נקודות להצגה
+    const filtered = scored
+      .filter(c => c.score >= 3)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4);
+
+    res.json(filtered.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("similar error:", err.message);
     res.status(500).json({ error: "DB error" });

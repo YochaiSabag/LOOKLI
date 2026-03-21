@@ -1635,16 +1635,19 @@ function titleToSlug(title){
 async function openProduct(id){
   history.pushState({productId:id},'',`/product/${id}`);
   document.title='LOOKLI – טוען מוצר…';
-  document.getElementById("modalBackdrop").classList.add("open");
-  document.getElementById("modalWrapper").scrollTop = 0;
-  document.body.style.overflow = 'hidden';
+  // ניקוי מיידי של כל תוכן המוצר הקודם
   document.getElementById("modalTitle").textContent="טוען…";
   document.getElementById("modalDesc").textContent="";
   document.getElementById("modalKpi").innerHTML="";
   document.getElementById("modalColors").innerHTML="";
   document.getElementById("modalThumbs").innerHTML="";
-  document.getElementById("modalCarouselInner").innerHTML='<div class="gallery-carousel-slide" style="display:flex;align-items:center;justify-content:center;height:300px"><div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div></div>';
   document.getElementById("modalDots").innerHTML="";
+  document.getElementById("modalCarouselInner").innerHTML='<div class="gallery-carousel-slide" style="display:flex;align-items:center;justify-content:center;height:300px"><div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div></div>';
+  document.getElementById("similarSection").style.display="none";
+  document.getElementById("similarGrid").innerHTML="";
+  document.getElementById("modalBackdrop").classList.add("open");
+  document.getElementById("modalWrapper").scrollTop = 0;
+  document.body.style.overflow = 'hidden';
   try{
     const p=await(await fetch("/api/product/"+id)).json();
     document.title=`${p.title||'מוצר'} – LOOKLI`;

@@ -1022,7 +1022,8 @@
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
-let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
+const isMobile = window.innerWidth < 640;
+let currentPage=1,itemsPerPage=isMobile?8:20,allProducts=[],isLoading=false;
 
 // show_rate: session-based counter (10% = פעם מכל 10 כניסות)
 const _sessionCounter = (() => {
@@ -1596,6 +1597,8 @@ function shareProduct() {
 function resizeImg(url, width) {
   if (!url) return url;
   try {
+    // בנייד — השתמש ב-proxy לcaching מהיר יותר
+    if (isMobile) return `/img?url=${encodeURIComponent(url)}`;
     // WooCommerce — מחליף -WxH ב-URL
     if (url.match(/\-\d+x\d+\.(jpg|jpeg|png|webp)/i)) {
       return url.replace(/\-\d+x\d+(\.(jpg|jpeg|png|webp))/i, `-${width}x${Math.round(width*4/3)}$1`);

@@ -264,6 +264,33 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Image Proxy — מגיש תמונות חיצוניות עם cache (מאיץ נייד)
+app.get("/img", async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).send('Missing url');
+  try {
+    // וודא שה-URL מאתר מותר
+    const allowed = ['mekimi.co.il','lichi-shop.com','wixstatic.com','aviyahyosef.com',
+                     'chemise.co.il','ordman.co.il','rare.co.il','avivit-weizman.co.il',
+                     'cdn.2all.co.il','amazonaws.com','wp-content'];
+    const isAllowed = allowed.some(d => url.includes(d));
+    if (!isAllowed) return res.status(403).send('Not allowed');
+
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return res.status(imgRes.status).send('Failed');
+
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800'); // cache שבוע
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(buffer);
+  } catch(e) {
+    res.status(500).send('Error');
+  }
+});
+
 const validColors = ['שחור', 'לבן', 'שמנת', 'כחול', 'תכלת', 'נייבי', 'אדום', 'בורדו', 'ירוק', 'זית', 'חאקי', 'חום', 'קאמל', 'בז׳', 'ניוד', 'אפור', 'ורוד', 'סגול', 'לילך', 'צהוב', 'חרדל', 'כתום', 'זהב', 'כסף', 'פרחוני', 'צבעוני', 'מנטה', 'אפרסק', 'אבן', 'בהיר', 'אחר'];
 
 const shippingInfo = {

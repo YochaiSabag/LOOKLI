@@ -1597,13 +1597,15 @@ function shareProduct() {
 function resizeImg(url, width) {
   if (!url) return url;
   try {
+    // בנייד — הקטן רזולוציה (עדיין איכותי)
+    const targetWidth = isMobile ? Math.min(width, 480) : width;
     // WooCommerce — מחליף -WxH ב-URL
     if (url.match(/\-\d+x\d+\.(jpg|jpeg|png|webp)/i)) {
-      return url.replace(/\-\d+x\d+(\.(jpg|jpeg|png|webp))/i, `-${width}x${Math.round(width*4/3)}$1`);
+      return url.replace(/\-\d+x\d+(\.(jpg|jpeg|png|webp))/i, `-${targetWidth}x${Math.round(targetWidth*4/3)}$1`);
     }
     // Wix CDN — תומך בפרמטרים
     if (url.includes('wixstatic.com')) {
-      return url.replace(/w_\d+/, `w_${width}`).replace(/h_\d+/, `h_${Math.round(width*4/3)}`);
+      return url.replace(/w_\d+/, `w_${targetWidth}`).replace(/h_\d+/, `h_${Math.round(targetWidth*4/3)}`);
     }
     return url;
   } catch(e) { return url; }

@@ -26,11 +26,11 @@
   <meta name="twitter:description" content="LOOKLI הוא מנוע חיפוש חכם לאופנה צנועה שמרכז אלפי מוצרים מעשרות חנויות. חיפוש חופשי, סינונים חכמים והשוואה במקום אחד."/>
   <meta name="twitter:image" content="https://lookli.co.il/lookli-logo.png"/>
 
-    <link rel="preconnect" href="https://mekimi.co.il"/>
+    <link rel="preconnect" href="https://static.wixstatic.com"/>
+  <link rel="preconnect" href="https://mekimi.co.il"/>
   <link rel="preconnect" href="https://lichi-shop.com"/>
-  <link rel="preconnect" href="https://static.wixstatic.com"/>
-  <link rel="preconnect" href="https://aviyahyosef.com"/>
-  <link rel="preconnect" href="https://chemise.co.il"/>
+  <link rel="dns-prefetch" href="https://aviyahyosef.com"/>
+  <link rel="dns-prefetch" href="https://chemise.co.il"/>
   <link rel="dns-prefetch" href="https://mekimi.co.il"/>
   <link rel="dns-prefetch" href="https://lichi-shop.com"/>
   <meta name="keywords" content="אופנה צנועה, בגדים צנועים, שמלות צנועות, חצאיות ארוכות, חולצות צנועות, אופנה דתית, חיפוש בגדים, השוואת מחירים, LOOKLI, מקסי, לופטה, מקימי, ליצ'י, אביה יוסף"/>
@@ -1597,8 +1597,6 @@ function shareProduct() {
 function resizeImg(url, width) {
   if (!url) return url;
   try {
-    // בנייד — השתמש ב-proxy לcaching מהיר יותר
-    if (isMobile) return `/img?url=${encodeURIComponent(url)}`;
     // WooCommerce — מחליף -WxH ב-URL
     if (url.match(/\-\d+x\d+\.(jpg|jpeg|png|webp)/i)) {
       return url.replace(/\-\d+x\d+(\.(jpg|jpeg|png|webp))/i, `-${width}x${Math.round(width*4/3)}$1`);
@@ -2713,8 +2711,9 @@ document.addEventListener('click', e => {
         return div;
       });
       if (cards.length > 0) {
-        // חשב כמה עמודות יש בגריד כרגע (responsive)
-        const cols = Math.round(grid.offsetWidth / (cards[0].offsetWidth || 1)) || 4;
+        // חשב עמודות לפי רוחב חלון — ללא forced reflow
+        const w = window.innerWidth;
+        const cols = w >= 1200 ? 4 : w >= 900 ? 3 : w >= 640 ? 2 : 1;
         sponsoredCards.forEach((sc, i) => {
           const sp = data.sponsored[i];
           // priority_row=3 → אחרי שורה 3 → אחרי כרטיסייה (3*cols - 1)

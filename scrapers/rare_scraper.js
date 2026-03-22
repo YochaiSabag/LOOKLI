@@ -230,7 +230,7 @@ async function getAllProductUrls(page) {
 
   // גלול פעם אחת למטה ובחזרה — לטעינת כל המוצרים
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(4000);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(1000);
 

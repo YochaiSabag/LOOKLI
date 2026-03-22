@@ -273,7 +273,7 @@ async function getAllProductUrls(page) {
       try {
         console.log(`  → page ${p}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
 
         // גלילה למטה לטעינת כל המוצרים
         for (let i = 0; i < 3; i++) {

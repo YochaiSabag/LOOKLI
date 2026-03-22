@@ -335,10 +335,10 @@ async function getAllProductUrls(page, maxProducts = 99999) {
       let noChangeRounds = 0;
       
       // גלילה למטה לטעינת מוצרים (infinite scroll)
-      for (let scroll = 0; scroll < 30; scroll++) {
+      for (let scroll = 0; scroll < 50; scroll++) {
         await dismissPopups(page);
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
         
         const urls = await page.evaluate(() => {
           const links = new Set();
@@ -423,7 +423,7 @@ async function scrapeProduct(page, url) {
       } catch(e) {
         console.log(`    ⏳ ניסיון ${attempt + 1} - ממתין לטעינה...`);
         await dismissPopups(page);
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
       }
     }
     if (!titleLoaded) {
@@ -599,7 +599,7 @@ async function scrapeProduct(page, url) {
         }
         
         await page.click('[data-hook="dropdown-base"]');
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
         
         const sizes = await page.evaluate(() => {
           const result = {};
@@ -614,10 +614,10 @@ async function scrapeProduct(page, url) {
         // אם ריק — נסה פעם נוספת אחרי המתנה
         if (Object.keys(sizes).length === 0) {
           console.log(`      ⚠️ dropdown ריק - מנסה שוב...`);
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(4000);
           const retryClick = await page.$('[data-hook="dropdown-base"]');
           if (retryClick) await retryClick.click();
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(4000);
           const retrySizes = await page.evaluate(() => {
             const result = {};
             document.querySelectorAll('[data-hook="dropdown-content-option"]').forEach(opt => {

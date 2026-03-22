@@ -279,7 +279,7 @@ async function getAllProductUrls(page, maxProducts = 99999) {
       try {
         console.log(`  → ${url}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
         
         // Infinite scroll — גולל ומחכה לרשת בכל פעם
         let lastCount = 0;
@@ -290,7 +290,7 @@ async function getAllProductUrls(page, maxProducts = 99999) {
           try {
             await page.waitForLoadState('networkidle', { timeout: 8000 });
           } catch(e) {}
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(4000);
 
           const count = await page.evaluate(() => {
             const seen = new Set();

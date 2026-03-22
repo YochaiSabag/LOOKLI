@@ -278,7 +278,7 @@ async function getAllProductUrls(page) {
       try {
         console.log(`  → page ${p}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(4000);
         
         for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));

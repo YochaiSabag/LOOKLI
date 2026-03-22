@@ -149,18 +149,16 @@
     
     /* Filter Accordion */
     .filter-section{border-bottom:1px solid var(--border)}
-    .filter-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;font-weight:700;font-size:14px;color:var(--text);transition:background .15s}
+    .filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
     .filter-header:hover{background:#f9fafb}
     .filter-header .arrow{transition:transform .2s;color:var(--muted);font-size:12px}
     .filter-section.open .filter-header .arrow{transform:rotate(180deg)}
-    .filter-content{display:none;padding:0 14px 10px}
+    .filter-content{display:none;padding:0 16px 14px}
     .filter-section.open .filter-content{display:block}
-    .filter-section:not(.stores-section){border-bottom:none}
-    .filter-section:not(.stores-section) .filter-header{padding:10px 16px}
     
     /* Filter Options */
-    .filter-options{display:flex;flex-wrap:wrap;gap:5px}
-    .filter-opt{padding:6px 11px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:13px;transition:all .15s;color:var(--muted);line-height:1.2;white-space:nowrap}
+    .filter-options{display:flex;flex-wrap:wrap;gap:4px}
+    .filter-opt{padding:6px 12px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:13px;transition:all .15s;color:var(--muted);line-height:1.2;white-space:nowrap}
     .filter-opt:hover{border-color:var(--accent-light);color:var(--accent)}
     .filter-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
     

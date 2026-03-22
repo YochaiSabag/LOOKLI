@@ -42,9 +42,19 @@ const searchLimiter = rateLimit({
   message: { error: 'יותר מדי חיפושים — נסה שוב בעוד דקה' }
 });
 
+// login/register — 10 ניסיונות לדקה (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  message: { error: 'יותר מדי ניסיונות כניסה — נסה שוב בעוד דקה' }
+});
+
 app.use('/api/', apiLimiter);
 app.use('/api/products', searchLimiter);
 app.use('/api/ai-search', searchLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // ===== הגנת API =====
 
@@ -1088,7 +1098,7 @@ app.get("/out/:id", async (req, res) => {
 });
 
 // API לצפייה בנתוני לחיצות
-app.get("/api/clicks", async (req, res) => {
+app.get("/api/clicks", adminAuth, async (req, res) => {
   try {
     const { days } = req.query;
     const daysBack = parseInt(days) || 30;
@@ -1107,7 +1117,7 @@ app.get("/api/clicks", async (req, res) => {
 });
 
 // סטטיסטיקות לחיצות
-app.get("/api/clicks/stats", async (req, res) => {
+app.get("/api/clicks/stats", adminAuth, async (req, res) => {
   try {
     const [total, byStore, byDay, topProducts] = await Promise.all([
       pool.query(`SELECT COUNT(*) as total FROM clicks`),
@@ -1222,7 +1232,7 @@ app.post("/api/sidebar-ads/:id/click", async (req, res) => {
 });
 
 // GET /api/sidebar-ads/all (ניהול)
-app.get("/api/sidebar-ads/all", async (req, res) => {
+app.get("/api/sidebar-ads/all", adminAuth, async (req, res) => {
   try {
     const r = await pool.query("SELECT * FROM sidebar_ads ORDER BY active DESC, created_at DESC");
     res.json({ ads: r.rows });
@@ -1230,7 +1240,7 @@ app.get("/api/sidebar-ads/all", async (req, res) => {
 });
 
 // POST /api/sidebar-ads/create
-app.post("/api/sidebar-ads/create", async (req, res) => {
+app.post("/api/sidebar-ads/create", adminAuth, async (req, res) => {
   try {
     const { title, image_url, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null } = req.body;
     let expires_at = null, starts_at = null;
@@ -1246,7 +1256,7 @@ app.post("/api/sidebar-ads/create", async (req, res) => {
 });
 
 // PUT /api/sidebar-ads/:id
-app.put("/api/sidebar-ads/:id", async (req, res) => {
+app.put("/api/sidebar-ads/:id", adminAuth, async (req, res) => {
   try {
     const { title, image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes } = req.body;
     let expires_at = null;
@@ -1261,36 +1271,42 @@ app.put("/api/sidebar-ads/:id", async (req, res) => {
 });
 
 // POST /api/sidebar-ads/:id/activate|deactivate
-app.post("/api/sidebar-ads/:id/activate",   async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=true  WHERE id=$1",[req.params.id]); res.json({ok:true}); });
-app.post("/api/sidebar-ads/:id/deactivate", async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=false WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+app.post("/api/sidebar-ads/:id/activate", adminAuth, async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=true  WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+app.post("/api/sidebar-ads/:id/deactivate", adminAuth, async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=false WHERE id=$1",[req.params.id]); res.json({ok:true}); });
 
 // DELETE /api/sidebar-ads/:id
-app.delete("/api/sidebar-ads/:id", async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+app.delete("/api/sidebar-ads/:id", adminAuth, async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
 
 // Serve admin UI
 
 // ===== ADMIN AUTH MIDDLEWARE =====
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "lookli-admin-2026";
+if (!process.env.ADMIN_PASSWORD) console.error("⚠️  WARNING: ADMIN_PASSWORD לא מוגדר ב-Railway Variables!");
+
+// session token — HMAC של הסיסמה (לא הסיסמה עצמה) בcookie
+function makeAdminCookieToken() {
+  return createHmac("sha256", ADMIN_PASSWORD).update("lookli-admin-session").digest("hex");
+}
 
 function adminAuth(req, res, next) {
-  // בדוק Authorization header: Basic base64(admin:password)
+  // 1. Authorization header: Basic base64(admin:password)
   const auth = req.headers['authorization'];
   if (auth && auth.startsWith('Basic ')) {
     const decoded = Buffer.from(auth.slice(6), 'base64').toString();
-    const [user, pass] = decoded.split(':');
-    if (pass === ADMIN_PASSWORD) return next();
+    const [, pass] = decoded.split(':');
+    if (pass === ADMIN_PASSWORD) {
+      const sessionToken = makeAdminCookieToken();
+      res.setHeader('Set-Cookie', `admsess=${sessionToken}; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=86400`);
+      return next();
+    }
   }
-  // בדוק query param: ?pwd=xxx (לנוחות)
-  if (req.query.pwd === ADMIN_PASSWORD) {
-    // שלח cookie session קצר
-    res.setHeader('Set-Cookie', `admpwd=${ADMIN_PASSWORD}; Path=/; HttpOnly; Max-Age=86400`);
-    return next();
-  }
-  // בדוק cookie
-  const cookies = req.headers.cookie || '';
-  if (cookies.includes(`admpwd=${ADMIN_PASSWORD}`)) return next();
 
-  // דחה — שלח דף login
+  // 2. Cookie session (HMAC token — לא הסיסמה עצמה)
+  const cookies = req.headers.cookie || '';
+  const cookieMatch = cookies.match(/admsess=([a-f0-9]+)/);
+  if (cookieMatch && cookieMatch[1] === makeAdminCookieToken()) return next();
+
+  // 3. דחייה — דף login שולח סיסמה דרך Authorization header בלבד
   res.status(401).send(`<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -1322,10 +1338,14 @@ function adminAuth(req, res, next) {
   <div class="err" id="err">סיסמה שגויה</div>
 </div>
 <script>
-function login(){
+async function login(){
   const p=document.getElementById('pwd').value;
-  if(!p){return;}
-  window.location.href=window.location.pathname+'?pwd='+encodeURIComponent(p);
+  if(!p) return;
+  const res=await fetch(window.location.pathname,{
+    headers:{'Authorization':'Basic '+btoa('admin:'+p)}
+  });
+  if(res.ok||res.status===200){window.location.reload();}
+  else{const e=document.getElementById('err');e.style.display='block';}
 }
 </script>
 </body>
@@ -1340,7 +1360,7 @@ app.get("/admin/ads", adminAuth, (req, res) => {
 // ===== SPONSORED ADMIN ROUTES =====
 
 // GET /api/product-by-url — מחפש מוצר לפי URL (לממשק הניהול)
-app.get("/api/product-by-url", async (req, res) => {
+app.get("/api/product-by-url", adminAuth, async (req, res) => {
   try {
     const url = (req.query.url || '').trim().replace(/\/+$/, '');
     if (!url) return res.status(400).json({ error: 'חסר url' });
@@ -1355,7 +1375,7 @@ app.get("/api/product-by-url", async (req, res) => {
 });
 
 // GET /api/sponsored/all — כל המודעות (לממשק הניהול)
-app.get("/api/sponsored/all", async (req, res) => {
+app.get("/api/sponsored/all", adminAuth, async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT sp.*, p.image_url, p.source_url, p.title, p.price AS product_price, p.store
@@ -1368,7 +1388,7 @@ app.get("/api/sponsored/all", async (req, res) => {
 });
 
 // POST /api/sponsored/create — יצירת מודעה חדשה
-app.post("/api/sponsored/create", async (req, res) => {
+app.post("/api/sponsored/create", adminAuth, async (req, res) => {
   try {
     const { product_id, priority_row=1, impression_weight=10, show_rate=100, badge_text=null, price_paid=null, notes=null, days=0 } = req.body;
     let expires_at = null;
@@ -1383,7 +1403,7 @@ app.post("/api/sponsored/create", async (req, res) => {
 });
 
 // PUT /api/sponsored/:id — עדכון מודעה
-app.put("/api/sponsored/:id", async (req, res) => {
+app.put("/api/sponsored/:id", adminAuth, async (req, res) => {
   try {
     const { priority_row, impression_weight, show_rate, badge_text, price_paid, notes, days } = req.body;
     let expires_at = null;
@@ -1398,17 +1418,17 @@ app.put("/api/sponsored/:id", async (req, res) => {
 });
 
 // POST /api/sponsored/:id/activate|deactivate
-app.post("/api/sponsored/:id/activate",   async (req,res) => {
+app.post("/api/sponsored/:id/activate", adminAuth, async (req,res) => {
   await pool.query("UPDATE sponsored_products SET active=true  WHERE id=$1",[req.params.id]);
   res.json({ok:true});
 });
-app.post("/api/sponsored/:id/deactivate", async (req,res) => {
+app.post("/api/sponsored/:id/deactivate", adminAuth, async (req,res) => {
   await pool.query("UPDATE sponsored_products SET active=false WHERE id=$1",[req.params.id]);
   res.json({ok:true});
 });
 
 // DELETE /api/sponsored/:id
-app.delete("/api/sponsored/:id", async (req,res) => {
+app.delete("/api/sponsored/:id", adminAuth, async (req,res) => {
   await pool.query("DELETE FROM sponsored_products WHERE id=$1",[req.params.id]);
   res.json({ok:true});
 });
@@ -1483,7 +1503,7 @@ app.delete("/api/alerts", authMiddleware, async (req, res) => {
 // ===== NEWSLETTER EXTENDED =====
 
 // GET /api/newsletter/export.csv — הורדת CSV ישירה
-app.get("/api/newsletter/export.csv", async (req, res) => {
+app.get("/api/newsletter/export.csv", adminAuth, async (req, res) => {
   try {
     const r = await pool.query(
       "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
@@ -1499,7 +1519,7 @@ app.get("/api/newsletter/export.csv", async (req, res) => {
 });
 
 // POST /api/newsletter/sync-brevo — סנכרון אוטומטי ל-Brevo
-app.post("/api/newsletter/sync-brevo", async (req, res) => {
+app.post("/api/newsletter/sync-brevo", adminAuth, async (req, res) => {
   const BREVO_KEY = process.env.BREVO_API_KEY;
   const LIST_ID   = parseInt(process.env.BREVO_LIST_ID || "2");
   if (!BREVO_KEY) return res.status(400).json({ error: "חסר BREVO_API_KEY ב-Railway Variables" });
@@ -1597,7 +1617,7 @@ app.post("/api/newsletter/unsubscribe", async (req, res) => {
 });
 
 // GET /api/newsletter/list  (מוגן — רק לשימוש פנימי)
-app.get("/api/newsletter/list", async (req, res) => {
+app.get("/api/newsletter/list", adminAuth, async (req, res) => {
   try {
     const r = await pool.query(
       "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
@@ -1608,6 +1628,7 @@ app.get("/api/newsletter/list", async (req, res) => {
 
 // ===== AUTH HELPERS =====
 const JWT_SECRET = process.env.JWT_SECRET || "lookli_secret_2026_change_in_prod";
+if (!process.env.JWT_SECRET) console.error("⚠️  WARNING: JWT_SECRET לא מוגדר ב-Railway Variables!");
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -1843,7 +1864,7 @@ async function ga4Query(token, body) {
   return res.json();
 }
 
-app.get('/api/analytics', async (req, res) => {
+app.get('/api/analytics', adminAuth, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 28;
     const dateRange = [{ startDate: `${days}daysAgo`, endDate: 'today' }];
@@ -1914,7 +1935,7 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
-app.get('/admin/analytics', (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
+app.get('/admin/analytics', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 

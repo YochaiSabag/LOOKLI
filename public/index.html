@@ -149,26 +149,28 @@
     
     /* Filter Accordion */
     .filter-section{border-bottom:1px solid var(--border)}
-    .filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
+    .filter-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;font-weight:700;font-size:14px;color:var(--text);transition:background .15s}
     .filter-header:hover{background:#f9fafb}
     .filter-header .arrow{transition:transform .2s;color:var(--muted);font-size:12px}
     .filter-section.open .filter-header .arrow{transform:rotate(180deg)}
-    .filter-content{display:none;padding:0 20px 18px}
+    .filter-content{display:none;padding:0 14px 14px}
     .filter-section.open .filter-content{display:block}
     
     /* Filter Options */
-    .filter-options{display:flex;flex-wrap:wrap;gap:8px}
-    .filter-opt{padding:10px 16px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;transition:all .15s;color:var(--muted)}
+    .filter-options{display:flex;flex-wrap:wrap;gap:5px}
+    .filter-opt{padding:5px 10px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:12px;transition:all .15s;color:var(--muted);line-height:1.2;white-space:nowrap}
     .filter-opt:hover{border-color:var(--accent-light);color:var(--accent)}
     .filter-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
     
     /* Store logos */
-    .store-opts{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow-y:auto}
-    .store-opt{width:50px;height:50px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden;flex-shrink:0}
+    .store-opts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .store-opt{width:100%;aspect-ratio:1;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden;flex-shrink:0;position:relative}
     .store-opt:hover{border-color:var(--accent-light)}
     .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
     .store-opt img{width:100%;height:100%;object-fit:contain;padding:4px}
     .store-opt span{font-size:12px;font-weight:800}
+    .store-opt::after{content:attr(data-store);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:10}
+    .store-opt:hover::after{opacity:1}
     
     /* Color options */
     .color-opts{display:flex;flex-wrap:wrap;gap:10px}
@@ -380,6 +382,9 @@
     /* Card elements */
     .card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-logo img{width:100%;height:100%;object-fit:contain}
+    .card-logo::after{content:attr(data-store);position:absolute;bottom:calc(100% + 6px);right:50%;transform:translateX(50%);background:rgba(0,0,0,.75);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:10}
+    .card-logo:hover::after{opacity:1}
+    .card-logo:hover::after{opacity:1}
     .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
     .card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
@@ -1412,7 +1417,7 @@ function renderProducts(products,append=false){
     const localLogo = localLogoStores.has(store) ? `/${store.toLowerCase()}-logo.png` : null;
     const fallbackLogo = storeLogos[store] || '';
     const logoSrc = localLogo || fallbackLogo;
-    const logoHTML = logoSrc ? `<div class="card-logo" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
+    const logoHTML = logoSrc ? `<div class="card-logo" data-store="${store}" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
     const isSaved = savedUrls.has(p.source_url||'');
     const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
     grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
@@ -1447,7 +1452,7 @@ async function initFilters(){
   dbCategories=data.categories||[];dbStyles=data.styles||[];dbFits=data.fits||[];dbColors=data.colors||[];dbSizes=data.sizes||[];dbFabrics=data.fabrics||[];dbPatterns=data.patterns||[];dbDesigns=data.designs||[];
   
   const storeDiv=document.getElementById("storeLogos");
-  storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
+  storeDiv.innerHTML=`<div class="store-opt active" data-store="הכל" onclick="selectStore('')"><span>הכל</span></div>`;
   (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const localOnly=new Set(['CHEN','ORDMAN']);const src=localOnly.has(s)?`/${s.toLowerCase()}-logo.png`:fallback;storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${src?`<img src="${src}" alt="${s}"${localOnly.has(s)?` onerror="this.src='${fallback}'"`:''}`:`<span>${s.substring(0,3)}</span>`}</div>`});
   
   renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();

@@ -357,6 +357,7 @@ const PRESETS = {
 };
 
 // ─── Init ───
+// auth דרך cookie session (adminAuth)
 
 (async function init() {
   await loadProducts();
@@ -535,7 +536,7 @@ function updateSelectionUI() {
 async function clearDesign() {
   if (selected.size === 0) return;
   const ids = [...selected];
-  const r = await fetch('/api/admin/tag-products/clear-design' , {
+  const r = await fetch('/api/admin/tag-products/clear-design', {
     method: 'PATCH', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids })
@@ -551,6 +552,7 @@ async function clearDesign() {
 async function clearFits() {
   if (selected.size === 0) return;
   const ids = [...selected];
+  const r = await fetch('/api/admin/tag-products/clear-fits', {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -616,7 +618,7 @@ async function applyTag() {
 
   try {
     const ids = [...selected];
-    const r = await fetch('/api/admin/tag-products' , {
+    const r = await fetch('/api/admin/tag-products', {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

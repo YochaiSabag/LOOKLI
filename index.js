@@ -1296,7 +1296,7 @@ function adminAuth(req, res, next) {
     const [, pass] = decoded.split(':');
     if (pass === ADMIN_PASSWORD) {
       const sessionToken = makeAdminCookieToken();
-      res.setHeader('Set-Cookie', `admsess=${sessionToken}; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=86400`);
+      res.setHeader('Set-Cookie', `admsess=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
       return next();
     }
   }

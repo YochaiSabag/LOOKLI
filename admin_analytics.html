@@ -342,11 +342,20 @@
 <script>
 const GA_PROPERTY = '526435013';
 
+// שלח כל בקשה עם credentials (cookie session)
+function authFetch(url, options = {}) {
+  return fetch(url, { ...options, credentials: 'include' });
+}
+
 async function loadData() {
   const days = document.getElementById('periodSelect').value;
   document.getElementById('content').innerHTML = `<div class="loading"><div class="spinner"></div><div>טוען נתונים...</div></div>`;
   try {
-    const res = await fetch(`/api/analytics?days=${days}`);
+    const res = await authFetch(`/api/analytics?days=${days}`);
+    if (res.status === 401) {
+      document.getElementById('content').innerHTML = `<div class="error-msg">נדרשת התחברות — <a href="/admin/analytics" style="color:var(--accent)">לחץ כאן להתחבר</a></div>`;
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     render(data, days);
@@ -448,9 +457,8 @@ function esc(s) {
 loadData();
 
   async function testAlert(type) {
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
-    const r = await fetch('/api/admin/test-alert' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
-      method: 'POST', credentials: 'include',
+    const r = await authFetch('/api/admin/test-alert', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type })
     });
@@ -462,10 +470,9 @@ loadData();
   async function createPreviewLink() {
     const note = document.getElementById('previewNote').value || '';
     const hours = parseInt(document.getElementById('previewHours').value) || 24;
-    const pwd = new URLSearchParams(location.search).get('pwd') || '';
     try {
-      const r = await fetch('/api/admin/preview-token' + (pwd ? '?pwd='+encodeURIComponent(pwd) : ''), {
-        method: 'POST', credentials: 'include',
+      const r = await authFetch('/api/admin/preview-token', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hours, note })
       });

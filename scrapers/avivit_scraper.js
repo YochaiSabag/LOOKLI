@@ -620,7 +620,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const browser = await chromium.launch({ headless: false, slowMo: 50 });
+const browser = await chromium.launch({ headless: true,, slowMo: 50 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   viewport: { width: 1440, height: 900 },

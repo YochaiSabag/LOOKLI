@@ -97,7 +97,7 @@ node scraper.js
 ```
 
 הסקרייפר:
-- ✅ רץ עם דפדפן נראה (headless: false) בלוקאל
+- ✅ רץ עם דפדפן נראה (headless: true,) בלוקאל
 - ✅ מנרמל צבעים ומידות
 - ✅ שומר ל-DB
 - ⚠️ דורש Playwright browsers

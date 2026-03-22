@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>תצוגה מקדימה — מייל מוצרים חדשים</title>
+<style>
+body{margin:0;padding:20px;background:#e8e0e8;font-family:'Segoe UI',Arial,sans-serif}
+.preview-bar{background:#333;color:#fff;padding:10px 20px;border-radius:8px;margin-bottom:20px;font-size:13px;display:flex;gap:20px;align-items:center}
+.preview-bar b{color:#e0a1c0}
+</style>
+</head>
+<body>
+<div class="preview-bar">
+  📧 <b>תצוגה מקדימה</b> — מייל מוצרים חדשים | 
+  כדי לראות את המייל האמיתי עם נתונים מהDB: 
+  <b>GET /api/cron/new-products-email?dry=1&secret=YOUR_CRON_SECRET</b>
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0f7;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#d191b0 0%,#c48cb3 100%);padding:32px 36px;text-align:center">
+    <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px">LOOKLI</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.85);margin-top:6px">מוצרים חדשים על המדף 🛍️</div>
+  </td></tr>
+
+  <!-- Body -->
+  <tr><td style="padding:24px 28px 8px">
+    <table width="100%" cellpadding="0" cellspacing="0">
+
+      <!-- Store: מקימי -->
+      <tr><td style="padding:28px 0 8px">
+        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #e0a1c0;padding-right:12px">
+          מקימי
+          <span style="font-size:13px;font-weight:400;color:#aaa;margin-right:8px">7 מוצרים חדשים</span>
+        </div>
+      </td></tr>
+      <tr><td>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+          <tr>
+            <!-- כרטיס 1 -->
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <a href="#" style="display:block;text-decoration:none;color:inherit">
+                <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                  <div style="background:linear-gradient(135deg,#f5e6f0,#ede0ed);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center">
+                    <span style="font-size:32px">👗</span>
+                  </div>
+                  <div style="padding:8px 10px">
+                    <div style="font-size:11px;color:#aaa;margin-bottom:2px">מקימי</div>
+                    <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">שמלת מקסי פשתן עם כיסים</div>
+                    <div style="font-size:13px;margin-top:4px"><span style="color:#e0a1c0;font-weight:700">₪249</span> <s style="color:#aaa;font-size:11px">₪349</s></div>
+                  </div>
+                </div>
+              </a>
+            </td>
+            <!-- כרטיס 2 -->
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <a href="#" style="display:block;text-decoration:none;color:inherit">
+                <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                  <div style="background:linear-gradient(135deg,#e6edf5,#d8e4ed);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center">
+                    <span style="font-size:32px">🧥</span>
+                  </div>
+                  <div style="padding:8px 10px">
+                    <div style="font-size:11px;color:#aaa;margin-bottom:2px">מקימי</div>
+                    <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">קרדיגן ארוך בגזרה נינוחה</div>
+                    <div style="font-size:13px;margin-top:4px"><span style="color:#333;font-weight:700">₪189</span></div>
+                  </div>
+                </div>
+              </a>
+            </td>
+            <!-- כרטיס 3 -->
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <a href="#" style="display:block;text-decoration:none;color:inherit">
+                <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                  <div style="background:linear-gradient(135deg,#f5f0e6,#ede8d8);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center">
+                    <span style="font-size:32px">👚</span>
+                  </div>
+                  <div style="padding:8px 10px">
+                    <div style="font-size:11px;color:#aaa;margin-bottom:2px">מקימי</div>
+                    <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">חולצה בייסיק עם כיווץ בשרוולים</div>
+                    <div style="font-size:13px;margin-top:4px"><span style="color:#333;font-weight:700">₪129</span></div>
+                  </div>
+                </div>
+              </a>
+            </td>
+            <!-- כרטיס 4 -->
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <a href="#" style="display:block;text-decoration:none;color:inherit">
+                <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                  <div style="background:linear-gradient(135deg,#f0e6f5,#e8d8ed);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center">
+                    <span style="font-size:32px">🩱</span>
+                  </div>
+                  <div style="padding:8px 10px">
+                    <div style="font-size:11px;color:#aaa;margin-bottom:2px">מקימי</div>
+                    <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">חצאית מידי עם קפלים</div>
+                    <div style="font-size:13px;margin-top:4px"><span style="color:#e0a1c0;font-weight:700">₪159</span> <s style="color:#aaa;font-size:11px">₪219</s></div>
+                  </div>
+                </div>
+              </a>
+            </td>
+          </tr>
+          <!-- כפתור עוד מוצרים -->
+          <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
+            <a href="#" style="display:inline-block;padding:8px 22px;background:#f8eef8;color:#c48cb3;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #e8d0e8">
+              + עוד 3 מוצרים חדשים ←
+            </a>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- Store: ליצ'י -->
+      <tr><td style="padding:28px 0 8px">
+        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #e0a1c0;padding-right:12px">
+          ליצ'י
+          <span style="font-size:13px;font-weight:400;color:#aaa;margin-right:8px">4 מוצרים חדשים</span>
+        </div>
+      </td></tr>
+      <tr><td>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+          <tr>
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                <div style="background:linear-gradient(135deg,#e6f0e6,#d8edd8);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center"><span style="font-size:32px">👗</span></div>
+                <div style="padding:8px 10px">
+                  <div style="font-size:11px;color:#aaa;margin-bottom:2px">ליצ'י</div>
+                  <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">שמלת ערב אלגנטית בגזרת A</div>
+                  <div style="font-size:13px;margin-top:4px"><span style="color:#333;font-weight:700">₪449</span></div>
+                </div>
+              </div>
+            </td>
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                <div style="background:linear-gradient(135deg,#f5ece6,#ede0d8);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center"><span style="font-size:32px">🧣</span></div>
+                <div style="padding:8px 10px">
+                  <div style="font-size:11px;color:#aaa;margin-bottom:2px">ליצ'י</div>
+                  <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">חולצת קשירה בגב פרחונית</div>
+                  <div style="font-size:13px;margin-top:4px"><span style="color:#e0a1c0;font-weight:700">₪199</span> <s style="color:#aaa;font-size:11px">₪279</s></div>
+                </div>
+              </div>
+            </td>
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                <div style="background:linear-gradient(135deg,#e6e6f5,#d8d8ed);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center"><span style="font-size:32px">👗</span></div>
+                <div style="padding:8px 10px">
+                  <div style="font-size:11px;color:#aaa;margin-bottom:2px">ליצ'י</div>
+                  <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">מכנס רחב בד נמתח</div>
+                  <div style="font-size:13px;margin-top:4px"><span style="color:#333;font-weight:700">₪239</span></div>
+                </div>
+              </div>
+            </td>
+            <td style="width:25%;padding:6px;vertical-align:top">
+              <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff">
+                <div style="background:linear-gradient(135deg,#f0f5e6,#e8edd8);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center"><span style="font-size:32px">🧥</span></div>
+                <div style="padding:8px 10px">
+                  <div style="font-size:11px;color:#aaa;margin-bottom:2px">ליצ'י</div>
+                  <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">ג'קט קצר כפתורים קדמיים</div>
+                  <div style="font-size:13px;margin-top:4px"><span style="color:#333;font-weight:700">₪319</span></div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+    </table>
+  </td></tr>
+
+  <!-- CTA -->
+  <tr><td style="padding:24px 28px 32px;text-align:center">
+    <a href="https://lookli.co.il" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;border-radius:28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(196,140,179,.35)">
+      לכל המוצרים באתר ←
+    </a>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
+    <p style="margin:0;font-size:11px;color:#bbb">
+      קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
+      <a href="#" style="color:#c48cb3">הסרה מרשימת תפוצה</a>
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>

@@ -1884,7 +1884,7 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
       }),
       ga4Query(token, {
         dateRanges: dateRange,
-        dimensions: [{ name: 'eventName' }, { name: 'customEvent:link_url' }],
+        dimensions: [{ name: 'eventName' }, { name: 'linkUrl' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'outbound_click' } } }
       })
@@ -1924,7 +1924,7 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
     const topProducts = [];
     try {
       const dbClicks = await pool.query(
-        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 6`
+        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 20`
       );
       dbClicks.rows.forEach(r => topProducts.push({ title: r.product_title, store: r.store, clicks: parseInt(r.clicks) }));
     } catch(e) {}

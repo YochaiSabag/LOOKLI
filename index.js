@@ -2049,7 +2049,7 @@ function buildNewProductsEmail(storeGroups) {
       const slug  = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
       const url   = `${SITE_BASE}/product/${slug||p.id}`;
       return `
-        <td style="width:25%;padding:6px;vertical-align:top">
+        <td style="width:25%;padding:3px;vertical-align:top">
           <a href="${url}" style="display:block;text-decoration:none;color:inherit">
             <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff;transition:box-shadow .2s">
               <div style="aspect-ratio:3/4;overflow:hidden;background:#f9f9f9">
@@ -2103,7 +2103,7 @@ function buildNewProductsEmail(storeGroups) {
   </td></tr>
 
   <!-- Stores -->
-  <tr><td style="padding:24px 28px 8px">
+  <tr><td style="padding:16px 16px 8px">
     <table width="100%" cellpadding="0" cellspacing="0">
       ${storeBlocks}
     </table>
@@ -2289,7 +2289,7 @@ function buildPriceDropEmail(storeGroups) {
       const slug = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
       const url = `${SITE_BASE}/product/${slug||p.id}`;
       return `
-        <td style="width:25%;padding:6px;vertical-align:top">
+        <td style="width:25%;padding:3px;vertical-align:top">
           <a href="${url}" style="display:block;text-decoration:none;color:inherit">
             <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff;position:relative">
               <div style="position:absolute;top:8px;left:8px;background:#d191b0;color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;z-index:1">-${disc}%</div>
@@ -2345,7 +2345,7 @@ function buildPriceDropEmail(storeGroups) {
     <div style="font-size:15px;color:rgba(255,255,255,.85);margin-top:6px">ירידות מחיר השבוע 🏷️</div>
   </td></tr>
 
-  <tr><td style="padding:24px 28px 8px">
+  <tr><td style="padding:16px 16px 8px">
     <table width="100%" cellpadding="0" cellspacing="0">
       ${storeBlocks}
     </table>

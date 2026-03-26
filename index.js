@@ -602,7 +602,9 @@ app.get("/api/products", async (req, res) => {
 
     const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
 
-    if (sort === 'price_asc') {
+    if (req.query.netfree === '1') {
+      sql += ` AND image_size_bytes >= 60000`;
+    }
       sql += ` ORDER BY price ASC`;
     } else if (sort === 'price_desc') {
       sql += ` ORDER BY price DESC`;
@@ -2459,6 +2461,95 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
   } catch(e) {
     console.error('price-drop-email error:', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== מדידת גודל תמונות (נטפרי) =====
+// GET /api/admin/measure-images — מודד גודל תמונות לכל המוצרים ומעדכן image_size_bytes
+app.get('/api/admin/measure-images', adminAuth, async (req, res) => {
+  // הגדרות
+  const BATCH = 20;        // בקשות מקביליות
+  const TIMEOUT = 8000;    // ms לכל תמונה
+  const MIN_BYTES = 500;   // פחות מזה = תמונה שבורה / חסומה
+
+  try {
+    // שלוף רק מוצרים שעדיין לא נמדדו (image_size_bytes = 0)
+    const onlyUnmeasured = req.query.all !== '1';
+    const rows = await pool.query(
+      `SELECT id, image_url FROM products
+       WHERE image_url IS NOT NULL AND image_url != ''
+       ${onlyUnmeasured ? 'AND (image_size_bytes IS NULL OR image_size_bytes = 0)' : ''}
+       ORDER BY id`
+    );
+
+    if (!rows.rows.length) {
+      return res.json({ ok: true, message: 'כל המוצרים כבר נמדדו', total: 0 });
+    }
+
+    // שלח תגובה מיידית כי זה תהליך ארוך
+    res.json({
+      ok: true,
+      message: `מתחיל מדידה של ${rows.rows.length} מוצרים ברקע...`,
+      total: rows.rows.length,
+      hint: 'עקוב אחרי הלוגים ב-Railway'
+    });
+
+    // הרץ ברקע
+    (async () => {
+      let updated = 0, failed = 0;
+      const products = rows.rows;
+
+      for (let i = 0; i < products.length; i += BATCH) {
+        const batch = products.slice(i, i + BATCH);
+        await Promise.all(batch.map(async (p) => {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), TIMEOUT);
+            const r = await fetch(p.image_url, {
+              method: 'HEAD',
+              signal: controller.signal
+            });
+            clearTimeout(timer);
+
+            let bytes = 0;
+            const cl = r.headers.get('content-length');
+            if (cl) {
+              bytes = parseInt(cl);
+            } else {
+              // HEAD לא החזיר content-length — GET ראשון כמה bytes
+              const r2 = await fetch(p.image_url, { signal: controller.signal });
+              const buf = await r2.arrayBuffer();
+              bytes = buf.byteLength;
+            }
+
+            if (bytes > MIN_BYTES) {
+              await pool.query(
+                'UPDATE products SET image_size_bytes=$1 WHERE id=$2',
+                [bytes, p.id]
+              );
+              updated++;
+            } else {
+              // סמן כחסום
+              await pool.query(
+                'UPDATE products SET image_size_bytes=$1 WHERE id=$2',
+                [bytes || 1, p.id]
+              );
+              failed++;
+            }
+          } catch(e) {
+            // timeout או שגיאה — סמן כ-1 (לא נמדד / חסום)
+            await pool.query('UPDATE products SET image_size_bytes=1 WHERE id=$1', [p.id]);
+            failed++;
+          }
+        }));
+        console.log(`measure-images: ${Math.min(i+BATCH, products.length)}/${products.length} (✅${updated} ❌${failed})`);
+      }
+      console.log(`measure-images הושלם: ✅${updated} תמונות תקינות, ❌${failed} חסומות/שגויות`);
+    })();
+
+  } catch(e) {
+    console.error('measure-images error:', e.message);
+    if (!res.headersSent) res.status(500).json({ error: e.message });
   }
 });
 

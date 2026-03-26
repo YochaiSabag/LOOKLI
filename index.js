@@ -2094,7 +2094,7 @@ function buildNewProductsEmail(storeGroups) {
 <body style="margin:0;padding:0;background:#f7f0f7;font-family:'Segoe UI',Arial,sans-serif;direction:rtl">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0f7;padding:32px 16px">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+<table width="680" cellpadding="0" cellspacing="0" style="max-width:680px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
 
   <!-- Header -->
   <tr><td style="background:linear-gradient(135deg,#d191b0 0%,#c48cb3 100%);padding:32px 36px;text-align:center">
@@ -2292,7 +2292,7 @@ function buildPriceDropEmail(storeGroups) {
         <td style="width:25%;padding:6px;vertical-align:top">
           <a href="${url}" style="display:block;text-decoration:none;color:inherit">
             <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff;position:relative">
-              <div style="position:absolute;top:8px;left:8px;background:#ef4444;color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;z-index:1">-${disc}%</div>
+              <div style="position:absolute;top:8px;left:8px;background:#d191b0;color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;z-index:1">-${disc}%</div>
               <div style="aspect-ratio:3/4;overflow:hidden;background:#f9fafb">
                 <img src="${img}" alt="${(p.title||'').replace(/"/g,'')}" width="100%" style="display:block;width:100%;height:auto;object-fit:cover">
               </div>
@@ -2300,7 +2300,7 @@ function buildPriceDropEmail(storeGroups) {
                 <div style="font-size:11px;color:#aaa;margin-bottom:2px">${storeName}</div>
                 <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">${p.title||''}</div>
                 <div style="font-size:13px;margin-top:4px">
-                  <span style="color:#ef4444;font-weight:800">₪${p.price}</span>
+                  <span style="color:#d191b0;font-weight:800">₪${p.price}</span>
                   <s style="color:#aaa;font-size:11px;margin-right:4px">₪${p.original_price}</s>
                 </div>
               </div>
@@ -2311,14 +2311,14 @@ function buildPriceDropEmail(storeGroups) {
 
     const moreBtn = total > 4 ? `
       <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
-        <a href="${SITE_BASE}/?store=${store}&discount=10" style="display:inline-block;padding:8px 22px;background:#fef2f2;color:#ef4444;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #fecaca">
+        <a href="${SITE_BASE}/?store=${store}&discount=10" style="display:inline-block;padding:8px 22px;background:#fdf0f7;color:#d191b0;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #e8d0e8">
           + עוד ${total - 4} מוצרים במבצע ←
         </a>
       </td></tr>` : '';
 
     return `
       <tr><td style="padding:28px 0 8px">
-        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #ef4444;padding-right:12px">
+        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #d191b0;padding-right:12px">
           ${storeName}
           <span style="font-size:13px;font-weight:400;color:#aaa;margin-right:8px">${total} מוצרים במבצע</span>
         </div>
@@ -2340,7 +2340,7 @@ function buildPriceDropEmail(storeGroups) {
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
 
-  <tr><td style="background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);padding:32px 36px;text-align:center">
+  <tr><td style="background:linear-gradient(135deg,#d191b0 0%,#c48cb3 100%);padding:32px 36px;text-align:center">
     <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px">LOOKLI</div>
     <div style="font-size:15px;color:rgba(255,255,255,.85);margin-top:6px">ירידות מחיר השבוע 🏷️</div>
   </td></tr>
@@ -2352,7 +2352,7 @@ function buildPriceDropEmail(storeGroups) {
   </td></tr>
 
   <tr><td style="padding:24px 28px 32px;text-align:center">
-    <a href="${SITE_BASE}/?discount=10" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border-radius:28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(239,68,68,.35)">
+    <a href="${SITE_BASE}/?discount=10" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;border-radius:28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(196,140,179,.35)">
       לכל המוצרים במבצע ←
     </a>
   </td></tr>
@@ -2360,7 +2360,7 @@ function buildPriceDropEmail(storeGroups) {
   <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
     <p style="margin:0;font-size:11px;color:#bbb">
       קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
-      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#ef4444">הסרה מרשימת תפוצה</a>
+      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#d191b0">הסרה מרשימת תפוצה</a>
     </p>
   </td></tr>
 

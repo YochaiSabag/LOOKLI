@@ -599,13 +599,11 @@ app.get("/api/products", async (req, res) => {
     if (design) { sql += ` AND $${i++} = ANY(design_details)`; params.push(design); }
     if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
+    if (req.query.netfree === '1') { sql += ` AND image_size_bytes >= 60000`; }
 
     const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
 
-    if (req.query.netfree === '1') {
-      sql += ` AND image_size_bytes >= 60000`;
-    }
-      sql += ` ORDER BY price ASC`;
+    if (sort === 'price_asc') {
     } else if (sort === 'price_desc') {
       sql += ` ORDER BY price DESC`;
     } else if (sort === 'popular') {

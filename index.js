@@ -2181,8 +2181,8 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     if (!dryRun && lastSentRow.rows.length) {
       const lastSent = new Date(lastSentRow.rows[0].sent_at);
       const daysSince = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSince < 5) {
-        return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 5 ימים בין שליחות` });
+      if (daysSince < 7) {
+        return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
       }
     }
 
@@ -2276,6 +2276,191 @@ async function ensureEmailCampaignLog() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_email_log_type ON email_campaign_log(campaign_type, sent_at DESC)`);
   } catch(e) { console.error('email_campaign_log init:', e.message); }
 }
+
+// ===================================================================
+// ===== מערכת מייל ירידת מחירים =====================================
+// ===================================================================
+
+function buildPriceDropEmail(storeGroups) {
+  const storeBlocks = storeGroups.map(({ storeName, store, products, total }) => {
+    const productCards = products.slice(0, 4).map(p => {
+      const img = p.images?.[0] || p.image_url || '';
+      const disc = Math.round((1 - p.price / p.original_price) * 100);
+      const slug = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
+      const url = `${SITE_BASE}/product/${slug||p.id}`;
+      return `
+        <td style="width:25%;padding:6px;vertical-align:top">
+          <a href="${url}" style="display:block;text-decoration:none;color:inherit">
+            <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff;position:relative">
+              <div style="position:absolute;top:8px;left:8px;background:#ef4444;color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;z-index:1">-${disc}%</div>
+              <div style="aspect-ratio:3/4;overflow:hidden;background:#f9fafb">
+                <img src="${img}" alt="${(p.title||'').replace(/"/g,'')}" width="100%" style="display:block;width:100%;height:auto;object-fit:cover">
+              </div>
+              <div style="padding:8px 10px">
+                <div style="font-size:11px;color:#aaa;margin-bottom:2px">${storeName}</div>
+                <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">${p.title||''}</div>
+                <div style="font-size:13px;margin-top:4px">
+                  <span style="color:#ef4444;font-weight:800">₪${p.price}</span>
+                  <s style="color:#aaa;font-size:11px;margin-right:4px">₪${p.original_price}</s>
+                </div>
+              </div>
+            </div>
+          </a>
+        </td>`;
+    }).join('');
+
+    const moreBtn = total > 4 ? `
+      <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
+        <a href="${SITE_BASE}/?store=${store}&discount=10" style="display:inline-block;padding:8px 22px;background:#fef2f2;color:#ef4444;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #fecaca">
+          + עוד ${total - 4} מוצרים במבצע ←
+        </a>
+      </td></tr>` : '';
+
+    return `
+      <tr><td style="padding:28px 0 8px">
+        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #ef4444;padding-right:12px">
+          ${storeName}
+          <span style="font-size:13px;font-weight:400;color:#aaa;margin-right:8px">${total} מוצרים במבצע</span>
+        </div>
+      </td></tr>
+      <tr><td>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+          <tr>${productCards}</tr>
+          ${moreBtn}
+        </table>
+      </td></tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ירידות מחיר השבוע</title></head>
+<body style="margin:0;padding:0;background:#f7f0f7;font-family:'Segoe UI',Arial,sans-serif;direction:rtl">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0f7;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+
+  <tr><td style="background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);padding:32px 36px;text-align:center">
+    <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px">LOOKLI</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.85);margin-top:6px">ירידות מחיר השבוע 🏷️</div>
+  </td></tr>
+
+  <tr><td style="padding:24px 28px 8px">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      ${storeBlocks}
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:24px 28px 32px;text-align:center">
+    <a href="${SITE_BASE}/?discount=10" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border-radius:28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(239,68,68,.35)">
+      לכל המוצרים במבצע ←
+    </a>
+  </td></tr>
+
+  <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
+    <p style="margin:0;font-size:11px;color:#bbb">
+      קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
+      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#ef4444">הסרה מרשימת תפוצה</a>
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+// GET /api/cron/price-drop-email
+app.get('/api/cron/price-drop-email', async (req, res) => {
+  const CRON_SECRET = process.env.CRON_SECRET || '';
+  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const dryRun = req.query.dry === '1';
+
+    // בדוק 7 ימים מהשליחה האחרונה
+    const lastSentRow = await pool.query(
+      `SELECT sent_at FROM email_campaign_log WHERE campaign_type='price_drop' ORDER BY sent_at DESC LIMIT 1`
+    ).catch(() => ({ rows: [] }));
+
+    if (!dryRun && lastSentRow.rows.length) {
+      const daysSince = (Date.now() - new Date(lastSentRow.rows[0].sent_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < 7) {
+        return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
+      }
+    }
+
+    // מצא מוצרים עם ירידת מחיר 10%+ ב-7 ימים האחרונים
+    const priceDropRes = await pool.query(`
+      SELECT store, COUNT(*) as count
+      FROM products
+      WHERE updated_at >= NOW() - INTERVAL '7 days'
+        AND original_price IS NOT NULL
+        AND original_price > 0
+        AND price > 0
+        AND original_price > price * 1.10
+        AND store IS NOT NULL
+      GROUP BY store
+      HAVING COUNT(*) >= 1
+      ORDER BY count DESC
+    `);
+
+    if (!priceDropRes.rows.length) {
+      return res.json({ skipped: true, reason: 'אין מוצרים עם ירידת מחיר 10%+ השבוע' });
+    }
+
+    // שלוף מוצרים לכל חנות
+    const storeGroups = [];
+    for (const row of priceDropRes.rows) {
+      const productsRes = await pool.query(`
+        SELECT id, title, price, original_price, image_url, images, store
+        FROM products
+        WHERE store = $1
+          AND updated_at >= NOW() - INTERVAL '7 days'
+          AND original_price IS NOT NULL
+          AND original_price > price * 1.10
+        ORDER BY (original_price - price) / original_price DESC
+        LIMIT 12
+      `, [row.store]);
+
+      storeGroups.push({
+        store:     row.store,
+        storeName: STORE_NAMES[row.store] || row.store,
+        products:  productsRes.rows,
+        total:     parseInt(row.count)
+      });
+    }
+
+    const storeNamesList = storeGroups.map(s => s.storeName).join(', ');
+    const subject = `ירידות מחיר השבוע ב${storeNamesList} 🏷️`;
+    const htmlContent = buildPriceDropEmail(storeGroups);
+
+    if (dryRun) return res.send(htmlContent);
+
+    // שלוף מנויים
+    const subscribersRes = await pool.query(
+      `SELECT email FROM newsletter_subscribers WHERE active=true`
+    );
+    const emails = subscribersRes.rows.map(r => r.email);
+    if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
+
+    const sent = await sendNewProductsEmail(emails, subject, htmlContent);
+
+    await pool.query(
+      `INSERT INTO email_campaign_log (campaign_type, stores, recipients, subject, sent_at)
+       VALUES ('price_drop', $1, $2, $3, NOW())`,
+      [storeGroups.map(s=>s.store).join(','), sent, subject]
+    ).catch(() => {});
+
+    res.json({ ok: true, sent, stores: storeGroups.map(s=>({ store:s.store, products:s.total })), subject });
+
+  } catch(e) {
+    console.error('price-drop-email error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);

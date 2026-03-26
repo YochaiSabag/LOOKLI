@@ -895,6 +895,9 @@
         </div>
       </div>
       <div style="padding:14px 20px">
+        <button id="netfreeBtn" onclick="toggleNetfree()" style="width:100%;padding:12px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:13px;color:var(--muted);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px">
+          <span>🌐</span> <span id="netfreeBtnText">הצג רק תמונות פתוחות</span>
+        </button>
         <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
       </div>
       
@@ -1038,6 +1041,25 @@
 <script>
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
+let activeNetfree=false;
+
+function toggleNetfree(){
+  activeNetfree=!activeNetfree;
+  const btn=document.getElementById('netfreeBtn');
+  const txt=document.getElementById('netfreeBtnText');
+  if(activeNetfree){
+    btn.style.borderColor='var(--accent)';
+    btn.style.color='var(--accent)';
+    btn.style.background='rgba(224,161,192,.08)';
+    txt.textContent='מציג רק תמונות פתוחות ✓';
+  } else {
+    btn.style.borderColor='var(--border)';
+    btn.style.color='var(--muted)';
+    btn.style.background='#fff';
+    txt.textContent='הצג רק תמונות פתוחות';
+  }
+  runRegularSearch();
+}
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
 let currentPage=1,itemsPerPage=isMobile?8:20,allProducts=[],isLoading=false;
@@ -1290,6 +1312,7 @@ async function runRegularSearch(){
   if(activePattern)params.set("pattern",activePattern);
   if(activeDesign)params.set("design",activeDesign);
   if(activeDiscount)params.set("minDiscount",activeDiscount);
+  if(activeNetfree)params.set("netfree","1");
   const maxPrice=document.getElementById("priceRange").value;
   const sliderMax=document.getElementById("priceRange").max;
   if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
@@ -1588,6 +1611,8 @@ function resetAllFiltersQuietly(){
 function resetAll(){
   document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];
   resetAllFiltersQuietly();
+  // איפוס נטפרי
+  if(activeNetfree){activeNetfree=false;const btn=document.getElementById('netfreeBtn');btn.style.borderColor='var(--border)';btn.style.color='var(--muted)';btn.style.background='#fff';document.getElementById('netfreeBtnText').textContent='הצג רק תמונות פתוחות';}
   document.getElementById("aiAnalysis").classList.remove("active");
   runRegularSearch();
 }

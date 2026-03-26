@@ -1052,13 +1052,20 @@ function toggleNetfree(){
     btn.style.color='var(--accent)';
     btn.style.background='rgba(224,161,192,.08)';
     txt.textContent='מציג רק תמונות פתוחות ✓';
+    // הסתר כרטיסים שכבר נטענו ונמצאו חסומים (imgOk לא מוגדר)
+    document.querySelectorAll('.card').forEach(card => {
+      if (card.dataset.imgOk !== '1') card.style.display = 'none';
+    });
   } else {
     btn.style.borderColor='var(--border)';
     btn.style.color='var(--muted)';
     btn.style.background='#fff';
     txt.textContent='הצג רק תמונות פתוחות';
+    // הצג הכל חזרה
+    document.querySelectorAll('.card').forEach(card => {
+      card.style.display = '';
+    });
   }
-  runRegularSearch();
 }
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
@@ -1312,7 +1319,6 @@ async function runRegularSearch(){
   if(activePattern)params.set("pattern",activePattern);
   if(activeDesign)params.set("design",activeDesign);
   if(activeDiscount)params.set("minDiscount",activeDiscount);
-  if(activeNetfree)params.set("netfree","1");
   const maxPrice=document.getElementById("priceRange").value;
   const sliderMax=document.getElementById("priceRange").max;
   if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
@@ -2715,9 +2721,11 @@ document.addEventListener('click', e => {
   function checkNetfreeBlock(imgEl) {
     const card = imgEl.closest('.card');
     if (!card) return;
-    // תמונה קטנה מ-20px = תמונת חסימה של נטפרי
-    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) return;
-    // בדיקת canvas — תמונה אחידה (אפור מוצק) = חסומה
+    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) {
+      // חסום — הסתר אם נטפרי פעיל
+      if (activeNetfree) card.style.display = 'none';
+      return;
+    }
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 10; canvas.height = 10;
@@ -2726,17 +2734,15 @@ document.addEventListener('click', e => {
       const d = ctx.getImageData(0, 0, 10, 10).data;
       for (let i = 4; i < d.length; i += 4) {
         if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
-          // יש שוני — תמונה אמיתית!
           card.dataset.imgOk = '1';
-          const url = card.dataset.url||card.dataset.sourceUrl||'';
           return;
         }
       }
-      // אחידה לחלוטין = חסומה, אל תסמן כ-ok
+      // אחידה = חסומה
+      if (activeNetfree) card.style.display = 'none';
     } catch(e) {
-      // CORS — לא יכולים לבדוק, נניח שפתוחה
+      // CORS — נניח פתוחה
       card.dataset.imgOk = '1';
-      const url = card.dataset.url||card.dataset.sourceUrl||'';
     }
   }
 

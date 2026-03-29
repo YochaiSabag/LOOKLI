@@ -445,6 +445,9 @@
     .modal-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
     .modal-color{width:36px;height:36px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:transform .15s;box-shadow:0 2px 6px rgba(0,0,0,.12)}
     .modal-color:hover{transform:scale(1.1)}
+    .modal-color-linked{cursor:pointer;border-color:rgba(224,161,192,.5)}
+    .modal-color-linked:hover{border-color:var(--accent);transform:scale(1.15)}
+    .modal-color.selected{border-color:var(--accent);border-width:3px}
     .desc{color:#555;font-size:13px;line-height:1.7;white-space:pre-line}
     .desc-title{font-weight:700;font-size:14px;margin-bottom:8px;color:var(--text)}
     .label{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase}
@@ -895,9 +898,6 @@
         </div>
       </div>
       <div style="padding:14px 20px">
-        <button id="netfreeBtn" onclick="toggleNetfree()" style="width:100%;padding:12px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:13px;color:var(--muted);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px">
-          <span>🌐</span> <span id="netfreeBtnText">הצג רק תמונות פתוחות</span>
-        </button>
         <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
       </div>
       
@@ -1041,25 +1041,6 @@
 <script>
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
-let activeNetfree=false;
-
-function toggleNetfree(){
-  activeNetfree=!activeNetfree;
-  const btn=document.getElementById('netfreeBtn');
-  const txt=document.getElementById('netfreeBtnText');
-  if(activeNetfree){
-    btn.style.borderColor='var(--accent)';
-    btn.style.color='var(--accent)';
-    btn.style.background='rgba(224,161,192,.08)';
-    txt.textContent='מציג רק תמונות פתוחות ✓';
-  } else {
-    btn.style.borderColor='var(--border)';
-    btn.style.color='var(--muted)';
-    btn.style.background='#fff';
-    txt.textContent='הצג רק תמונות פתוחות';
-  }
-  runRegularSearch();
-}
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
 let currentPage=1,itemsPerPage=isMobile?8:20,allProducts=[],isLoading=false;
@@ -1610,8 +1591,6 @@ function resetAllFiltersQuietly(){
 function resetAll(){
   document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];
   resetAllFiltersQuietly();
-  // איפוס נטפרי
-  if(activeNetfree){activeNetfree=false;const btn=document.getElementById('netfreeBtn');btn.style.borderColor='var(--border)';btn.style.color='var(--muted)';btn.style.background='#fff';document.getElementById('netfreeBtnText').textContent='הצג רק תמונות פתוחות';}
   document.getElementById("aiAnalysis").classList.remove("active");
   runRegularSearch();
 }
@@ -1626,6 +1605,17 @@ function trackOutClick(el) {
     event_category: 'outbound',
     transport_type: 'beacon'
   });
+}
+
+function switchColorImage(imgUrl) {
+  if (!imgUrl) return;
+  // הצב כתמונה ראשונה בגלריה אם לא קיימת
+  if (!modalImages.includes(imgUrl)) modalImages.unshift(imgUrl);
+  const idx = modalImages.indexOf(imgUrl);
+  goToModalSlide(idx);
+  // סמן צבע כנבחר
+  document.querySelectorAll('.modal-color').forEach(el => el.classList.remove('selected'));
+  event?.target?.classList.add('selected');
 }
 
 function shareProduct() {
@@ -1699,8 +1689,15 @@ async function openProduct(id){
     document.getElementById("modalKpi").innerHTML=kpis.join("");
 
     const colors=p.colors||(p.color?[p.color]:[]);
+    const colorImages=p.color_images||{};
     const colorsDiv=document.getElementById("modalColors");
-    if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
+    if(colors.length){
+      colors.forEach(c=>{
+        const imgUrl = colorImages[c];
+        const hasImg = !!imgUrl;
+        colorsDiv.innerHTML+=`<span class="modal-color${hasImg?' modal-color-linked':''}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"${hasImg?` onclick="switchColorImage('${escapeHtml(imgUrl)}')"`:''} data-color="${escapeHtml(c)}"></span>`;
+      });
+    }else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
 
     // שלב 2 — תמונה ראשית
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
@@ -2714,23 +2711,29 @@ document.addEventListener('click', e => {
   function checkNetfreeBlock(imgEl) {
     const card = imgEl.closest('.card');
     if (!card) return;
-    if (!activeNetfree) { card.dataset.imgOk = '1'; return; }
-
-    // שלח HEAD request דרך השרת — עוקף CORS לגמרי
-    fetch(`/api/img-size?url=${encodeURIComponent(imgEl.src)}`)
-      .then(r => r.json())
-      .then(({ size }) => {
-        if (size >= 60000) {
+    // תמונה קטנה מ-20px = תמונת חסימה של נטפרי
+    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) return;
+    // בדיקת canvas — תמונה אחידה (אפור מוצק) = חסומה
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 10; canvas.height = 10;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, 10, 10);
+      const d = ctx.getImageData(0, 0, 10, 10).data;
+      for (let i = 4; i < d.length; i += 4) {
+        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
+          // יש שוני — תמונה אמיתית!
           card.dataset.imgOk = '1';
-        } else {
-          // חסום — הסתר
-          card.style.display = 'none';
+          const url = card.dataset.url||card.dataset.sourceUrl||'';
+          return;
         }
-      })
-      .catch(() => {
-        // שגיאה — נניח פתוחה
-        card.dataset.imgOk = '1';
-      });
+      }
+      // אחידה לחלוטין = חסומה, אל תסמן כ-ok
+    } catch(e) {
+      // CORS — לא יכולים לבדוק, נניח שפתוחה
+      card.dataset.imgOk = '1';
+      const url = card.dataset.url||card.dataset.sourceUrl||'';
+    }
   }
 
 

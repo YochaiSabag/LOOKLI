@@ -447,8 +447,7 @@ try {
   console.log('🧪 בדיקה על מוצר בודד:', testUrl);
   const p = await scrapeProduct(page, testUrl);
   if (p) {
-    console.log('
-=== תוצאות ===');
+    console.log('\n=== תוצאות ===');
     console.log('צבעים:', p.colors);
     console.log('colorImages:', JSON.stringify(p.colorImages, null, 2));
     await saveProduct(p);

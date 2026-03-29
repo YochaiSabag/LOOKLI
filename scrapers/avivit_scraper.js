@@ -443,20 +443,19 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 try {
-  await page.goto('https://avivit-weizman.co.il/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(3000);
-
-  const urls = await getAllProductUrls(page);
-  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
-
-  let ok = 0, fail = 0;
-  for (let i = 0; i < urls.length; i++) {
-    console.log(`\n[${i + 1}/${urls.length}]`);
-    const p = await scrapeProduct(page, urls[i]);
-    if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(400);
+  const testUrl = 'https://avivit-weizman.co.il/product/%D7%97%D7%A6%D7%90%D7%99%D7%AA-%D7%A4%D7%9C%D7%99%D7%A1%D7%94-%D7%A6%D7%94%D7%95%D7%91/';
+  console.log('🧪 בדיקה על מוצר בודד:', testUrl);
+  const p = await scrapeProduct(page, testUrl);
+  if (p) {
+    console.log('
+=== תוצאות ===');
+    console.log('צבעים:', p.colors);
+    console.log('colorImages:', JSON.stringify(p.colorImages, null, 2));
+    await saveProduct(p);
+    console.log('✅ נשמר בהצלחה');
+  } else {
+    console.log('❌ לא נמצא מוצר');
   }
-  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
 } finally {
   await browser.close();
   await db.end();

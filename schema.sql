@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   source_url TEXT UNIQUE NOT NULL,
   color_sizes JSONB,
+  color_images JSONB,
   fabric VARCHAR(50),
   pattern VARCHAR(50),
   design_details TEXT[],
@@ -34,6 +35,7 @@ DO $$ BEGIN
   ALTER TABLE products ADD COLUMN IF NOT EXISTS pattern VARCHAR(50);
   ALTER TABLE products ADD COLUMN IF NOT EXISTS design_details TEXT[];
   ALTER TABLE products ADD COLUMN IF NOT EXISTS color_sizes JSONB;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB;
   ALTER TABLE products ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP DEFAULT NOW();
   ALTER TABLE products ADD COLUMN IF NOT EXISTS image_size_bytes INTEGER DEFAULT 0;
   ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();

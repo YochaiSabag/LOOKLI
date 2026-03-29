@@ -324,7 +324,9 @@ async function scrapeProduct(page, url) {
 
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
-    await page.waitForTimeout(2500);
+    // המתן לטעינת variations form (WooCommerce)
+    await page.waitForSelector('form.variations_form, .variable-items-wrapper, p.price', { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(3000);
 
     const data = await page.evaluate(() => {
       // === כותרת — Elementor h2 ===

@@ -599,7 +599,6 @@ app.get("/api/products", async (req, res) => {
     if (design) { sql += ` AND $${i++} = ANY(design_details)`; params.push(design); }
     if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
-    if (req.query.netfree === '1') { sql += ` AND image_size_bytes >= 60000`; }
 
     const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
 
@@ -2551,27 +2550,6 @@ app.get('/api/admin/measure-images', adminAuth, async (req, res) => {
   }
 });
 
-// GET /api/img-size?url=... — HEAD request לURL ומחזיר גודל (לבדיקת נטפרי)
-app.get('/api/img-size', async (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).json({ size: 0 });
-  // וודא שה-URL מאתר מוכר בלבד
-  const allowed = ['mekimi.co.il','lichi-shop.com','wixstatic.com','aviyahyosef.com',
-                   'chemise.co.il','ordman.co.il','rare.co.il','avivit-weizman.co.il',
-                   'cdn.2all.co.il','amazonaws.com','wp-content'];
-  if (!allowed.some(d => url.includes(d))) return res.json({ size: 0 });
-  try {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(url, { method: 'HEAD', signal: controller.signal });
-    const size = parseInt(r.headers.get('content-length') || '0');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.json({ size });
-  } catch(e) {
-    res.json({ size: 0 });
-  }
-});
-
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await ensureEmailCampaignLog();
@@ -2598,5 +2576,6 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
   } catch(e) { console.error('clicks table init:', e.message); }
 });

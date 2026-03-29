@@ -411,7 +411,7 @@
     #modalWrapper::-webkit-scrollbar{width:5px}
     #modalWrapper::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
     .modal{width:min(1000px,100%);background:#fff;border-radius:18px;overflow:visible;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
-    .modal-head{padding:8px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
+    .modal-head{padding:8px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0;position:sticky;top:0;background:#fff;z-index:10}
     .modal-title{font-weight:800;font-size:15px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .close-btn{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:15px;transition:all .15s}
     .close-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -2714,62 +2714,23 @@ document.addEventListener('click', e => {
   function checkNetfreeBlock(imgEl) {
     const card = imgEl.closest('.card');
     if (!card) return;
+    if (!activeNetfree) { card.dataset.imgOk = '1'; return; }
 
-    // שיטה 1: תמונה שלא נטענה כלל
-    if (imgEl.naturalWidth === 0) {
-      if (activeNetfree) card.style.display = 'none';
-      return;
-    }
-
-    // שיטה 2: Performance API (עובד רק אם יש Timing-Allow-Origin)
-    try {
-      const entries = performance.getEntriesByName(imgEl.src, 'resource');
-      if (entries.length > 0) {
-        const size = entries[entries.length - 1].encodedBodySize;
-        if (size > 500 && size < 60000) {
-          if (activeNetfree) card.style.display = 'none';
-          return;
+    // שלח HEAD request דרך השרת — עוקף CORS לגמרי
+    fetch(`/api/img-size?url=${encodeURIComponent(imgEl.src)}`)
+      .then(r => r.json())
+      .then(({ size }) => {
+        if (size >= 60000) {
+          card.dataset.imgOk = '1';
+        } else {
+          // חסום — הסתר
+          card.style.display = 'none';
         }
-        if (size >= 60000) { card.dataset.imgOk = '1'; return; }
-      }
-    } catch(e) {}
-
-    // שיטה 3: זיהוי מוזאיקה — נטפרי מחזיר תמונות מפוקסלות עם בלוקים של פיקסלים זהים
-    try {
-      const W = 60, H = 60;
-      const canvas = document.createElement('canvas');
-      canvas.width = W; canvas.height = H;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(imgEl, 0, 0, W, H);
-      const d = ctx.getImageData(0, 0, W, H).data;
-
-      // ספור ריצות של פיקסלים זהים (רצופים) בכיוון אופקי
-      let longRuns = 0, totalRuns = 0;
-      for (let y = 0; y < H; y++) {
-        let run = 1;
-        for (let x = 1; x < W; x++) {
-          const cur = (y * W + x) * 4;
-          const prv = (y * W + x - 1) * 4;
-          if (d[cur]===d[prv] && d[cur+1]===d[prv+1] && d[cur+2]===d[prv+2]) {
-            run++;
-          } else {
-            if (run >= 5) longRuns++; // בלוק נטפרי = 5+ פיקסלים זהים
-            totalRuns++;
-            run = 1;
-          }
-        }
-      }
-      const mosaicRatio = longRuns / Math.max(totalRuns, 1);
-      if (mosaicRatio > 0.25) {
-        // יותר מ-25% ריצות ארוכות = מוזאיקה = חסום
-        if (activeNetfree) card.style.display = 'none';
-        return;
-      }
-      card.dataset.imgOk = '1';
-    } catch(e) {
-      // CORS — לא יכולים לבדוק, נניח פתוחה
-      card.dataset.imgOk = '1';
-    }
+      })
+      .catch(() => {
+        // שגיאה — נניח פתוחה
+        card.dataset.imgOk = '1';
+      });
   }
 
 

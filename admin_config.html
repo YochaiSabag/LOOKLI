@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI — הגדרות סקרייפר</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d14;--surface:#13131e;--surface2:#1a1a2a;--border:#2a2a3d;
+  --accent:#c97cc0;--accent2:#7c6fcf;--text:#f0eefa;--muted:#7a7a9a;
+  --green:#4ade80;--red:#f87171;--yellow:#fbbf24;
+}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;direction:rtl}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{font-size:22px;font-weight:900;letter-spacing:3px;color:var(--accent)}
+.header-links{display:flex;gap:8px}
+.header-links a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;transition:.15s}
+.header-links a:hover{color:var(--text);background:var(--surface2)}
+.header-links a.active{color:var(--accent);background:rgba(201,124,192,.1)}
+
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 64px)}
+
+.sidebar{background:var(--surface);border-left:1px solid var(--border);padding:20px 16px;position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.section-title{font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;margin-top:10px}
+.type-btn{width:100%;text-align:right;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Heebo',sans-serif;font-size:14px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:8px}
+.type-btn:hover{border-color:var(--accent);color:var(--text)}
+.type-btn.active{border-color:var(--accent);background:rgba(201,124,192,.1);color:var(--accent);font-weight:600}
+.type-btn .cnt{margin-right:auto;background:var(--surface);border-radius:20px;padding:2px 8px;font-size:11px;color:var(--muted)}
+
+.main{padding:28px}
+.main-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.main-title{font-size:20px;font-weight:800}
+.btn{padding:9px 18px;border-radius:10px;border:none;cursor:pointer;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.85}
+.btn-danger{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.btn-danger:hover{background:rgba(248,113,113,.25)}
+.btn-sm{padding:5px 12px;font-size:12px}
+
+.items-grid{display:flex;flex-direction:column;gap:10px}
+.item-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:flex-start;gap:16px;transition:.15s}
+.item-card:hover{border-color:var(--accent)}
+.item-info{flex:1}
+.item-name{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px}
+.color-dot{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.2);flex-shrink:0}
+.item-aliases{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.alias-tag{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.item-actions{display:flex;gap:8px;flex-shrink:0}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px;width:100%;max-width:500px}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;font-family:'Heebo',sans-serif;font-size:14px;outline:none;transition:.15s}
+.form-input:focus{border-color:var(--accent)}
+.aliases-input{display:flex;gap:8px;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;min-height:46px;cursor:text}
+.alias-chip{display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:13px}
+.alias-chip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0}
+.alias-chip button:hover{color:var(--red)}
+.aliases-text{background:none;border:none;color:var(--text);font-family:'Heebo',sans-serif;font-size:13px;outline:none;flex:1;min-width:80px}
+.modal-hint{font-size:11px;color:var(--muted);margin-top:4px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+
+.spinner{width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.type-info{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:var(--muted);line-height:1.6}
+.type-info strong{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">LOOKLI</div>
+  <div class="header-links">
+    <a href="/admin/tagger">🏷️ תיוג</a>
+    <a href="/admin/analytics">📊 אנליטקס</a>
+    <a href="/admin/config" class="active">⚙️ הגדרות</a>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="section-title">סוג הגדרה</div>
+    <button class="type-btn active" onclick="setType('color')" id="btn-color">
+      🎨 צבעים <span class="cnt" id="cnt-color">0</span>
+    </button>
+    <button class="type-btn" onclick="setType('category')" id="btn-category">
+      👗 קטגוריות <span class="cnt" id="cnt-category">0</span>
+    </button>
+    <button class="type-btn" onclick="setType('style')" id="btn-style">
+      ✨ סגנונות <span class="cnt" id="cnt-style">0</span>
+    </button>
+    <button class="type-btn" onclick="setType('fit')" id="btn-fit">
+      📐 גיזרות <span class="cnt" id="cnt-fit">0</span>
+    </button>
+    <button class="type-btn" onclick="setType('fabric')" id="btn-fabric">
+      🧵 בדים <span class="cnt" id="cnt-fabric">0</span>
+    </button>
+    <button class="type-btn" onclick="setType('pattern')" id="btn-pattern">
+      🌀 דוגמאות <span class="cnt" id="cnt-pattern">0</span>
+    </button>
+  </div>
+
+  <div class="main">
+    <div class="main-header">
+      <div class="main-title" id="mainTitle">🎨 צבעים</div>
+      <button class="btn btn-primary" onclick="openAdd()">+ הוסף חדש</button>
+    </div>
+
+    <div class="type-info" id="typeInfo"></div>
+    <div id="itemsList"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">הוסף צבע</h3>
+    <div class="form-group">
+      <label>שם (תצוגה)</label>
+      <input class="form-input" id="fieldName" placeholder='למשל: ורוד'>
+    </div>
+    <div class="form-group" id="colorHexGroup">
+      <label>צבע HEX (אופציונלי)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" id="fieldHex" placeholder="#f472b6" style="flex:1">
+        <input type="color" id="fieldColorPicker" style="width:42px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;padding:2px" oninput="document.getElementById('fieldHex').value=this.value">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>וריאנטים (כינויים לזיהוי)</label>
+      <div class="aliases-input" id="aliasesContainer" onclick="document.getElementById('aliasInput').focus()">
+        <input class="aliases-text" id="aliasInput" placeholder="הקלד וריאנט ולחץ Enter..." onkeydown="handleAliasKey(event)">
+      </div>
+      <div class="modal-hint">למשל לצבע "ורוד": pink, coral, ורודה, פודרה, בייבי ורוד</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()" style="background:var(--surface2);color:var(--muted)">ביטול</button>
+      <button class="btn btn-primary" onclick="saveItem()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentType = 'color';
+let editId = null;
+let aliases = [];
+const counts = {};
+
+const typeLabels = {
+  color:    { label: '🎨 צבעים',    info: '<strong>צבעים</strong> — מזהה צבעי מוצרים. השם הוא מה שמופיע באתר (למשל "ורוד"), הוריאנטים הם מה שהסקרייפר מחפש בנתוני המוצר (pink, coral, ורודה...).' },
+  category: { label: '👗 קטגוריות', info: '<strong>קטגוריות</strong> — סוג הבגד. השם מופיע בפילטר (למשל "שמלה"), הוריאנטים הם מילות מפתח לזיהוי אוטומטי בכותרת (dress, שמלת...).' },
+  style:    { label: '✨ סגנונות',  info: '<strong>סגנונות</strong> — סגנון לבוש (ערב, יום חול, קלאסי...). הוריאנטים הם מילות מפתח לזיהוי מהכותרת והתיאור.' },
+  fit:      { label: '📐 גיזרות',   info: '<strong>גיזרות</strong> — גזרת הבגד (מקסי, מידי, צמודה...). מזוהה מהכותרת.' },
+  fabric:   { label: '🧵 בדים',     info: '<strong>בדים</strong> — סוג הבד (כותנה, פשתן, סריג...). מזוהה מהכותרת והתיאור.' },
+  pattern:  { label: '🌀 דוגמאות',  info: '<strong>דוגמאות</strong> — דוגמת הבד (פרחוני, פסים, חלק...). מזוהה מהכותרת.' },
+};
+
+function authFetch(url, opts={}) {
+  return fetch(url, {...opts, credentials:'include'});
+}
+
+async function loadAll() {
+  const r = await authFetch('/api/admin/scraper-config');
+  if (!r.ok) { document.getElementById('itemsList').innerHTML = '<div class="empty"><div class="empty-icon">🔒</div>נדרשת התחברות</div>'; return; }
+  const { items } = await r.json();
+
+  // ספור לפי type
+  Object.keys(typeLabels).forEach(t => counts[t] = 0);
+  items.forEach(item => { if (counts[item.type] !== undefined) counts[item.type]++; });
+  Object.keys(counts).forEach(t => {
+    const el = document.getElementById(`cnt-${t}`);
+    if (el) el.textContent = counts[t];
+  });
+
+  renderList(items.filter(i => i.type === currentType));
+}
+
+function renderList(items) {
+  const t = typeLabels[currentType];
+  document.getElementById('mainTitle').textContent = t.label;
+  document.getElementById('typeInfo').innerHTML = t.info;
+  document.getElementById('modalTitle').textContent = `הוסף ${t.label.split(' ')[1]}`;
+
+  if (!items.length) {
+    document.getElementById('itemsList').innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">${t.label.split(' ')[0]}</div>
+        <div>אין ${t.label.split(' ')[1]} עדיין — לחץ "+ הוסף חדש"</div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('itemsList').innerHTML = `<div class="items-grid">${
+    items.map(item => `
+      <div class="item-card">
+        <div class="item-info">
+          <div class="item-name">
+            ${currentType==='color' && item.color_hex ? `<span class="color-dot" style="background:${item.color_hex}"></span>` : ''}
+            ${esc(item.name)}
+          </div>
+          <div class="item-aliases">
+            ${(item.aliases||[]).map(a=>`<span class="alias-tag">${esc(a)}</span>`).join('')}
+            ${!item.aliases?.length ? '<span style="color:var(--muted);font-size:12px">אין וריאנטים</span>' : ''}
+          </div>
+        </div>
+        <div class="item-actions">
+          <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted)" onclick='openEdit(${JSON.stringify(item)})'>✏️ עריכה</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.id},'${esc(item.name)}')">🗑️</button>
+        </div>
+      </div>`).join('')
+  }</div>`;
+}
+
+async function setType(type) {
+  currentType = type;
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`btn-${type}`)?.classList.add('active');
+  document.getElementById('itemsList').innerHTML = '<div class="spinner"></div>';
+  const r = await authFetch(`/api/admin/scraper-config?type=${type}`);
+  const { items } = await r.json();
+  renderList(items);
+}
+
+function openAdd() {
+  editId = null;
+  aliases = [];
+  document.getElementById('fieldName').value = '';
+  document.getElementById('fieldHex').value = '';
+  document.getElementById('fieldColorPicker').value = '#c97cc0';
+  document.getElementById('colorHexGroup').style.display = currentType === 'color' ? '' : 'none';
+  renderAliasChips();
+  document.getElementById('modalTitle').textContent = `הוסף ל${typeLabels[currentType].label.split(' ')[1]}`;
+  document.getElementById('modalBg').classList.add('open');
+  setTimeout(() => document.getElementById('fieldName').focus(), 50);
+}
+
+function openEdit(item) {
+  editId = item.id;
+  aliases = [...(item.aliases || [])];
+  document.getElementById('fieldName').value = item.name;
+  document.getElementById('fieldHex').value = item.color_hex || '';
+  document.getElementById('fieldColorPicker').value = item.color_hex || '#c97cc0';
+  document.getElementById('colorHexGroup').style.display = currentType === 'color' ? '' : 'none';
+  renderAliasChips();
+  document.getElementById('modalTitle').textContent = `עריכה: ${item.name}`;
+  document.getElementById('modalBg').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+}
+
+function handleAliasKey(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,$/, '');
+    if (val && !aliases.includes(val)) { aliases.push(val); renderAliasChips(); }
+    e.target.value = '';
+  }
+}
+
+function removeAlias(a) {
+  aliases = aliases.filter(x => x !== a);
+  renderAliasChips();
+}
+
+function renderAliasChips() {
+  const container = document.getElementById('aliasesContainer');
+  const input = document.getElementById('aliasInput');
+  container.innerHTML = '';
+  aliases.forEach(a => {
+    const chip = document.createElement('span');
+    chip.className = 'alias-chip';
+    chip.innerHTML = `${esc(a)}<button onclick="removeAlias('${esc(a)}')" tabindex="-1">×</button>`;
+    container.appendChild(chip);
+  });
+  container.appendChild(input);
+}
+
+async function saveItem() {
+  // הוסף מה שנשאר בinput
+  const inputVal = document.getElementById('aliasInput').value.trim();
+  if (inputVal && !aliases.includes(inputVal)) aliases.push(inputVal);
+
+  const name = document.getElementById('fieldName').value.trim();
+  if (!name) { alert('חובה להזין שם'); return; }
+
+  const body = { type: currentType, name, aliases, color_hex: document.getElementById('fieldHex').value.trim() || null };
+  const r = await authFetch('/api/admin/scraper-config', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  if (!r.ok) { alert('שגיאה בשמירה'); return; }
+  closeModal();
+  setType(currentType);
+  // עדכן count
+  if (!editId) { counts[currentType] = (counts[currentType]||0)+1; document.getElementById(`cnt-${currentType}`).textContent = counts[currentType]; }
+}
+
+async function deleteItem(id, name) {
+  if (!confirm(`למחוק את "${name}"?`)) return;
+  await authFetch(`/api/admin/scraper-config/${id}`, { method: 'DELETE' });
+  counts[currentType] = Math.max(0, (counts[currentType]||1)-1);
+  document.getElementById(`cnt-${currentType}`).textContent = counts[currentType];
+  setType(currentType);
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// סגור modal בלחיצה על הרקע
+document.getElementById('modalBg').addEventListener('click', e => { if(e.target===document.getElementById('modalBg')) closeModal(); });
+
+// טעינה ראשונית
+loadAll().then(() => setType('color'));
+</script>
+</body>
+</html>

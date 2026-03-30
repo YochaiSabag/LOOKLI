@@ -599,6 +599,7 @@ app.get("/api/products", async (req, res) => {
     if (design) { sql += ` AND $${i++} = ANY(design_details)`; params.push(design); }
     if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
+    if (req.query.netfree === '1') { sql += ` AND image_size_bytes >= 60000`; }
 
     const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
 
@@ -2576,6 +2577,5 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
-    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
   } catch(e) { console.error('clicks table init:', e.message); }
 });

@@ -324,9 +324,7 @@ async function scrapeProduct(page, url) {
 
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
-    // המתן לטעינת variations form (WooCommerce)
-    await page.waitForSelector('form.variations_form, .variable-items-wrapper, p.price', { timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(2500);
 
     const data = await page.evaluate(() => {
       // === כותרת — Elementor h2 ===
@@ -468,7 +466,6 @@ async function scrapeProduct(page, url) {
     console.log(`    Raw sizes:  ${data.rawSizes.map(s => s.name + (s.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
 
     const colorSizesMap = {};
-    const colorImagesMap = {}; // color → image URL
     const availableSizes = new Set();
     const availableColors = new Set();
 
@@ -515,10 +512,6 @@ async function scrapeProduct(page, url) {
             }
           }
           console.log(`      ✓ ${normColor || '-'} + ${normSizes.join('/')}`);
-        }
-        // שמור תמונה ראשונה לכל צבע
-        if (normColor && v.image?.src && v.image.src.includes('uploads') && !colorImagesMap[normColor]) {
-          colorImagesMap[normColor] = v.image.src;
         }
       }
     } else {
@@ -585,7 +578,6 @@ async function scrapeProduct(page, url) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
-      colorImages: colorImagesMap,
       shipping: shippingObj,
       url
     };
@@ -603,21 +595,19 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, color_images, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description,
-         color_sizes=EXCLUDED.color_sizes, color_images=EXCLUDED.color_images,
-         pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
+         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
          design_details=EXCLUDED.design_details, last_seen=NOW()`,
       ['AVIVIT', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
-       JSON.stringify(product.colorImages || {}),
        product.pattern || null, product.fabric || null,
        product.designDetails?.length ? product.designDetails : null]
     );
@@ -653,18 +643,26 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 try {
-  const testUrl = 'https://avivit-weizman.co.il/product/%D7%97%D7%A6%D7%90%D7%99%D7%AA-%D7%A4%D7%9C%D7%99%D7%A1%D7%94-%D7%A6%D7%94%D7%95%D7%91/';
-  console.log('🧪 בדיקה על מוצר בודד:', testUrl);
-  const p = await scrapeProduct(page, testUrl);
-  if (p) {
-    console.log('\n=== תוצאות ===');
-    console.log('צבעים:', p.colors);
-    console.log('colorImages:', JSON.stringify(p.colorImages, null, 2));
-    await saveProduct(p);
-    console.log('✅ נשמר בהצלחה');
-  } else {
-    console.log('❌ לא נמצא מוצר');
+  // ביקור בדף הבית קודם — לבנות cookies ולהיראות אנושי
+  console.log('🌐 ביקור בדף הבית...');
+  await page.goto('https://avivit-weizman.co.il/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(3000);
+
+  const urls = await getAllProductUrls(page);
+  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
+
+  let ok = 0, fail = 0;
+  const MAX_PRODUCTS = 99999;
+  for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
+    console.log(`\n[${i + 1}/${urls.length}]`);
+    const p = await scrapeProduct(page, urls[i]);
+    if (p) { await saveProduct(p); ok++; } else fail++;
+    await page.waitForTimeout(400);
   }
+
+  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+  await runHealthCheck(ok, fail);
+
 } finally {
   await browser.close();
   await db.end();

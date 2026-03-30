@@ -599,7 +599,6 @@ app.get("/api/products", async (req, res) => {
     if (design) { sql += ` AND $${i++} = ANY(design_details)`; params.push(design); }
     if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
-    if (req.query.netfree === '1') { sql += ` AND image_size_bytes >= 60000`; }
 
     const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
 
@@ -1938,6 +1937,7 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
 app.get('/admin/analytics', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
+app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
 
 // ===== TAGGER API =====
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
@@ -2551,6 +2551,34 @@ app.get('/api/admin/measure-images', adminAuth, async (req, res) => {
   }
 });
 
+// ===== Scraper Config API =====
+app.get('/api/admin/scraper-config', adminAuth, async (req, res) => {
+  const { type } = req.query;
+  const q = type
+    ? `SELECT * FROM scraper_config WHERE type=$1 ORDER BY name`
+    : `SELECT * FROM scraper_config ORDER BY type, name`;
+  const r = await pool.query(q, type ? [type] : []);
+  res.json({ ok: true, items: r.rows });
+});
+
+app.post('/api/admin/scraper-config', adminAuth, async (req, res) => {
+  const { type, name, aliases = [], color_hex } = req.body;
+  if (!type || !name) return res.status(400).json({ error: 'type ו-name חובה' });
+  const r = await pool.query(
+    `INSERT INTO scraper_config (type, name, aliases, color_hex)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (type, name) DO UPDATE SET aliases=$3, color_hex=$4, updated_at=NOW()
+     RETURNING *`,
+    [type, name, aliases, color_hex || null]
+  );
+  res.json({ ok: true, item: r.rows[0] });
+});
+
+app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
+  await pool.query(`DELETE FROM scraper_config WHERE id=$1`, [req.params.id]);
+  res.json({ ok: true });
+});
+
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await ensureEmailCampaignLog();
@@ -2577,5 +2605,16 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(30) NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      aliases TEXT[] DEFAULT '{}',
+      color_hex VARCHAR(20),
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(type, name)
+    )`);
   } catch(e) { console.error('clicks table init:', e.message); }
 });

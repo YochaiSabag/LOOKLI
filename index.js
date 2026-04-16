@@ -643,13 +643,15 @@ app.get("/api/products", async (req, res) => {
     if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
 
     const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
+    const aliasMatchQ = q ? SEARCH_ALIASES[q.toLowerCase().trim()] : null;
+    const isAliasMatch = aliasMatchQ || aliasColor;
 
     if (sort === 'price_asc') {
     } else if (sort === 'price_desc') {
       sql += ` ORDER BY price DESC`;
     } else if (sort === 'popular') {
       sql += ` ORDER BY (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
-    } else if (aliasColor && q) {
+    } else if (isAliasMatch && q) {
       // כינוי צבע: מוצרים עם השם המדויק בכותרת קודם, שאר לפי id
       sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
       params.push(`%${q}%`); i++;
@@ -2624,7 +2626,6 @@ app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await ensureEmailCampaignLog();
-  await loadSearchAliases();
   // יצירת טבלת clicks אוטומטית אם לא קיימת
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS clicks (
@@ -2659,5 +2660,7 @@ app.listen(PORT, async () => {
       updated_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(type, name)
     )`);
+    // טען aliases לחיפוש אחרי שהטבלה קיימת
+    await loadSearchAliases();
   } catch(e) { console.error('clicks table init:', e.message); }
 });

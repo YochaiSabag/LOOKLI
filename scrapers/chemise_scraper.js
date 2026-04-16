@@ -17,7 +17,6 @@ await db.connect();
 console.log('🚀 Chemise Scraper');
 
 // ======================================================================
-// ======================================================================
 // מיפוי צבעים
 // ======================================================================
 const colorMap = {
@@ -26,10 +25,10 @@ const colorMap = {
   'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
   'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
   'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק', 'דשא': 'ירוק',
-  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
+  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום',
   'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
-  'beige': "בז'", 'בז': "בז'", 'nude': "בז'", 'ניוד': "בז'", 'sand': "בז'", 'taupe': "בז'",
-  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור', 'ash': 'אפור',
+  'beige': 'בז׳', 'בז': 'בז׳', 'nude': 'בז׳', 'ניוד': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
+  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור',
   'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד', 'בייבי': 'ורוד',
   'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
   'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב', 'בננה': 'צהוב', 'banana': 'צהוב',
@@ -42,13 +41,17 @@ const colorMap = {
   'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
   'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
   'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
+  'כסוף': 'כסף',
+  // חדש/מעודכן
   'מוקה': 'חום', 'moka': 'חום',
   'שזיף': 'סגול',
+  'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
   'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
   'פודרה': 'ורוד', 'powder': 'ורוד',
-  'אבן': 'אבן',
+  'אבן': 'אבן', 'stone': 'אבן',
   'בהיר': 'בהיר',
-  "גי'נס": 'כחול', "ג'ינס": 'כחול', 'jeans': 'כחול',
+  // ג'ינס בכותרת → כחול (לאביה)
+  "גי'נס": 'כחול', 'ג׳ינס': 'כחול', 'jeans': 'כחול', 'denim': 'כחול',
 };
 
 const unknownColors = new Set();
@@ -57,15 +60,19 @@ function normalizeColor(c) {
   if (!c) return null;
   const lower = c.toLowerCase().trim();
   const noSpaces = lower.replace(/[-_\s]/g, '');
+  
   if (colorMap[noSpaces]) return colorMap[noSpaces];
   if (colorMap[lower]) return colorMap[lower];
+  
   const words = lower.split(/[\s\-]+/);
   for (const word of words) {
     if (colorMap[word]) return colorMap[word];
   }
+  
   for (const [key, val] of Object.entries(colorMap)) {
     if (lower.includes(key) || key.includes(lower)) return val;
   }
+  
   unknownColors.add(c);
   return 'אחר';
 }
@@ -75,58 +82,25 @@ function normalizeColor(c) {
 // ======================================================================
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
-  '34': ['XS'], '36': ['XS', 'S'], '38': ['S', 'M'], '40': ['M', 'L'],
-  '42': ['L', 'XL'], '44': ['XL', 'XXL'], '46': ['XXL', 'XXXL'], '48': ['XXXL'], '50': ['XXXL']
+  '34': ['XS'], '36': ['XS', 'S'], '38': ['S', 'M'], '40': ['M', 'L'], '42': ['L', 'XL'], '44': ['XL', 'XXL'], '46': ['XXL', 'XXXL'], '48': ['XXXL'], '50': ['XXXL']
 };
 
 function normalizeSize(s) {
   if (!s) return [];
   const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|2?XXL|XXXL)$/i.test(val)) return [val.replace('2XL','XXL')];
+  if (/^(XS|S|M|L|XL|2?XXL|XXXL)$/i.test(val)) return [val.replace('2XL', 'XXL')];
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
   if (sizeMapping[val]) return sizeMapping[val];
   return [];
 }
 
 // ======================================================================
-// סינון מוצרים לא רלוונטיים — רק בגדי נשים בוגרות
+// UNIFIED DETECT FUNCTIONS - v2
 // ======================================================================
-const SKIP_KEYWORDS = [
-  // תכשיטים ואקססוריז
-  'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט',
-  'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
-  'גומייה','מטפחת','קשת','שעון','שיער',
-  // נעליים
-  'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
-  'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
-  // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
-  // ילדות
-  'ילדה','ילדות','ג׳וניור','junior','kids',
-  // אחר
-  'פיג׳מה','פיגמה','גרביון','גרביים','גרבי',
-];
-
-function shouldSkip(title) {
-  if (!title) return false;
-  const t = title.toLowerCase().trim();
-  return SKIP_KEYWORDS.some(k => {
-    const kl = k.toLowerCase();
-    if (kl.includes(' ')) {
-      // ביטוי של שתי מילים — חיפוש רגיל
-      return t.includes(kl);
-    }
-    // מילה בודדת — בדוק גבולות
-    const idx = t.indexOf(kl);
-    if (idx === -1) return false;
-    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
-    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
-    return before && after;
-  });
-}
 
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
+  // סדר חשוב - ספציפי קודם
   if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
   if (/סוודר|sweater/i.test(t)) return 'סוודר';
   if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
@@ -145,6 +119,8 @@ function detectCategory(title) {
   if (/סט|set/i.test(t)) return 'סט';
   if (/בייסיק|basic/i.test(t)) return 'בייסיק';
   if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
+  // מכנסיים - לא מציגים
   return null;
 }
 
@@ -265,9 +241,9 @@ async function getAllProductUrls(page) {
   const allUrls = new Set();
   
   const categories = [
-    { base: 'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 50 },
-    { base: 'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 50 },
-    { base: 'https://chemise.co.il/product-category/%d7%94%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%a9%d7%9c%d7%a0%d7%95/%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 50 },
+    { base: 'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 15 },
+    { base: 'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 5 },
+    { base: 'https://chemise.co.il/product-category/%d7%94%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%a9%d7%9c%d7%a0%d7%95/%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 5 },
   ];
   
   for (const cat of categories) {
@@ -278,7 +254,7 @@ async function getAllProductUrls(page) {
       try {
         console.log(`  → page ${p}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(2000);
         
         for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -345,51 +321,44 @@ async function scrapeProduct(page, url) {
       
       // === תמונות ===
       const images = [];
-      
-      // תמונה ראשית מ-iconic-woothumbs slide-1 (data-index="0")
-      const mainSlide = document.querySelector('.iconic-woothumbs-images__slide[data-index="0"] img, .iconic-woothumbs-images__slide-1 img');
-      if (mainSlide) {
-        const large = mainSlide.getAttribute('data-large_image');
-        if (large && !images.includes(large)) images.push(large);
-        // fallback: srcset - largest
-        if (!large) {
-          const srcset = mainSlide.getAttribute('srcset') || mainSlide.getAttribute('data-srcset') || '';
-          const parts = srcset.split(',').map(s => s.trim());
-          let best = '', bestW = 0;
-          parts.forEach(p => { const m = p.match(/(\S+)\s+(\d+)w/); if (m && parseInt(m[2]) > bestW) { bestW = parseInt(m[2]); best = m[1]; } });
-          if (best && !images.includes(best)) images.push(best);
-        }
-      }
-      
-      // שאר הסליידים (תמונות נוספות)
-      document.querySelectorAll('.iconic-woothumbs-images__slide img').forEach(img => {
-        const large = img.getAttribute('data-large_image');
-        if (large && !images.includes(large)) images.push(large);
-      });
-      
-      // תמונות משנה מ-iconic-woothumbs-thumbnails - קח גודל מלא מ-srcset
-      document.querySelectorAll('.iconic-woothumbs-thumbnails__slide img').forEach(img => {
-        const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset') || '';
+
+      // פונקציה: מחלץ את ה-URL הכי גדול מ-srcset (אלה הקבצים שבטוח קיימים בשרת)
+      function getBestSrcsetUrl(img) {
+        const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
+        if (!srcset || srcset.startsWith('data:')) return '';
         const parts = srcset.split(',').map(s => s.trim());
-        let largest = '';
-        let largestWidth = 0;
-        parts.forEach(part => {
-          const match = part.match(/(\S+)\s+(\d+)w/);
-          if (match && parseInt(match[2]) > largestWidth) {
-            largestWidth = parseInt(match[2]);
-            largest = match[1];
-          }
+        let best = '', bestW = 0;
+        parts.forEach(p => {
+          const m = p.match(/(\S+)\s+(\d+)w/);
+          if (m && parseInt(m[2]) > bestW) { bestW = parseInt(m[2]); best = m[1]; }
         });
-        if (largest && !images.includes(largest)) images.push(largest);
-        // fallback: src בלי -300x300
-        if (!largest) {
-          const src = img.src || '';
-          const fullSrc = src.replace(/-\d+x\d+\./, '.');
-          if (fullSrc && fullSrc.includes('uploads') && !images.includes(fullSrc)) images.push(fullSrc);
-        }
+        return best;
+      }
+
+      // מחלץ URL מ-img: srcset > src (אם לא data URI) > data-large_image
+      function getImgUrl(img) {
+        const srcset = getBestSrcsetUrl(img);
+        if (srcset && srcset.includes('uploads')) return srcset;
+        const src = img.getAttribute('src') || '';
+        if (src && !src.startsWith('data:') && src.includes('uploads')) return src;
+        const large = img.getAttribute('data-large_image') || '';
+        if (large && large.includes('uploads')) return large;
+        return '';
+      }
+
+      // שלב 1: סליידים אמיתיים בלבד (ללא clones) לפי data-index ייחודי
+      const seenIndexes = new Set();
+      document.querySelectorAll('.iconic-woothumbs-images__slide').forEach(slide => {
+        const idx = slide.getAttribute('data-index');
+        if (idx === null || seenIndexes.has(idx)) return; // דלג על clones
+        seenIndexes.add(idx);
+        const img = slide.querySelector('img');
+        if (!img) return;
+        const url = getImgUrl(img);
+        if (url && !images.includes(url)) images.push(url);
       });
-      
-      // fallback: WooCommerce gallery
+
+      // שלב 2: fallback — WooCommerce gallery
       if (images.length === 0) {
         document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {
           if (a.href && a.href.includes('uploads') && !images.includes(a.href)) images.push(a.href);
@@ -468,7 +437,6 @@ async function scrapeProduct(page, url) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
-    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
     
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);
@@ -609,10 +577,10 @@ async function saveProduct(product) {
   try {
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -633,7 +601,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: false, slowMo: 30 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   viewport: { width: 1920, height: 1080 }
@@ -645,7 +613,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0;
-  const MAX_PRODUCTS = 99999;
+  const MAX_PRODUCTS = 50;
   for (let i = 0; i < urls.length; i++) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     console.log(`\n[${i + 1}/${urls.length}]`);

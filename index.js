@@ -652,7 +652,7 @@ app.get("/api/products", async (req, res) => {
     } else if (sort === 'popular') {
       sql += ` ORDER BY (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
     } else if (isAliasMatch && q) {
-      // כינוי צבע: מוצרים עם השם המדויק בכותרת קודם, שאר לפי id
+      // ווריאנט: עם המילה המדויקת בכותרת קודם, אח"כ שאר הצבע/קטגוריה לפי id
       sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
       params.push(`%${q}%`); i++;
     } else {
@@ -840,7 +840,15 @@ app.post("/api/ai-search", async (req, res) => {
     if (analysis.maxPrice) { sql += ` AND price <= $${i++}`; params.push(analysis.maxPrice); }
     if (analysis.minDiscount) { sql += ` AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(analysis.minDiscount); }
 
-    sql += ` ORDER BY id DESC LIMIT 100`;
+    // מיון: ווריאנט מדויק בכותרת קודם
+    const originalQuery = query.trim();
+    const hasAlias = SEARCH_ALIASES[originalQuery.toLowerCase()];
+    if (hasAlias) {
+      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 100`;
+      params.push(`%${originalQuery}%`); i++;
+    } else {
+      sql += ` ORDER BY id DESC LIMIT 100`;
+    }
     const result = await pool.query(sql, params);
     let rows = result.rows;
     

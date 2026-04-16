@@ -2641,11 +2641,13 @@ app.post('/api/admin/scraper-config', adminAuth, async (req, res) => {
      RETURNING *`,
     [type, name, aliases, color_hex || null]
   );
+  await loadSearchAliases(); // רענון מיידי
   res.json({ ok: true, item: r.rows[0] });
 });
 
 app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
   await pool.query(`DELETE FROM scraper_config WHERE id=$1`, [req.params.id]);
+  await loadSearchAliases(); // רענון מיידי
   res.json({ ok: true });
 });
 

@@ -35,6 +35,10 @@
   .topbar-logo{font-weight:900;font-size:20px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
   .topbar-title{font-size:14px;color:var(--muted);font-weight:500}
   .topbar-sep{width:1px;height:20px;background:var(--border)}
+  .topbar-nav{display:flex;gap:6px;flex-wrap:wrap;margin-right:auto}
+  .nav-link{padding:6px 12px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;border:1px solid transparent;transition:all .15s;white-space:nowrap}
+  .nav-link:hover{color:var(--text);border-color:var(--border)}
+  .nav-link.active{background:rgba(168,85,247,.15);color:var(--accent);border-color:rgba(168,85,247,.3)}
 
   /* Layout */
   .layout{display:grid;grid-template-columns:1fr 380px;gap:24px;padding:24px 28px;max-width:1400px;margin:0 auto}
@@ -148,8 +152,15 @@
   <span class="topbar-logo">LOOKLI</span>
   <span class="topbar-sep"></span>
   <span class="topbar-title">ניהול מודעות ממומנות</span>
-  <div style="margin-right:auto;display:flex;gap:8px" id="topActions">
-    <button class="btn btn-ghost btn-sm" onclick="loadAds()">🔄 רענן</button>
+  <div class="topbar-nav">
+    <a href="/admin/analytics" class="nav-link">📊 אנליטיקס</a>
+    <a href="/admin/sponsored" class="nav-link active">🎯 ממומן</a>
+    <a href="/admin/ads" class="nav-link">📋 מודעות</a>
+    <a href="/admin/tagger" class="nav-link">🏷️ טאגר</a>
+    <a href="/admin/tasks" class="nav-link">✅ משימות</a>
+    <a href="/admin/config" class="nav-link">⚙️ הגדרות</a>
+    <a href="/admin/newsletter" class="nav-link">📧 ניוזלטר</a>
+    <a href="/" class="nav-link" target="_blank">🌐 אתר</a>
   </div>
 </div>
 

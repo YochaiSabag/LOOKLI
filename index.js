@@ -1073,6 +1073,17 @@ function analyzeQuery(query) {
     
     let matched = false;
     
+    // בדוק SEARCH_ALIASES קודם — כולל ווריאנטים מה-DB
+    if (!matched && SEARCH_ALIASES[lower]) {
+      const a = SEARCH_ALIASES[lower];
+      if (a.type === 'color' && !analysis.color) { analysis.color = a.name; matched = true; }
+      else if (a.type === 'category' && !analysis.category) { analysis.category = a.name; matched = true; }
+      else if (a.type === 'style' && !analysis.style) { analysis.style = a.name; matched = true; }
+      else if (a.type === 'fit' && !analysis.fit) { analysis.fit = a.name; matched = true; }
+      else if (a.type === 'fabric' && !analysis.fabric) { analysis.fabric = a.name; matched = true; }
+      else if (a.type === 'pattern' && !analysis.pattern) { analysis.pattern = a.name; matched = true; }
+    }
+
     // חנות
     if (!matched) {
       for (const [name, variants] of Object.entries(storeMap)) {

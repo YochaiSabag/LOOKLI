@@ -2596,6 +2596,32 @@ app.get('/api/admin/measure-images', adminAuth, async (req, res) => {
 });
 
 // ===== Scraper Config API =====
+// POST /api/admin/scraper-config/seed — מאכלס את ה-DB מהמפות הקיימות
+app.post('/api/admin/scraper-config/seed', adminAuth, async (req, res) => {
+  const allMaps = [
+    ['color',    {'שחור':['שחור','שחורה','black'],'לבן':['לבן','לבנה','white'],'כחול':['כחול','כחולה','נייבי','navy','blue','indigo','denim'],'אדום':['אדום','אדומה','red','scarlet','crimson'],'ירוק':['ירוק','ירוקה','זית','חאקי','green','olive','khaki','sage','teal','army','hunter'],'חום':['חום','חומה','brown','chocolate','coffee','קפה','mocha'],'קאמל':['קאמל','camel','cognac'],"בז'":["בז'","בז",'nude','ניוד','beige','sand','taupe'],'אפור':['אפור','אפורה','gray','grey','charcoal','slate'],'ורוד':['ורוד','ורודה','pink','coral','קורל','blush','rose','fuchsia','salmon','פודרה','powder'],'בורדו':['בורדו','burgundy','wine','maroon','cherry'],'שמנת':['שמנת','cream','ivory','ecru','vanilla'],'סגול':['סגול','סגולה','לילך','purple','lilac','lavender','violet','plum','שזיף'],'צהוב':['צהוב','צהובה','חרדל','yellow','mustard','gold','lemon'],'כתום':['כתום','כתומה','orange','rust','tangerine'],'זהב':['זהב','golden'],'כסף':['כסף','כסוף','silver'],'תכלת':['תכלת','טורקיז','turquoise','aqua','cyan','sky'],'מנטה':['מנטה','mint'],'אפרסק':['אפרסק','peach','apricot'],'אבן':['אבן','stone'],'צבעוני':['צבעוני','מולטי','multi','multicolor','ססגוני']}],
+    ['category', {'שמלה':['שמלה','שמלת','dress'],'חולצה':['חולצה','חולצת','טופ','top','shirt','blouse'],'חצאית':['חצאית','skirt'],'קרדיגן':['קרדיגן','cardigan'],'סוודר':['סוודר','sweater'],'טוניקה':['טוניקה','tunic'],'סרפן':['סרפן','pinafore'],"ז׳קט":["ז׳קט","ג׳קט",'jacket'],'בלייזר':['בלייזר','blazer'],'וסט':['וסט','vest'],'עליונית':['עליונית','שכמיה','cape'],'מעיל':['מעיל','coat'],'אוברול':['אוברול','jumpsuit'],'סט':['סט','set'],'בייסיק':['בייסיק','basic'],'חלוק':['חלוק','robe']}],
+    ['style',    {'ערב':['ערב','שבת','שבתי','אירוע','חגיגי','אלגנט','elegant'],'יום חול':['יומיומי','יומיומית','קז׳ואל','casual'],'חגיגי':['חגיגי','חגיגית'],'אלגנטי':['אלגנט','אלגנטי'],'קלאסי':['קלאסי','קלאסית'],'מינימליסטי':['מינימליסט','מינימליסטי'],'מודרני':['מודרני','מודרנית'],'רטרו':['רטרו',"וינטג׳"],'אוברסייז':['אוברסייז','oversize']}],
+    ['fit',      {'ארוכה':['מקסי','ארוכה','ארוך','maxi'],'מידי':['מידי','midi','אמצע'],'קצרה':['קצרה','קצר','מיני','mini'],'מעטפת':['מעטפת','wrap'],'צמודה':['צמוד','צמודה','fitted','bodycon'],'ישרה':['ישרה','straight'],'מתרחבת':['מתרחב','מתרחבת','flare'],'אוברסייז':['אוברסייז','oversize'],'הריון':['הריון','maternity'],'הנקה':['הנקה','nursing']}],
+    ['fabric',   {'סריג':['סריג','knit'],"ג׳רסי":["ג׳רסי",'גרסי','jersey'],'שיפון':['שיפון','chiffon'],'קרפ':['קרפ','crepe'],'סאטן':['סאטן','satin'],'קטיפה':['קטיפה','velvet'],'פליז':['פליז','fleece'],'תחרה':['תחרה','lace'],'טול':['טול','tulle'],'לייקרה':['לייקרה','lycra'],'כותנה':['כותנה','cotton'],'פשתן':['פשתן','linen'],'משי':['משי','silk'],'צמר':['צמר','wool'],'ריקמה':['ריקמה','רקומה','embroidery']}],
+    ['pattern',  {'פסים':['פסים','stripes'],'פרחוני':['פרחוני','פרחים','floral'],'משבצות':['משבצות','plaid','check'],'נקודות':['נקודות','dots','polka'],'חלק':['חלק','plain','solid'],'הדפס':['הדפס','print','מודפס']}],
+  ];
+  let inserted = 0, skipped = 0;
+  for (const [type, map] of allMaps) {
+    for (const [name, aliases] of Object.entries(map)) {
+      try {
+        const r = await pool.query(
+          `INSERT INTO scraper_config (type, name, aliases) VALUES ($1,$2,$3) ON CONFLICT (type, name) DO NOTHING`,
+          [type, name, aliases]
+        );
+        if (r.rowCount > 0) inserted++; else skipped++;
+      } catch(e) { skipped++; }
+    }
+  }
+  await loadSearchAliases();
+  res.json({ ok: true, inserted, skipped });
+});
+
 app.get('/api/admin/scraper-config', adminAuth, async (req, res) => {
   const { type } = req.query;
   const q = type

@@ -1,2520 +1,2713 @@
-<!DOCTYPE html>
+console.log("BOOT DEBUG ROUTE VERSION 1");
+import express from "express";
+import pkg from "pg";
+import path from "path";
+import { fileURLToPath } from "url";
+import { createHmac, randomBytes } from "crypto";
+import { GoogleAuth } from "google-auth-library";
+import rateLimit from "express-rate-limit";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const { Pool } = pkg;
+const app = express();
+app.set('trust proxy', 1); // Railway רץ מאחורי proxy
+
+// Google Sign In — דורש COOP מסוים
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
+// ===== Rate Limiting =====
+// API כללי — 100 בקשות לדקה
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'יותר מדי בקשות — נסה שוב בעוד דקה' }
+});
+
+// חיפוש — 30 בקשות לדקה
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'יותר מדי חיפושים — נסה שוב בעוד דקה' }
+});
+
+// login/register — 10 ניסיונות לדקה (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  message: { error: 'יותר מדי ניסיונות כניסה — נסה שוב בעוד דקה' }
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/products', searchLimiter);
+app.use('/api/ai-search', searchLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// ===== הגנת API =====
+
+// חסימת בוטים ידועים
+const BOT_AGENTS = ['python-requests', 'scrapy', 'wget', 'curl/', 'go-http', 'java/', 'okhttp', 'axios/0', 'node-fetch', 'httpx'];
+app.use('/api/', (req, res, next) => {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  if (BOT_AGENTS.some(b => ua.includes(b))) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  next();
+});
+
+// Origin check — רק lookli.co.il יכול לקרוא לAPI
+app.use('/api/', (req, res, next) => {
+  // דלג על admin routes
+  if (req.path.startsWith('/admin')) return next();
+  const origin = req.headers.origin || '';
+  const referer = req.headers.referer || '';
+  const allowed = ['lookli.co.il', 'www.lookli.co.il', 'lookli-production.up.railway.app', 'localhost'];
+  const isAllowed = !origin || allowed.some(d => origin.includes(d)) || allowed.some(d => referer.includes(d));
+  if (!isAllowed) return res.status(403).json({ error: 'Access denied' });
+  next();
+});
+
+// ===== SEO helpers (robots.txt + sitemap.xml) =====
+const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
+
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain");
+  res.send(`User-agent: *
+Allow: /
+Sitemap: ${SITE_URL}/sitemap.xml
+`);
+});
+
+// ================================================
+
+app.get("/api/debug/version", (req, res) => {
+  res.json({
+    version: "v1-debug-2026-02-06-01",
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+  });
+});
+const PORT = process.env.PORT || 3000;
+
+// Database connection - supports both DATABASE_URL and individual vars
+// Database connection (Railway/Prod MUST use DATABASE_URL)
+const connStr = process.env.DATABASE_URL;
+
+if (!connStr) {
+  // Fail fast so we never silently connect to localhost in Railway
+  throw new Error("DATABASE_URL is missing. Set it in Railway > LOOKLI > Variables.");
+}
+
+const useSSL = connStr.includes("proxy.rlwy.net") || connStr.includes("rlwy.net");
+
+const pool = new Pool({
+  connectionString: connStr,
+  ssl: useSSL ? { rejectUnauthorized: false } : undefined,
+});
+
+app.use(express.json());
+
+// ===== נעילת אתר — רק דרך קישור זמני =====
+const SITE_LOCKED = process.env.SITE_LOCKED === 'true';
+
+async function isValidPreviewToken(token) {
+  if (!token) return false;
+  try {
+    const r = await pool.query(
+      `SELECT 1 FROM preview_tokens WHERE token=$1 AND expires_at > NOW()`,
+      [token]
+    );
+    return r.rows.length > 0;
+  } catch(e) { return false; }
+}
+
+if (SITE_LOCKED) {
+  app.use(async (req, res, next) => {
+    if (
+      req.path.startsWith('/admin') ||
+      req.path.startsWith('/api/') ||
+      req.path.match(/\.(js|css|png|jpg|svg|ico|webp|woff2?)$/)
+    ) return next();
+
+    const cookieToken = (req.headers.cookie || '').match(/preview_token=([a-f0-9]+)/)?.[1];
+    const queryToken = req.query.preview;
+    const token = queryToken || cookieToken;
+
+    if (token && await isValidPreviewToken(token)) {
+      if (queryToken) {
+        // קרא את תוקף הטוקן מה-DB לcookie
+        const r = await pool.query(`SELECT expires_at FROM preview_tokens WHERE token=$1`, [token]);
+        const maxAge = r.rows[0] ? Math.floor((new Date(r.rows[0].expires_at) - Date.now()) / 1000) : 86400;
+        res.setHeader('Set-Cookie', `preview_token=${token}; Path=/; Max-Age=${maxAge}`);
+      }
+      return next();
+    }
+
+    res.status(403).send(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>LOOKLI</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0f;color:#f1f0ff;text-align:center}.box{padding:40px}.logo{font-size:32px;font-weight:900;background:linear-gradient(135deg,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}.msg{color:#6b7280;font-size:15px}</style></head><body><div class="box"><div class="logo">LOOKLI</div><div class="msg">האתר בשלבי בנייה — נחזור בקרוב ✨</div></div></body></html>`);
+  });
+}
+
+// sitemap.xml דינמי — חייב לפני express.static
+app.get("/sitemap.xml", async (req, res) => {
+  try {
+    const base = process.env.SITE_URL || 'https://lookli.co.il';
+    const products = await pool.query(
+      `SELECT id, title, last_seen FROM products WHERE title IS NOT NULL ORDER BY last_seen DESC`
+    );
+
+    const staticUrls = [
+      { loc: `${base}/`, priority: '1.0', changefreq: 'daily' },
+      { loc: `${base}/about.html`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${base}/contact.html`, priority: '0.5', changefreq: 'monthly' },
+    ];
+
+    const productUrls = products.rows.map(p => {
+      const slug = (p.title || '').trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g, '')
+        .toLowerCase()
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/, '');
+      const lastmod = p.last_seen ? new Date(p.last_seen).toISOString().split('T')[0] : '';
+      return { loc: `${base}/product/${slug || p.id}`, priority: '0.8', changefreq: 'weekly', lastmod };
+    });
+
+    const allUrls = [...staticUrls, ...productUrls];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${allUrls.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    ${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(xml);
+  } catch (err) {
+    console.error('sitemap error:', err.message);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
+app.use(express.static(path.join(__dirname, "public"), {
+  maxAge: '7d',        // תמונות, CSS, JS — cache שבוע
+  etag: true,
+  setHeaders: (res, filePath) => {
+    // index.html — אל תכניס לcache (תמיד עדכני)
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
+// שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// SPA route — מוצר לפי slug או ID (עם SSR למטא-טאגים)
+app.get("/product/:slug", async (req, res) => {
+  const slug = req.params.slug;
+  try {
+    // חפש מוצר לפי ID או slug
+    let product = null;
+    if (/^\d+$/.test(slug)) {
+      const r = await pool.query('SELECT * FROM products WHERE id=$1', [parseInt(slug)]);
+      product = r.rows[0];
+    } else {
+      const r = await pool.query(
+        `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+        [slug.toLowerCase()]
+      );
+      product = r.rows[0];
+    }
+
+    if (!product) return res.sendFile(path.join(__dirname, "public", "index.html"));
+
+    // בנה HTML עם OG tags מלאים
+    const base = process.env.SITE_URL || 'https://www.lookli.co.il';
+    const title = product.title || 'מוצר';
+    const desc = product.description || `${title} ב-${product.store} — ₪${product.price}`;
+    const img = (product.images?.[0]) || product.image_url || '';
+    const url = `${base}/product/${slug}`;
+
+    const html = await res.sendFile(path.join(__dirname, "public", "index.html"), {}, async (err) => {});
+
+    // קרא את ה-index.html והזרק meta tags
+    const fs = await import('fs');
+    let indexHtml = fs.readFileSync(path.join(__dirname, "public", "index.html"), 'utf8');
+    indexHtml = indexHtml.replace(
+      '</head>',
+      `<meta property="og:title" content="${title} – LOOKLI"/>
+<meta property="og:description" content="${desc.substring(0,200)}"/>
+<meta property="og:image" content="${img}"/>
+<meta property="og:url" content="${url}"/>
+<meta property="og:type" content="product"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="${title} – LOOKLI"/>
+<meta name="twitter:image" content="${img}"/>
+<title>${title} – LOOKLI</title>
+</head>`
+    );
+    res.send(indexHtml);
+  } catch(err) {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  }
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Image Proxy — מגיש תמונות חיצוניות עם cache (מאיץ נייד)
+app.get("/img", async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).send('Missing url');
+  try {
+    // וודא שה-URL מאתר מותר
+    const allowed = ['mekimi.co.il','lichi-shop.com','wixstatic.com','aviyahyosef.com',
+                     'chemise.co.il','ordman.co.il','rare.co.il','avivit-weizman.co.il',
+                     'cdn.2all.co.il','amazonaws.com','wp-content'];
+    const isAllowed = allowed.some(d => url.includes(d));
+    if (!isAllowed) return res.status(403).send('Not allowed');
+
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return res.status(imgRes.status).send('Failed');
+
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800'); // cache שבוע
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(buffer);
+  } catch(e) {
+    res.status(500).send('Error');
+  }
+});
+
+const validColors = ['שחור', 'לבן', 'שמנת', 'כחול', 'תכלת', 'נייבי', 'אדום', 'בורדו', 'ירוק', 'זית', 'חאקי', 'חום', 'קאמל', 'בז׳', 'ניוד', 'אפור', 'ורוד', 'סגול', 'לילך', 'צהוב', 'חרדל', 'כתום', 'זהב', 'כסף', 'פרחוני', 'צבעוני', 'מנטה', 'אפרסק', 'אבן', 'בהיר', 'אחר'];
+
+const shippingInfo = {
+  'MEKIMI': { cost: 25, threshold: 300 },
+  'LICHI': { cost: 30, threshold: 350 },
+  'MIMA': { cost: 30, threshold: 450 },
+  'AVIYAH': { cost: 30, threshold: 500 },
+  'CHEMISE': { cost: 30, threshold: 350 }
+};
+
+function calculateShipping(store, price) {
+  const info = shippingInfo[store] || { cost: 30, threshold: 300 };
+  const isFree = price >= info.threshold;
+  return { cost: isFree ? 0 : info.cost, isFree, threshold: info.threshold };
+}
+
+app.get("/api/filters", async (req, res) => {
+  try {
+    const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
+    let baseWhere = '1=1';
+    const baseParams = [];
+    let paramIndex = 1;
+    
+    if (store) { baseWhere += ` AND store = $${paramIndex++}`; baseParams.push(store); }
+    if (category) { 
+      const cats = category.split(',').filter(Boolean);
+      if (cats.length === 1) {
+        baseWhere += ` AND (category = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(cats[0], `%${cats[0]}%`); paramIndex += 2;
+      } else {
+        baseWhere += ` AND category = ANY($${paramIndex}::text[])`; baseParams.push(cats); paramIndex++;
+      }
+    }
+    if (style) { 
+      const styles = style.split(',').filter(Boolean);
+      if (styles.length > 1) {
+        baseWhere += ` AND style = ANY($${paramIndex}::text[])`; baseParams.push(styles); paramIndex++;
+      } else if (styles[0] === 'יום חול') {
+        baseWhere += ` AND (style = $${paramIndex} OR style = 'יומיומי' OR title ILIKE '%יום חול%' OR title ILIKE '%יומיומי%' OR title ILIKE '%יום יום%' OR description ILIKE '%יום חול%' OR description ILIKE '%יומיומי%')`;
+        baseParams.push(styles[0]); paramIndex++;
+      } else if (styles[0] === 'שבת/ערב') {
+        baseWhere += ` AND (style IN ('ערב','חגיגי','אלגנטי','שבת') OR title ILIKE '%שבת%' OR title ILIKE '%ערב%' OR title ILIKE '%חגיג%' OR title ILIKE '%אלגנט%')`;
+      } else {
+        baseWhere += ` AND (style = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(styles[0], `%${styles[0]}%`); paramIndex += 2;
+      }
+    }
+    if (fit) {
+      const fits = fit.split(',').filter(Boolean);
+      if (fits.length > 1) {
+        baseWhere += ` AND fit = ANY($${paramIndex}::text[])`; baseParams.push(fits); paramIndex++;
+      } else if (fits[0] === '\u05d0\u05e8\u05d5\u05db\u05d4') {
+        baseWhere += ` AND (fit = $${paramIndex} OR fit = '\u05d0\u05e8\u05d5\u05da' OR title ILIKE '%\u05de\u05e7\u05e1\u05d9%' OR title ILIKE '%maxi%')`;
+        baseParams.push(fits[0]); paramIndex++;
+      } else if (fits[0] === '\u05de\u05d9\u05d3\u05d9') {
+        baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE '%\u05de\u05d9\u05d3\u05d9%' OR title ILIKE '%midi%' OR title ILIKE '%\u05d0\u05de\u05e6\u05e2%')`;
+        baseParams.push(fits[0]); paramIndex++;
+      } else {
+        baseWhere += ` AND (fit = $${paramIndex} OR title ILIKE $${paramIndex + 1})`;
+        baseParams.push(fits[0], `%${fits[0]}%`); paramIndex += 2;
+      }
+    }
+    if (color) { 
+      const LIGHT_COLORS = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      let colors = color.split(',').filter(Boolean);
+      // "בהיר" → הרחב לכל הצבעים הבהירים
+      if (colors.includes('בהיר')) {
+        colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS])];
+      }
+      if (colors.length === 1) {
+        baseWhere += ` AND (color = $${paramIndex} OR $${paramIndex} = ANY(colors))`; baseParams.push(colors[0]); paramIndex++;
+      } else {
+        baseWhere += ` AND (color = ANY($${paramIndex}::text[]) OR colors && $${paramIndex}::text[])`; baseParams.push(colors); paramIndex++;
+      }
+    }
+    if (size) { 
+      const sizes = size.split(',').filter(Boolean);
+      if (sizes.length === 1) {
+        baseWhere += ` AND $${paramIndex} = ANY(sizes)`; baseParams.push(sizes[0]); paramIndex++;
+      } else {
+        baseWhere += ` AND sizes && $${paramIndex}::text[]`; baseParams.push(sizes); paramIndex++;
+      }
+    }
+    
+    const [storesRes, sizesRes, colorsRes, stylesRes, fitsRes, categoriesRes, maxPriceRes, patternsRes, fabricsRes, designRes] = await Promise.all([
+      pool.query(`SELECT DISTINCT store FROM products WHERE ${baseWhere} AND store IS NOT NULL ORDER BY store`, baseParams),
+      pool.query(`SELECT DISTINCT unnest(sizes) AS size FROM products WHERE ${baseWhere} AND sizes IS NOT NULL`, baseParams),
+      pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`, [...baseParams, ...baseParams]),
+      pool.query(`SELECT DISTINCT style FROM products WHERE ${baseWhere} AND style IS NOT NULL AND style != '' ORDER BY style`, baseParams),
+      pool.query(`SELECT DISTINCT fit FROM products WHERE ${baseWhere} AND fit IS NOT NULL AND fit != '' ORDER BY fit`, baseParams),
+      pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`, baseParams),
+      pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`, baseParams),
+      pool.query(`SELECT DISTINCT pattern FROM products WHERE ${baseWhere} AND pattern IS NOT NULL AND pattern != '' ORDER BY pattern`, baseParams),
+      pool.query(`SELECT DISTINCT fabric FROM products WHERE ${baseWhere} AND fabric IS NOT NULL AND fabric != '' ORDER BY fabric`, baseParams),
+      pool.query(`SELECT DISTINCT unnest(design_details) AS detail FROM products WHERE ${baseWhere} AND design_details IS NOT NULL`, baseParams)
+    ]);
+
+    const validColorSet = new Set(validColors);
+    res.json({
+      stores: storesRes.rows.map(r => r.store).filter(Boolean),
+      sizes: sizesRes.rows.map(r => r.size).filter(Boolean),
+      colors: colorsRes.rows.map(r => r.color).filter(c => c && validColorSet.has(c)),
+      styles: stylesRes.rows.map(r => r.style).filter(Boolean),
+      fits: fitsRes.rows.map(r => r.fit).filter(Boolean),
+      categories: categoriesRes.rows.map(r => r.category).filter(Boolean),
+      patterns: patternsRes.rows.map(r => r.pattern).filter(Boolean),
+      fabrics: fabricsRes.rows.map(r => r.fabric).filter(Boolean),
+      designs: designRes.rows.map(r => r.detail).filter(Boolean),
+      maxPrice: Math.ceil(parseFloat(maxPriceRes.rows[0]?.max_price) || 500)
+    });
+  } catch (err) {
+    console.error("filters error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+// מיפוי מידות מספריות -> אוניברסליות (כמו בסקרייפר)
+const sizeMapping = {
+  '34': ['XS'], '36': ['XS', 'S'], '38': ['S', 'M'], '40': ['M', 'L'],
+  '42': ['L', 'XL'], '44': ['XL', 'XXL'], '46': ['XXL', 'XXXL'], '48': ['XXXL']
+};
+
+function expandSize(size) {
+  if (!size) return [size];
+  const mapped = sizeMapping[size];
+  if (mapped) return mapped;
+  return [size];
+}
+
+// מילון כינויי צבעים — שם נרדף → צבע נורמלי ב-DB
+const COLOR_ALIASES = {
+  'מוקה': 'חום', 'moka': 'חום', 'mocha': 'חום', 'קפה': 'חום', 'שוקולד': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
+  'קאמל': 'קאמל', 'cognac': 'קאמל',
+  'ניוד': 'בז׳', 'nude': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
+  'נייבי': 'כחול', 'navy': 'כחול', 'cobalt': 'כחול', 'indigo': 'כחול', 'דנים': 'כחול', 'denim': 'כחול',
+  'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו',
+  'שמנת': 'שמנת', 'ivory': 'שמנת', 'ecru': 'שמנת', 'cream': 'שמנת', 'vanilla': 'שמנת',
+  'לילך': 'סגול', 'lavender': 'סגול', 'lilac': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
+  'קורל': 'ורוד', 'coral': 'ורוד', 'salmon': 'ורוד', 'blush': 'ורוד', 'פודרה': 'ורוד', 'powder': 'ורוד',
+  'חרדל': 'צהוב', 'mustard': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב',
+  'זית': 'ירוק', 'olive': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'חאקי': 'ירוק', 'khaki': 'ירוק',
+  'פוקסיה': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד',
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  'מנטה': 'מנטה', 'mint': 'מנטה',
+  'טורקיז': 'תכלת', 'turquoise': 'תכלת', 'aqua': 'תכלת',
+  'ראסט': 'כתום', 'rust': 'כתום', 'tangerine': 'כתום',
+  'אבן': 'אבן', 'stone': 'אבן',
+  'שזיף': 'סגול',
+  'זהב': 'זהב', 'golden': 'זהב',
+  'כסף': 'כסף', 'silver': 'כסף',
+};
+
+// מפת כינויים לכל הקטגוריות (נטענת מ-DB בהפעלה)
+let SEARCH_ALIASES = {}; // alias → { name, type }
+
+async function loadSearchAliases() {
+  try {
+    const r = await pool.query(`SELECT type, name, aliases FROM scraper_config WHERE aliases IS NOT NULL`);
+    r.rows.forEach(row => {
+      (row.aliases || []).forEach(alias => {
+        const key = alias.toLowerCase().trim();
+        if (!SEARCH_ALIASES[key]) SEARCH_ALIASES[key] = { name: row.name, type: row.type };
+      });
+      // גם השם עצמו
+      SEARCH_ALIASES[row.name.toLowerCase()] = { name: row.name, type: row.type };
+    });
+    // הוסף גם COLOR_ALIASES
+    Object.entries(COLOR_ALIASES).forEach(([alias, name]) => {
+      if (!SEARCH_ALIASES[alias.toLowerCase()]) SEARCH_ALIASES[alias.toLowerCase()] = { name, type: 'color' };
+    });
+    console.log(`✅ SEARCH_ALIASES נטען: ${Object.keys(SEARCH_ALIASES).length} כינויים`);
+  } catch(e) {
+    console.log('⚠️ loadSearchAliases:', e.message);
+  }
+}
+
+
+app.get("/api/products", async (req, res) => {
+  try {
+    const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    const params = [];
+    let i = 1;
+
+    // סינון אקססוריז - לא מציגים גומיות שיער וכדומה
+    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;
+    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
+
+    if (q) {
+      const qLower = q.toLowerCase().trim();
+      const aliasColor = COLOR_ALIASES[qLower] || COLOR_ALIASES[q];
+      const aliasMatch = SEARCH_ALIASES[qLower];
+
+      if (aliasMatch && aliasMatch.type === 'color') {
+        sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'category') {
+        sql += ` AND (title ILIKE $${i} OR category = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'style') {
+        sql += ` AND (title ILIKE $${i} OR style = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'fit') {
+        sql += ` AND (title ILIKE $${i} OR fit = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'fabric') {
+        sql += ` AND (title ILIKE $${i} OR fabric = $${i+1} OR description ILIKE $${i})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'pattern') {
+        sql += ` AND (title ILIKE $${i} OR pattern = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasColor) {
+        sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
+        params.push(`%${q}%`, aliasColor); i += 2;
+      } else {
+        sql += ` AND title ILIKE $${i++}`;
+        params.push(`%${q}%`);
+      }
+    }
+    
+    if (color) { 
+      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      let colors = color.split(',').filter(Boolean);
+      if (colors.includes('בהיר')) {
+        colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS2])];
+      }
+      if (colors.length === 1) {
+        sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++;
+      } else {
+        sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`;
+        params.push(colors); i++;
+      }
+    }
+    if (size) {
+      const sizes = size.split(',').filter(Boolean);
+      if (sizes.length === 1) {
+        const expandedSizes = expandSize(sizes[0]);
+        if (expandedSizes.length === 1) {
+          sql += ` AND $${i} = ANY(sizes)`;
+          params.push(expandedSizes[0]); i++;
+        } else {
+          sql += ` AND sizes && $${i}::text[]`;
+          params.push(expandedSizes); i++;
+        }
+      } else {
+        // Multi-select: expand all sizes and combine  
+        const allExpanded = [];
+        sizes.forEach(s => expandSize(s).forEach(es => { if (!allExpanded.includes(es)) allExpanded.push(es); }));
+        sql += ` AND sizes && $${i}::text[]`;
+        params.push(allExpanded); i++;
+        console.log('[multi-size] expanded:', allExpanded, 'from:', sizes);
+      }
+    }
+    if (store) { sql += ` AND store = $${i++}`; params.push(store); }
+    if (style) { 
+      const styles = style.split(',').filter(Boolean);
+      if (styles.length === 1) {
+        const s = styles[0];
+        if (s === '\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc') {
+          sql += ` AND (style = $${i} OR style = '\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR title ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d9\u05d5\u05dd%' OR description ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR description ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%')`;
+          params.push(s); i++;
+        } else if (s === '\u05e9\u05d1\u05ea/\u05e2\u05e8\u05d1') {
+          sql += ` AND (style IN ('\u05e2\u05e8\u05d1','\u05d7\u05d2\u05d9\u05d2\u05d9','\u05d0\u05dc\u05d2\u05e0\u05d8\u05d9','\u05e9\u05d1\u05ea') OR title ILIKE '%\u05e9\u05d1\u05ea%' OR title ILIKE '%\u05e2\u05e8\u05d1%' OR title ILIKE '%\u05d7\u05d2\u05d9\u05d2%' OR title ILIKE '%\u05d0\u05dc\u05d2\u05e0\u05d8%')`;
+        } else {
+          sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(s, `%${s}%`); i += 2;
+        }
+      } else {
+        const orParts = styles.map((_, idx) => `style = $${i + idx} OR title ILIKE $${i + styles.length + idx}`);
+        sql += ` AND (${orParts.join(' OR ')})`;
+        styles.forEach(s2 => params.push(s2));
+        styles.forEach(s2 => params.push(`%${s2}%`));
+        i += styles.length * 2;
+      }
+    }
+    if (fit) { 
+      const fits = fit.split(',').filter(Boolean);
+      if (fits.length === 1) {
+        const f = fits[0];
+        if (f === 'ארוכה') {
+          sql += ` AND (fit = $${i} OR fit = 'ארוך' OR title ILIKE '%מקסי%' OR title ILIKE '%maxi%')`;
+          params.push(f); i++;
+        } else if (f === 'מידי') {
+          sql += ` AND (fit = $${i} OR title ILIKE '%מידי%' OR title ILIKE '%midi%' OR title ILIKE '%אמצע%')`;
+          params.push(f); i++;
+        } else {
+          sql += ` AND (fit = $${i} OR title ILIKE $${i+1})`;
+          params.push(f, `%${f}%`); i += 2;
+        }
+      } else {
+        const orParts = fits.map((_, idx) => `fit = $${i + idx} OR title ILIKE $${i + fits.length + idx}`);
+        sql += ` AND (${orParts.join(' OR ')})`;
+        fits.forEach(f2 => params.push(f2));
+        fits.forEach(f2 => params.push(`%${f2}%`));
+        i += fits.length * 2;
+      }
+    }
+    if (category) {
+      const cats = category.split(',').filter(Boolean);
+      if (cats.length === 1) {
+        const cat = cats[0];
+        if (cat === '\u05d7\u05dc\u05d5\u05e7') {
+          sql += ` AND (category = $${i} OR title ILIKE $${i+1} OR title ILIKE '%\u05d0\u05d9\u05e8\u05d5\u05d7%')`;
+          params.push(cat, `%${cat}%`); i += 2;
+        } else {
+          sql += ` AND (category = $${i} OR title ILIKE $${i+1})`;
+          params.push(cat, `%${cat}%`); i += 2;
+        }
+      } else {
+        // Multi-select: OR logic - category matches any, or title contains any
+        const orParts = cats.map((_, idx) => `category = $${i + idx} OR title ILIKE $${i + cats.length + idx}`);
+        sql += ` AND (${orParts.join(' OR ')})`;
+        cats.forEach(c => params.push(c));
+        cats.forEach(c => params.push(`%${c}%`));
+        i += cats.length * 2;
+      }
+    }
+    if (fabric) { 
+      const fabrics = fabric.split(',').filter(Boolean);
+      if (fabrics.length === 1) {
+        sql += ` AND (fabric = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(fabrics[0], `%${fabrics[0]}%`); i += 2;
+      } else {
+        sql += ` AND (fabric = ANY($${i}::text[]))`;
+        params.push(fabrics); i++;
+      }
+    }
+    if (pattern) { 
+      if (pattern === '\u05d7\u05dc\u05e7') {
+        sql += ` AND (pattern = $${i})`; params.push(pattern); i++;
+      } else {
+    if (pattern) { 
+      if (pattern === 'חלק') {
+        sql += ` AND (pattern = $${i} OR title ~* $${i+1} OR description ~* $${i+1})`; 
+        params.push(pattern, '(^|\\s)חלק(ה?)($|\\s|\\.)'); i += 2;
+      } else {
+        sql += ` AND (pattern = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(pattern, `%${pattern}%`); i += 2;
+      }
+    }
+      }
+    }
+    if (design) { sql += ` AND $${i++} = ANY(design_details)`; params.push(design); }
+    if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
+    if (minDiscount) { sql += ` AND original_price IS NOT NULL AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(Number(minDiscount)); }
+
+    const aliasColor = q ? (COLOR_ALIASES[q.toLowerCase().trim()] || COLOR_ALIASES[q]) : null;
+    const aliasMatchQ = q ? SEARCH_ALIASES[q.toLowerCase().trim()] : null;
+    const isAliasMatch = aliasMatchQ || aliasColor;
+
+    if (sort === 'price_asc') {
+    } else if (sort === 'price_desc') {
+      sql += ` ORDER BY price DESC`;
+    } else if (sort === 'popular') {
+      sql += ` ORDER BY (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
+    } else if (isAliasMatch && q) {
+      // ווריאנט: עם המילה המדויקת בכותרת קודם, אח"כ שאר הצבע/קטגוריה לפי id
+      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
+      params.push(`%${q}%`); i++;
+    } else {
+      sql += ` ORDER BY (id % 7), id DESC`;
+    }
+    sql += ` LIMIT 2000`;
+
+    const result = await pool.query(sql, params);
+    let rows = result.rows;
+    
+    // סינון color+size ב-JS: אם שניהם צוינו, נבדוק ב-color_sizes שהצבע זמין במידה
+    if (color && size) {
+      const sizeList = size.split(',').filter(Boolean);
+      const allExpandedSizes = [];
+      sizeList.forEach(s => expandSize(s).forEach(es => { if (!allExpandedSizes.includes(es)) allExpandedSizes.push(es); }));
+      const colorList = color.split(',').filter(Boolean);
+      rows = rows.filter(p => {
+        if (!p.color_sizes) return true; // אין מידע - מציג
+        try {
+          const cs = typeof p.color_sizes === 'string' ? JSON.parse(p.color_sizes) : p.color_sizes;
+          if (!cs || Object.keys(cs).length === 0) return true;
+          // Check if ANY selected color has ANY selected size
+          return colorList.some(c => {
+            const colorSizes = cs[c];
+            if (!colorSizes) return false;
+            return allExpandedSizes.some(sz => colorSizes.includes(sz));
+          });
+        } catch(e) { return true; }
+      });
+    }
+    
+    res.json(rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+  } catch (err) {
+    console.error("products error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+// API — מוצר לפי slug (כותרת מנורמלת)
+app.get("/api/product/slug/:slug", async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    // נסה קודם לפי ID אם ה-slug הוא מספר
+    if (/^\d+$/.test(slug)) {
+      const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [parseInt(slug)]);
+      if (result.rows.length) {
+        const product = result.rows[0];
+        product.shipping = calculateShipping(product.store, product.price);
+        return res.json(product);
+      }
+    }
+    // חפש לפי slug — השווה את ה-title מנורמל
+    const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [0]); // placeholder
+    // חיפוש אמיתי — title → slug
+    const all = await pool.query(
+      `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+      [slug.toLowerCase()]
+    );
+    if (!all.rows.length) return res.status(404).json({ error: "Not found" });
+    const product = all.rows[0];
+    product.shipping = calculateShipping(product.store, product.price);
+    res.json(product);
+  } catch (err) {
+    console.error("slug error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+app.get("/api/product/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Not found" });
+    const product = result.rows[0];
+    product.shipping = calculateShipping(product.store, product.price);
+    res.json(product);
+  } catch (err) {
+    console.error("product error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+// מוצרים דומים — דירוג לפי תאימות שדות
+app.get("/api/similar/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+    const src = await pool.query(
+      `SELECT id, category, color, colors, style, fit, store, price, pattern, fabric, design_details FROM products WHERE id = $1`,
+      [id]
+    );
+    if (!src.rows.length) return res.status(404).json({ error: "Not found" });
+    const p = src.rows[0];
+
+    if (!p.category) return res.json([]);
+
+    const candidates = await pool.query(
+      `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, pattern, fabric, design_details
+       FROM products
+       WHERE id != $1 AND category = $2
+       ORDER BY RANDOM()
+       LIMIT 120`,
+      [id, p.category]
+    );
+
+    const pColors = [p.color, ...(p.colors||[])].filter(Boolean);
+    const pDesign = p.design_details || [];
+
+    const scored = candidates.rows.map(c => {
+      let score = 4; // קטגוריה זהה = בסיס
+      const cColors = [c.color, ...(c.colors||[])].filter(Boolean);
+      if (pColors.some(col => cColors.includes(col))) score += 3; // צבע
+      if (p.style && c.style === p.style) score += 2;             // סגנון
+      if (p.fit && c.fit === p.fit) score += 2;                   // גזרה
+      if (p.pattern && c.pattern === p.pattern) score += 2;       // דוגמה
+      if (p.fabric && c.fabric === p.fabric) score += 1;          // סוג בד
+      const cDesign = c.design_details || [];
+      const sharedDesign = pDesign.filter(d => cDesign.includes(d)).length;
+      score += sharedDesign;                                        // עיצוב
+      if (c.store !== p.store) score += 0.5;                       // גיוון חנויות
+      return { ...c, score };
+    }).filter(c => c.score >= 8); // מינימום 8 נקודות — קטגוריה + צבע + עוד משהו
+
+    if (!scored.length) return res.json([]);
+
+    scored.sort((a, b) => b.score - a.score);
+
+    // גיוון חנויות — מקסימום 1 מוצר לחנות, אלא אם אין ברירה
+    const storeSeen = {};
+    const diverse = [];
+    const leftovers = [];
+    for (const item of scored) {
+      if (!storeSeen[item.store]) {
+        storeSeen[item.store] = 1;
+        diverse.push(item);
+      } else {
+        leftovers.push(item);
+      }
+      if (diverse.length === 4) break;
+    }
+    // אם פחות מ-4 — מלא מהשאריות
+    const result = diverse.length < 4
+      ? [...diverse, ...leftovers.slice(0, 4 - diverse.length)]
+      : diverse;
+
+    res.json(result.slice(0,4).map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+  } catch (err) {
+    console.error("similar error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+app.post("/api/ai-search", async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
+    const analysis = analyzeQuery(query);
+    
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    const params = [];
+    let i = 1;
+
+    if (analysis.keywords.length > 0) { sql += ` AND title ILIKE $${i++}`; params.push(`%${analysis.keywords.join(' ')}%`); }
+    if (analysis.store) { sql += ` AND store = $${i++}`; params.push(analysis.store); }
+    
+    if (analysis.color) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(analysis.color); i++; }
+    if (analysis.size) {
+      const expandedSizes = expandSize(analysis.size);
+      if (expandedSizes.length === 1) {
+        sql += ` AND $${i} = ANY(sizes)`;
+        params.push(expandedSizes[0]); i++;
+      } else {
+        sql += ` AND sizes && $${i}::text[]`;
+        params.push(expandedSizes); i++;
+      }
+    }
+    if (analysis.category) { sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(analysis.category, `%${analysis.category}%`); i += 2; }
+    if (analysis.style) { sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(analysis.style, `%${analysis.style}%`); i += 2; }
+    if (analysis.fit) { sql += ` AND (fit = $${i} OR title ILIKE $${i+1})`; params.push(analysis.fit, `%${analysis.fit}%`); i += 2; }
+    if (analysis.fabric) { sql += ` AND (fabric = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(analysis.fabric, `%${analysis.fabric}%`); i += 2; }
+    if (analysis.pattern) { sql += ` AND (pattern = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(analysis.pattern, `%${analysis.pattern}%`); i += 2; }
+    if (analysis.designDetails.length > 0) { sql += ` AND $${i++} = ANY(design_details)`; params.push(analysis.designDetails[0]); }
+    if (analysis.maxPrice) { sql += ` AND price <= $${i++}`; params.push(analysis.maxPrice); }
+    if (analysis.minDiscount) { sql += ` AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(analysis.minDiscount); }
+
+    // מיון: ווריאנט מדויק בכותרת קודם
+    const originalQuery = query.trim();
+    const hasAlias = SEARCH_ALIASES[originalQuery.toLowerCase()];
+    if (hasAlias) {
+      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 100`;
+      params.push(`%${originalQuery}%`); i++;
+    } else {
+      sql += ` ORDER BY id DESC LIMIT 100`;
+    }
+    const result = await pool.query(sql, params);
+    let rows = result.rows;
+    
+    // סינון color+size ב-JS
+    if (analysis.color && analysis.size) {
+      const expandedSizes = expandSize(analysis.size);
+      rows = rows.filter(p => {
+        if (!p.color_sizes) return true;
+        try {
+          const cs = typeof p.color_sizes === 'string' ? JSON.parse(p.color_sizes) : p.color_sizes;
+          if (!cs || Object.keys(cs).length === 0) return true;
+          const colorSizes = cs[analysis.color];
+          if (!colorSizes) return false;
+          return expandedSizes.some(sz => colorSizes.includes(sz));
+        } catch(e) { return true; }
+      });
+    }
+    
+    res.json({ query, analysis, results: rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })), count: rows.length });
+  } catch (err) {
+    console.error("ai-search error:", err.message);
+    res.status(500).json({ error: "Search error" });
+  }
+});
+
+function analyzeQuery(query) {
+  const analysis = { keywords: [], color: null, size: null, style: null, fit: null, category: null, maxPrice: null, minDiscount: null, pattern: null, fabric: null, designDetails: [], store: null };
+  
+  const priceMatch = query.match(/\u05e2\u05d3\s*\u20aa?\s*(\d+)|(\d+)\s*\u20aa|(\d+)\s*\u05e9"?\u05d7/i);
+  if (priceMatch) analysis.maxPrice = parseInt(priceMatch[1] || priceMatch[2] || priceMatch[3]);
+  
+  const discountMatch = query.match(/(\d+)\s*%/i);
+  if (discountMatch) analysis.minDiscount = parseInt(discountMatch[1]);
+
+  // חנויות
+  const storeMap = {
+    'MEKIMI': ['mekimi', '\u05de\u05e7\u05d9\u05de\u05d9'],
+    'LICHI': ['lichi', '\u05dc\u05d9\u05e6\u05f3\u05d9', '\u05dc\u05d9\u05e6\u05d9'],
+    'MIMA': ['mima', '\u05de\u05d9\u05de\u05d4', '\u05de\u05d9\u05de\u05d0'],
+    'CHEN': ['chen', '\u05d7\u05df'],
+    'AVIYAH': ['aviyah', '\u05d0\u05d1\u05d9\u05d4', '\u05d0\u05d1\u05d9\u05d4 \u05d9\u05d5\u05e1\u05e3'],
+    'CHEMISE': ['chemise', '\u05e9\u05de\u05d9\u05d6'],
+    'AVIVIT': ['avivit', '\u05d0\u05d1\u05d9\u05d1\u05d9\u05ea'],
+    'RARE': ['rare', '\u05e8\u05d9\u05d9\u05e8'],
+    'ORDMAN': ['ordman', '\u05d0\u05d5\u05e8\u05d3\u05de\u05df']
+  };
+
+  // מיפוי מידות עברית -> אנגלית
+  const hebrewSizeMap = {
+    'XS': ['\u05d0\u05e7\u05e1\u05d8\u05e8\u05d4 \u05e1\u05de\u05d5\u05dc', '\u05d0\u05e7\u05e1 \u05e1\u05de\u05d5\u05dc'],
+    'S': ['\u05e1\u05de\u05d5\u05dc', '\u05e1\u05de\u05d0\u05dc', '\u05e7\u05d8\u05df', '\u05e7\u05d8\u05e0\u05d4'],
+    'M': ['\u05de\u05d3\u05d9\u05d5\u05dd', '\u05de\u05d9\u05d3\u05d9\u05d5\u05dd', '\u05d1\u05d9\u05e0\u05d5\u05e0\u05d9', '\u05d1\u05d9\u05e0\u05d5\u05e0\u05d9\u05ea'],
+    'L': ['\u05dc\u05d0\u05e8\u05d2\u05f3', '\u05dc\u05d0\u05e8\u05d2', '\u05d2\u05d3\u05d5\u05dc', '\u05d2\u05d3\u05d5\u05dc\u05d4'],
+    'XL': ['\u05d0\u05e7\u05e1 \u05dc\u05d0\u05e8\u05d2\u05f3', '\u05d0\u05e7\u05e1\u05d8\u05e8\u05d4 \u05dc\u05d0\u05e8\u05d2'],
+    'XXL': ['\u05d3\u05d0\u05d1\u05dc \u05d0\u05e7\u05e1 \u05dc\u05d0\u05e8\u05d2']
+  };
+
+  // פרסור "מידהM" ללא רווח - regex שמוצא מידה+אות דבוקות
+  let processedQuery = query;
+  const sizeStuckPattern = /\u05de\u05d9\u05d3\u05d4\s*(XS|S|M|L|XL|XXL|XXXL|\d{2})/i;
+  const sizeStuckMatch = processedQuery.match(sizeStuckPattern);
+  if (sizeStuckMatch) {
+    analysis.size = sizeStuckMatch[1].toUpperCase();
+    processedQuery = processedQuery.replace(sizeStuckPattern, '').trim();
+  }
+
+  const colorMap = { 
+    '\u05e9\u05d7\u05d5\u05e8': ['\u05e9\u05d7\u05d5\u05e8', '\u05e9\u05d7\u05d5\u05e8\u05d4'], 
+    '\u05dc\u05d1\u05df': ['\u05dc\u05d1\u05df', '\u05dc\u05d1\u05e0\u05d4'], 
+    '\u05db\u05d7\u05d5\u05dc': ['\u05db\u05d7\u05d5\u05dc', '\u05db\u05d7\u05d5\u05dc\u05d4', '\u05e0\u05d9\u05d9\u05d1\u05d9'], 
+    '\u05d0\u05d3\u05d5\u05dd': ['\u05d0\u05d3\u05d5\u05dd', '\u05d0\u05d3\u05d5\u05de\u05d4'], 
+    '\u05d9\u05e8\u05d5\u05e7': ['\u05d9\u05e8\u05d5\u05e7', '\u05d9\u05e8\u05d5\u05e7\u05d4', '\u05d6\u05d9\u05ea', '\u05d7\u05d0\u05e7\u05d9'], 
+    '\u05d7\u05d5\u05dd': ['\u05d7\u05d5\u05dd', '\u05d7\u05d5\u05de\u05d4'], 
+    '\u05d1\u05d6\u05f3': ['\u05d1\u05d6\u05f3', '\u05d1\u05d6', '\u05e0\u05d9\u05d5\u05d3'], 
+    '\u05d0\u05e4\u05d5\u05e8': ['\u05d0\u05e4\u05d5\u05e8', '\u05d0\u05e4\u05d5\u05e8\u05d4'], 
+    '\u05d5\u05e8\u05d5\u05d3': ['\u05d5\u05e8\u05d5\u05d3', '\u05d5\u05e8\u05d5\u05d3\u05d4'], 
+    '\u05d1\u05d5\u05e8\u05d3\u05d5': ['\u05d1\u05d5\u05e8\u05d3\u05d5'], 
+    '\u05e9\u05de\u05e0\u05ea': ['\u05e9\u05de\u05e0\u05ea', 'cream'], 
+    '\u05e1\u05d2\u05d5\u05dc': ['\u05e1\u05d2\u05d5\u05dc', '\u05e1\u05d2\u05d5\u05dc\u05d4', '\u05dc\u05d9\u05dc\u05da'],
+    '\u05e6\u05d4\u05d5\u05d1': ['\u05e6\u05d4\u05d5\u05d1', '\u05e6\u05d4\u05d5\u05d1\u05d4', '\u05d7\u05e8\u05d3\u05dc'],
+    '\u05db\u05ea\u05d5\u05dd': ['\u05db\u05ea\u05d5\u05dd', '\u05db\u05ea\u05d5\u05de\u05d4'],
+    '\u05ea\u05db\u05dc\u05ea': ['\u05ea\u05db\u05dc\u05ea'],
+    '\u05d6\u05d4\u05d1': ['\u05d6\u05d4\u05d1', '\u05d6\u05d4\u05d5\u05d1\u05d4'],
+    '\u05db\u05e1\u05e3': ['\u05db\u05e1\u05e3', '\u05db\u05e1\u05d5\u05e4\u05d4'],
+    '\u05e7\u05d0\u05de\u05dc': ['\u05e7\u05d0\u05de\u05dc'],
+    '\u05d0\u05d1\u05df': ['\u05d0\u05d1\u05df', 'stone']
+  };
+  const categoryMap = { 
+    '\u05e9\u05de\u05dc\u05d4': ['\u05e9\u05de\u05dc\u05d4', '\u05e9\u05de\u05dc\u05ea', '\u05e9\u05de\u05dc\u05d5\u05ea'], 
+    '\u05d7\u05d5\u05dc\u05e6\u05d4': ['\u05d7\u05d5\u05dc\u05e6\u05d4', '\u05d7\u05d5\u05dc\u05e6\u05ea', '\u05d8\u05d5\u05e4'], 
+    '\u05d7\u05e6\u05d0\u05d9\u05ea': ['\u05d7\u05e6\u05d0\u05d9\u05ea', '\u05d7\u05e6\u05d0\u05d9\u05d5\u05ea'], 
+    '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd': ['\u05de\u05db\u05e0\u05e1', '\u05de\u05db\u05e0\u05e1\u05d9\u05d9\u05dd'], 
+    '\u05e7\u05e8\u05d3\u05d9\u05d2\u05df': ['\u05e7\u05e8\u05d3\u05d9\u05d2\u05df'],
+    '\u05e1\u05d5\u05d5\u05d3\u05e8': ['\u05e1\u05d5\u05d5\u05d3\u05e8'],
+    '\u05d8\u05d5\u05e0\u05d9\u05e7\u05d4': ['\u05d8\u05d5\u05e0\u05d9\u05e7\u05d4'],
+    '\u05e1\u05e8\u05e4\u05df': ['\u05e1\u05e8\u05e4\u05df'],
+    '\u05d6\u05f3\u05e7\u05d8': ['\u05d6\u05f3\u05e7\u05d8', '\u05d2\u05f3\u05e7\u05d8'],
+    '\u05d1\u05dc\u05d9\u05d9\u05d6\u05e8': ['\u05d1\u05dc\u05d9\u05d9\u05d6\u05e8'],
+    '\u05d5\u05e1\u05d8': ['\u05d5\u05e1\u05d8'],
+    '\u05e2\u05dc\u05d9\u05d5\u05e0\u05d9\u05ea': ['\u05e2\u05dc\u05d9\u05d5\u05e0\u05d9\u05ea'],
+    '\u05de\u05e2\u05d9\u05dc': ['\u05de\u05e2\u05d9\u05dc'],
+    '\u05e1\u05d8': ['\u05e1\u05d8'],
+    '\u05d1\u05d9\u05d9\u05e1\u05d9\u05e7': ['\u05d1\u05d9\u05d9\u05e1\u05d9\u05e7', 'basic'],
+    '\u05e9\u05db\u05de\u05d9\u05d4': ['\u05e9\u05db\u05de\u05d9\u05d4'],
+    '\u05d7\u05dc\u05d5\u05e7': ['\u05d7\u05dc\u05d5\u05e7', '\u05d0\u05d9\u05e8\u05d5\u05d7']
+  };
+  const styleMap = {
+    '\u05e2\u05e8\u05d1': ['\u05e2\u05e8\u05d1', '\u05e9\u05d1\u05ea', '\u05e9\u05d1\u05ea\u05d9'],
+    '\u05d7\u05d2\u05d9\u05d2\u05d9': ['\u05d7\u05d2\u05d9\u05d2\u05d9', '\u05d7\u05d2\u05d9\u05d2\u05d9\u05ea'],
+    '\u05d0\u05dc\u05d2\u05e0\u05d8\u05d9': ['\u05d0\u05dc\u05d2\u05e0\u05d8', '\u05d0\u05dc\u05d2\u05e0\u05d8\u05d9', '\u05d0\u05dc\u05d2\u05e0\u05d8\u05d9\u05ea'],
+    '\u05e7\u05dc\u05d0\u05e1\u05d9': ['\u05e7\u05dc\u05d0\u05e1\u05d9', '\u05e7\u05dc\u05d0\u05e1\u05d9\u05ea'],
+    '\u05de\u05d9\u05e0\u05d9\u05de\u05dc\u05d9\u05e1\u05d8\u05d9': ['\u05de\u05d9\u05e0\u05d9\u05de\u05dc\u05d9\u05e1\u05d8', '\u05de\u05d9\u05e0\u05d9\u05de\u05dc\u05d9\u05e1\u05d8\u05d9'],
+    '\u05de\u05d5\u05d3\u05e8\u05e0\u05d9': ['\u05de\u05d5\u05d3\u05e8\u05e0\u05d9', '\u05de\u05d5\u05d3\u05e8\u05e0\u05d9\u05ea'],
+    '\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc': ['\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9', '\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9\u05ea', '\u05e7\u05d6\u05f3\u05d5\u05d0\u05dc', '\u05e7\u05d6\u05d5\u05d0\u05dc'],
+    '\u05e8\u05d8\u05e8\u05d5': ['\u05e8\u05d8\u05e8\u05d5', '\u05d5\u05d9\u05e0\u05d8\u05d2\u05f3'],
+    '\u05d0\u05d5\u05d1\u05e8\u05e1\u05d9\u05d9\u05d6': ['\u05d0\u05d5\u05d1\u05e8\u05e1\u05d9\u05d9\u05d6', 'oversize']
+  };
+  const fitMap = {
+    '\u05d0\u05e8\u05d5\u05db\u05d4': ['\u05de\u05e7\u05e1\u05d9', '\u05d0\u05e8\u05d5\u05db\u05d4', '\u05d0\u05e8\u05d5\u05da', 'maxi'],
+    '\u05de\u05d9\u05d3\u05d9': ['\u05de\u05d9\u05d3\u05d9', 'midi', '\u05d0\u05de\u05e6\u05e2'],
+    '\u05e7\u05e6\u05e8\u05d4': ['\u05e7\u05e6\u05e8\u05d4', '\u05e7\u05e6\u05e8', '\u05de\u05d9\u05e0\u05d9', 'mini'],
+    '\u05de\u05e2\u05d8\u05e4\u05ea': ['\u05de\u05e2\u05d8\u05e4\u05ea', '\u05de\u05e2\u05d8\u05e4\u05d4', 'wrap'],
+    '\u05d4\u05e8\u05d9\u05d5\u05df': ['\u05d4\u05e8\u05d9\u05d5\u05df', 'maternity', 'pregnancy'],
+    '\u05d4\u05e0\u05e7\u05d4': ['\u05d4\u05e0\u05e7\u05d4', 'nursing', 'breastfeed'],
+    '\u05de\u05d5\u05ea\u05df': ['\u05de\u05d5\u05ea\u05df', '\u05d1\u05de\u05d5\u05ea\u05df', 'waist']
+  };
+  // בד
+  const fabricMap = {
+    '\u05e1\u05e8\u05d9\u05d2': ['\u05e1\u05e8\u05d9\u05d2'],
+    '\u05d0\u05e8\u05d9\u05d2': ['\u05d0\u05e8\u05d9\u05d2'],
+    '\u05d2\u05f3\u05e8\u05e1\u05d9': ['\u05d2\u05f3\u05e8\u05e1\u05d9', '\u05d2\u05e8\u05e1\u05d9', '\u05d2\'\u05e8\u05e1\u05d9', 'jersey'],
+    '\u05e9\u05d9\u05e4\u05d5\u05df': ['\u05e9\u05d9\u05e4\u05d5\u05df', 'chiffon'],
+    '\u05e7\u05e8\u05e4': ['\u05e7\u05e8\u05e4', 'crepe'],
+    '\u05e1\u05d0\u05d8\u05df': ['\u05e1\u05d0\u05d8\u05df', 'satin', '\u05e1\u05d8\u05df'],
+    '\u05e7\u05d8\u05d9\u05e4\u05d4': ['\u05e7\u05d8\u05d9\u05e4\u05d4', 'velvet'],
+    '\u05e4\u05dc\u05d9\u05d6': ['\u05e4\u05dc\u05d9\u05d6', 'fleece'],
+    '\u05ea\u05d7\u05e8\u05d4': ['\u05ea\u05d7\u05e8\u05d4', 'lace'],
+    '\u05d8\u05d5\u05dc': ['\u05d8\u05d5\u05dc', 'tulle'],
+    '\u05dc\u05d9\u05d9\u05e7\u05e8\u05d4': ['\u05dc\u05d9\u05d9\u05e7\u05e8\u05d4', 'lycra'],
+    '\u05d8\u05e8\u05d9\u05e7\u05d5': ['\u05d8\u05e8\u05d9\u05e7\u05d5', 'tricot'],
+    '\u05e8\u05e9\u05ea': ['\u05e8\u05e9\u05ea'],
+    '\u05d2\u05f3\u05d9\u05e0\u05e1': ['\u05d2\u05f3\u05d9\u05e0\u05e1', 'jeans', '\u05d3\u05e0\u05d9\u05dd'],
+    '\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9': ['\u05e7\u05d5\u05e8\u05d3\u05e8\u05d5\u05d9', 'corduroy'],
+    '\u05e4\u05d9\u05e7\u05d4': ['\u05e4\u05d9\u05e7\u05d4', 'pique'],
+    'פרווה': ['פרווה', 'fur', 'faux fur'],
+    '\u05db\u05d5\u05ea\u05e0\u05d4': ['\u05db\u05d5\u05ea\u05e0\u05d4', 'cotton'],
+    '\u05e4\u05e9\u05ea\u05df': ['\u05e4\u05e9\u05ea\u05df', 'linen'],
+    '\u05de\u05e9\u05d9': ['\u05de\u05e9\u05d9', 'silk'],
+    '\u05e6\u05de\u05e8': ['\u05e6\u05de\u05e8', 'wool'],
+    '\u05e8\u05d9\u05e7\u05de\u05d4': ['\u05e8\u05d9\u05e7\u05de\u05d4', '\u05e8\u05e7\u05d5\u05de\u05d4', '\u05e8\u05e7\u05d5\u05dd', '\u05e8\u05e7\u05de\u05d4', '\u05e8\u05e7\u05de\u05d0', 'embroidery', 'embroidered']
+  };
+  // דוגמא
+  const patternMap = {
+    '\u05e4\u05e1\u05d9\u05dd': ['\u05e4\u05e1\u05d9\u05dd', 'stripes'],
+    '\u05e4\u05e8\u05d7\u05d5\u05e0\u05d9': ['\u05e4\u05e8\u05d7\u05d5\u05e0\u05d9', '\u05e4\u05e8\u05d7\u05d9\u05dd', 'floral'],
+    '\u05de\u05e9\u05d1\u05e6\u05d5\u05ea': ['\u05de\u05e9\u05d1\u05e6\u05d5\u05ea', 'plaid'],
+    '\u05e0\u05e7\u05d5\u05d3\u05d5\u05ea': ['\u05e0\u05e7\u05d5\u05d3\u05d5\u05ea', 'dots', 'polka'],
+    '\u05d7\u05dc\u05e7': ['\u05d7\u05dc\u05e7', 'plain'],
+    '\u05d4\u05d3\u05e4\u05e1': ['\u05d4\u05d3\u05e4\u05e1', 'print', '\u05de\u05d5\u05d3\u05e4\u05e1']
+  };
+  // עיצוב
+  const designMap = {
+    '\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V': ['\u05e6\u05d5\u05d5\u05d0\u05e8\u05d5\u05df V', 'v-neck'],
+    '\u05d2\u05d5\u05dc\u05e3': ['\u05d2\u05d5\u05dc\u05e3', 'turtleneck'],
+    '\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd': ['\u05db\u05e4\u05ea\u05d5\u05e8\u05d9\u05dd', 'buttons'],
+    '\u05d7\u05d2\u05d5\u05e8\u05d4': ['\u05d7\u05d2\u05d5\u05e8\u05d4', 'belt'],
+    '\u05e9\u05e1\u05e2': ['\u05e9\u05e1\u05e2', 'slit'],
+    '\u05db\u05d9\u05e1\u05d9\u05dd': ['\u05db\u05d9\u05e1\u05d9\u05dd', 'pockets'],
+    '\u05e7\u05e9\u05d9\u05e8\u05d4': ['\u05e7\u05e9\u05d9\u05e8\u05d4', 'tie'],
+    '\u05e7\u05e4\u05dc\u05d9\u05dd': ['\u05e7\u05e4\u05dc\u05d9\u05dd', 'pleats'],
+    '\u05de\u05dc\u05de\u05dc\u05d4': ['\u05de\u05dc\u05de\u05dc\u05d4', 'ruffle'],
+    '\u05e4\u05e4\u05dc\u05d5\u05dd': ['\u05e4\u05e4\u05dc\u05d5\u05dd', 'peplum']
+  };
+  const sizeList = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '38', '40', '42', '44'];
+  // מילות עצירה - מילים שמופיעות בחיפוש אבל לא צריכות להיות keywords
+  const stopWords = new Set(['מידה', 'מידות', 'עד', 'של', 'עם', 'בלי', 'ללא', 'או', 'גם', 'רק', 'כל', 'את', 'זה', 'זו', 'הנחה', 'מבצע', 'sale', 'לי', 'אני', 'רוצה', 'מחפשת', 'מחפש', 'צבע', 'סגנון', 'גיזרה', 'בד', 'דוגמא', 'מחיר', 'שקל', 'שקלים', 'ש"ח', 'שח', 'אורך', 'באורך', 'חנות', 'באתר', 'מאתר', 'ב', 'מ']);
+  // קטגוריות שלא מציגים (אקססוריז)
+  const excludedCategories = new Set(['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים']);
+
+
+  // === שלב 1: בדיקת ביטויים רב-מילתיים BEFORE פירוק למילים ===
+  const fullText = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
+  const usedRanges = []; // track which char ranges were matched by phrases
+  
+  // Multi-word design details
+  const multiWordDesign = {
+    'שרוול ארוך': 'שרוול ארוך',
+    'שרוול קצר': 'שרוול קצר',
+    'שרוול 3/4': 'שרוול 3/4',
+    'שרוול פעמון': 'שרוול פעמון',
+    'שרוול נפוח': 'שרוול נפוח',
+    'ללא שרוולים': 'ללא שרוולים',
+    'כתפיים חשופות': 'כתפיים חשופות',
+    'צווארון עגול': 'צווארון עגול',
+    'צווארון V': 'צווארון V',
+    'צווארון סירה': 'צווארון סירה'
+  };
+  
+  for (const [phrase, designName] of Object.entries(multiWordDesign)) {
+    if (fullText.includes(phrase)) {
+      analysis.designDetails.push(designName);
+      const idx = fullText.indexOf(phrase);
+      usedRanges.push([idx, idx + phrase.length]);
+    }
+  }
+
+  const text = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
+  const words = text.split(/\s+/).filter(w => w.length >= 1);
+
+  for (const word of words) {
+    const upper = word.toUpperCase();
+    const lower = word.toLowerCase();
+    
+    // === קודם כל: דלג על מילים שנתפסו כחלק מביטוי רב-מילתי ===
+    if (usedRanges.length > 0) {
+      const wordIdx = fullText.indexOf(word);
+      if (wordIdx >= 0 && usedRanges.some(([s,e]) => wordIdx >= s && wordIdx < e)) continue;
+    }
+    
+    if (sizeList.includes(upper) && !analysis.size) { analysis.size = upper; continue; }
+    
+    // בדיקת מידות בעברית
+    let sizeMatched = false;
+    if (!analysis.size) {
+      for (const [sizeName, variants] of Object.entries(hebrewSizeMap)) {
+        if (variants.some(v => lower === v.toLowerCase())) { analysis.size = sizeName; sizeMatched = true; break; }
+      }
+    }
+    if (sizeMatched) continue;
+    
+    let matched = false;
+    
+    // בדוק SEARCH_ALIASES קודם — כולל ווריאנטים מה-DB
+    if (!matched && SEARCH_ALIASES[lower]) {
+      const a = SEARCH_ALIASES[lower];
+      if (a.type === 'color' && !analysis.color) { analysis.color = a.name; matched = true; }
+      else if (a.type === 'category' && !analysis.category) { analysis.category = a.name; matched = true; }
+      else if (a.type === 'style' && !analysis.style) { analysis.style = a.name; matched = true; }
+      else if (a.type === 'fit' && !analysis.fit) { analysis.fit = a.name; matched = true; }
+      else if (a.type === 'fabric' && !analysis.fabric) { analysis.fabric = a.name; matched = true; }
+      else if (a.type === 'pattern' && !analysis.pattern) { analysis.pattern = a.name; matched = true; }
+    }
+
+    // חנות
+    if (!matched) {
+      for (const [name, variants] of Object.entries(storeMap)) {
+        if (variants.some(v => lower === v.toLowerCase()) || lower === name.toLowerCase()) { if (!analysis.store) analysis.store = name; matched = true; break; }
+      }
+    }
+    if (!matched) {
+    for (const [name, variants] of Object.entries(colorMap)) {
+      if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.color) analysis.color = name; matched = true; break; }
+    }
+    }
+    if (!matched) {
+      for (const [name, variants] of Object.entries(categoryMap)) {
+        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.category) analysis.category = name; matched = true; break; }
+      }
+    }
+    if (!matched) {
+      for (const [name, variants] of Object.entries(styleMap)) {
+        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.style) analysis.style = name; matched = true; break; }
+      }
+    }
+    if (!matched) {
+      for (const [name, variants] of Object.entries(fitMap)) {
+        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.fit) analysis.fit = name; matched = true; break; }
+      }
+    }
+    if (!matched) {
+      for (const [name, variants] of Object.entries(fabricMap)) {
+        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.fabric) analysis.fabric = name; matched = true; break; }
+      }
+    }
+    if (!matched) {
+      for (const [name, variants] of Object.entries(patternMap)) {
+        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.pattern) analysis.pattern = name; matched = true; break; }
+      }
+    }
+    if (!matched) {
+      for (const [name, variants] of Object.entries(designMap)) {
+        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { analysis.designDetails.push(name); matched = true; break; }
+      }
+    }
+    
+    if (!matched && !sizeList.includes(upper) && word.length >= 2 && !stopWords.has(word)) {
+      analysis.keywords.push(word);
+    }
+  }
+
+  return analysis;
+}
+
+app.get("/out/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).send("Invalid id");
+  try {
+    const p = await pool.query(`SELECT source_url, store, title FROM products WHERE id = $1`, [id]);
+    if (!p.rows.length) return res.status(404).send("Not found");
+    // שמירת הלחיצה
+    try {
+      await pool.query(
+        `INSERT INTO clicks (product_id, store, product_title, source_url, user_agent, ip_address, clicked_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [id, p.rows[0].store, p.rows[0].title, p.rows[0].source_url, req.headers['user-agent'] || '', req.ip || '']
+      );
+    } catch(e) { console.error('click track error:', e.message); }
+    res.redirect(p.rows[0].source_url);
+  } catch (err) { res.status(500).send("Error"); }
+});
+
+// API לצפייה בנתוני לחיצות
+app.get("/api/clicks", adminAuth, async (req, res) => {
+  try {
+    const { days } = req.query;
+    const daysBack = parseInt(days) || 30;
+    const result = await pool.query(`
+      SELECT c.id, c.product_id, c.store, c.product_title, c.source_url, c.clicked_at, c.user_agent, c.ip_address
+      FROM clicks c
+      WHERE c.clicked_at >= NOW() - INTERVAL '${daysBack} days'
+      ORDER BY c.clicked_at DESC
+      LIMIT 500
+    `);
+    res.json({ total: result.rows.length, clicks: result.rows });
+  } catch (err) {
+    console.error("clicks error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+// סטטיסטיקות לחיצות
+app.get("/api/clicks/stats", adminAuth, async (req, res) => {
+  try {
+    const [total, byStore, byDay, topProducts] = await Promise.all([
+      pool.query(`SELECT COUNT(*) as total FROM clicks`),
+      pool.query(`SELECT store, COUNT(*) as count FROM clicks GROUP BY store ORDER BY count DESC`),
+      pool.query(`SELECT DATE(clicked_at) as day, COUNT(*) as count FROM clicks WHERE clicked_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(clicked_at) ORDER BY day DESC`),
+      pool.query(`SELECT product_id, product_title, store, COUNT(*) as count FROM clicks GROUP BY product_id, product_title, store ORDER BY count DESC LIMIT 20`)
+    ]);
+    res.json({
+      total: parseInt(total.rows[0]?.total) || 0,
+      byStore: byStore.rows,
+      byDay: byDay.rows,
+      topProducts: topProducts.rows
+    });
+  } catch (err) {
+    console.error("clicks stats error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+app.get("/api/debug/db", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        current_database() AS db,
+        inet_server_addr() AS server_ip,
+        inet_server_port() AS server_port,
+        (SELECT COUNT(*) FROM public.products)::int AS products_count
+    `);
+    res.json(r.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+
+
+// ===== SPONSORED PRODUCTS =====
+// GET /api/sponsored — מחזיר כל המודעות הפעילות (הגרלה לפי impression_weight בצד הלקוח)
+app.get("/api/sponsored", async (req, res) => {
+  try {
+    const q = req.query.q || "";
+    // מחזיר את כל המודעות הפעילות — הגרלה לפי משקל תתבצע בצד הלקוח
+    const query = `
+      SELECT sp.id, sp.priority_row, sp.impression_weight, sp.show_rate, sp.badge_text,
+             p.image_url, p.source_url, p.title, p.price, p.store
+      FROM sponsored_products sp
+      JOIN products p ON p.id = sp.product_id
+      WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
+      ORDER BY
+        CASE WHEN $1 != '' AND (p.title ILIKE $1 OR p.category ILIKE $1) THEN 0 ELSE 1 END,
+        sp.created_at DESC
+      LIMIT 20`;
+    const result = await pool.query(query, [`%${q}%`]);
+    res.json({ sponsored: result.rows });
+  } catch (e) {
+    res.json({ sponsored: [] });
+  }
+});
+
+
+
+
+// ===== SIDEBAR ADS =====
+
+// GET /api/sidebar-ads — מחזיר לוחות פעילים לפי משקל
+app.get("/api/sidebar-ads", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT * FROM sidebar_ads
+      WHERE active = true
+        AND (starts_at IS NULL OR starts_at <= NOW())
+        AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY impression_weight DESC
+    `);
+    if (!r.rows.length) return res.json({ ads: [] });
+    // סנן לפי show_rate (1-100)
+    const eligible = r.rows.filter(a => Math.random() * 100 < (a.show_rate ?? 100));
+    if (!eligible.length) return res.json({ ads: [] });
+    // בחר עד 3 לוחות לפי הגרלה משוקללת
+    const picked = weightedPickAds(eligible, 3);
+    // עדכן impressions
+    const ids = picked.map(a => a.id);
+    if (ids.length) {
+      await pool.query(
+        `UPDATE sidebar_ads SET impressions = impressions + 1 WHERE id = ANY($1)`,
+        [ids]
+      );
+    }
+    res.json({ ads: picked });
+  } catch(e) { res.json({ ads: [] }); }
+});
+
+function weightedPickAds(items, count) {
+  const pool = [...items];
+  const picked = [];
+  for (let n = 0; n < count && pool.length; n++) {
+    const total = pool.reduce((s, x) => s + (x.impression_weight || 10), 0);
+    let rand = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+      rand -= (pool[i].impression_weight || 10);
+      if (rand <= 0) { picked.push(pool.splice(i, 1)[0]); break; }
+    }
+  }
+  return picked;
+}
+
+// POST /api/sidebar-ads/:id/click
+app.post("/api/sidebar-ads/:id/click", async (req, res) => {
+  try {
+    await pool.query("UPDATE sidebar_ads SET clicks=clicks+1 WHERE id=$1", [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+// GET /api/sidebar-ads/all (ניהול)
+app.get("/api/sidebar-ads/all", adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM sidebar_ads ORDER BY active DESC, created_at DESC");
+    res.json({ ads: r.rows });
+  } catch(e) { res.json({ ads: [] }); }
+});
+
+// POST /api/sidebar-ads/create
+app.post("/api/sidebar-ads/create", adminAuth, async (req, res) => {
+  try {
+    const { title, image_url, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null } = req.body;
+    let expires_at = null, starts_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    if (starts_in > 0) { const d=new Date(); d.setDate(d.getDate()+starts_in); starts_at=d.toISOString(); }
+    const r = await pool.query(
+      `INSERT INTO sidebar_ads (title,image_url,link_url,caption,size,impression_weight,show_rate,expires_at,starts_at,price_paid,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [title,image_url,link_url,caption,size,impression_weight,show_rate??100,expires_at,starts_at,price_paid,notes]
+    );
+    res.json({ id: r.rows[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/sidebar-ads/:id
+app.put("/api/sidebar-ads/:id", adminAuth, async (req, res) => {
+  try {
+    const { title, image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes } = req.body;
+    let expires_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    await pool.query(
+      `UPDATE sidebar_ads SET title=$2,image_url=$3,link_url=$4,caption=$5,size=$6,
+       impression_weight=$7,show_rate=$8,expires_at=$9,price_paid=$10,notes=$11 WHERE id=$1`,
+      [req.params.id, title, image_url, link_url, caption, size, impression_weight, show_rate??100, expires_at, price_paid, notes]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sidebar-ads/:id/activate|deactivate
+app.post("/api/sidebar-ads/:id/activate", adminAuth, async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=true  WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+app.post("/api/sidebar-ads/:id/deactivate", adminAuth, async(req,res)=>{ await pool.query("UPDATE sidebar_ads SET active=false WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+
+// DELETE /api/sidebar-ads/:id
+app.delete("/api/sidebar-ads/:id", adminAuth, async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
+
+// Serve admin UI
+
+// ===== ADMIN AUTH MIDDLEWARE =====
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "lookli-admin-2026";
+if (!process.env.ADMIN_PASSWORD) console.error("⚠️  WARNING: ADMIN_PASSWORD לא מוגדר ב-Railway Variables!");
+
+// session token — HMAC של הסיסמה (לא הסיסמה עצמה) בcookie
+function makeAdminCookieToken() {
+  return createHmac("sha256", ADMIN_PASSWORD).update("lookli-admin-session").digest("hex");
+}
+
+function adminAuth(req, res, next) {
+  // 1. Authorization header: Basic base64(admin:password)
+  const auth = req.headers['authorization'];
+  if (auth && auth.startsWith('Basic ')) {
+    const decoded = Buffer.from(auth.slice(6), 'base64').toString();
+    const [, pass] = decoded.split(':');
+    if (pass === ADMIN_PASSWORD) {
+      const sessionToken = makeAdminCookieToken();
+      res.setHeader('Set-Cookie', `admsess=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
+      return next();
+    }
+  }
+
+  // 2. Cookie session (HMAC token — לא הסיסמה עצמה)
+  const cookies = req.headers.cookie || '';
+  const cookieMatch = cookies.match(/admsess=([a-f0-9]+)/);
+  if (cookieMatch && cookieMatch[1] === makeAdminCookieToken()) return next();
+
+  // 3. דחייה — דף login שולח סיסמה דרך Authorization header בלבד
+  res.status(401).send(`<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  
-  <!-- SEO:BEGIN -->
-  <meta name="description" content="LOOKLI הוא מנוע חיפוש חכם לאופנה צנועה שמרכז אלפי מוצרים מעשרות חנויות. חיפוש חופשי, סינונים חכמים והשוואה במקום אחד."/>
-  <link rel="canonical" href="https://lookli.co.il/"/>
-  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
-  <meta name="theme-color" content="#c48cb3"/>
-
-  <!-- Open Graph -->
-  <meta property="og:locale" content="he_IL"/>
-  <meta property="og:type" content="website"/>
-  <meta property="og:site_name" content="LOOKLI"/>
-  <meta property="og:title" content="LOOKLI – מנוע חיפוש חכם לאופנה צנועה | אלפי מוצרים במקום אחד"/>
-  <meta property="og:description" content="LOOKLI הוא מנוע חיפוש חכם לאופנה צנועה שמרכז אלפי מוצרים מעשרות חנויות. חיפוש חופשי, סינונים חכמים והשוואה במקום אחד."/>
-  <meta property="og:url" content="https://lookli.co.il/"/>
-  <meta property="og:image" content="https://lookli.co.il/lookli-logo.png"/>
-
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="LOOKLI – מנוע חיפוש חכם לאופנה צנועה | אלפי מוצרים במקום אחד"/>
-  <meta name="twitter:description" content="LOOKLI הוא מנוע חיפוש חכם לאופנה צנועה שמרכז אלפי מוצרים מעשרות חנויות. חיפוש חופשי, סינונים חכמים והשוואה במקום אחד."/>
-  <meta name="twitter:image" content="https://lookli.co.il/lookli-logo.png"/>
-
-    <link rel="preconnect" href="https://mekimi.co.il"/>
-  <link rel="preconnect" href="https://lichi-shop.com"/>
-  <link rel="preconnect" href="https://static.wixstatic.com"/>
-  <link rel="preconnect" href="https://aviyahyosef.com"/>
-  <link rel="preconnect" href="https://chemise.co.il"/>
-  <link rel="dns-prefetch" href="https://mekimi.co.il"/>
-  <link rel="dns-prefetch" href="https://lichi-shop.com"/>
-  <meta name="keywords" content="אופנה צנועה, בגדים צנועים, שמלות צנועות, חצאיות ארוכות, חולצות צנועות, אופנה דתית, חיפוש בגדים, השוואת מחירים, LOOKLI, מקסי, לופטה, מקימי, ליצ'י, אביה יוסף"/>
-  <link rel="icon" type="image/png" href="/לוגו כרטיסייה.png"/>
-  <link rel="shortcut icon" href="/לוגו כרטיסייה.png"/>
-  <link rel="alternate" hreflang="he-il" href="https://lookli.co.il/"/>
-
-  <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@context": "https://schema.org", "@type": "Organization", "name": "LOOKLI", "url": "https://lookli.co.il", "logo": "https://lookli.co.il/lookli-logo.png", "contactPoint": [{"@type": "ContactPoint", "contactType": "customer support", "email": "info@lookli.co.il", "availableLanguage": ["he", "en"]}]}, {"@context": "https://schema.org", "@type": "WebSite", "name": "LOOKLI", "url": "https://lookli.co.il", "potentialAction": {"@type": "SearchAction", "target": "https://lookli.co.il/?q={search_term_string}", "query-input": "required name=search_term_string"}}, {"@type": "WebPage", "url": "https://lookli.co.il/", "name": "LOOKLI – מנוע חיפוש חכם לאופנה צנועה | אלפי מוצרים במקום אחד", "inLanguage": "he-IL", "dateModified": "2026-02-22"}]}</script>
-  
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "name": "מנוע חיפוש אופנה צנועה - LOOKLI",
-    "description": "אלפי מוצרי אופנה צנועה ממותגים מובילים: מקימי, ליצ'י, מימה, אביה יוסף, שמיז",
-    "url": "https://lookli.co.il/",
-    "numberOfItems": "5000+",
-    "itemListElement": [
-      {"@type":"ListItem","position":1,"name":"שמלות צנועות","url":"https://lookli.co.il/?q=שמלה"},
-      {"@type":"ListItem","position":2,"name":"חצאיות מקסי","url":"https://lookli.co.il/?q=חצאית+מקסי"},
-      {"@type":"ListItem","position":3,"name":"חולצות צנועות","url":"https://lookli.co.il/?q=חולצה"},
-      {"@type":"ListItem","position":4,"name":"חליפות","url":"https://lookli.co.il/?q=חליפה"},
-      {"@type":"ListItem","position":5,"name":"קרדיגנים","url":"https://lookli.co.il/?q=קרדיגן"}
-    ]
-  }
-  </script>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "מה זה LOOKLI?",
-        "acceptedAnswer": {"@type":"Answer","text":"LOOKLI הוא מנוע חיפוש חכם לאופנה צנועה המרכז מוצרים מחנויות מובילות כמו מקימי, ליצ'י, מימה, אביה יוסף ושמיז — במקום אחד."}
-      },
-      {
-        "@type": "Question",
-        "name": "האם ניתן לחפש לפי מידה וצבע?",
-        "acceptedAnswer": {"@type":"Answer","text":"כן! ניתן לסנן לפי מידה, צבע, קטגוריה, מחיר, חנות ועוד פילטרים חכמים."}
-      },
-      {
-        "@type": "Question",
-        "name": "האם המחירים באתר מעודכנים?",
-        "acceptedAnswer": {"@type":"Answer","text":"המחירים מתעדכנים אוטומטית ממגוון חנויות האופנה. הקנייה מתבצעת ישירות באתר החנות."}
-      }
-    ]
-  }
-  </script>
-<!-- SEO:END -->
-<title>LOOKLI – מנוע חיפוש חכם לאופנה צנועה | אלפי מוצרים במקום אחד</title>
-  <style>
-    :root{
-      --bg:#fff;
-      --card:#fff;
-      --text:#787878;
-      --muted:#787878;
-      --accent:#e0a1c0;
-      --accent-light:#787878;
-      --accent-dark:#e0a1c0;
-      --border:#fff;
-      --radius:4px;
-      --shadow:0 4px 20px rgba(0,0,0,.08);
-      --shadow2:0 8px 40px rgba(0,0,0,.12);
-      --container:1600px;
-      --sidebar:280px;
-      --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%);
-      --sale-color:#ef4444
-    }
-    *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
-    body{margin:0;background:var(--bg);color:var(--text)}
-    a{color:inherit;text-decoration:none}
-    
-    /* ===== HEADER ===== */
-    .header{background:var(--header-gradient);padding:0;position:sticky;top:0;z-index:100;box-shadow:0 4px 30px rgba(102,126,234,.3)}
-    .header-top{max-width:var(--container);margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
-    .logo{display:flex;align-items:center;gap:14px;text-decoration:none}
-    .logo img{height:48px;width:auto}
-    .header-nav{display:flex;gap:20px}
-    .header-nav a{color:#fff;font-weight:600;font-size:14px;text-decoration:none;padding:8px 16px;border-radius:8px;transition:background .2s}
-    .header-nav a:hover{background:rgba(255,255,255,.2)}
-    
-    /* Active Filters Bar */
-    .active-filters-bar{display:none;background:#fff;border-bottom:1px solid var(--border);padding:10px 24px}
-    .active-filters-bar.show{display:block}
-    .active-filters-inner{max-width:var(--container);margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-    .active-filters-label{font-weight:700;font-size:13px;color:var(--muted)}
-    .active-filters-tags{display:flex;gap:8px;flex-wrap:wrap}
-    .filter-tag{display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600}
-    .filter-tag .remove-tag{cursor:pointer;font-size:14px;opacity:.8}
-    .filter-tag .remove-tag:hover{opacity:1}
-    .clear-all-btn{background:none;border:2px solid var(--border);padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s}
-    .clear-all-btn:hover{border-color:var(--accent);color:var(--accent)}
-    
-    /* Search Bar */
-    .search-section{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.1)}
-    .search-inner{max-width:var(--container);margin:0 auto;padding:12px 24px}
-    .searchbar{display:flex;gap:12px;background:#fff;border-radius:14px;padding:6px;box-shadow:var(--shadow2)}
-    .searchbar input{flex:1;border:0;outline:none;font-size:16px;padding:12px 18px;background:transparent;font-weight:500}
-    .searchbar input::placeholder{color:#9ca3af}
-    .searchbar .btn{border:none;cursor:pointer;padding:14px 20px;border-radius:10px;background:var(--accent);transition:all .2s;display:flex;align-items:center;justify-content:center}
-    .searchbar .btn:hover{background:var(--accent-dark);transform:translateY(-2px)}
-    .searchbar .btn svg{width:24px;height:24px;color:#fff}
-    
-    /* AI Analysis removed */
-    
-    /* ===== MAIN LAYOUT ===== */
-    .wrap{display:flex;gap:0;min-height:calc(100vh - 140px)}
-    @media(max-width:1000px){.wrap{flex-direction:column}.filters{display:none}}
-    
-    /* ===== SIDEBAR ===== */
-    .filters{width:var(--sidebar);background:#fff;border-left:1px solid var(--border);padding:0;flex-shrink:0;overflow-y:auto;height:calc(100vh - 136px);position:sticky;top:136px}
-    .filters::-webkit-scrollbar{width:5px}
-    .filters::-webkit-scrollbar-track{background:#f3f4f6}
-    .filters::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:3px}
-    
-    /* Filter Accordion */
-    .filter-section{border-bottom:1px solid var(--border)}
-    .filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
-    .filter-header:hover{background:#f9fafb}
-    .filter-header .arrow{transition:transform .2s;color:var(--muted);font-size:12px}
-    .filter-section.open .filter-header .arrow{transform:rotate(180deg)}
-    .filter-content{display:none;padding:0 20px 18px}
-    .filter-section.open .filter-content{display:block}
-    
-    /* Filter Options */
-    .filter-options{display:flex;flex-wrap:wrap;gap:8px}
-    .filter-opt{padding:10px 16px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;transition:all .15s;color:var(--muted)}
-    .filter-opt:hover{border-color:var(--accent-light);color:var(--accent)}
-    .filter-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-    
-    /* Store logos */
-    .store-opts{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow-y:auto}
-    .store-opt{width:50px;height:50px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;overflow:hidden;flex-shrink:0}
-    .store-opt:hover{border-color:var(--accent-light)}
-    .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
-    .store-opt img{width:100%;height:100%;object-fit:contain;padding:4px}
-    .store-opt span{font-size:12px;font-weight:800}
-    
-    /* Color options */
-    .color-opts{display:flex;flex-wrap:wrap;gap:10px}
-    .color-opt{width:34px;height:34px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:all .15s;box-shadow:0 2px 4px rgba(0,0,0,.15)}
-    .color-opt:hover{transform:scale(1.1)}
-    .color-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.3)}
-    
-    /* Size options */
-    .size-opts{display:flex;flex-wrap:wrap;gap:8px}
-    .size-opt{min-width:48px;padding:10px 14px;border:2px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;text-align:center;transition:all .15s}
-    .size-opt:hover{border-color:var(--accent-light)}
-    .size-opt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-    
-    /* Price slider */
-    .price-section{padding:10px 0}
-    .price-display{font-size:16px;font-weight:800;color:var(--accent);text-align:center;margin-bottom:12px}
-    .price-slider input[type="range"]{width:100%;height:6px;border-radius:3px;background:linear-gradient(to left,var(--accent),var(--accent-light));outline:none;-webkit-appearance:none;cursor:pointer}
-    .price-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(144,97,249,.3)}
-    
-    /* Reset button */
-    .reset-btn{width:100%;padding:14px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;color:var(--muted);transition:all .15s}
-    .reset-btn:hover{border-color:var(--accent);color:var(--accent)}
-    
-    /* Design filter - compact */
-    #designBoxes .filter-opt{padding:7px 12px;font-size:12px}
-    
-    /* ===== MOBILE STYLES ===== */
-    @media(max-width:768px){
-      .header-top{padding:10px 16px}
-      .logo img{height:36px}
-      .header-nav{display:none}
-      .search-inner{padding:10px 16px}
-      .searchbar{padding:4px;border-radius:10px}
-      .searchbar input{font-size:14px;padding:10px 12px}
-      .searchbar .btn{padding:10px 14px;border-radius:8px}
-      .searchbar .btn svg{width:20px;height:20px}
-      
-      .active-filters-bar{padding:8px 16px}
-      .active-filters-inner{gap:8px}
-      .active-filters-label{font-size:12px}
-      .filter-tag{padding:5px 10px;font-size:11px}
-      
-      .wrap{flex-direction:column}
-      .filters{position:fixed !important;top:0 !important;right:0 !important;width:85% !important;max-width:320px !important;height:100% !important;height:100dvh !important;z-index:9999 !important;background:#fff !important;transform:translateX(110%) !important;transition:transform .3s cubic-bezier(.4,0,.2,1) !important;overflow-y:auto !important;display:block !important;visibility:hidden}
-      .filters.open{transform:translateX(0) !important;visibility:visible !important}
-      .mobile-overlay{position:fixed !important;inset:0 !important;z-index:9998 !important;display:none}
-      .mobile-overlay.show{display:block !important}
-      
-      /* Mobile Sidebar Design */
-      .filter-section{border-bottom:1px solid #eee}
-      .filter-header{padding:16px 20px;font-size:14px}
-      .filter-content{padding:0 16px 16px}
-      .filter-opt{padding:8px 14px;font-size:13px;border-radius:6px}
-      .color-opt{width:30px;height:30px}
-      .size-opt{min-width:42px;padding:8px 12px;font-size:12px}
-      .store-opt{width:42px;height:42px;border-radius:8px}
-      
-      .mobile-filter-btn{display:flex !important;position:fixed;bottom:80px;right:16px;width:50px;height:50px;background:var(--accent);border-radius:50%;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(224,161,192,.4);z-index:149;color:#fff;font-size:20px;border:none;cursor:pointer}
-      
-      .mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199}
-      .mobile-overlay.show{display:block}
-      
-      .main{padding:16px}
-      .toolbar{margin-bottom:12px}
-      .meta{font-size:13px}
-      
-      .grid{grid-template-columns:repeat(2,1fr);gap:10px}
-      .card{border-radius:4px}
-      .card-body{padding:10px}
-      .title{font-size:12px;min-height:32px}
-      .price{font-size:14px}
-      .price-original{font-size:11px}
-      .store{font-size:10px}
-      .card-footer{margin-top:6px}
-      .sizes{font-size:9px}
-      .shipping-badge{font-size:8px;padding:3px 6px}
-      .sale-badge{font-size:9px;padding:4px 8px;top:6px;left:6px;border-radius:2px}
-      .card-logo{width:32px;height:32px;top:6px;right:6px;border-radius:4px}
-      .card-colors{padding:3px 5px;bottom:6px;right:6px;border-radius:4px}
-      .card-color{width:12px;height:12px}
-      .img-wrap{border-radius:4px 4px 0 0}
-      
-      .ads-sidebar{display:none !important}
-      
-      .whatsapp-btn{bottom:16px;right:16px;width:50px;height:50px}
-      .whatsapp-btn svg{width:24px;height:24px}
-      
-      .modal{width:100%;max-height:100vh;border-radius:0}
-      .modal-body{grid-template-columns:1fr;padding:12px 16px}
-      .modal-head{padding:14px 16px}
-      .modal-title{font-size:15px}
-    }
-    
-    @media(max-width:400px){
-      .grid{gap:8px}
-      .card-body{padding:8px}
-      .title{font-size:11px}
-      .price{font-size:13px}
-    }
-    
-    .mobile-filter-btn{display:none}
-    
-    /* Mobile Menu Button */
-    .mobile-menu-btn{display:none;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;padding:8px}
-    @media(max-width:768px){
-      .mobile-menu-btn{display:block}
-    }
-    
-    /* Filter close button */
-    .filter-close-btn{display:none;position:absolute;top:12px;left:12px;width:36px;height:36px;background:#fff;border:1px solid #eee;border-radius:50%;font-size:18px;cursor:pointer;z-index:10}
-    @media(max-width:768px){
-      .filter-close-btn{display:flex;align-items:center;justify-content:center}
-      .filters{position:relative}
-    }
-    .main{flex:1;padding:20px 24px;min-height:60vh}
-    .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-    .meta{color:var(--muted);font-size:14px;font-weight:700}
-    
-    /* Ads sidebar */
-    .ads-sidebar{width:200px;flex-shrink:0;padding:16px 10px;display:none;position:sticky;top:136px;height:fit-content;max-height:calc(100vh - 150px);overflow-y:auto;scrollbar-width:none}
-    .ads-sidebar::-webkit-scrollbar{display:none}
-    @media(min-width:1300px){.ads-sidebar{display:flex;flex-direction:column;gap:10px}}
-    /* גדלי יחידות פרסום — רוחב 180px קבוע */
-    .adunit{width:180px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s;flex-shrink:0;position:relative;display:block}
-    .adunit:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}
-    .adunit-single{height:180px}   /* 180×180 — 1 ריבוע  */
-    .adunit-double{height:370px}   /* 180×370 — 2 ריבועים */
-    .adunit-triple{height:560px}   /* 180×560 — 3 ריבועים */
-    .adunit img{width:100%;height:100%;object-fit:cover;display:block}
-    .adunit-badge{position:absolute;top:6px;right:6px;background:rgba(255,255,255,.88);border:1px solid #e5e7eb;color:#9ca3af;font-size:8px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:.3px}
-    .adunit-caption{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:11px;font-weight:700;padding:18px 8px 8px;line-height:1.3}
-    .adunit-empty{background:repeating-linear-gradient(45deg,#f9fafb,#f9fafb 10px,#f3f4f6 10px,#f3f4f6 20px);display:flex;align-items:center;justify-content:center;color:#d1d5db;font-size:11px;text-align:center}
-    
-    /* Product Grid - 4 columns */
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
-    @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
-    @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:500px){.grid{grid-template-columns:1fr}}
-    
-    /* Product Card */
-    .card{background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .2s,box-shadow .2s}
-    .card:hover{transform:translateY(-4px);box-shadow:var(--shadow2)}
-    .img-wrap{position:relative;width:100%;aspect-ratio:3/4;background:#f3f4f6;overflow:hidden}
-    
-    /* SALE Badge */
-    .sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:800;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
-    
-    /* Carousel */
-    .carousel{position:relative;width:100%;height:100%}
-    .carousel-inner{display:flex;height:100%;transition:transform .3s ease}
-    .carousel-slide{min-width:100%;height:100%}
-    .carousel-slide img{width:100%;height:100%;object-fit:cover}
-    .carousel-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px}
-    .carousel-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer;border:1px solid rgba(0,0,0,.2)}
-    .carousel-dot.active{background:#fff}
-    .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;font-size:14px;font-weight:bold;display:none;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);color:#333}
-    .img-wrap:hover .carousel-nav{display:flex}
-    .carousel-prev{right:8px}
-    .carousel-next{left:8px}
-    
-    /* Card elements */
-    .card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-    .card-logo img{max-width:90%;max-height:90%;object-fit:contain}
-    .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-    .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-    .card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
-    
-    .card-body{padding:14px}
-    .title{font-size:14px;font-weight:700;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:40px;color:var(--text)}
-    .subrow{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
-    .price-wrap{display:flex;align-items:center;gap:6px}
-    .price{font-weight:900;font-size:17px}
-    .price-original{font-size:13px;color:var(--muted);text-decoration:line-through}
-    .price.sale{color:var(--sale-color)}
-    .store{font-size:12px;color:var(--muted);font-weight:600}
-    .card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:6px}
-    .sizes{font-size:11px;color:var(--muted);font-weight:600;white-space:normal;line-height:1.4;max-height:2.8em;overflow:hidden}
-    .shipping-badge{font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;white-space:nowrap;color:var(--accent);background:rgba(144,97,249,.1)}
-    .shipping-badge.free{color:#16a34a;background:#dcfce7}
-    
-    .empty{padding:50px;text-align:center;color:var(--muted);border:2px dashed var(--border);border-radius:var(--radius);background:#fff;font-weight:700;font-size:15px}
-    
-    /* ===== MODAL ===== */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:20px;overflow-y:auto;backdrop-filter:blur(4px)}
-    .modal-backdrop.open{display:flex;align-items:flex-start;justify-content:center;padding-top:20px;padding-bottom:20px}
-    .modal{width:min(1000px,100%);max-height:calc(100vh - 40px);background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
-    .modal-head{padding:18px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
-    .modal-title{font-weight:800;font-size:17px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .close-btn{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:18px;transition:all .15s}
-    .close-btn:hover{border-color:var(--accent);color:var(--accent)}
-    .modal-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 22px;overflow-y:auto;flex:1;min-height:0}
-    @media(max-width:800px){.modal-body{grid-template-columns:1fr;overflow-y:auto}}
-    
-    /* Modal Gallery */
-    .gallery{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#f9f9f9}
-    .gallery-carousel{position:relative;width:100%;overflow:hidden;background:#f3f4f6}
-    .gallery-carousel-inner{display:flex;transition:transform .3s ease}
-    .gallery-carousel-slide{min-width:100%;display:flex;align-items:center;justify-content:center}
-    .gallery-carousel-slide img{width:100%;height:auto;object-fit:contain;max-height:75vh}
-    .gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;background:rgba(255,255,255,.95);border:none;border-radius:50%;cursor:pointer;font-size:18px;font-weight:bold;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#333}
-    .gallery-prev{right:12px}
-    .gallery-next{left:12px}
-    .gallery-dots{display:flex;gap:6px;justify-content:center;padding:12px}
-    .gallery-dot{width:9px;height:9px;border-radius:50%;background:#ddd;cursor:pointer;border:none;transition:background .15s}
-    .gallery-dot.active{background:var(--accent)}
-    .gallery-thumbs{display:flex;gap:8px;padding:10px;overflow-x:auto}
-    .gallery-thumb{width:55px;height:70px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;flex-shrink:0;background:#f3f4f6;transition:border-color .15s}
-    .gallery-thumb.active{border-color:var(--accent)}
-    .gallery-thumb img{width:100%;height:100%;object-fit:cover}
-    
-    .details{border:1px solid var(--border);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
-    .kpi{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi span{border:2px solid var(--border);padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px;color:var(--muted)}
-    .kpi span.sale-kpi{border-color:var(--sale-color);color:var(--sale-color);background:rgba(239,68,68,.05)}
-    .kpi span.shipping-kpi{border-color:var(--accent-light);color:var(--accent)}
-    .kpi span.shipping-kpi.free{border-color:#16a34a;color:#16a34a;background:#dcfce7}
-    .modal-colors-section{margin-top:4px}
-    .modal-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-    .modal-color{width:36px;height:36px;border-radius:50%;border:3px solid #ddd;cursor:pointer;transition:transform .15s;box-shadow:0 2px 6px rgba(0,0,0,.12)}
-    .modal-color:hover{transform:scale(1.1)}
-    .desc{color:#555;font-size:13px;line-height:1.7;white-space:pre-line}
-    .desc-title{font-weight:700;font-size:14px;margin-bottom:8px;color:var(--text)}
-    .label{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase}
-    .buy-big{margin-top:auto}
-    .buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:800;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
-    .buy-big a:hover{background:var(--accent-dark)}
-    
-    /* Footer */
-    footer{background:#3a3a3a;color:#fff;margin-top:40px}
-    .footer-inner{max-width:var(--container);margin:0 auto;padding:48px 28px 36px;display:grid;grid-template-columns:1fr 1fr 1fr 1.7fr;gap:36px;align-items:start}
-    @media(max-width:1000px){.footer-inner{grid-template-columns:1fr 1fr;gap:28px}}
-    @media(max-width:560px){.footer-inner{grid-template-columns:1fr;gap:22px}}
-    .footer-section h4{font-size:12px;font-weight:700;margin:0 0 14px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px}
-    .footer-section a{display:block;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;margin-bottom:9px;transition:color .15s}
-    .footer-section a:hover{color:#fff}
-    .footer-brand{font-weight:900;font-size:22px;margin-bottom:10px;letter-spacing:-.3px}
-    .footer-desc{font-size:12px;color:rgba(255,255,255,.45);line-height:1.65;margin:0}
-    .footer-bottom{border-top:1px solid rgba(255,255,255,.07);text-align:center;padding:18px 24px;font-size:11px;color:rgba(255,255,255,.3)}
-
-    /* Newsletter בתוך הפוטר */
-    .footer-nl{padding:0}
-    .footer-nl h4{color:rgba(255,255,255,.5)!important;font-size:11px!important;margin-bottom:10px!important}
-    .footer-nl-title{font-size:17px;font-weight:800;color:#fff;margin-bottom:5px;line-height:1.2}
-    .footer-nl-sub{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.5}
-    .footer-nl-form{display:flex;flex-direction:column;gap:8px}
-    .footer-nl-input{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:9px;color:#fff;padding:11px 13px;font-size:14px;font-family:inherit;outline:none;direction:rtl;width:100%;transition:border-color .15s}
-    .footer-nl-input:focus{border-color:rgba(168,85,247,.7);background:rgba(255,255,255,.13)}
-    .footer-nl-input::placeholder{color:rgba(255,255,255,.35)}
-    .footer-nl-btn{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;width:100%;letter-spacing:.3px}
-    .footer-nl-btn:hover{opacity:.85}
-    .footer-nl-note{font-size:10px;color:rgba(255,255,255,.28);margin-top:7px;text-align:center}
-    .footer-nl-msg{font-size:12px;min-height:18px;margin-top:6px;color:rgba(255,255,255,.8);text-align:center}
-    
-    /* WhatsApp Button */
-    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s}
-    .whatsapp-btn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(196,140,179,.5)}
-    .whatsapp-btn svg{width:28px;height:28px;color:#fff}
-    
-    /* Load more button */
-    #loadMoreBtn{margin:24px auto;display:block;max-width:220px;padding:14px 28px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:background .2s}
-    #loadMoreBtn:hover{background:var(--accent-dark)}
-    
-    /* Multi-select link */
-    
-    /* Multi-select modal */
-    .ms-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
-    .ms-modal-bg.open{display:flex}
-    .ms-modal{background:#fff;border-radius:18px;width:min(500px,95%);max-height:80vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column}
-    .ms-modal-head{padding:18px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
-    .ms-modal-head h3{margin:0;font-size:18px;font-weight:700}
-    .ms-modal-close{width:36px;height:36px;border-radius:10px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
-    .ms-modal-body{padding:16px 20px;overflow-y:auto;flex:1}
-    .ms-checkbox{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .15s}
-    .ms-checkbox:hover{background:#f5f3ff}
-    .ms-checkbox input{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
-    .ms-checkbox label{font-size:14px;font-weight:600;cursor:pointer;flex:1}
-    .ms-checkbox .ms-color{width:22px;height:22px;border-radius:50%;border:2px solid #ddd;flex-shrink:0}
-    .ms-modal-foot{padding:14px 20px;border-top:1px solid #eee;display:flex;gap:10px}
-    .ms-modal-foot button{flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;border:none}
-    .ms-apply{background:var(--accent);color:#fff}
-    .ms-apply:hover{background:var(--accent-dark)}
-    .ms-clear{background:#f3f4f6;color:#555}
-    .ms-clear:hover{background:#e5e7eb}
-    
-    /* Hero cube selected state */
-    .hero-cube.selected{border-color:var(--accent);background:rgba(224,161,192,.1);box-shadow:0 4px 16px rgba(224,161,192,.25)}
-    .hero-cube.selected::after{content:"\2713";position:absolute;top:8px;left:8px;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center;font-weight:700}
-    .hero-color-cube.selected{border-color:var(--accent);background:rgba(224,161,192,.08);position:relative}
-    .hero-color-cube.selected::after{content:"\2713";position:absolute;top:2px;left:2px;width:18px;height:18px;background:var(--accent);color:#fff;border-radius:50%;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700}
-    .hero-color-cube.selected .hero-color-circle{border-color:var(--accent);box-shadow:0 0 0 3px rgba(224,161,192,.3)}
-    .hero-cube{position:relative}
-    
-    /* ===== Hero Discovery Section ===== */
-    .hero-discover{width:100%;padding:30px 0 14px;text-align:center;background:#fff;border-bottom:1px solid #eee}
-    .hero-discover.hidden{display:none}
-    .hero-title{font-size:28px;font-weight:500;color:var(--accent);margin:0 0 26px;padding:0 24px;line-height:1.4}
-    .hero-step-label{font-size:21px;font-weight:500;color:#3a3a3a;margin-bottom:20px;padding:0 24px}
-    .hero-nav-labels{display:flex;align-items:center;gap:16px;margin-top:12px;justify-content:center;padding:0 24px}
-    .hero-nav-btn{display:flex;align-items:center;gap:6px;padding:9px 20px;border-radius:22px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);transition:all .15s}
-    .hero-nav-btn:hover{border-color:var(--accent);color:var(--accent)}
-    .hero-nav-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .hero-nav-btn.primary:hover{background:var(--accent-dark)}
-    .hero-nav-btn.primary.pulse{animation:heroPulse 1.5s ease-in-out infinite}
-    @keyframes heroPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-    .hero-nav-btn.disabled{opacity:.35;pointer-events:none}
-    .hero-no-results{color:#e74c3c;font-size:15px;font-weight:600;margin-top:14px;padding:14px 24px;background:#fff5f5;border-radius:12px;display:inline-block}
-    
-    /* Scrollable row */
-    .hero-slider{position:relative;width:100%;padding:0 56px}
-    .hero-cubes{display:flex;gap:20px;overflow-x:auto;scroll-behavior:smooth;padding:10px 12px 20px;-ms-overflow-style:none;scrollbar-width:none;justify-content:flex-start}
-    .hero-cubes::-webkit-scrollbar{display:none}
-    .hero-cubes.color-grid{flex-wrap:wrap;max-width:1200px;margin:0 auto;justify-content:center;gap:12px;padding:10px 12px 16px}
-    .hero-arrow{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:#fff;border:1px solid #ddd;box-shadow:0 4px 18px rgba(0,0,0,.1);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;font-size:24px;color:#555;transition:all .15s}
-    .hero-arrow:hover{box-shadow:0 6px 24px rgba(0,0,0,.18);border-color:var(--accent);color:var(--accent)}
-    .hero-arrow-right{right:4px}
-    .hero-arrow-left{left:4px}
-    
-    /* Cubes - HUGE, centered content */
-    .hero-cube{min-width:230px;height:244px;border-radius:20px;background:#fff;border:1px solid #e5e5e5;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:all .25s;box-shadow:0 4px 20px rgba(0,0,0,.06);flex-shrink:0}
-    .hero-cube:hover{border-color:var(--accent);transform:translateY(-6px);box-shadow:0 14px 45px rgba(224,161,192,.2)}
-    .hero-cube.active{border-color:var(--accent);background:linear-gradient(135deg,rgba(224,161,192,.04),rgba(224,161,192,.1));box-shadow:0 8px 30px rgba(224,161,192,.28)}
-    .hero-cube-icon{width:100px;height:100px;display:flex;align-items:center;justify-content:center}
-    .hero-cube-icon img{max-width:100%;max-height:100%;object-fit:contain}
-    .hero-cube-icon svg{width:88px;height:88px;color:var(--accent);stroke-width:1.1}
-    .hero-cube-label{font-size:19px;font-weight:700;color:#333;text-align:center;line-height:1.2}
-    .hero-cube-sublabel{font-size:12px;font-weight:500;color:#999;text-align:center;margin-top:-6px}
-    
-    /* Color cubes - 2-row grid layout */
-    .hero-color-cube{min-width:100px;width:100px;height:96px;border-radius:14px;background:#fff;border:1px solid #e5e5e5;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:all .25s;box-shadow:0 3px 12px rgba(0,0,0,.05);flex-shrink:0}
-    .hero-color-cube:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 24px rgba(224,161,192,.2)}
-    .hero-color-cube .hero-color-circle{width:44px;height:44px;border-radius:50%;border:3px solid #e0e0e0;box-shadow:0 3px 8px rgba(0,0,0,.1);transition:all .2s}
-    .hero-color-cube:hover .hero-color-circle{border-color:var(--accent)}
-    .hero-color-cube .hero-cube-label{font-size:13px;font-weight:600}
-    
-    /* Price/Size cubes */
-    .hero-big-text{font-size:42px;font-weight:900;color:var(--accent)}
-    
-    @media(max-width:768px){
-      .hero-discover{padding:18px 0 8px}
-      .hero-title{font-size:19px;padding:0 16px;margin-bottom:16px}
-      .hero-step-label{font-size:16px;padding:0 16px;margin-bottom:14px}
-      .hero-slider{padding:0 38px}
-      .hero-cubes{gap:14px;padding:6px 6px 14px}
-      .hero-cube{min-width:150px;height:160px;border-radius:16px;gap:10px}
-      .hero-cube-icon{width:72px;height:72px}
-      .hero-cube-icon svg{width:64px;height:64px}
-      .hero-cube-label{font-size:14px}
-      .hero-cubes.color-grid{gap:8px}
-      .hero-color-cube{min-width:76px;width:76px;height:76px}
-      .hero-color-cube .hero-color-circle{width:34px;height:34px}
-      .hero-color-cube .hero-cube-label{font-size:11px}
-      .hero-big-text{font-size:26px}
-      .hero-arrow{width:34px;height:34px;font-size:17px}
-      .hero-arrow-right{right:2px}
-      .hero-arrow-left{left:2px}
-      .hero-nav-labels{gap:10px}
-      .hero-nav-btn{padding:7px 14px;font-size:12px}
-    }
-
-    /* ===== AUTH BUTTON IN HEADER ===== */
-    .auth-btn{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;backdrop-filter:blur(4px)}
-    .auth-btn:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.7)}
-    .auth-btn svg{width:16px;height:16px;flex-shrink:0}
-    .auth-btn .auth-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-    /* ===== AUTH MODAL ===== */
-    .auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
-    .auth-modal-bg.open{display:flex}
-    .auth-modal{background:#fff;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
-    .auth-modal-head{background:var(--header-gradient);padding:28px 28px 22px;text-align:center}
-    .auth-modal-head h2{margin:0;color:#fff;font-size:22px;font-weight:800}
-    .auth-modal-head p{margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px}
-    .auth-modal-close{position:absolute;top:14px;left:14px;background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
-    .auth-modal-body{padding:28px}
-    .auth-tabs{display:flex;gap:0;background:#f3f4f6;border-radius:10px;padding:3px;margin-bottom:24px}
-    .auth-tab{flex:1;padding:9px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:#6b7280;transition:all .2s}
-    .auth-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.12)}
-    .auth-field{margin-bottom:16px}
-    .auth-field label{display:block;font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px}
-    .auth-field input{width:100%;border:2px solid #e5e7eb;border-radius:10px;padding:11px 14px;font-size:15px;outline:none;transition:border .2s;box-sizing:border-box}
-    .auth-field input:focus{border-color:var(--accent)}
-    .auth-submit{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
-    .auth-submit:hover{background:var(--accent-dark);transform:translateY(-1px)}
-    .auth-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
-    .auth-error{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none}
-    .auth-error.show{display:block}
-    .auth-success{background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none}
-    .auth-success.show{display:block}
-    .auth-or{text-align:center;color:#9ca3af;font-size:12px;margin:6px 0 0}
-    .auth-logout-btn{width:100%;background:#f9fafb;color:#ef4444;border:1.5px solid #fecaca;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;transition:all .2s}
-    .auth-logout-btn:hover{background:#fef2f2}
-
-    /* ===== SAVED PANEL ===== */
-    .saved-panel-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:900;justify-content:flex-start}
-    .saved-panel-bg.open{display:flex}
-    .saved-panel{background:#fff;width:380px;max-width:95vw;height:100%;overflow-y:auto;box-shadow:4px 0 30px rgba(0,0,0,.15);display:flex;flex-direction:column}
-    .saved-panel-head{background:var(--header-gradient);padding:20px 20px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-    .saved-panel-head h3{margin:0;color:#fff;font-size:18px;font-weight:800}
-    .saved-panel-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px}
-    .saved-panel-body{flex:1;padding:16px;overflow-y:auto}
-    .saved-item{display:flex;gap:12px;padding:12px;border:1px solid #f3f4f6;border-radius:12px;margin-bottom:10px;align-items:center;transition:box-shadow .2s}
-    .saved-item:hover{box-shadow:var(--shadow)}
-    .saved-item img{width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#f3f4f6}
-    .saved-item-info{flex:1;min-width:0}
-    .saved-item-title{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-    .saved-item-price{font-size:13px;font-weight:700;color:var(--accent)}
-    .saved-item-store{font-size:11px;color:#9ca3af;margin-top:2px}
-    .saved-item-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
-    .saved-item-remove{background:none;border:none;color:#9ca3af;cursor:pointer;padding:4px;border-radius:6px;transition:color .2s}
-    .saved-item-remove:hover{color:#ef4444}
-    .saved-item-buy{background:var(--accent);color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;display:block;text-align:center}
-    /* Alert bell button */
-    .alert-btn{background:none;border:none;cursor:pointer;padding:5px;border-radius:7px;transition:background .15s;display:flex;align-items:center;justify-content:center}
-    .alert-btn:hover{background:#f3f4f6}
-    .alert-btn svg{width:17px;height:17px;color:#9ca3af;transition:color .2s}
-    .alert-btn.active svg{color:var(--accent);fill:var(--accent)}
-
-    /* Alert popup */
-    .alert-popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1100;align-items:center;justify-content:center}
-    .alert-popup-bg.open{display:flex}
-    .alert-popup{background:#fff;border-radius:18px;padding:24px;width:320px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.18);direction:rtl}
-    .alert-popup-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px}
-    .alert-popup-product{font-size:12px;color:#9ca3af;margin-bottom:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .alert-option{display:flex;align-items:center;gap:10px;padding:11px 13px;border:2px solid #e5e7eb;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s}
-    .alert-option:hover{border-color:var(--accent);background:rgba(224,161,192,.04)}
-    .alert-option.selected{border-color:var(--accent);background:rgba(224,161,192,.07)}
-    .alert-option input[type=checkbox]{accent-color:var(--accent);width:17px;height:17px;cursor:pointer;flex-shrink:0}
-    .alert-option-label{font-size:13px;font-weight:600;color:#374151;flex:1}
-    .alert-size-select{width:100%;margin-top:8px;padding:8px 11px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;font-size:13px;color:#374151;outline:none;direction:rtl;display:none}
-    .alert-size-select.show{display:block}
-    .alert-popup-actions{display:flex;gap:8px;margin-top:16px}
-    .alert-save-btn{flex:1;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s}
-    .alert-save-btn:hover{opacity:.88}
-    .alert-cancel-btn{padding:11px 16px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
-
-    /* Banner בראש פאנל השמורים */
-    .alerts-banner{background:linear-gradient(135deg,rgba(224,161,192,.12),rgba(196,140,179,.08));border:1px solid rgba(224,161,192,.25);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:12px;color:#6b7280;line-height:1.4}
-    .alerts-banner svg{flex-shrink:0;color:var(--accent)}
-
-    .saved-empty{text-align:center;padding:60px 20px;color:#9ca3af}
-    .saved-empty svg{width:48px;height:48px;margin:0 auto 12px;display:block;opacity:.35}
-    .saved-count{background:rgba(255,255,255,.3);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
-
-    /* ===== HEART BUTTON ON CARDS ===== */
-    .card-save-btn{position:absolute;top:8px;left:8px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:6;transition:all .2s;backdrop-filter:blur(4px)}
-    .card-save-btn:hover{background:#fff;transform:scale(1.1)}
-    .card-save-btn svg{width:16px;height:16px;color:#9ca3af;transition:all .2s}
-    .card-save-btn.saved svg{color:#ef4444;fill:#ef4444}
-    .img-wrap{position:relative}
-
-    /* Profile area in saved panel */
-    .user-profile-bar{padding:14px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:12px}
-    .user-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;flex-shrink:0}
-    .user-info .user-email{font-size:13px;font-weight:700;color:var(--text)}
-    .user-info .user-plan{font-size:11px;color:#9ca3af;margin-top:2px}
-    .user-info .user-plan.premium{color:#f59e0b;font-weight:600}
-
-    /* ===== IMAGE FILTER TOGGLE ===== */
-    .toggle-switch{position:relative;width:40px;height:22px;flex-shrink:0}
-    .toggle-switch input{opacity:0;width:0;height:0;position:absolute}
-    .toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:22px;cursor:pointer;transition:background .2s}
-    .toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-    .toggle-switch input:checked + .toggle-slider{background:var(--accent)}
-    .toggle-switch input:checked + .toggle-slider:before{transform:translateX(18px)}
-    /* hidden card when image blocked */
-
-    /* ===== SPONSORED PRODUCTS ===== */
-    .card.sponsored{border:1.5px solid #f0e8f4;box-shadow:0 2px 12px rgba(196,140,179,.12)}
-    .ad-badge-wrap{position:absolute;bottom:8px;left:8px;right:8px;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px}
-    .ad-badge-text{background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:5px 11px;border-radius:6px;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
-    .sponsored-badge{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;color:#9ca3af;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.3px;backdrop-filter:blur(4px);z-index:4}
-  </style>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-1KF0KR6VS8"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-1KF0KR6VS8', {
-    link_attribution: true,
-    allow_enhanced_conversions: true
-  });
-</script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI Admin — כניסה</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f0f13;color:#f1f0f5;font-family:'Heebo',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .box{background:#18181f;border:1px solid #2e2e3a;border-radius:16px;padding:40px 36px;width:320px;text-align:center}
+  .logo{font-weight:900;font-size:24px;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .sub{font-size:13px;color:#6b6b80;margin-bottom:28px}
+  input{width:100%;background:#22222c;border:1px solid #2e2e3a;border-radius:8px;color:#f1f0f5;padding:11px 14px;font-size:15px;font-family:'Heebo',sans-serif;outline:none;margin-bottom:14px;direction:rtl;text-align:center}
+  input:focus{border-color:#a855f7}
+  button{width:100%;padding:11px;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;border:none;border-radius:8px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:700;cursor:pointer}
+  button:hover{opacity:.9}
+  .err{color:#ef4444;font-size:13px;margin-top:10px;display:none}
+  .lock{font-size:36px;margin-bottom:16px}
+</style>
 </head>
 <body>
-  <!-- HEADER -->
-  <header class="header">
-    <div class="header-top">
-      <a href="/" class="logo">
-        <img src="/lookli-logo.png" alt="LOOKLI" onerror="this.style.display='none'"/>
-      </a>
-      <nav class="header-nav">
-        <a href="/">דף הבית</a>
-        <a href="/about.html">אודות</a>
-        <a href="/contact.html">צור קשר</a>
-        <button class="auth-btn" id="authNavBtn" onclick="openAuthModal()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <span class="auth-name" id="authNavLabel">התחברות</span>
-        </button>
-        <button class="auth-btn" id="savedNavBtn" onclick="openSavedPanel()" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <span id="savedNavCount"></span>
-        </button>
-      </nav>
-      <button class="mobile-menu-btn" onclick="toggleMobileNav()">☰</button>
-    </div>
-    <div class="search-section">
-      <div class="search-inner">
-        <div class="searchbar">
-          <input id="q" placeholder='חפשי: "שמלה שחורה מידה M עד 200 ש"ח"'/>
-          <button class="btn" onclick="runAISearch()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  </header>
-  
-  <!-- Active Filters Bar -->
-  <div class="active-filters-bar" id="activeFiltersBar">
-    <div class="active-filters-inner">
-      <span class="active-filters-label">סינון פעיל:</span>
-      <div class="active-filters-tags" id="activeFiltersTags"></div>
-      <button class="clear-all-btn" onclick="resetAll()">נקה הכל</button>
-    </div>
-  </div>
-  
-  <!-- AI analysis removed -->
-  <span id="aiAnalysis" style="display:none"></span><span id="aiBox" style="display:none"></span>
-  
-  <!-- Hero Discovery Section -->
-  <div class="hero-discover" id="heroDiscover">
-    <h1 class="hero-title">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI</h1>
-    <div class="hero-step-label" id="heroStepLabel">מה את מחפשת?</div>
-    <div class="hero-slider">
-      <button class="hero-arrow hero-arrow-right" onclick="heroScroll(1)">‹</button>
-      <div class="hero-cubes" id="heroCubes"></div>
-      <button class="hero-arrow hero-arrow-left" onclick="heroScroll(-1)">›</button>
-    </div>
-    <div class="hero-nav-labels" id="heroNavLabels"></div>
-    <div id="heroNoResults" style="display:none"></div>
-  </div>
-  
-  <!-- Mobile Filter Button -->
-  <button class="mobile-filter-btn" onclick="toggleMobileFilters()">☰</button>
-  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleMobileFilters()"></div>
-  
-  <div class="wrap">
-    <!-- SIDEBAR -->
-    <aside class="filters" id="filtersPanel">
-      <button class="filter-close-btn" onclick="toggleMobileFilters()">✕</button>
-      
-      <div class="filter-section open" id="storeSection">
-        <div class="filter-header" onclick="toggleFilter('storeSection')">
-          <span>חנות</span>
-          <span class="arrow">▲</span>
-        </div>
-        <div class="filter-content">
-          <div class="store-opts" id="storeLogos"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section open" id="categorySection">
-        <div class="filter-header" onclick="toggleFilter('categorySection')">
-          <span>סוג מוצר</span>
-          <span class="arrow">▲</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="categoryBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="colorSection">
-        <div class="filter-header" onclick="toggleFilter('colorSection')">
-          <span>צבע</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="color-opts" id="colorGrid"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="sizeSection">
-        <div class="filter-header" onclick="toggleFilter('sizeSection')">
-          <span>מידה</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="size-opts" id="sizeBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="priceSection">
-        <div class="filter-header" onclick="toggleFilter('priceSection')">
-          <span>מחיר</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="price-section">
-            <div class="price-display">עד <span id="priceValue">500</span> ₪</div>
-            <div class="price-slider">
-              <input type="range" id="priceRange" min="50" max="500" step="10" value="500" oninput="updatePriceDisplay()">
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="styleSection">
-        <div class="filter-header" onclick="toggleFilter('styleSection')">
-          <span>סגנון</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="styleBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="fitSection">
-        <div class="filter-header" onclick="toggleFilter('fitSection')">
-          <span>גיזרה</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="fitBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="fabricSection">
-        <div class="filter-header" onclick="toggleFilter('fabricSection')">
-          <span>סוג בד</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="fabricBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="patternSection">
-        <div class="filter-header" onclick="toggleFilter('patternSection')">
-          <span>דוגמא</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="patternBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="designSection">
-        <div class="filter-header" onclick="toggleFilter('designSection')">
-          <span>עיצוב</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="designBoxes"></div>
-        </div>
-      </div>
-      
-      <div class="filter-section" id="discountSection">
-        <div class="filter-header" onclick="toggleFilter('discountSection')">
-          <span>הנחה</span>
-          <span class="arrow">▼</span>
-        </div>
-        <div class="filter-content">
-          <div class="filter-options" id="discountBoxes"></div>
-        </div>
-      </div>
-      <div style="padding:14px 20px">
-        <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
-      </div>
-      
-    </aside>
-    
-    <!-- MAIN -->
-    <main class="main">
-      <div class="toolbar">
-        <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
-        <select id="sort" onchange="runRegularSearch()" style="padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-size:13px;font-weight:600">
-          <option value="new">חדש → ישן</option>
-          <option value="price_asc">מחיר ↑</option>
-          <option value="price_desc">מחיר ↓</option>
-        </select>
-      </div>
-      <div class="grid" id="grid"></div>
-    </main>
-    
-    <!-- ADS SIDEBAR -->
-    <aside class="ads-sidebar" id="adsSidebar">
-      <!-- נטען דינמית -->
-    </aside>
-  </div>
-  
-  <!-- Multi-Select Modal -->
-  <div class="ms-modal-bg" id="msModal" onclick="closeMsModal(event)">
-    <div class="ms-modal" onclick="event.stopPropagation()">
-      <div class="ms-modal-head">
-        <h3 id="msModalTitle">בחירה מרובה</h3>
-        <button class="ms-modal-close" onclick="closeMsModal()">✕</button>
-      </div>
-      <div class="ms-modal-body" id="msModalBody"></div>
-      <div class="ms-modal-foot">
-        <button class="ms-clear" onclick="msClear()">נקה הכל</button>
-        <button class="ms-apply" onclick="msApply()">החל סינון</button>
-      </div>
-    </div>
-  </div>
-  
-  <!-- MODAL -->
-  <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-head">
-        <div class="modal-title" id="modalTitle">פרטי מוצר</div>
-        <button class="close-btn" onclick="closeModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="gallery">
-          <div class="gallery-carousel" id="modalCarousel">
-            <div class="gallery-carousel-inner" id="modalCarouselInner"></div>
-            <button class="gallery-nav gallery-prev" onclick="modalCarouselNav(1)">‹</button>
-            <button class="gallery-nav gallery-next" onclick="modalCarouselNav(-1)">›</button>
-          </div>
-          <div class="gallery-dots" id="modalDots"></div>
-          <div class="gallery-thumbs" id="modalThumbs"></div>
-        </div>
-        <div class="details">
-          <div class="kpi" id="modalKpi"></div>
-          <div class="modal-colors-section">
-            <div class="label">צבעים זמינים</div>
-            <div class="modal-colors" id="modalColors"></div>
-          </div>
-          <div>
-            <div class="desc-title">פירוט המוצר</div>
-            <div class="desc" id="modalDesc"></div>
-          </div>
-          <div class="buy-big"><a id="modalBuy" href="#" target="_blank" onclick="trackOutClick(this)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>לרכישה באתר</a></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- WhatsApp Button -->
-  <a href="https://wa.me/972500000000?text=שלום, פניתי מאתר LOOKLI" target="_blank" class="whatsapp-btn" title="שלחו לנו הודעה בוואטסאפ">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-  </a>
-  
-  <footer>
-    <div class="footer-inner">
-      <!-- עמודה 1: מותג -->
-      <div class="footer-section">
-        <div class="footer-brand">LOOKLI</div>
-        <p class="footer-desc">מנוע החיפוש החכם לאופנה צנועה.<br>מוצאים את הלוק שלך במקום אחד.</p>
-      </div>
-      <!-- עמודה 2: ניווט -->
-      <div class="footer-section">
-        <h4>ניווט</h4>
-        <a href="/">דף הבית</a>
-        <a href="/about.html">אודות</a>
-        <a href="/contact.html">צור קשר</a>
-        <a href="/contact.html?type=bug">דיווח על בעיה</a>
-        <a href="/about.html#faq">שאלות נפוצות</a>
-      </div>
-      <!-- עמודה 3: לחנויות -->
-      <div class="footer-section">
-        <h4>לחנויות</h4>
-        <a href="/contact.html?type=store">הצטרפות לאתר</a>
-        <a href="/contact.html?type=update">עדכון פרטים</a>
-      </div>
-      <!-- עמודה 4: newsletter (שמאל) -->
-      <div class="footer-section footer-nl">
-        <h4>עדכונים</h4>
-        <div class="footer-nl-title">✨ הישארי בעניינים</div>
-        <div class="footer-nl-sub">מבצעים, קולקציות חדשות וטרנדים — ישירות למייל</div>
-        <div class="footer-nl-form">
-          <input type="email" id="nlEmail" class="footer-nl-input" placeholder="המייל שלך"/>
-          <button onclick="subscribeNewsletter()" class="footer-nl-btn">הרשמי</button>
-        </div>
-        <div id="nlMsg" class="footer-nl-msg"></div>
-        <div class="footer-nl-note">ניתן לבטל הרשמה בכל עת • ללא ספאם</div>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      © 2025 LOOKLI — כל הזכויות שמורות &nbsp;|&nbsp;
-      <span style="font-size:10px">אתר חיפוש והשוואה בלבד. הרכישה מתבצעת ישירות מול החנות המקורית.</span>
-    </div>
-  </footer>
-
+<div class="box">
+  <div class="lock">🔐</div>
+  <div class="logo">LOOKLI</div>
+  <div class="sub">ממשק ניהול — כניסה מורשים בלבד</div>
+  <input type="password" id="pwd" placeholder="סיסמת ניהול" onkeydown="if(event.key==='Enter')login()"/>
+  <button onclick="login()">כניסה</button>
+  <div class="err" id="err">סיסמה שגויה</div>
+</div>
 <script>
-let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
-let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
-let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
-let currentPage=1,itemsPerPage=20,allProducts=[],isLoading=false;
-
-// show_rate: session-based counter (10% = פעם מכל 10 כניסות)
-const _sessionCounter = (() => {
-  let cnt = parseInt(sessionStorage.getItem('_lsc') || '0') + 1;
-  sessionStorage.setItem('_lsc', cnt);
-  return cnt;
-})();
-function shouldShowByRate(rate) {
-  if (!rate || rate >= 100) return true;
-  const interval = Math.round(100 / rate);
-  return (_sessionCounter % interval) === 1;
-}
-let lastSearchKeywords=[];
-let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
-
-const storeLogos={
-  'MEKIMI':'https://mekimi.co.il/wp-content/webp-express/webp-images/uploads/2022/10/logo.png.webp',
-  'LICHI':'https://lichi-shop.com/wp-content/uploads/2022/03/cropped-Bold-Feminine-Minimalist-Modern-Pink-Logo.png',
-  'MIMA':'https://static.wixstatic.com/media/505552_7e2cb98262a1451ca85a0c2dec921d8b~mv2.png/v1/fill/w_272,h_204,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/%D7%9C%D7%95%D7%92%D7%95-%D7%9E%D7%99%D7%9E%D7%94%20%D7%98%D7%95%D7%A8%D7%A7%D7%99%D7%96-01.png',
-  'AVIYAH':'https://aviyahyosef.com/wp-content/uploads/2023/09/logo-white.png',
-  'CHEMISE':'https://chemise.co.il/wp-content/uploads/2020/11/Group-35.svg'
-};
-
-// חנויות שהלוגו שלהן לבן וצריכות רקע כהה
-const darkBgStores = new Set(['AVIYAH', 'CHEMISE']);
-
-const colorData={
-  // עברית
-  'שחור':'#1a1a1a','לבן':'#FFFFFF','שמנת':'#FFFDD0','כחול':'#2563EB','תכלת':'#38BDF8',
-  'נייבי':'#1E3A5F','כחול כהה':'#1E3A5F','כחול בהיר':'#93C5FD','ג׳ינס':'#4A7FA5',
-  'אדום':'#DC2626','בורדו':'#800020','יין':'#722F37','טרקוטה':'#C16B4B',
-  'ירוק':'#16A34A','זית':'#556B2F','ירוק כהה':'#14532D','ירוק בהיר':'#86EFAC','ירוק מנטה':'#98FFD3',
-  'חאקי':'#8B8B00','חום':'#92400E','קאמל':'#C19A6B','טאופ':'#B5A898',
-  'בז׳':'#D4B896','ניוד':'#E8BEAC','פודרה':'#F2C4CE','ביסקוויט':'#DEB887',
-  'אפור':'#6B7280','אפור בהיר':'#D1D5DB','אפור כהה':'#374151','פחם':'#374151',
-  'ורוד':'#EC4899','ורוד בהיר':'#FBCFE8','ורוד כהה':'#BE185D','פוקסיה':'#D946EF','קורל':'#FF7F6B',
-  'סגול':'#7C3AED','לילך':'#C8A2C8','סגול בהיר':'#DDD6FE','סגול כהה':'#4C1D95',
-  'צהוב':'#FACC15','חרדל':'#D97706','לימון':'#FEF08A',
-  'כתום':'#EA580C','ענבר':'#FFBF00',
-  'זהב':'#D4AF37','כסף':'#C0C0C0','ברונז':'#CD7F32',
-  'מנטה':'#98FFD3','אפרסק':'#FFCBA4','אבן':'#C5B9A8','אוף וויט':'#FAF7F0','בהיר':'linear-gradient(135deg,#fff9f0,#e8f4f8)','אחר':'#BDBDBD',
-  'פרחוני':'linear-gradient(135deg,#EC4899,#FACC15,#16A34A,#7C3AED)',
-  'צבעוני':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
-  'מולטי':'linear-gradient(135deg,#DC2626,#FACC15,#2563EB,#16A34A)',
-  // אנגלית — שמות נפוצים בחנויות
-  'black':'#1a1a1a','white':'#FFFFFF','cream':'#FFFDD0','ivory':'#FFFFF0','off white':'#FAF7F0',
-  'blue':'#2563EB','navy':'#1E3A5F','light blue':'#93C5FD','sky':'#38BDF8','cobalt':'#0047AB',
-  'red':'#DC2626','burgundy':'#800020','wine':'#722F37','rust':'#B7410E',
-  'green':'#16A34A','olive':'#556B2F','khaki':'#8B8B00','forest':'#228B22','sage':'#87AE73',
-  'brown':'#92400E','camel':'#C19A6B','tan':'#D2B48C','taupe':'#B5A898','mocha':'#6F4E37',
-  'beige':'#D4B896','nude':'#E8BEAC','sand':'#C2B280','latte':'#C19A6B',
-  'gray':'#6B7280','grey':'#6B7280','charcoal':'#374151','silver':'#C0C0C0',
-  'pink':'#EC4899','blush':'#F2C4CE','fuchsia':'#D946EF','coral':'#FF7F6B','rose':'#FB7185',
-  'purple':'#7C3AED','lilac':'#C8A2C8','lavender':'#E6E6FA','violet':'#7F00FF','plum':'#8E4585',
-  'yellow':'#FACC15','mustard':'#D97706','lemon':'#FEF08A','gold':'#D4AF37',
-  'orange':'#EA580C','amber':'#FFBF00','terracotta':'#C16B4B','brick':'#B7410E',
-  'mint':'#98FFD3','turquoise':'#40E0D0','teal':'#0D9488','aqua':'#00FFFF',
-  'peach':'#FFCBA4','apricot':'#FBCFE8','salmon':'#FA8072',
-  // שמות מיוחדים של מותגים
-  'banana':'#FACC15','banana yellow':'#FACC15','banana cream':'#FFFDD0',
-  'cherry':'#800020','cherry red':'#DC143C',
-  'menta':'#98FFD3','mint green':'#98FFD3',
-  'ecru':'#C2B280','stone':'#C5B9A8','pebble':'#C5B9A8','clay':'#B66A50',
-  'chocolate':'#7B3F00','espresso':'#4B2C20','coffee':'#6F4E37',
-  'denim':'#4A7FA5','indigo':'#3730A3','electric':'#3B82F6',
-  'emerald':'#10B981','hunter':'#355E3B','moss':'#8A9A5B',
-  'blush pink':'#F9A8D4','dusty rose':'#D4918B','mauve':'#E0B0B0',
-  'sky blue':'#38BDF8','powder blue':'#B0E0E6','baby blue':'#89CFF0',
-  'hot pink':'#FF69B4','neon pink':'#FF00FF','candy':'#FF69B4',
-  'lime':'#84CC16','neon green':'#39FF14',
-  'maroon':'#800000','crimson':'#DC143C','scarlet':'#FF2400',
-};
-
-function getColorHex(n){
-  if(!n)return'#CCC';
-  const t=n.trim();
-  const tl=t.toLowerCase();
-  // התאמה מדויקת
-  if(colorData[t]) return colorData[t];
-  if(colorData[tl]) return colorData[tl];
-  // התאמה חלקית — הצבע מכיל את המפתח או להיפך
-  const found = Object.entries(colorData).find(([k]) => {
-    const kl=k.toLowerCase();
-    return tl===kl || tl.includes(kl) || kl.includes(tl);
+async function login(){
+  const p=document.getElementById('pwd').value;
+  if(!p) return;
+  const res=await fetch(window.location.pathname,{
+    headers:{'Authorization':'Basic '+btoa('admin:'+p)}
   });
-  return found?.[1] || '#CCC';
+  if(res.ok||res.status===200){window.location.reload();}
+  else{const e=document.getElementById('err');e.style.display='block';}
 }
-function formatSize(s){return s?s.replace(/^EU_/i,''):s}
-function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function buildSaveBtn(url, title, price, image, store, isSaved, hasSale) {
-  const topPos = hasSale ? '50px' : '8px';
-  const cls = 'card-save-btn' + (isSaved ? ' saved' : '');
-  const fill = isSaved ? 'currentColor' : 'none';
-  const u = url.replace(/"/g,'&quot;');
-  const t = title.replace(/"/g,'&quot;');
-  const im = image.replace(/"/g,'&quot;');
-  const st = store.replace(/"/g,'&quot;');
-  return '<button class="'+cls+'" data-url="'+u+'" data-title="'+t+'" data-price="'+price+'" data-image="'+im+'" data-store="'+st+'" title="שמרי מוצר" style="top:'+topPos+'" onclick="event.stopPropagation();handleSaveClick(this)">'
-    + '<svg viewBox="0 0 24 24" fill="'+fill+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'
-    + '</svg></button>';
-}
-function calcDiscount(p,o){return(!o||o<=p)?0:Math.round((o-p)/o*100)}
-function debouncedSearch(){clearTimeout(debounceTimer);debounceTimer=setTimeout(runRegularSearch,250)}
-function setLoading(){document.getElementById("grid").innerHTML='<div class="card"><div class="img-wrap"></div><div class="card-body"><div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div></div></div>'.repeat(8)}
-
-function toggleMobileNav(){
-  // פתח/סגור תפריט ניווט עמודים
-  const nav = document.getElementById('mobileNavMenu');
-  if(nav){ nav.classList.toggle('open'); return; }
-  // צור בפעם הראשונה
-  const menu = document.createElement('div');
-  menu.id = 'mobileNavMenu';
-  menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
-  menu.innerHTML = `
-    <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🏠 דף הבית</a>
-    <a href="/about.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">📖 אודות</a>
-    <a href="/contact.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">✉️ צור קשר</a>
-  `;
-  document.body.appendChild(menu);
-  setTimeout(() => { menu.style.transform = 'translateY(0)'; menu.classList.add('open'); }, 10);
-  // סגור בלחיצה מחוץ
-  setTimeout(()=> document.addEventListener('click', function h(e){
-    if(!menu.contains(e.target) && !e.target.classList.contains('mobile-menu-btn')){
-      menu.style.transform='translateY(-110%)';
-      document.removeEventListener('click',h);
-    }
-  }), 100);
-}
-
-function toggleMobileFilters(){
-  const filters=document.getElementById('filtersPanel');
-  const overlay=document.getElementById('mobileOverlay');
-  // העבר ל-body אם עוד לא שם (פעם אחת בלבד)
-  if(filters.parentElement!==document.body){
-    document.body.appendChild(filters);
-    document.body.appendChild(overlay);
-  }
-  const isOpening=!filters.classList.contains('open');
-  if(isOpening) filters.scrollTop=0;
-  filters.classList.toggle('open');
-  overlay.classList.toggle('show');
-  document.body.style.overflow=isOpening?'hidden':'';
-}
-
-function toggleFilter(id){
-  const section=document.getElementById(id);
-  section.classList.toggle('open');
-  const arrow=section.querySelector('.arrow');
-  arrow.textContent=section.classList.contains('open')?'▲':'▼';
-}
-
-function handleSearchInput(){
-  const q=document.getElementById("q").value.trim();
-  if(q===""&&previousSearchQuery!==""){
-    document.getElementById("aiAnalysis").classList.remove("active");
-    resetAllFiltersQuietly();
-    lastSearchKeywords=[];
-    runRegularSearch();
-  }
-  previousSearchQuery=q;
-}
-
-async function runAISearch(){
-  const q=document.getElementById("q").value.trim();
-  if(!q){document.getElementById("aiAnalysis").classList.remove("active");lastSearchKeywords=[];runRegularSearch();return}
-  setLoading();
-  window.scrollTo({top:0,behavior:'smooth'});
-  try{
-    const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
-    const data=await res.json();
-    lastSearchKeywords=data.analysis.keywords||[];
-    // Clear all existing filters before applying AI results
-    resetAllFiltersQuietly();
-    // סנכרון הסיידבר עם תוצאות AI
-    if(data.analysis.store){activeStore=data.analysis.store;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore))}
-    if(data.analysis.color){activeColors=[data.analysis.color]}
-    if(data.analysis.category){activeCategories=[data.analysis.category]}
-    if(data.analysis.size){activeSizes=[data.analysis.size]}
-    if(data.analysis.style){activeStyles=[data.analysis.style]}
-    if(data.analysis.fit){activeFits=[data.analysis.fit]}
-    if(data.analysis.fabric){activeFabrics=[data.analysis.fabric]}
-    if(data.analysis.pattern){activePattern=data.analysis.pattern}
-    if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}
-    if(data.analysis.maxPrice){document.getElementById("priceRange").value=Math.min(data.analysis.maxPrice,500);document.getElementById("priceValue").textContent=Math.min(data.analysis.maxPrice,500)}
-    // רענון כל הפילטרים ויזואלית
-    renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
-    updateActiveFiltersBar();
-    allProducts=data.results;currentPage=1;renderPage();
-    document.getElementById("metaToolbar").textContent=`${data.count} תוצאות`;
-    previousSearchQuery=q;
-  }catch(e){console.error(e);alert("שגיאה בחיפוש")}
-}
-
-var skipScrollOnSearch=false;
-
-async function runRegularSearch(){
-  setLoading();document.getElementById("aiAnalysis").classList.remove("active");
-  if(!skipScrollOnSearch){window.scrollTo({top:0,behavior:'smooth'})}
-  skipScrollOnSearch=false;
-  const params=new URLSearchParams();
-  if(lastSearchKeywords.length>0)params.set("q",lastSearchKeywords.join(' '));
-  if(activeStore)params.set("store",activeStore);
-  // Multi-select: combine single + array selections
-  var catVal=activeCategory||(activeCategories.length?activeCategories.join(','):'');
-  var colorVal=activeColor||(activeColors.length?activeColors.join(','):'');
-  var sizeVal=activeSize||(activeSizes.length?activeSizes.join(','):'');
-  var styleVal=activeStyle||(activeStyles.length?activeStyles.join(','):'');
-  var fitVal=activeFit||(activeFits.length?activeFits.join(','):'');
-  var fabricVal=activeFabric||(activeFabrics.length?activeFabrics.join(','):'');
-  if(catVal)params.set("category",catVal);
-  if(sizeVal)params.set("size",sizeVal);
-  if(colorVal)params.set("color",colorVal);
-  if(styleVal)params.set("style",styleVal);
-  if(fitVal)params.set("fit",fitVal);
-  if(fabricVal)params.set("fabric",fabricVal);
-  if(activePattern)params.set("pattern",activePattern);
-  if(activeDesign)params.set("design",activeDesign);
-  if(activeDiscount)params.set("minDiscount",activeDiscount);
-  const maxPrice=document.getElementById("priceRange").value;
-  const sliderMax=document.getElementById("priceRange").max;
-  if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
-  if(document.getElementById("sort").value)params.set("sort",document.getElementById("sort").value);
-  const res=await fetch("/api/products?"+params);
-  const data=await res.json();
-  allProducts=data;currentPage=1;renderPage();
-  document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
-    updateSeoMeta(document.getElementById("q").value.trim());
-    loadSponsored(document.getElementById('q').value.trim());
-}
-
-
-
-function getActiveProducts(){
-
-  return allProducts;
-}
-
-function renderPage(){
-  const active = getActiveProducts();
-  const end = currentPage*itemsPerPage;
-  renderProducts(active.slice(0,end), false);
-  updateLoadMoreButtonFiltered(active.length);
-  setTimeout(loadSidebarAds, 100); // עדכן מודעות לפי מוצרים נוכחיים
-}
-
-function loadMore(){
-  if(isLoading)return;
-  currentPage++;
-  const active = getActiveProducts();
-  const start=(currentPage-1)*itemsPerPage;
-  const end=currentPage*itemsPerPage;
-  renderProducts(active.slice(start,end), true);
-  updateLoadMoreButtonFiltered(active.length);
-}
-
-function updateLoadMoreButtonFiltered(total){
-  let btn=document.getElementById("loadMoreBtn");
-  const totalPages=Math.ceil(total/itemsPerPage);
-  if(total===0||currentPage>=totalPages){
-    if(btn) btn.remove();
-  } else {
-    if(!btn){btn=document.createElement('button');btn.id='loadMoreBtn';btn.onclick=loadMore;document.getElementById("grid").after(btn)}
-    btn.textContent='טען עוד';
-  }
-}
-
-function updateLoadMoreButton(){
-  let btn=document.getElementById("loadMoreBtn");
-  const totalPages=Math.ceil(allProducts.length/itemsPerPage);
-  if(allProducts.length===0||currentPage>=totalPages||allProducts.length<=itemsPerPage){
-    if(btn)btn.style.display='none';
-  }else{
-    if(!btn){btn=document.createElement('button');btn.id='loadMoreBtn';btn.onclick=loadMore;document.getElementById("grid").after(btn)}
-    btn.style.display='block';
-    btn.textContent='טען עוד';
-  }
-}
-
-// Infinite scroll - טעינה אוטומטית בגלילה
-// גלילה: טען עוד רק בלחיצה על הכפתור
-
-function renderProducts(products,append=false){
-  const grid=document.getElementById("grid");
-  if(!append)grid.innerHTML="";
-  if(!products?.length&&!append){grid.innerHTML='<div class="empty">לא נמצאו תוצאות</div>';return}
-  
-  for(const p of products){
-    const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
-    const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
-    const colors=p.colors||(p.color?[p.color]:[]);
-    const sizes=(p.sizes||[]).map(formatSize);
-    const originalPrice=parseFloat(p.original_price)||0;
-    const currentPrice=parseFloat(p.price)||0;
-    const isOnSale=originalPrice>0&&originalPrice>currentPrice;
-    const disc=calcDiscount(currentPrice,originalPrice);
-    
-    let carouselHTML='';
-    if(images.length>1){
-      const slides=images.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="var _c=this.closest(\'.card\');if(_c)_c.style.display=\'none\'"':''}>\u200B</div>`).join('');
-      const dots=images.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
-      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)">›</button></div>`;
-    }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(images[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onload="checkNetfreeBlock(this)" onerror="const _c=this.closest&&this.closest('.card');if(_c)_c.style.display='none'">`;
-    }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
-    
-    let colorDotsHTML='';
-    if(colors.length>0){
-      colorDotsHTML='<div class="card-colors">';
-      colors.slice(0,3).forEach(c=>{colorDotsHTML+=`<span class="card-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`});
-      if(colors.length>3)colorDotsHTML+=`<span class="card-color-more">+${colors.length-3}</span>`;
-      colorDotsHTML+='</div>';
-    }
-    
-    const saleBadgeHTML=isOnSale?`<div class="sale-badge">${disc}%-</div>`:'';
-    const priceHTML=isOnSale?`<div class="price-wrap"><div class="price sale">₪${currentPrice}</div><div class="price-original">₪${originalPrice}</div></div>`:`<div class="price">${currentPrice?'₪'+currentPrice:''}</div>`;
-    
-    let shippingBadgeHTML='';
-    if(p.shipping){
-      if(p.shipping.isFree){shippingBadgeHTML=`<span class="shipping-badge free">משלוח חינם</span>`}
-      else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
-    }
-    
-    const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
-    const isSaved = savedUrls.has(p.source_url||'');
-    const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
-    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logo?`<div class="card-logo" ${logoBgClass}><img src="${logo}" alt="${store}"></div>`:''}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
-  }
-}
-
-function carouselNav(btn,dir){
-  const carousel=btn.closest('.carousel'),inner=carousel.querySelector('.carousel-inner'),slides=carousel.querySelectorAll('.carousel-slide'),dots=carousel.querySelectorAll('.carousel-dot');
-  let idx=parseInt(carousel.dataset.index)||0;idx+=dir;if(idx<0)idx=slides.length-1;if(idx>=slides.length)idx=0;
-  carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
-}
-function goToSlide(dot,idx){
-  const carousel=dot.closest('.carousel'),inner=carousel.querySelector('.carousel-inner'),dots=carousel.querySelectorAll('.carousel-dot');
-  carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
-}
-function modalCarouselNav(dir){modalImageIndex+=dir;if(modalImageIndex<0)modalImageIndex=modalImages.length-1;if(modalImageIndex>=modalImages.length)modalImageIndex=0;updateModalCarousel()}
-function goToModalSlide(idx){modalImageIndex=idx;updateModalCarousel()}
-function updateModalCarousel(){
-  document.getElementById("modalCarouselInner").style.transform=`translateX(${modalImageIndex*100}%)`;
-  document.querySelectorAll('.gallery-dot').forEach((d,i)=>d.classList.toggle('active',i===modalImageIndex));
-  document.querySelectorAll('.gallery-thumb').forEach((t,i)=>t.classList.toggle('active',i===modalImageIndex));
-}
-
-const allFabrics=['סריג','אריג','ג\'רסי','פיקה','שיפון','קרפ','סאטן','קטיפה','פליז','תחרה','טול','לייקרה','טריקו','רשת','ג\'ינס','קורדרוי','כותנה','פשתן','משי','צמר','ריקמה','פרווה'];
-const allPatterns=['פסים','פרחוני','משבצות','נקודות','חלק','הדפס','אבסטרקטי','גיאומטרי','חיות'];
-const allDesigns=['צווארון V','צווארון עגול','גולף','צווארון גבוה','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','קומות','שסע','כיווצים','תיקתק','מעטפת'];
-const allDiscounts=[{val:'20',label:'20%+'},{val:'40',label:'40%+'},{val:'60',label:'60%+'}];
-
-async function initFilters(){
-  const data=await(await fetch("/api/filters")).json();
-  dbCategories=data.categories||[];dbStyles=data.styles||[];dbFits=data.fits||[];dbColors=data.colors||[];dbSizes=data.sizes||[];dbFabrics=data.fabrics||[];dbPatterns=data.patterns||[];dbDesigns=data.designs||[];
-  
-  const storeDiv=document.getElementById("storeLogos");
-  storeDiv.innerHTML=`<div class="store-opt active" data-store="" onclick="selectStore('')"><span>הכל</span></div>`;
-  (data.stores||[]).forEach(s=>{const logo=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${logo?`<img src="${logo}" alt="${s}">`:`<span>${s.substring(0,3)}</span>`}</div>`});
-  
-  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
-  
-  const discDiv=document.getElementById("discountBoxes");
-  discDiv.innerHTML=`<div class="filter-opt${activeDiscount===''?' active':''}" data-discount="" onclick="selectDiscount('')">הכל</div>`+allDiscounts.map(d=>`<div class="filter-opt" data-discount="${d.val}" onclick="selectDiscount('${d.val}')">${d.label}</div>`).join('');
-  
-  if(data.maxPrice){const slider=document.getElementById("priceRange");const roundedMax=Math.ceil(data.maxPrice/10)*10;slider.max=roundedMax;slider.value=roundedMax;document.getElementById("priceValue").textContent=roundedMax}
-}
-
-// Consolidated style map: שבת/ערב includes חגיגי+אלגנטי
-var styleConsolidation={'שבת/ערב':['ערב','חגיגי','אלגנטי','שבת','שבתי']};
-
-function renderCategoryBoxes(){const div=document.getElementById("categoryBoxes");var cats=dbCategories.filter(c=>c!=='מכנסיים'&&c!=='סריג');var noSel=!activeCategory&&activeCategories.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectCategory('')">הכל</div>`+cats.map(c=>{var isA=activeCategory===c||activeCategories.indexOf(c)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectCategory('${escapeHtml(c)}')">${escapeHtml(c)}</div>`}).join('')}
-function renderColorGrid(){const div=document.getElementById("colorGrid");var noSel=!activeColor&&activeColors.length===0;div.innerHTML=`<div class="color-opt${noSel?' active':''}" data-color="" style="background:linear-gradient(135deg,#f00,#0f0,#00f,#ff0)" title="הכל" onclick="selectColor('')"></div>`+dbColors.map(c=>{var isA=activeColor===c||activeColors.indexOf(c)!==-1;return `<div class="color-opt${isA?' active':''}" data-color="${escapeHtml(c)}" style="background:${getColorHex(c)}" title="${escapeHtml(c)}" onclick="selectColor('${escapeHtml(c)}')"></div>`}).join('')}
-function renderSizeBoxes(){const div=document.getElementById("sizeBoxes");var noSel=!activeSize&&activeSizes.length===0;div.innerHTML=`<div class="size-opt${noSel?' active':''}" onclick="selectSize('')">הכל</div>`+dbSizes.map(s=>{var isA=activeSize===s||activeSizes.indexOf(s)!==-1;return `<div class="size-opt${isA?' active':''}" data-size="${escapeHtml(s)}" onclick="selectSize('${escapeHtml(s)}')">${formatSize(s)}</div>`}).join('')}
-function renderStyleBoxes(){const div=document.getElementById("styleBoxes");var consolidated=['שבת/ערב','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'];var styles=consolidated.filter(s=>s==='שבת/ערב'?dbStyles.some(d=>['ערב','חגיגי','אלגנטי'].includes(d)):dbStyles.includes(s));if(styles.length===0){document.getElementById("styleSection").style.display='none';return}document.getElementById("styleSection").style.display='block';var noSel=!activeStyle&&activeStyles.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectStyle('')">הכל</div>`+styles.map(s=>{var isA=activeStyle===s||activeStyles.indexOf(s)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectStyle('${escapeHtml(s)}')">${escapeHtml(s)}</div>`}).join('')}
-function renderFitBoxes(){const div=document.getElementById("fitBoxes");const baseFits=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];const allFits=[...new Set([...baseFits,...dbFits])];if(allFits.length===0){document.getElementById("fitSection").style.display='none';return}document.getElementById("fitSection").style.display='block';var noSel=!activeFit&&activeFits.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFit('')">הכל</div>`+allFits.map(f=>{var isA=activeFit===f||activeFits.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFit('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
-function renderFabricBoxes(){const div=document.getElementById("fabricBoxes");if(!dbFabrics||dbFabrics.length===0){document.getElementById("fabricSection").style.display='none';return}document.getElementById("fabricSection").style.display='block';var noSel=!activeFabric&&activeFabrics.length===0;div.innerHTML=`<div class="filter-opt${noSel?' active':''}" onclick="selectFabric('')">הכל</div>`+dbFabrics.map(f=>{var isA=activeFabric===f||activeFabrics.indexOf(f)!==-1;return `<div class="filter-opt${isA?' active':''}" onclick="selectFabric('${escapeHtml(f)}')">${escapeHtml(f)}</div>`}).join('')}
-function renderPatternBoxes(){const div=document.getElementById("patternBoxes");if(!dbPatterns||dbPatterns.length===0){document.getElementById("patternSection").style.display='none';return}document.getElementById("patternSection").style.display='block';div.innerHTML=`<div class="filter-opt${activePattern===''?' active':''}" onclick="selectPattern('')">הכל</div>`+dbPatterns.map(p=>`<div class="filter-opt${activePattern===p?' active':''}" onclick="selectPattern('${escapeHtml(p)}')">${escapeHtml(p)}</div>`).join('')}
-function renderDesignBoxes(){const div=document.getElementById("designBoxes");if(!dbDesigns||dbDesigns.length===0){document.getElementById("designSection").style.display='none';return}document.getElementById("designSection").style.display='block';div.innerHTML=`<div class="filter-opt${activeDesign===''?' active':''}" onclick="selectDesign('')">הכל</div>`+dbDesigns.map(d=>`<div class="filter-opt${activeDesign===d?' active':''}" onclick="selectDesign('${escapeHtml(d)}')">${escapeHtml(d)}</div>`).join('')}
-
-function updateActiveFiltersBar(){
-  const tags=[];
-  if(activeStore)tags.push({type:'store',label:'חנות: '+activeStore});
-  if(activeCategory)tags.push({type:'category',label:'סוג: '+activeCategory});
-  if(activeColor)tags.push({type:'color',label:'צבע: '+activeColor});
-  if(activeSize)tags.push({type:'size',label:'מידה: '+formatSize(activeSize)});
-  if(activeStyle)tags.push({type:'style',label:'סגנון: '+activeStyle});
-  if(activeFit)tags.push({type:'fit',label:'גיזרה: '+activeFit});
-  if(activeFabric)tags.push({type:'fabric',label:'בד: '+activeFabric});
-  if(activePattern)tags.push({type:'pattern',label:'דוגמא: '+activePattern});
-  if(activeDesign)tags.push({type:'design',label:'עיצוב: '+activeDesign});
-  if(activeDiscount)tags.push({type:'discount',label:activeDiscount+'%+ הנחה'});
-  // Multi-select arrays
-  activeCategories.forEach(c=>tags.push({type:'category-'+c,label:'סוג: '+c}));
-  activeColors.forEach(c=>tags.push({type:'color-'+c,label:'צבע: '+c}));
-  activeSizes.forEach(s=>tags.push({type:'size-'+s,label:'מידה: '+formatSize(s)}));
-  activeStyles.forEach(s=>tags.push({type:'style-'+s,label:'סגנון: '+s}));
-  activeFits.forEach(f=>tags.push({type:'fit-'+f,label:'גיזרה: '+f}));
-  activeFabrics.forEach(f=>tags.push({type:'fabric-'+f,label:'בד: '+f}));
-  if(lastSearchKeywords.length>0)tags.push({type:'keywords',label:'חיפוש: '+lastSearchKeywords.join(' ')});
-  
-  const bar=document.getElementById("activeFiltersBar");
-  const tagsDiv=document.getElementById("activeFiltersTags");
-  if(tags.length===0){bar.classList.remove('show')}
-  else{
-    bar.classList.add('show');
-    tagsDiv.innerHTML=tags.map(t=>'<span class="filter-tag">'+escapeHtml(t.label)+'<span class="remove-tag" onclick="removeFilter(\''+escapeHtml(t.type)+'\')">✕</span></span>').join('');
-  }
-}
-
-function removeFilter(type){
-  if(type==='store'){activeStore="";document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===''))}
-  else if(type==='category'){activeCategory="";renderCategoryBoxes()}
-  else if(type==='color'){activeColor="";renderColorGrid()}
-  else if(type==='size'){activeSize="";renderSizeBoxes()}
-  else if(type==='style'){activeStyle="";renderStyleBoxes()}
-  else if(type==='fit'){activeFit="";renderFitBoxes()}
-  else if(type==='fabric'){activeFabric="";renderFabricBoxes()}
-  else if(type==='pattern'){activePattern="";renderPatternBoxes()}
-  else if(type==='design'){activeDesign="";renderDesignBoxes()}
-  else if(type==='discount'){activeDiscount="";document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''))}
-  else if(type==='keywords'){lastSearchKeywords=[];document.getElementById("q").value=""}
-  else if(type.startsWith('category-')){var v=type.substring(9);activeCategories=activeCategories.filter(x=>x!==v)}
-  else if(type.startsWith('color-')){var v2=type.substring(6);activeColors=activeColors.filter(x=>x!==v2)}
-  else if(type.startsWith('size-')){var v3=type.substring(5);activeSizes=activeSizes.filter(x=>x!==v3)}
-  else if(type.startsWith('style-')){var v4=type.substring(6);activeStyles=activeStyles.filter(x=>x!==v4)}
-  else if(type.startsWith('fit-')){var v5=type.substring(4);activeFits=activeFits.filter(x=>x!==v5)}
-  else if(type.startsWith('fabric-')){var v6=type.substring(7);activeFabrics=activeFabrics.filter(x=>x!==v6)}
-  updateActiveFiltersBar();
-  runRegularSearch();
-}
-
-function updatePriceDisplay(){const val=document.getElementById("priceRange").value;document.getElementById("priceValue").textContent=val;debouncedSearch()}
-
-function selectStore(s){activeStore=(activeStore===s&&s!=="")?"":s;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore));updateActiveFiltersBar();runRegularSearch()}
-function selectCategory(c){checkHideHero();if(!c){activeCategory='';activeCategories=[];}else{activeCategory='';var idx=activeCategories.indexOf(c);if(idx!==-1)activeCategories.splice(idx,1);else activeCategories.push(c);}renderCategoryBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectColor(c){checkHideHero();if(!c){activeColor='';activeColors=[];}else{activeColor='';var idx=activeColors.indexOf(c);if(idx!==-1)activeColors.splice(idx,1);else activeColors.push(c);}renderColorGrid();updateActiveFiltersBar();runRegularSearch()}
-function selectSize(s){checkHideHero();if(!s){activeSize='';activeSizes=[];}else{activeSize='';var idx=activeSizes.indexOf(s);if(idx!==-1)activeSizes.splice(idx,1);else activeSizes.push(s);}renderSizeBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectStyle(s){checkHideHero();if(!s){activeStyle='';activeStyles=[];}else{activeStyle='';var idx=activeStyles.indexOf(s);if(idx!==-1)activeStyles.splice(idx,1);else activeStyles.push(s);}renderStyleBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectFit(f){checkHideHero();if(!f){activeFit='';activeFits=[];}else{activeFit='';var idx=activeFits.indexOf(f);if(idx!==-1)activeFits.splice(idx,1);else activeFits.push(f);}renderFitBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectFabric(f){checkHideHero();if(!f){activeFabric='';activeFabrics=[];}else{activeFabric='';var idx=activeFabrics.indexOf(f);if(idx!==-1)activeFabrics.splice(idx,1);else activeFabrics.push(f);}renderFabricBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectPattern(p){activePattern=(activePattern===p)?"":p;renderPatternBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectDesign(d){activeDesign=(activeDesign===d)?"":d;renderDesignBoxes();updateActiveFiltersBar();runRegularSearch()}
-function selectDiscount(d){activeDiscount=(activeDiscount===d)?"":d;document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount));updateActiveFiltersBar();runRegularSearch()}
-
-// === Multi-Select Modal ===
-var msCurrentType='';
-var msSelected=[];
-function openMsModal(type){
-  msCurrentType=type;
-  var items=[],title='';
-  if(type==='category'){title='בחירת סוגי מוצר';items=dbCategories.filter(c=>c!=='מכנסיים');msSelected=activeCategory?[activeCategory]:[...activeCategories]}
-  else if(type==='color'){title='בחירת צבעים';items=dbColors;msSelected=activeColor?[activeColor]:[...activeColors]}
-  else if(type==='size'){title='בחירת מידות';items=dbSizes;msSelected=activeSize?[activeSize]:[...activeSizes]}
-  else if(type==='style'){title='בחירת סגנונות';items=['שבת/ערב','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'];msSelected=activeStyle?[activeStyle]:[...activeStyles]}
-  else if(type==='fit'){title='בחירת גיזרות';items=['ארוכה','מידי','קצרה','מותן','הריון','הנקה'];msSelected=activeFit?[activeFit]:[...activeFits]}
-  else if(type==='fabric'){title='בחירת סוגי בד';items=dbFabrics;msSelected=activeFabric?[activeFabric]:[...activeFabrics]}
-  document.getElementById('msModalTitle').textContent=title;
-  var body=document.getElementById('msModalBody');
-  body.innerHTML=items.map(function(item){
-    var checked=msSelected.indexOf(item)!==-1?'checked':'';
-    var extra=type==='color'?'<span class="ms-color" style="background:'+getColorHex(item)+'"></span>':'';
-    return '<label class="ms-checkbox"><input type="checkbox" value="'+escapeHtml(item)+'" '+checked+' onchange="msToggle(this)"/>'+extra+'<span>'+escapeHtml(type==='size'?formatSize(item):item)+'</span></label>';
-  }).join('');
-  document.getElementById('msModal').classList.add('open');
-}
-function closeMsModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById('msModal').classList.remove('open')}
-function msToggle(cb){var v=cb.value;if(cb.checked){if(msSelected.indexOf(v)===-1)msSelected.push(v)}else{msSelected=msSelected.filter(x=>x!==v)}}
-function msClear(){msSelected=[];document.querySelectorAll('#msModalBody input').forEach(cb=>{cb.checked=false})}
-function msApply(){
-  if(msCurrentType==='category'){activeCategory='';activeCategories=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeCategory=msSelected[0];renderCategoryBoxes()}
-  else if(msCurrentType==='color'){activeColor='';activeColors=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeColor=msSelected[0];renderColorGrid()}
-  else if(msCurrentType==='size'){activeSize='';activeSizes=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeSize=msSelected[0];renderSizeBoxes()}
-  else if(msCurrentType==='style'){activeStyle='';activeStyles=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeStyle=msSelected[0];renderStyleBoxes()}
-  else if(msCurrentType==='fit'){activeFit='';activeFits=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeFit=msSelected[0];renderFitBoxes()}
-  else if(msCurrentType==='fabric'){activeFabric='';activeFabrics=msSelected.length===1?[]:msSelected.slice();if(msSelected.length===1)activeFabric=msSelected[0];renderFabricBoxes()}
-  updateActiveFiltersBar();
-  runRegularSearch();
-  closeMsModal();
-}
-
-function resetAllFiltersQuietly(){
-  activeStore="";activeCategory="";activeColor="";activeStyle="";activeFit="";activeDiscount="";activeFabric="";activePattern="";activeSize="";activeDesign="";
-  activeCategories=[];activeColors=[];activeSizes=[];activeStyles=[];activeFits=[];activeFabrics=[];
-  const slider=document.getElementById("priceRange");slider.value=slider.max;document.getElementById("priceValue").textContent=slider.max;
-  document.querySelectorAll(".store-opt").forEach(el=>el.classList.toggle('active',el.dataset.store===''));
-  renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
-  document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===''));
-  document.getElementById("activeFiltersBar").classList.remove('show');
-}
-
-function resetAll(){
-  document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];
-  resetAllFiltersQuietly();
-  document.getElementById("aiAnalysis").classList.remove("active");
-  runRegularSearch();
-}
-
-function trackOutClick(el) {
-  if (typeof gtag === 'undefined') return;
-  const url = el.href || '';
-  const title = document.getElementById('modalTitle')?.textContent || '';
-  gtag('event', 'outbound_click', {
-    link_url: url,
-    link_text: title,
-    event_category: 'outbound',
-    transport_type: 'beacon'
-  });
-}
-
-async function openProduct(id){
-  document.getElementById("modalBackdrop").classList.add("open");
-  document.getElementById("modalTitle").textContent="טוען…";
-  document.getElementById("modalDesc").textContent="";
-  document.getElementById("modalKpi").innerHTML="";
-  document.getElementById("modalColors").innerHTML="";
-  document.getElementById("modalThumbs").innerHTML="";
-  document.getElementById("modalCarouselInner").innerHTML="";
-  document.getElementById("modalDots").innerHTML="";
-  try{
-    const p=await(await fetch("/api/product/"+id)).json();
-    document.getElementById("modalTitle").textContent=p.title||"מוצר";
-    document.getElementById("modalBuy").href="/out/"+id;
-    document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
-    modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
-    document.getElementById("modalCarouselInner").innerHTML=modalImages.map(img=>`<div class="gallery-carousel-slide"><img src="${escapeHtml(img)}" alt=""></div>`).join('');
-    document.getElementById("modalDots").innerHTML=modalImages.map((_,i)=>`<button class="gallery-dot${i===0?' active':''}" onclick="goToModalSlide(${i})"></button>`).join('');
-    document.getElementById("modalThumbs").innerHTML=modalImages.map((img,i)=>`<div class="gallery-thumb${i===0?' active':''}" onclick="goToModalSlide(${i})"><img src="${escapeHtml(img)}" loading="lazy"></div>`).join('');
-    
-    const kpis=[],isOnSale=p.original_price&&p.original_price>p.price,disc=calcDiscount(p.price,p.original_price);
-    if(p.store)kpis.push(`<span>חנות: ${escapeHtml(p.store)}</span>`);
-    if(isOnSale){kpis.push(`<span class="sale-kpi">₪${p.price} <s>₪${p.original_price}</s> (${disc}%-)</span>`)}else if(p.price){kpis.push(`<span>מחיר: ₪${p.price}</span>`)}
-    if(p.sizes?.length)kpis.push(`<span>מידות: ${p.sizes.map(formatSize).join(', ')}</span>`);
-    if(p.category)kpis.push(`<span>סוג: ${escapeHtml(p.category)}</span>`);
-    if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
-    document.getElementById("modalKpi").innerHTML=kpis.join("");
-    
-    const colors=p.colors||(p.color?[p.color]:[]);
-    const colorsDiv=document.getElementById("modalColors");
-    if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
-  }catch(e){document.getElementById("modalTitle").textContent="שגיאה בטעינה"}
-}
-
-function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById("modalBackdrop").classList.remove("open")}
-
-document.getElementById("q").addEventListener("input",handleSearchInput);
-document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});
-
-// === Hero Discovery Flow ===
-var heroStep='category';
-var heroSteps=['category','color','price','size','fit','fabric','done'];
-var heroStepNames={'category':'סוג מוצר','color':'צבע','price':'תקציב','size':'מידה','fit':'גיזרה','fabric':'סוג בד','done':''};
-var heroNoResultsFlag=false;
-var sizeToNumbers={'XS':'34-36','S':'36-38','M':'38-40','L':'40-42','XL':'42-44','XXL':'44-46','XXXL':'46-48','ONE SIZE':'מידה אחת'};
-
-function heroScroll(dir){
-  var c=document.getElementById('heroCubes');
-  c.scrollBy({left:dir*300,behavior:'smooth'});
-}
-
-// Icon: try /icons/NAME.png first, fallback to SVG
-function heroIconHtml(name,svgFB){
-  var safeName=name.replace(/\//g,'-');
-  var safe=encodeURIComponent(safeName);
-  var encoded=btoa(unescape(encodeURIComponent(svgFB)));
-  return '<div class="hero-cube-icon"><img src="/icons/'+safe+'.png" onerror="this.onerror=null;this.parentElement.innerHTML=decodeURIComponent(escape(atob(\''+encoded+'\')));" /></div>';
-}
-
-// Minimal SVG fallbacks (only used if no .png in /icons/)
-var defaultSvg='<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="14" y="14" width="36" height="36" rx="8"/></svg>';
-var catSvg={
-'שמלה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 6h16l3 10-7 4v34H28V20l-7-4 3-10z"/><path d="M24 6c-1 0-3 1-4 3l-6 11 7 4"/><path d="M40 6c1 0 3 1 4 3l6 11-7 4"/></svg>',
-'חולצה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20v4l2 2v34H20V14l2-2V8z"/><path d="M22 8l-8 6-4 12h6l4-6"/><path d="M42 8l8 6 4 12h-6l-4-6"/><path d="M28 8a4 4 0 008 0"/></svg>',
-'חצאית':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v4l4 38H16l4-38v-4z"/><line x1="20" y1="16" x2="44" y2="16"/></svg>',
-'סט':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 6h20l2 2v18H20V8l2-2z"/><path d="M22 6l-6 5-3 9h5l4-5"/><path d="M42 6l6 5 3 9h-5l-4-5"/><path d="M20 30h24v4l3 24H17l3-24v-4z"/></svg>',
-'בייסיק':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v40H20V12z" rx="2"/><path d="M20 12l-6 5v22l6 3"/><path d="M44 12l6 5v22l-6 3"/></svg>',
-'קרדיגן':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M32 8v44"/><path d="M22 8h10v44H18V16z"/><path d="M42 8H32v44h14V16z"/><path d="M22 8l-8 6-4 16h6l4-8"/><path d="M42 8l8 6 4 16h-6l-4-8"/></svg>',
-'מעיל':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20l2 2v42H20V10l2-2z"/><path d="M22 8l-9 6-5 18h8l4-8"/><path d="M42 8l9 6 5 18h-8l-4-8"/><path d="M32 8v44"/></svg>',
-'טוניקה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 8h16l2 2v38c0 2-4 4-10 4s-10-2-10-4V10l2-2z"/><path d="M24 8l-7 5-3 14h5l3-6"/><path d="M40 8l7 5 3 14h-5l-3-6"/></svg>',
-'סוודר':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v34H20V14z" rx="2"/><path d="M20 14c0-3 5-6 12-6s12 3 12 6"/><path d="M20 16l-8 4v14l8 4"/><path d="M44 16l8 4v14l-8 4"/></svg>',
-'מכנסיים':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M18 10h28v8l-4 38h-8l-2-28-2 28h-8l-4-38v-8z"/><line x1="18" y1="14" x2="46" y2="14"/></svg>',
-'עליונית':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v30H20V14z" rx="2"/><path d="M20 14l-7 4v10l7 4"/><path d="M44 14l7 4v10l-7 4"/></svg>',
-};
-function getSvg(name){return catSvg[name]||defaultSvg}
-
-function renderHeroNav(){
-  var nav=document.getElementById('heroNavLabels');
-  var idx=heroSteps.indexOf(heroStep);
-  var prevStep=idx>0?heroSteps[idx-1]:null;
-  var nextStep=(idx<heroSteps.length-1)?heroSteps[idx+1]:null;
-  var h='';
-  if(prevStep&&heroStepNames[prevStep]){
-    h+='<button class="hero-nav-btn" onclick="heroPrevStep()">'+heroStepNames[prevStep]+' \u2192 \u05D7\u05D6\u05E8\u05D4</button>';
-  }
-  // Count current selections
-  var count=heroGetCurrentSelections().length;
-  if(nextStep&&heroStepNames[nextStep]&&!heroNoResultsFlag){
-    h+='<button class="hero-nav-btn primary'+(count>0?' pulse':'')+'" onclick="heroAdvanceStep()" style="'+(count>0?'font-size:16px;padding:12px 28px;':'')+'">'+heroStepNames[nextStep]+' \u2190'+(count>0?' ('+count+' \u05E0\u05D1\u05D7\u05E8\u05D5)':'')+'</button>';
-  } else if(heroStep!=='category'&&!heroNoResultsFlag){
-    h+='<button class="hero-nav-btn primary'+(count>0?' pulse':'')+'" onclick="heroAdvanceStep()" style="font-size:16px;padding:12px 28px;">\u05E1\u05D9\u05D5\u05DD \u2713</button>';
-  }
-  nav.innerHTML=h;
-}
-
-function heroGetCurrentSelections(){
-  if(heroStep==='category')return activeCategories.length?activeCategories:(activeCategory?[activeCategory]:[]);
-  if(heroStep==='color')return activeColors.length?activeColors:(activeColor?[activeColor]:[]);
-  if(heroStep==='size')return activeSizes.length?activeSizes:(activeSize?[activeSize]:[]);
-  if(heroStep==='style')return activeStyles.length?activeStyles:(activeStyle?[activeStyle]:[]);
-  if(heroStep==='fit')return activeFits.length?activeFits:(activeFit?[activeFit]:[]);
-  if(heroStep==='fabric')return activeFabrics.length?activeFabrics:(activeFabric?[activeFabric]:[]);
-  return [];
-}
-
-function renderHeroNav(){
-  var nav=document.getElementById('heroNavLabels');
-  var idx=heroSteps.indexOf(heroStep);
-  var prevStep=idx>0?heroSteps[idx-1]:null;
-  var nextStep=(idx<heroSteps.length-1)?heroSteps[idx+1]:null;
-  var h='';
-  if(prevStep&&heroStepNames[prevStep]){
-    h+='<button class="hero-nav-btn" onclick="heroPrevStep()">\u2192 '+heroStepNames[prevStep]+'</button>';
-  }
-  var count=heroGetCurrentSelections().length;
-  if(nextStep&&heroStepNames[nextStep]&&!heroNoResultsFlag){
-    h+='<button class="hero-nav-btn primary'+(count>0?' pulse':'')+'" onclick="heroAdvanceStep()" style="'+(count>0?'font-size:16px;padding:12px 28px;box-shadow:0 4px 16px rgba(144,97,249,.3);':'')+'">'+heroStepNames[nextStep]+' \u2190'+(count>0?' ('+count+')':'')+'</button>';
-  } else if(heroStep!=='category'&&!heroNoResultsFlag&&idx>=heroSteps.length-2){
-    h+='<button class="hero-nav-btn primary pulse" onclick="heroAdvanceStep()" style="font-size:16px;padding:12px 28px;box-shadow:0 4px 16px rgba(144,97,249,.3);">\u05E1\u05D9\u05D5\u05DD \u2713</button>';
-  }
-  nav.innerHTML=h;
-}
-
-function renderHeroStep(){
-  var cubesDiv=document.getElementById('heroCubes');
-  var labelDiv=document.getElementById('heroStepLabel');
-  var noResDiv=document.getElementById('heroNoResults');
-  noResDiv.style.display='none';
-  cubesDiv.className='hero-cubes';
-  heroNoResultsFlag=false;
-  var sel=heroGetCurrentSelections();
-  
-  if(heroStep==='category'){
-    labelDiv.textContent='\u05DE\u05D4 \u05D0\u05EA \u05DE\u05D7\u05E4\u05E9\u05EA?';
-    var cats=['שמלה','חולצה','חצאית','סט','בייסיק','קרדיגן','מעיל','טוניקה','סוודר','עליונית'];
-    if(dbCategories.length>0){var o=[];cats.forEach(function(c){if(dbCategories.indexOf(c)!==-1)o.push(c)});dbCategories.forEach(function(c){if(o.indexOf(c)===-1&&c!=='מכנסיים'&&c!=='סריג')o.push(c)});cats=o}
-    cubesDiv.innerHTML=cats.map(function(c){var is=sel.indexOf(c)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'category\',\''+escapeHtml(c)+'\',this)">'+heroIconHtml(c,getSvg(c))+'<span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
-    
-  } else if(heroStep==='color'){
-    labelDiv.textContent='\u05D1\u05D0\u05D9\u05D6\u05D4 \u05E6\u05D1\u05E2?';
-    cubesDiv.className='hero-cubes color-grid';
-    var pop=['שחור','לבן','כחול','אדום','ורוד','בז׳','שמנת','אפור','ירוק','חום','בורדו','סגול','אבן','קאמל','ניוד','צהוב','כתום','לילך','תכלת','זהב'];
-    var colors=dbColors.length>0?dbColors:pop;
-    if(dbColors.length>0){var o2=[];pop.forEach(function(c){if(colors.indexOf(c)!==-1)o2.push(c)});colors.forEach(function(c){if(o2.indexOf(c)===-1)o2.push(c)});colors=o2}
-    cubesDiv.innerHTML=colors.map(function(c){var is=sel.indexOf(c)!==-1;return '<div class="hero-color-cube'+(is?' selected':'')+'" onclick="heroToggle(\'color\',\''+escapeHtml(c)+'\',this)"><div class="hero-color-circle" style="background:'+getColorHex(c)+'"></div><span class="hero-cube-label">'+escapeHtml(c)+'</span></div>'}).join('');
-    
-  } else if(heroStep==='price'){
-    labelDiv.textContent='\u05D1\u05D0\u05D9\u05D6\u05D4 \u05EA\u05E7\u05E6\u05D9\u05D1?';
-    var prices=[{v:'100',l:'\u05E2\u05D3 \u20AA100'},{v:'150',l:'\u05E2\u05D3 \u20AA150'},{v:'200',l:'\u05E2\u05D3 \u20AA200'},{v:'300',l:'\u05E2\u05D3 \u20AA300'},{v:'500',l:'\u05E2\u05D3 \u20AA500'},{v:'',l:'\u05DC\u05DC\u05D0 \u05D4\u05D2\u05D1\u05DC\u05D4'}];
-    cubesDiv.innerHTML=prices.map(function(p){return '<div class="hero-cube" onclick="heroSelectPrice(\''+p.v+'\')"><span class="hero-big-text">'+(p.v?'\u20AA'+p.v:'\u221E')+'</span><span class="hero-cube-label">'+p.l+'</span></div>'}).join('');
-    
-  } else if(heroStep==='size'){
-    labelDiv.textContent='\u05DE\u05D4 \u05D4\u05DE\u05D9\u05D3\u05D4 \u05E9\u05DC\u05DA?';
-    var popS=['S','M','L','XL','XS','XXL','XXXL','ONE SIZE'];
-    var sizes=dbSizes.length>0?dbSizes:popS;
-    if(dbSizes.length>0){var o3=[];popS.forEach(function(s){if(sizes.indexOf(s)!==-1)o3.push(s)});sizes.forEach(function(s){if(o3.indexOf(s)===-1)o3.push(s)});sizes=o3}
-    cubesDiv.innerHTML=sizes.map(function(s){var nums=sizeToNumbers[s]||'';var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'size\',\''+escapeHtml(s)+'\',this)"><span class="hero-big-text">'+formatSize(s)+'</span><span class="hero-cube-label">\u05DE\u05D9\u05D3\u05D4 '+formatSize(s)+'</span>'+(nums?'<span class="hero-cube-sublabel">'+nums+'</span>':'')+'</div>'}).join('');
-    
-  } else if(heroStep==='style'){
-    if(!dbStyles||dbStyles.length===0){heroStep='fit';renderHeroStep();return}
-    labelDiv.textContent='\u05D0\u05D9\u05D6\u05D4 \u05E1\u05D2\u05E0\u05D5\u05DF?';
-    var consolidated=['שבת/ערב','יום חול','קלאסי','מינימליסטי','אוברסייז'];
-    var styles=consolidated.filter(function(s){return s==='שבת/ערב'?dbStyles.some(function(d){return ['ערב','חגיגי','אלגנטי'].indexOf(d)!==-1}):dbStyles.indexOf(s)!==-1});
-    if(styles.length===0){heroStep='fit';renderHeroStep();return}
-    cubesDiv.innerHTML=styles.map(function(s){var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'style\',\''+escapeHtml(s)+'\',this)">'+heroIconHtml(s,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(s)+'</span></div>'}).join('');
-    
-  } else if(heroStep==='fit'){
-    var popF=['ארוכה','מידי','קצרה','מותן','הריון','הנקה','מעטפת'];
-    var avail=popF.slice();
-    if(dbFits.length>0){dbFits.forEach(function(f){if(avail.indexOf(f)===-1)avail.push(f)})}
-    labelDiv.textContent='\u05D0\u05D9\u05D6\u05D5 \u05D2\u05D9\u05D6\u05E8\u05D4?';
-    cubesDiv.innerHTML=avail.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fit\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
-    
-  } else if(heroStep==='fabric'){
-    if(!dbFabrics||dbFabrics.length===0){heroStep='done';renderHeroStep();return}
-    var popFab=['סריג','שיפון','כותנה','סאטן','תחרה','קטיפה','פשתן','פרווה','משי','צמר'];
-    var fabrics=dbFabrics;var o5=[];popFab.forEach(function(f){if(fabrics.indexOf(f)!==-1)o5.push(f)});fabrics.forEach(function(f){if(o5.indexOf(f)===-1)o5.push(f)});
-    labelDiv.textContent='\u05E1\u05D5\u05D2 \u05D1\u05D3?';
-    cubesDiv.innerHTML=o5.map(function(f){var is=sel.indexOf(f)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'fabric\',\''+escapeHtml(f)+'\',this)">'+heroIconHtml(f,defaultSvg)+'<span class="hero-cube-label">'+escapeHtml(f)+'</span></div>'}).join('');
-    
-  } else {
-    document.getElementById('heroDiscover').classList.add('hidden');
-    renderHeroNav();
-    return;
-  }
-  if(heroStep!=='color'){setTimeout(function(){cubesDiv.scrollLeft=cubesDiv.scrollWidth},50)}
-  renderHeroNav();
-}
-
-// Toggle a cube selection (multi-select) - does NOT auto-advance
-function heroToggle(type,val,el){
-  var arr,setArr;
-  if(type==='category'){arr=activeCategories;activeCategory=''}
-  else if(type==='color'){arr=activeColors;activeColor=''}
-  else if(type==='size'){arr=activeSizes;activeSize=''}
-  else if(type==='style'){arr=activeStyles;activeStyle=''}
-  else if(type==='fit'){arr=activeFits;activeFit=''}
-  else if(type==='fabric'){arr=activeFabrics;activeFabric=''}
-  else return;
-  
-  var idx=arr.indexOf(val);
-  if(idx!==-1){arr.splice(idx,1);el.classList.remove('selected')}
-  else{arr.push(val);el.classList.add('selected')}
-  
-  // Sync sidebar
-  if(type==='category'){activeCategories=arr;renderCategoryBoxes()}
-  if(type==='color'){activeColors=arr;renderColorGrid()}
-  if(type==='size'){activeSizes=arr;renderSizeBoxes()}
-  if(type==='style'){activeStyles=arr;renderStyleBoxes()}
-  if(type==='fit'){activeFits=arr;renderFitBoxes()}
-  if(type==='fabric'){activeFabrics=arr;renderFabricBoxes()}
-  
-  updateActiveFiltersBar();
-  skipScrollOnSearch=true;
-  runRegularSearch();
-  renderHeroNav();
-}
-
-// Price is still single-select with auto-advance
-function heroSelectPrice(val){
-  if(val){document.getElementById("priceRange").value=parseInt(val);document.getElementById("priceValue").textContent=val}
-  updateActiveFiltersBar();
-  heroAdvanceStep();
-}
-
-// Called by the prominent "next" button
-async function heroAdvanceStep(){
-  skipScrollOnSearch=true;
-  await runRegularSearch();
-  var noResDiv=document.getElementById('heroNoResults');
-  if(allProducts.length===0){
-    heroNoResultsFlag=true;
-    noResDiv.innerHTML='<div class="hero-no-results">\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05DE\u05D5\u05E6\u05E8\u05D9\u05DD \u05E2\u05DD \u05D4\u05E9\u05D9\u05DC\u05D5\u05D1 \u05D4\u05D6\u05D4. \u05E0\u05E1\u05D9 \u05DC\u05D7\u05D6\u05D5\u05E8 \u05D0\u05D7\u05D5\u05E8\u05D4 \u05D5\u05DC\u05E9\u05E0\u05D5\u05EA \u05D1\u05D7\u05D9\u05E8\u05D4.</div>';
-    noResDiv.style.display='block';
-    renderHeroNav();
-  } else {
-    heroNoResultsFlag=false;
-    noResDiv.style.display='none';
-    heroNextStep();
-  }
-}
-
-function heroNextStep(){
-  var idx=heroSteps.indexOf(heroStep);
-  if(idx<heroSteps.length-1){heroStep=heroSteps[idx+1];renderHeroStep()}
-}
-
-function heroPrevStep(){
-  var idx=heroSteps.indexOf(heroStep);
-  if(idx>0){
-    var prev=heroSteps[idx-1];
-    if(prev==='category'){activeCategory='';activeCategories=[];renderCategoryBoxes()}
-    if(prev==='color'){activeColor='';activeColors=[];renderColorGrid()}
-    if(prev==='price'){var sl=document.getElementById("priceRange");sl.value=sl.max;document.getElementById("priceValue").textContent=sl.max}
-    if(prev==='size'){activeSize='';activeSizes=[];renderSizeBoxes()}
-    if(prev==='style'){activeStyle='';activeStyles=[];renderStyleBoxes()}
-    if(prev==='fit'){activeFit='';activeFits=[];renderFitBoxes()}
-    if(prev==='fabric'){activeFabric='';activeFabrics=[];renderFabricBoxes()}
-    updateActiveFiltersBar();
-    runRegularSearch();
-    heroStep=prev;
-    renderHeroStep();
-  }
-}
-
-function checkHideHero(){
-  var hero=document.getElementById('heroDiscover');
-  if(hero&&!hero.classList.contains('hidden'))hero.classList.add('hidden');
-}
-
-var _origSelectStore=selectStore;
-selectStore=function(s){checkHideHero();_origSelectStore(s)};
-var _origRunAI=runAISearch;
-runAISearch=async function(){checkHideHero();await _origRunAI()};
-
-(async function(){await initFilters();renderHeroStep();skipScrollOnSearch=true;await runRegularSearch();window.scrollTo(0,0)})();
-</script>
-
-  <!-- ALERT POPUP -->
-  <div class="alert-popup-bg" id="alertPopupBg" onclick="closeAlertPopup(event)">
-    <div class="alert-popup" onclick="event.stopPropagation()">
-      <div class="alert-popup-title">🔔 התראת מחיר ומלאי</div>
-      <div class="alert-popup-product" id="alertProductTitle"></div>
-      <div class="alert-option" id="alertPriceOption" onclick="toggleAlertPriceFromDiv(event,this)">
-        <input type="checkbox" id="alertPriceCheck" onchange="syncAlertPriceCheckbox(this)" onclick="event.stopPropagation()"/>
-        <div class="alert-option-label">
-          <div>הודיעי כשהמחיר יורד</div>
-          <div style="font-size:11px;font-weight:400;color:#9ca3af;margin-top:1px" id="alertCurrentPrice"></div>
-        </div>
-      </div>
-      <div class="alert-option" id="alertSizeOption" onclick="toggleAlertSizeFromDiv(event,this)">
-        <input type="checkbox" id="alertSizeCheck" onchange="syncAlertSizeCheckbox(this)" onclick="event.stopPropagation()"/>
-        <div class="alert-option-label" style="flex:1">
-          <div>הודיעי כשמידה נכנסת למלאי</div>
-          <select class="alert-size-select" id="alertSizeSelect" onclick="event.stopPropagation()">
-            <option value="any">כל מידה</option>
-          </select>
-        </div>
-      </div>
-      <div class="alert-popup-actions">
-        <button class="alert-cancel-btn" onclick="closeAlertPopup()">ביטול</button>
-        <button class="alert-save-btn" id="alertSaveBtn" onclick="saveAlert()">שמור התראה</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- AUTH MODAL -->
-  <div class="auth-modal-bg" id="authModalBg" onclick="closeAuthIfBg(event)">
-    <div class="auth-modal" onclick="event.stopPropagation()" style="position:relative">
-      <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
-      <div class="auth-modal-head">
-        <h2 id="authModalTitle">ברוכה הבאה ל-LOOKLI</h2>
-        <p id="authModalSub">שמרי מוצרים אהובים וגשי אליהם בכל זמן</p>
-      </div>
-      <div class="auth-modal-body">
-        <div class="auth-tabs" id="authTabsRow">
-          <button class="auth-tab active" onclick="switchAuthTab('login')">התחברות</button>
-          <button class="auth-tab" onclick="switchAuthTab('register')">הרשמה</button>
-        </div>
-        <div class="auth-error" id="authError"></div>
-        <div class="auth-success" id="authSuccess"></div>
-        <!-- Login form -->
-        <div id="loginForm">
-          <div class="auth-field">
-            <label>אימייל</label>
-            <input type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email"/>
-          </div>
-          <div class="auth-field">
-            <label>סיסמה</label>
-            <input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#6b7280;cursor:pointer;margin-bottom:16px;user-select:none">
-            <input type="checkbox" id="rememberMe" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"/>
-            זכור אותי
-          </label>
-          <button class="auth-submit" id="loginBtn" onclick="doLogin()">התחברות</button>
-        </div>
-        <!-- Register form -->
-        <div id="registerForm" style="display:none">
-          <div class="auth-field">
-            <label>שם (אופציונלי)</label>
-            <input type="text" id="regName" placeholder="השם שלך"/>
-          </div>
-          <div class="auth-field">
-            <label>אימייל</label>
-            <input type="email" id="regEmail" placeholder="your@email.com" autocomplete="email"/>
-          </div>
-          <div class="auth-field">
-            <label>סיסמה (לפחות 6 תווים)</label>
-            <input type="password" id="regPass" placeholder="••••••" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()"/>
-          </div>
-          <label style="display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:#4b5563;cursor:pointer;margin-bottom:16px;line-height:1.5;user-select:none">
-            <input type="checkbox" id="regNewsletter" style="width:15px;height:15px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0" onchange="const b=document.getElementById('registerBtn');b.disabled=!this.checked;b.style.opacity=this.checked?'1':'.45';b.style.cursor=this.checked?'pointer':'not-allowed'"/>
-            <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
-          </label>
-          <button class="auth-submit" id="registerBtn" onclick="doRegister()" disabled style="opacity:.45;cursor:not-allowed">יצירת חשבון</button>
-        </div>
-        <!-- Profile (when logged in) -->
-        <div id="profileForm" style="display:none">
-          <div style="text-align:center;margin-bottom:20px">
-            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800;margin:0 auto 12px" id="profileAvatar">?</div>
-            <div style="font-weight:700;font-size:16px" id="profileName">-</div>
-            <div style="color:#9ca3af;font-size:13px;margin-top:4px" id="profileEmail">-</div>
-            <div style="margin-top:8px" id="profilePlanBadge"></div>
-          </div>
-          <button class="auth-submit" onclick="openSavedPanel();closeAuthModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            המוצרים השמורים שלי
-          </button>
-          <button class="auth-logout-btn" onclick="doLogout()">יציאה מהחשבון</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SAVED PRODUCTS PANEL -->
-  <div class="saved-panel-bg" id="savedPanelBg" onclick="closeSavedIfBg(event)">
-    <div class="saved-panel" onclick="event.stopPropagation()">
-      <div class="saved-panel-head">
-        <h3>המוצרים השמורים שלי <span class="saved-count" id="savedPanelCount">0</span></h3>
-        <button class="saved-panel-close" onclick="closeSavedPanel()">✕</button>
-      </div>
-      <div class="user-profile-bar" id="savedProfileBar"></div>
-      <div class="saved-panel-body" id="savedPanelBody">
-        <div class="saved-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <div>עדיין אין מוצרים שמורים</div>
-          <div style="font-size:12px;margin-top:6px">לחצי על הלב על מוצר כדי לשמור אותו</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-  // ===== AUTH STATE =====
-  let currentUser = null;
-  let savedUrls = new Set();
-  let authToken = localStorage.getItem('lookli_token') || null;
-
-  // Init on load
-  (async function initAuth() {
-    if (!authToken) return;
-    try {
-      const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + authToken } });
-      if (!res.ok) { authToken = null; localStorage.removeItem('lookli_token'); return; }
-      const data = await res.json();
-      setUser(data.user);
-    } catch(e) {}
-  })();
-
-  function setUser(user) {
-    currentUser = user;
-    const label = document.getElementById('authNavLabel');
-    const savedBtn = document.getElementById('savedNavBtn');
-    const authBtn = document.getElementById('authNavBtn');
-    if (user) {
-      label.textContent = user.name || user.email.split('@')[0];
-      if (savedBtn) savedBtn.style.display = 'flex';
-    } else {
-      label.textContent = 'התחברות';
-      if (savedBtn) savedBtn.style.display = 'none';
-    }
-    refreshSavedState();
-  }
-
-  async function refreshSavedState() {
-    if (!currentUser || !authToken) { savedUrls = new Set(); return; }
-    try {
-      const res = await fetch('/api/saved', { headers: { Authorization: 'Bearer ' + authToken } });
-      const data = await res.json();
-      savedUrls = new Set(data.saved.map(s => s.product_source_url));
-      updateSavedCount();
-      // update hearts on visible cards
-      document.querySelectorAll('.card-save-btn').forEach(btn => {
-        const url = btn.dataset.url;
-        btn.classList.toggle('saved', savedUrls.has(url));
-      });
-    } catch(e) {}
-  }
-
-  function updateSavedCount() {
-    const el = document.getElementById('savedNavCount');
-    if (el) el.textContent = savedUrls.size > 0 ? savedUrls.size : '';
-  }
-
-  // ===== AUTH MODAL =====
-  function openAuthModal() {
-    if (currentUser) {
-      // Show profile
-      switchAuthTab('profile');
-    } else {
-      switchAuthTab('login');
-    }
-    document.getElementById('authModalBg').classList.add('open');
-    clearAuthMessages();
-  }
-
-  function closeAuthModal() {
-    document.getElementById('authModalBg').classList.remove('open');
-  }
-
-  function closeAuthIfBg(e) {
-    if (e.target === document.getElementById('authModalBg')) closeAuthModal();
-  }
-
-  function switchAuthTab(tab) {
-    const loginF = document.getElementById('loginForm');
-    const regF = document.getElementById('registerForm');
-    const profF = document.getElementById('profileForm');
-    const tabs = document.getElementById('authTabsRow');
-    loginF.style.display = 'none';
-    regF.style.display = 'none';
-    profF.style.display = 'none';
-    if (tab === 'profile') {
-      tabs.style.display = 'none';
-      profF.style.display = 'block';
-      if (currentUser) {
-        const initials = (currentUser.name || currentUser.email)[0].toUpperCase();
-        document.getElementById('profileAvatar').textContent = initials;
-        document.getElementById('profileName').textContent = currentUser.name || '—';
-        document.getElementById('profileEmail').textContent = currentUser.email;
-        const badge = document.getElementById('profilePlanBadge');
-        badge.innerHTML = currentUser.plan === 'premium' ?
-          '<span style="background:#fef3c7;color:#d97706;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⭐ Premium</span>' :
-          '<span style="background:#f3f4f6;color:#9ca3af;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">חשבון חינמי</span>';
-      }
-    } else {
-      tabs.style.display = 'flex';
-      document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));
-      if (tab === 'login') loginF.style.display = 'block';
-      else regF.style.display = 'block';
-    }
-    clearAuthMessages();
-  }
-
-  function clearAuthMessages() {
-    const err = document.getElementById('authError');
-    const suc = document.getElementById('authSuccess');
-    err.classList.remove('show'); suc.classList.remove('show');
-  }
-
-  function showAuthError(msg) {
-    const el = document.getElementById('authError');
-    el.textContent = msg; el.classList.add('show');
-  }
-
-  function showAuthSuccess(msg) {
-    const el = document.getElementById('authSuccess');
-    el.textContent = msg; el.classList.add('show');
-  }
-
-  async function doLogin() {
-    const email = document.getElementById('loginEmail').value.trim();
-    const pass = document.getElementById('loginPass').value;
-    if (!email || !pass) return showAuthError('אימייל וסיסמה חובה');
-    const btn = document.getElementById('loginBtn');
-    btn.disabled = true; btn.textContent = 'מתחבר...';
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass })
-      });
-      const data = await res.json();
-      if (!res.ok) { showAuthError(data.error || 'שגיאה'); return; }
-      authToken = data.token;
-      const remember = document.getElementById('rememberMe');
-      if (remember && remember.checked) {
-        localStorage.setItem('lookli_token', authToken);
-      } else {
-        sessionStorage.setItem('lookli_token', authToken);
-        localStorage.removeItem('lookli_token');
-      }
-      setUser(data.user);
-      showAuthSuccess('התחברת בהצלחה!');
-      setTimeout(closeAuthModal, 900);
-    } catch(e) { showAuthError('שגיאת חיבור'); }
-    finally { btn.disabled = false; btn.textContent = 'התחברות'; }
-  }
-
-  async function doRegister() {
-    const name = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
-    const pass = document.getElementById('regPass').value;
-    if (!email || !pass) return showAuthError('אימייל וסיסמה חובה');
-    if (pass.length < 6) return showAuthError('סיסמה חייבת לפחות 6 תווים');
-    const btn = document.getElementById('registerBtn');
-    btn.disabled = true; btn.textContent = 'יוצר חשבון...';
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password: pass, newsletter: !!document.getElementById('regNewsletter')?.checked })
-      });
-      const data = await res.json();
-      if (!res.ok) { showAuthError(data.error || 'שגיאה'); return; }
-      authToken = data.token;
-      localStorage.setItem('lookli_token', authToken);
-      setUser(data.user);
-      showAuthSuccess('ברוכה הבאה! החשבון נוצר בהצלחה');
-      setTimeout(closeAuthModal, 900);
-    } catch(e) { showAuthError('שגיאת חיבור'); }
-    finally { btn.disabled = false; btn.textContent = 'יצירת חשבון'; }
-  }
-
-  function doLogout() {
-    authToken = null;
-    currentUser = null;
-    savedUrls = new Set();
-    localStorage.removeItem('lookli_token');
-    sessionStorage.removeItem('lookli_token');
-    setUser(null);
-    closeAuthModal();
-    // Remove saved state from all hearts
-    document.querySelectorAll('.card-save-btn').forEach(btn => btn.classList.remove('saved'));
-  }
-
-  // ===== SAVED PANEL =====
-  async function openSavedPanel() {
-    if (!currentUser) { openAuthModal(); return; }
-    document.getElementById('savedPanelBg').classList.add('open');
-    await loadSavedPanel();
-  }
-
-  function closeSavedPanel() {
-    document.getElementById('savedPanelBg').classList.remove('open');
-  }
-
-  function closeSavedIfBg(e) {
-    if (e.target === document.getElementById('savedPanelBg')) closeSavedPanel();
-  }
-
-  async function loadSavedPanel() {
-    if (!authToken) return;
-    const body = document.getElementById('savedPanelBody');
-    const countEl = document.getElementById('savedPanelCount');
-    const profileBar = document.getElementById('savedProfileBar');
-
-    // Profile bar
-    if (currentUser) {
-      const initials = (currentUser.name || currentUser.email)[0].toUpperCase();
-      profileBar.innerHTML = `
-        <div class="user-avatar">${initials}</div>
-        <div class="user-info">
-          <div class="user-email">${currentUser.name || currentUser.email}</div>
-          <div class="user-plan ${currentUser.plan}">${currentUser.plan === 'premium' ? '⭐ Premium' : 'חשבון חינמי'}</div>
-        </div>`;
-    }
-
-    body.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af">טוענת...</div>';
-    try {
-      const res = await fetch('/api/saved', { headers: { Authorization: 'Bearer ' + authToken } });
-      const data = await res.json();
-      savedUrls = new Set(data.saved.map(s => s.product_source_url));
-      updateSavedCount();
-      countEl.textContent = data.saved.length;
-      if (data.saved.length === 0) {
-        body.innerHTML = `<div class="saved-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <div>עדיין אין מוצרים שמורים</div>
-          <div style="font-size:12px;margin-top:6px">לחצי על הלב על מוצר כדי לשמור</div>
-        </div>`;
-        return;
-      }
-      // טען התראות קיימות
-      let existingAlerts = {};
-      try {
-        const ar = await fetch('/api/alerts', { headers: { Authorization: 'Bearer ' + authToken } });
-        const ad = await ar.json();
-        (ad.alerts || []).forEach(a => { existingAlerts[a.product_source_url] = a; });
-      } catch(_) {}
-      const banner = `<div class="alerts-banner">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span>לחצי על 🔔 להגדרת התראה כשמחיר יורד או מידה חוזרת</span>
-      </div>`;
-      body.innerHTML = banner + data.saved.map(s => {
-        const hasAlert = !!existingAlerts[s.product_source_url];
-        const uid = btoa(s.product_source_url).replace(/[^a-z0-9]/gi,'').slice(0,12);
-        return `
-        <div class="saved-item" id="saved-${uid}">
-          <img src="${s.product_image || ''}" alt="${s.product_title || ''}" onerror="this.style.background='#f3f4f6'"/>
-          <div class="saved-item-info">
-            <div class="saved-item-title">${s.product_title || 'מוצר'}</div>
-            <div class="saved-item-price">${s.product_price ? '₪' + Number(s.product_price).toFixed(0) : ''}</div>
-            <div class="saved-item-store">${s.product_store || ''}</div>
-          </div>
-          <div class="saved-item-actions">
-            <button class="alert-btn${hasAlert?' active':''}" title="התראת מחיר ומלאי"
-              onclick="openAlertPopup('${s.product_source_url.replace(/'/g,"\'")}','${(s.product_title||'').replace(/'/g,"\'")}',${s.product_price||0},this)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            </button>
-            <button class="saved-item-remove" title="הסר" onclick="removeSaved('${s.product_source_url.replace(/'/g,"\'")}')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-            </button>
-            <a class="saved-item-buy" href="${s.product_source_url}" target="_blank">לרכישה</a>
-          </div>
-        </div>`;
-      }).join('');
-    } catch(e) { body.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">שגיאה בטעינה</div>'; }
-  }
-
-  async function removeSaved(url) {
-    if (!authToken) return;
-    try {
-      await fetch('/api/saved', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
-        body: JSON.stringify({ source_url: url })
-      });
-      savedUrls.delete(url);
-      updateSavedCount();
-      // update heart on card
-      document.querySelectorAll('.card-save-btn').forEach(btn => {
-        if (btn.dataset.url === url) btn.classList.remove('saved');
-      });
-      await loadSavedPanel();
-    } catch(e) {}
-  }
-
-  function handleSaveClick(btn) {
-    const url = btn.dataset.url;
-    const title = btn.dataset.title;
-    const price = parseFloat(btn.dataset.price) || 0;
-    const image = btn.dataset.image;
-    const store = btn.dataset.store;
-    toggleSave(url, title, price, image, store, btn);
-  }
-
-  async function toggleSave(url, title, price, image, store, btnEl) {
-    if (!currentUser) { openAuthModal(); return; }
-    if (savedUrls.has(url)) {
-      await removeSaved(url);
-      btnEl.classList.remove('saved');
-    } else {
-      try {
-        await fetch('/api/saved', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
-          body: JSON.stringify({ source_url: url, title, price, image, store })
-        });
-        savedUrls.add(url);
-        updateSavedCount();
-        btnEl.classList.add('saved');
-      } catch(e) {}
-    }
-  }
-  
-  // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
-
-  // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
-  function checkNetfreeBlock(imgEl) {
-    const card = imgEl.closest('.card');
-    if (!card) return;
-    // תמונה קטנה מ-20px = תמונת חסימה של נטפרי
-    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) return;
-    // בדיקת canvas — תמונה אחידה (אפור מוצק) = חסומה
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 10; canvas.height = 10;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(imgEl, 0, 0, 10, 10);
-      const d = ctx.getImageData(0, 0, 10, 10).data;
-      for (let i = 4; i < d.length; i += 4) {
-        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
-          // יש שוני — תמונה אמיתית!
-          card.dataset.imgOk = '1';
-          const url = card.dataset.url||card.dataset.sourceUrl||'';
-          return;
-        }
-      }
-      // אחידה לחלוטין = חסומה, אל תסמן כ-ok
-    } catch(e) {
-      // CORS — לא יכולים לבדוק, נניח שפתוחה
-      card.dataset.imgOk = '1';
-      const url = card.dataset.url||card.dataset.sourceUrl||'';
-    }
-  }
-
-
-
-  // ===== SPONSORED PRODUCTS =====
-  // מזריק את הממומנים לתוך הגריד (אחרי המוצר ה-1)
-  // בחירה לפי משקל (impression_weight) — weighted random
-  function weightedPick(items, count) {
-    if (!items.length) return [];
-    const pool = [...items];
-    const picked = [];
-    for (let n = 0; n < count && pool.length; n++) {
-      const totalWeight = pool.reduce((s, x) => s + (x.impression_weight || 10), 0);
-      let rand = Math.random() * totalWeight;
-      for (let i = 0; i < pool.length; i++) {
-        rand -= (pool[i].impression_weight || 10);
-        if (rand <= 0) { picked.push(pool.splice(i, 1)[0]); break; }
-      }
-    }
-    return picked;
-  }
-
-  async function loadSponsored(query) {
-    try {
-      document.querySelectorAll('.card.sponsored').forEach(el => el.remove());
-      const params = new URLSearchParams();
-      if (query) params.set('q', query);
-      const res = await fetch('/api/sponsored?' + params.toString());
-      if (!res.ok) return;
-      const raw = await res.json();
-      // בחר מתוך הפול לפי משקל
-      const eligibleSponsored = (raw.sponsored || []).filter(s => shouldShowByRate(s.show_rate ?? 100));
-      const data = { sponsored: weightedPick(eligibleSponsored, 4) };
-      if (!data.sponsored || data.sponsored.length === 0) return;
-      const grid = document.getElementById('grid');
-      const cards = grid.querySelectorAll('.card:not(.sponsored)');
-      // בנה את כרטיסיות הממומן בדיוק כמו כרטיסיה רגילה
-      const sponsoredCards = data.sponsored.map(p => {
-        const div = document.createElement('div');
-        div.className = 'card sponsored';
-        div.onclick = () => {
-          if (typeof gtag !== 'undefined') gtag('event', 'outbound_click', { link_url: p.source_url, link_text: p.title });
-          if (p.source_url) window.open(p.source_url, '_blank');
-        };
-        const img = escapeHtml(p.image_url||'');
-        const title = escapeHtml(p.title||'');
-        const price = p.price ? '₪'+Number(p.price).toFixed(0) : '';
-        const store = escapeHtml(p.store||'');
-        const badgeParts = (p.badge_text||'').split(',').map(s=>s.trim()).filter(Boolean);
-        const badgeHTML = badgeParts.length
-          ? badgeParts.map(b=>`<div class="ad-badge-text">${escapeHtml(b)}</div>`).join('')
-          : '';
-        div.innerHTML = `<div class="img-wrap">
-          <span class="sponsored-badge">מודעה</span>
-          <img src="${img}" alt="${title}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.background='#f3f4f6'"/>
-          ${badgeHTML ? `<div class="ad-badge-wrap">${badgeHTML}</div>` : ''}
-        </div>
-        <div class="card-body">
-          <div class="title">${title}</div>
-          <div class="subrow"><div class="price">${price}</div><div class="store">${store}</div></div>
-        </div>`;
-        return div;
-      });
-      if (cards.length > 0) {
-        // חשב כמה עמודות יש בגריד כרגע (responsive)
-        const cols = Math.round(grid.offsetWidth / (cards[0].offsetWidth || 1)) || 4;
-        sponsoredCards.forEach((sc, i) => {
-          const sp = data.sponsored[i];
-          // priority_row=3 → אחרי שורה 3 → אחרי כרטיסייה (3*cols - 1)
-          const targetRow = Math.max(1, sp.priority_row || 1);
-          const cardIndex = Math.min(targetRow * cols - 1, cards.length - 1);
-          cards[cardIndex].insertAdjacentElement('afterend', sc);
-        });
-      } else {
-        sponsoredCards.forEach(sc => grid.prepend(sc));
-      }
-    } catch(e) {}
-  }
-
-  // ===== SEO: Update URL & title on search =====
-  function updateSeoMeta(query) {
-    const base = 'LOOKLI – מנוע חיפוש חכם לאופנה צנועה';
-    if (query) {
-      document.title = query + ' | ' + base;
-      history.replaceState(null, '', '/?q=' + encodeURIComponent(query));
-    } else {
-      document.title = base + ' | אלפי מוצרים במקום אחד';
-      history.replaceState(null, '', '/');
-    }
-  }
-
-  async function subscribeNewsletter() {
-    const email = document.getElementById('nlEmail').value.trim();
-    const msg = document.getElementById('nlMsg');
-    if (!email || !email.includes('@')) { msg.textContent = 'אנא הכנס/י כתובת מייל תקינה'; return; }
-    msg.textContent = '...';
-    try {
-      const res = await fetch('/api/newsletter/subscribe', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ email, source: 'footer' })
-      });
-      const d = await res.json();
-      if (res.ok) {
-        msg.textContent = '🎉 נרשמת בהצלחה!';
-        document.getElementById('nlEmail').value = '';
-      } else {
-        msg.textContent = d.error || 'שגיאה, נסי שוב';
-      }
-    } catch(e) { msg.textContent = 'שגיאת חיבור'; }
-  }
-
-  // ===== SIDEBAR ADS =====
-  async function loadSidebarAds() {
-    const sidebar = document.getElementById('adsSidebar');
-    if (!sidebar) return;
-    try {
-      const res = await fetch('/api/sidebar-ads');
-      if (!res.ok) return;
-      const { ads } = await res.json();
-      sidebar.innerHTML = '';
-      if (!ads || !ads.length) return;
-
-      // ספור רק מוצרים אמיתיים (לא מודעות ספונסרד)
-      const visibleCards = document.querySelectorAll('#grid .card:not(.sponsored-card)').length;
-      const cols = window.innerWidth >= 1200 ? 4 : window.innerWidth >= 900 ? 3 : window.innerWidth >= 640 ? 2 : 1;
-      const availableRows = Math.floor(visibleCards / cols);
-
-      for (const ad of ads) {
-        // show_rate: 1-100 — session-based (10% = פעם מכל 10 כניסות)
-        if (!shouldShowByRate(ad.show_rate ?? 100)) continue;
-
-        // בדוק שיש מספיק שורות
-        const requiredRows = ad.size || 1;
-        if (availableRows < requiredRows) continue;
-
-        const sizeClass = ad.size === 3 ? 'adunit-triple' : ad.size === 2 ? 'adunit-double' : 'adunit-single';
-        const div = document.createElement('a');
-        div.className = 'adunit ' + sizeClass;
-        div.href = ad.link_url || '#';
-        div.target = '_blank';
-        div.rel = 'noopener';
-        div.onclick = () => trackAdClick(ad.id);
-        div.innerHTML =
-          (ad.image_url ? `<img src="${escapeHtml(ad.image_url)}" alt="${escapeHtml(ad.title||'')}"/>` : `<div class="adunit adunit-empty ${sizeClass}" style="width:180px">פרסומת</div>`) +
-          `<span class="adunit-badge">מודעה</span>` +
-          (ad.caption ? `<div class="adunit-caption">${escapeHtml(ad.caption)}</div>` : '');
-        sidebar.appendChild(div);
-      }
-    } catch(e) {}
-  }
-
-  function trackAdClick(id) {
-    fetch('/api/sidebar-ads/' + id + '/click', { method: 'POST' }).catch(()=>{});
-  }
-
-  // טען בעמוד הראשון
-  document.addEventListener('DOMContentLoaded', () => setTimeout(loadSidebarAds, 500));
-
-  // ===== PRICE ALERTS =====
-  let _alertUrl = '', _alertBtn = null;
-
-  async function openAlertPopup(url, title, price, btn) {
-    _alertUrl = url;
-    _alertBtn = btn;
-    document.getElementById('alertProductTitle').textContent = title;
-    document.getElementById('alertCurrentPrice').textContent = price ? 'מחיר נוכחי: ₪' + Number(price).toFixed(0) : '';
-    // איפוס מלא לפני פתיחה
-    document.getElementById('alertPriceCheck').checked = false;
-    document.getElementById('alertSizeCheck').checked = false;
-    document.getElementById('alertSizeSelect').classList.remove('show');
-    document.getElementById('alertPriceOption').classList.remove('selected');
-    const sizeOptEl = document.getElementById('alertSizeOption');
-    sizeOptEl.classList.remove('selected');
-    sizeOptEl.style.display = ''; // תמיד הצג — יוסתר רק אם כל מידות במלאי
-    document.getElementById('alertSizeCheck').disabled = false;
-
-    // טען מידות
-    const sel = document.getElementById('alertSizeSelect');
-    sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
-    try {
-      const res = await fetch('/api/product-by-url?url=' + encodeURIComponent(url));
-      const sizeOpt = document.getElementById('alertSizeOption');
-      sel.innerHTML = '';
-      sel.disabled = false;
-      sizeOpt.style.display = '';
-      document.getElementById('alertSizeCheck').disabled = false;
-
-      if (res.ok) {
-        const p = await res.json();
-        const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
-        const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
-        // מידות אות שיש כרגע במלאי
-        // מידות אות שיש למוצר כרגע במלאי
-        const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
-
-        if (productLetterSizes.length === 0) {
-          // אין מידות אות — "כל מידה"
-          sel.innerHTML = '<option value="any">כל מידה</option>';
-
-        } else if (productLetterSizes.length >= letterSizes.length) {
-          // כל 7 המידות הסטנדרטיות במלאי — כל המידות במלאי
-          sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
-          sel.disabled = true;
-          sel.classList.add('show');
-          document.getElementById('alertSizeCheck').disabled = true;
-          document.getElementById('alertSizeCheck').checked = false;
-
-        } else {
-          // יש מידות ספציפיות — הצג רק אותן
-          sel.innerHTML = '';
-          productLetterSizes.forEach(s => {
-            const o = document.createElement('option');
-            o.value = s; o.textContent = s;
-            sel.appendChild(o);
-          });
-        }
-      } else {
-        // לא נמצא מוצר ב-DB — הצג ברירת מחדל
-        sel.innerHTML = '<option value="any">התראה על כל מידה</option>';
-      }
-    } catch(_) {
-      // שגיאה — הצג ברירת מחדל
-      document.getElementById('alertSizeOption').style.display = '';
-      sel.innerHTML = '<option value="any">כל מידה</option>';
-    }
-
-    // טען התראה קיימת
-    try {
-      const ar = await fetch('/api/alerts', { headers: { Authorization: 'Bearer ' + authToken } });
-      const ad = await ar.json();
-      const existing = (ad.alerts || []).find(a => a.product_source_url === url);
-      if (existing) {
-        document.getElementById('alertPriceCheck').checked = !!existing.alert_price;
-        if (existing.alert_price) document.getElementById('alertPriceOption').classList.add('selected');
-        if (existing.alert_size) {
-          document.getElementById('alertSizeCheck').checked = true;
-          document.getElementById('alertSizeOption').classList.add('selected');
-          sel.value = existing.alert_size;
-          sel.classList.add('show');
-        }
-      }
-    } catch(_) {}
-
-    document.getElementById('alertPopupBg').classList.add('open');
-  }
-
-  function _applyAlertSize(checked) {
-    const optEl = document.getElementById('alertSizeOption');
-    const sel = document.getElementById('alertSizeSelect');
-    optEl.classList.toggle('selected', checked);
-    if (checked && sel.options.length > 0 && !sel.disabled) {
-      sel.classList.add('show');
-    } else {
-      sel.classList.remove('show');
-    }
-  }
-  function toggleAlertSizeFromDiv(e, divEl) {
-    // לא נגע בclickים על ה-checkbox עצמו (הוא מטפל ב-onchange)
-    if (e && e.target && e.target.type === 'checkbox') return;
-    const chk = document.getElementById('alertSizeCheck');
-    if (chk.disabled) return;
-    chk.checked = !chk.checked;
-    _applyAlertSize(chk.checked);
-  }
-  function syncAlertSizeCheckbox(chk) { _applyAlertSize(chk.checked); }
-  function toggleAlertPriceFromDiv(e, divEl) {
-    if (e && e.target && e.target.type === 'checkbox') return;
-    const chk = document.getElementById('alertPriceCheck');
-    chk.checked = !chk.checked;
-    divEl.classList.toggle('selected', chk.checked);
-  }
-  function syncAlertPriceCheckbox(chk) {
-    document.getElementById('alertPriceOption').classList.toggle('selected', chk.checked);
-  }
-  function toggleAlertCheck(checkId, optEl) {
-    if (checkId === 'alertSizeCheck') toggleAlertSizeFromDiv(null, optEl);
-    else toggleAlertPriceFromDiv(null, optEl);
-  }
-
-  function closeAlertPopup(e) {
-    if (e && e.target !== document.getElementById('alertPopupBg')) return;
-    document.getElementById('alertPopupBg').classList.remove('open');
-  }
-
-  async function saveAlert() {
-    const alertPrice = document.getElementById('alertPriceCheck').checked;
-    const alertSizeChk = document.getElementById('alertSizeCheck').checked;
-    const alertSize = alertSizeChk ? document.getElementById('alertSizeSelect').value : null;
-    const btn = document.getElementById('alertSaveBtn');
-    btn.disabled = true; btn.textContent = 'שומר...';
-
-    if (!alertPrice && !alertSize) {
-      // מחק התראה
-      await fetch('/api/alerts', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
-        body: JSON.stringify({ product_source_url: _alertUrl })
-      });
-      if (_alertBtn) _alertBtn.classList.remove('active');
-    } else {
-      await fetch('/api/alerts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
-        body: JSON.stringify({ product_source_url: _alertUrl, alert_price: alertPrice, alert_size: alertSize })
-      });
-      if (_alertBtn) _alertBtn.classList.add('active');
-    }
-
-    btn.disabled = false; btn.textContent = 'שמור התראה';
-    document.getElementById('alertPopupBg').classList.remove('open');
-  }
 </script>
 </body>
-</html>
+</html>`);
+}
+
+app.get("/admin", adminAuth, (req, res) => { res.redirect("/admin/sponsored"); });
+app.get("/admin/ads", adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_ads.html'));
+});
+
+// ===== SPONSORED ADMIN ROUTES =====
+
+// GET /api/product-by-url — מחפש מוצר לפי URL (לממשק הניהול)
+app.get("/api/product-by-url", adminAuth, async (req, res) => {
+  try {
+    const url = (req.query.url || '').trim().replace(/\/+$/, '');
+    if (!url) return res.status(400).json({ error: 'חסר url' });
+    const r = await pool.query(
+      `SELECT id, title, store, price, image_url, sizes FROM products
+       WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
+      [url, url + '%']
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
+    res.json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
+});
+
+// GET /api/sponsored/all — כל המודעות (לממשק הניהול)
+app.get("/api/sponsored/all", adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT sp.*, p.image_url, p.source_url, p.title, p.price AS product_price, p.store
+      FROM sponsored_products sp
+      JOIN products p ON p.id = sp.product_id
+      ORDER BY sp.active DESC, sp.created_at DESC
+    `);
+    res.json({ sponsored: r.rows });
+  } catch(e) { res.json({ sponsored: [] }); }
+});
+
+// POST /api/sponsored/create — יצירת מודעה חדשה
+app.post("/api/sponsored/create", adminAuth, async (req, res) => {
+  try {
+    const { product_id, priority_row=1, impression_weight=10, show_rate=100, badge_text=null, price_paid=null, notes=null, days=0 } = req.body;
+    let expires_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    const r = await pool.query(
+      `INSERT INTO sponsored_products (product_id, store, priority_row, impression_weight, show_rate, badge_text, price_paid, expires_at, notes)
+       SELECT $1, store, $2, $3, $4, $5, $6, $7, $8 FROM products WHERE id=$1 RETURNING id`,
+      [product_id, priority_row, impression_weight, show_rate??100, badge_text, price_paid, expires_at, notes]
+    );
+    res.json({ id: r.rows[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/sponsored/:id — עדכון מודעה
+app.put("/api/sponsored/:id", adminAuth, async (req, res) => {
+  try {
+    const { priority_row, impression_weight, show_rate, badge_text, price_paid, notes, days } = req.body;
+    let expires_at = null;
+    if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
+    await pool.query(
+      `UPDATE sponsored_products SET priority_row=$2, impression_weight=$3, show_rate=$4, badge_text=$5,
+       price_paid=$6, notes=$7, expires_at=$8 WHERE id=$1`,
+      [req.params.id, priority_row, impression_weight, show_rate??100, badge_text, price_paid, notes, expires_at]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sponsored/:id/activate|deactivate
+app.post("/api/sponsored/:id/activate", adminAuth, async (req,res) => {
+  await pool.query("UPDATE sponsored_products SET active=true  WHERE id=$1",[req.params.id]);
+  res.json({ok:true});
+});
+app.post("/api/sponsored/:id/deactivate", adminAuth, async (req,res) => {
+  await pool.query("UPDATE sponsored_products SET active=false WHERE id=$1",[req.params.id]);
+  res.json({ok:true});
+});
+
+// DELETE /api/sponsored/:id
+app.delete("/api/sponsored/:id", adminAuth, async (req,res) => {
+  await pool.query("DELETE FROM sponsored_products WHERE id=$1",[req.params.id]);
+  res.json({ok:true});
+});
+
+// Serve admin UI
+app.get("/admin/sponsored", adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_sponsored.html'));
+});
+
+
+// ===== PRICE & STOCK ALERTS =====
+
+// GET /api/alerts — כל ההתראות של המשתמש
+app.get("/api/alerts", authMiddleware, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT pa.*, p.price AS current_price, p.sizes AS current_sizes, p.title AS product_title, p.image_url AS product_image, p.store AS product_store
+       FROM price_alerts pa
+       LEFT JOIN products p ON p.source_url = pa.product_source_url
+       WHERE pa.user_id = $1 AND pa.active = true
+       ORDER BY pa.created_at DESC`,
+      [req.userId]
+    );
+    res.json({ alerts: r.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/alerts — הגדר/עדכן התראה
+app.post("/api/alerts", authMiddleware, async (req, res) => {
+  try {
+    const { product_source_url, alert_price, alert_size } = req.body;
+    if (!product_source_url) return res.status(400).json({ error: 'חסר product_source_url' });
+
+    // שלוף מחיר ומידות נוכחיים
+    const prod = await pool.query(
+      "SELECT id, price, sizes FROM products WHERE source_url = $1 LIMIT 1",
+      [product_source_url]
+    );
+    const p = prod.rows[0];
+
+    await pool.query(
+      `INSERT INTO price_alerts (user_id, product_source_url, product_id, alert_price, alert_size, last_price, last_sizes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id, product_source_url) DO UPDATE SET
+         alert_price = EXCLUDED.alert_price,
+         alert_size  = EXCLUDED.alert_size,
+         last_price  = EXCLUDED.last_price,
+         last_sizes  = EXCLUDED.last_sizes,
+         active      = true`,
+      [req.userId, product_source_url, p?.id || null,
+       !!alert_price, alert_size || null,
+       p?.price || null, p?.sizes || null]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/alerts — הסר התראה
+app.delete("/api/alerts", authMiddleware, async (req, res) => {
+  try {
+    const { product_source_url } = req.body;
+    await pool.query(
+      "UPDATE price_alerts SET active=false WHERE user_id=$1 AND product_source_url=$2",
+      [req.userId, product_source_url]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== NEWSLETTER =====
+
+// ===== NEWSLETTER EXTENDED =====
+
+// GET /api/newsletter/export.csv — הורדת CSV ישירה
+app.get("/api/newsletter/export.csv", adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+    );
+    const header = "Email,Source,Date\n";
+    const rows = r.rows.map(x =>
+      `${x.email},${x.source},${new Date(x.created_at).toLocaleDateString('he-IL')}`
+    ).join("\n");
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="lookli_subscribers.csv"');
+    res.send("\uFEFF" + header + rows); // BOM לעברית בExcel
+  } catch(e) { res.status(500).send("Error"); }
+});
+
+// POST /api/newsletter/sync-brevo — סנכרון אוטומטי ל-Brevo
+app.post("/api/newsletter/sync-brevo", adminAuth, async (req, res) => {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  const LIST_ID   = parseInt(process.env.BREVO_LIST_ID || "2");
+  if (!BREVO_KEY) return res.status(400).json({ error: "חסר BREVO_API_KEY ב-Railway Variables" });
+
+  try {
+    // שלוף את כל הנרשמים מה-DB
+    const r = await pool.query(
+      "SELECT email FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+    );
+    if (!r.rows.length) return res.json({ synced: 0, message: "אין נרשמים לסנכרן" });
+
+    // Brevo batch import — עד 150 בקריאה אחת
+    const contacts = r.rows.map(x => ({ email: x.email }));
+    const batches = [];
+    for (let i = 0; i < contacts.length; i += 150) {
+      batches.push(contacts.slice(i, i + 150));
+    }
+
+    let synced = 0;
+    for (const batch of batches) {
+      const resp = await fetch("https://api.brevo.com/v3/contacts/import", {
+        method: "POST",
+        headers: {
+          "api-key": BREVO_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          listIds: [LIST_ID],
+          updateEnabled: true,
+          jsonBody: batch
+        })
+      });
+      if (resp.ok) synced += batch.length;
+      else {
+        const err = await resp.json();
+        console.error("Brevo error:", err);
+      }
+    }
+
+    res.json({ synced, total: contacts.length, message: `סונכרנו ${synced} כתובות ל-Brevo` });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/newsletter/add-to-brevo — הוסף נרשם חדש ל-Brevo מיד (webhook)
+async function addToBrevo(email) {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  const LIST_ID   = parseInt(process.env.BREVO_LIST_ID || "2");
+  if (!BREVO_KEY) return;
+  try {
+    await fetch("https://api.brevo.com/v3/contacts", {
+      method: "POST",
+      headers: { "api-key": BREVO_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        listIds: [LIST_ID],
+        updateEnabled: true
+      })
+    });
+  } catch(e) { console.error("Brevo add error:", e.message); }
+}
+
+// Serve newsletter admin UI
+app.get("/admin/newsletter", adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_newsletter.html'));
+});
+
+// POST /api/newsletter/subscribe
+app.post("/api/newsletter/subscribe", async (req, res) => {
+  try {
+    const { email, source = 'footer' } = req.body;
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'מייל לא תקין' });
+    await pool.query(
+      `INSERT INTO newsletter_subscribers (email, source)
+       VALUES ($1, $2)
+       ON CONFLICT (email) DO UPDATE SET active=true`,
+      [email.toLowerCase().trim(), source]
+    );
+    // הוסף ל-Brevo מיד
+    addToBrevo(email.toLowerCase().trim()).catch(()=>{});
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: 'שגיאה' });
+  }
+});
+
+// POST /api/newsletter/unsubscribe
+app.post("/api/newsletter/unsubscribe", async (req, res) => {
+  try {
+    const { email } = req.body;
+    await pool.query("UPDATE newsletter_subscribers SET active=false WHERE email=$1", [email]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
+});
+
+// GET /api/newsletter/list  (מוגן — רק לשימוש פנימי)
+app.get("/api/newsletter/list", adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+    );
+    res.json({ count: r.rowCount, subscribers: r.rows });
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
+});
+
+// ===== AUTH HELPERS =====
+const JWT_SECRET = process.env.JWT_SECRET || "lookli_secret_2026_change_in_prod";
+if (!process.env.JWT_SECRET) console.error("⚠️  WARNING: JWT_SECRET לא מוגדר ב-Railway Variables!");
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = createHmac("sha256", salt).update(password).digest("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, hash] = stored.split(":");
+  const check = createHmac("sha256", salt).update(password).digest("hex");
+  return check === hash;
+}
+
+function createToken(userId, email) {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ sub: userId, email, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 })).toString("base64url");
+  const sig = createHmac("sha256", JWT_SECRET).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${sig}`;
+}
+
+function verifyToken(token) {
+  try {
+    const [header, payload, sig] = token.split(".");
+    const check = createHmac("sha256", JWT_SECRET).update(`${header}.${payload}`).digest("base64url");
+    if (check !== sig) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (data.exp < Math.floor(Date.now() / 1000)) return null;
+    return data;
+  } catch(e) { return null; }
+}
+
+function authMiddleware(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "לא מחובר" });
+  const data = verifyToken(token);
+  if (!data) return res.status(401).json({ error: "פג תוקף החיבור" });
+  req.userId = data.sub;
+  req.userEmail = data.email;
+  next();
+}
+
+// POST /api/auth/google — התחברות עם Google
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "חסר credential" });
+
+    // אמת את ה-token מול Google
+    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+    const payload = await googleRes.json();
+
+    if (payload.error) return res.status(401).json({ error: "Token לא תקין" });
+    if (payload.aud !== '1037279869077-935i5v7lva8q7t0gff3fa4m6rjtf5mn5.apps.googleusercontent.com') {
+      return res.status(401).json({ error: "Client ID לא תואם" });
+    }
+
+    const { email, name, sub: googleId } = payload;
+    if (!email) return res.status(400).json({ error: "לא נמצא אימייל" });
+
+    const emailLower = email.toLowerCase().trim();
+
+    // בדוק אם המשתמש קיים
+    let user = (await pool.query('SELECT * FROM users WHERE email=$1', [emailLower])).rows[0];
+
+    if (!user) {
+      // הרשמה אוטומטית
+      const result = await pool.query(
+        'INSERT INTO users (email, name, password_hash, newsletter, created_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *',
+        [emailLower, name || emailLower.split('@')[0], 'google_oauth_' + googleId, true]
+      );
+      user = result.rows[0];
+    }
+
+    const token = createToken(user.id, user.email);
+
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  } catch (err) {
+    console.error('google auth error:', err.message);
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/auth/register
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { email, password, name, newsletter = false } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "אימייל וסיסמה חובה" });
+    if (password.length < 6) return res.status(400).json({ error: "סיסמה חייבת לפחות 6 תווים" });
+    const emailLower = email.toLowerCase().trim();
+    const existing = await pool.query("SELECT id FROM users WHERE email=$1", [emailLower]);
+    if (existing.rows.length > 0) return res.status(409).json({ error: "אימייל כבר רשום" });
+    const hash = hashPassword(password);
+    const result = await pool.query(
+      "INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id, email, name, plan, created_at",
+      [emailLower, hash, name || null]
+    );
+    const user = result.rows[0];
+    const token = createToken(user.id, user.email);
+    // שמור בניוזלטר + Brevo אם אישר
+    if (newsletter) {
+      try {
+        await pool.query(
+          `INSERT INTO newsletter_subscribers (email, source)
+           VALUES ($1, 'register')
+           ON CONFLICT (email) DO UPDATE SET active=true`,
+          [emailLower]
+        );
+        addToBrevo(emailLower).catch(()=>{});
+      } catch(_) {}
+    }
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+  } catch (e) {
+    console.error("register error:", e.message);
+    if (e.message.includes("users") && e.message.includes("exist")) {
+      return res.status(500).json({ error: "טבלת משתמשים לא קיימת - הרץ schema_users.sql" });
+    }
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/auth/login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "אימייל וסיסמה חובה" });
+    const emailLower = email.toLowerCase().trim();
+    const result = await pool.query("SELECT * FROM users WHERE email=$1", [emailLower]);
+    if (result.rows.length === 0) return res.status(401).json({ error: "אימייל או סיסמה שגויים" });
+    const user = result.rows[0];
+    if (!verifyPassword(password, user.password_hash)) return res.status(401).json({ error: "אימייל או סיסמה שגויים" });
+    const token = createToken(user.id, user.email);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+  } catch (e) {
+    console.error("login error:", e.message);
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// GET /api/auth/me
+app.get("/api/auth/me", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, email, name, plan, created_at FROM users WHERE id=$1", [req.userId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "משתמש לא נמצא" });
+    res.json({ user: result.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/saved - save a product
+app.post("/api/saved", authMiddleware, async (req, res) => {
+  try {
+    const { source_url, title, price, image, store } = req.body;
+    if (!source_url) return res.status(400).json({ error: "חסר URL" });
+    await pool.query(
+      `INSERT INTO saved_products(user_id, product_source_url, product_title, product_price, product_image, product_store)
+       VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id, product_source_url) DO NOTHING`,
+      [req.userId, source_url, title || null, price || null, image || null, store || null]
+    );
+    res.json({ saved: true });
+  } catch (e) {
+    console.error("save error:", e.message);
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// DELETE /api/saved - remove saved product
+app.delete("/api/saved", authMiddleware, async (req, res) => {
+  try {
+    const { source_url } = req.body;
+    await pool.query("DELETE FROM saved_products WHERE user_id=$1 AND product_source_url=$2", [req.userId, source_url]);
+    res.json({ removed: true });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// GET /api/saved - get all saved products
+app.get("/api/saved", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM saved_products WHERE user_id=$1 ORDER BY saved_at DESC",
+      [req.userId]
+    );
+    res.json({ saved: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+// POST /api/saved/check - batch check saved status
+app.post("/api/saved/check", authMiddleware, async (req, res) => {
+  try {
+    const { urls } = req.body;
+    if (!Array.isArray(urls) || urls.length === 0) return res.json({ saved: [] });
+    const result = await pool.query(
+      "SELECT product_source_url FROM saved_products WHERE user_id=$1 AND product_source_url=ANY($2)",
+      [req.userId, urls]
+    );
+    res.json({ saved: result.rows.map(r => r.product_source_url) });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאת שרת" });
+  }
+});
+
+
+// ── GA4 Analytics Dashboard ──────────────────────────────────────────
+const GA4_PROPERTY = 'properties/526435013';
+
+async function getGA4Token() {
+  let credentials;
+  if (process.env.GA4_CREDENTIALS) {
+    credentials = JSON.parse(process.env.GA4_CREDENTIALS);
+  } else {
+    throw new Error('GA4_CREDENTIALS environment variable not set');
+  }
+  const auth = new GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/analytics.readonly']
+  });
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  return token.token;
+}
+
+async function ga4Query(token, body) {
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${GA4_PROPERTY}:runReport`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+app.get('/api/analytics', adminAuth, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 28;
+    const dateRange = [{ startDate: `${days}daysAgo`, endDate: 'today' }];
+    const token = await getGA4Token();
+
+    // סשנים, משתמשים, צפיות
+    const [overview, daily, outbound] = await Promise.all([
+      ga4Query(token, {
+        dateRanges: dateRange,
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'screenPageViews' }]
+      }),
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'date' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ dimension: { dimensionName: 'date' } }]
+      }),
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'eventName' }, { name: 'linkUrl' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'outbound_click' } } }
+      })
+    ]);
+
+    const totals = {
+      sessions: overview.rows?.[0]?.metricValues?.[0]?.value || 0,
+      users: overview.rows?.[0]?.metricValues?.[1]?.value || 0,
+      pageViews: overview.rows?.[0]?.metricValues?.[2]?.value || 0,
+      outboundClicks: 0
+    };
+
+    const dailyData = (daily.rows || []).map(r => ({
+      date: r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+      sessions: parseInt(r.metricValues[0].value)
+    }));
+
+    // קליקים לפי חנות מה-URL
+    const storeMap = {};
+    const STORES = { 'mima.co.il':'MIMA', 'mekimi.co.il':'MEKIMI', 'lichi.com':'LICHI', 'aviyah.co.il':'AVIYAH', 'chemise.co.il':'CHEMISE' };
+    (outbound.rows || []).forEach(r => {
+      const url = r.dimensionValues[1]?.value || '';
+      const count = parseInt(r.metricValues[0].value);
+      totals.outboundClicks += count;
+      for (const [domain, name] of Object.entries(STORES)) {
+        if (url.includes(domain)) {
+          storeMap[name] = (storeMap[name] || 0) + count;
+        }
+      }
+    });
+
+    const stores = Object.entries(storeMap)
+      .map(([name, clicks]) => ({ name, clicks }))
+      .sort((a,b) => b.clicks - a.clicks);
+
+    // מוצרים מה-DB
+    const topProducts = [];
+    try {
+      const dbClicks = await pool.query(
+        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 20`
+      );
+      dbClicks.rows.forEach(r => topProducts.push({ title: r.product_title, store: r.store, clicks: parseInt(r.clicks) }));
+    } catch(e) {}
+
+    res.json({ totals, daily: dailyData, stores, topProducts });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/admin/analytics', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
+app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
+app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
+app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
+
+// ===== TAGGER API =====
+app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
+  try {
+    const { ids, field, value } = req.body;
+    if (!ids?.length || !field || value === undefined) return res.status(400).json({ error: 'חסרים פרמטרים' });
+    const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
+    if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
+
+    if (field === 'design_details') {
+      await pool.query(
+        `UPDATE products SET design_details = array_append(COALESCE(design_details,'{}'), $1), updated_at=NOW()
+         WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
+        [value, ids]
+      );
+    } else if (field === 'fit') {
+      await pool.query(
+        `UPDATE products SET fit=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        [value, ids]
+      );
+    } else {
+      await pool.query(
+        `UPDATE products SET ${field}=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        [value, ids]
+      );
+    }
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
+    await pool.query(`UPDATE products SET design_details=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
+    await pool.query(`UPDATE products SET fit=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
+
+// ===== קישורי הצגה זמניים =====
+// POST /api/admin/preview-token — יצירת טוקן זמני
+app.post('/api/admin/preview-token', adminAuth, async (req, res) => {
+  const { hours = 24, note = '' } = req.body;
+  const token = randomBytes(16).toString('hex');
+  try {
+    await pool.query(
+      `INSERT INTO preview_tokens (token, note, expires_at) VALUES ($1, $2, NOW() + ($3 || ' hours')::interval)`,
+      [token, note, hours]
+    );
+    const expiresAt = Date.now() + hours * 60 * 60 * 1000;
+    const url = `${process.env.SITE_URL || 'https://lookli-production.up.railway.app'}/?preview=${token}`;
+    res.json({ ok: true, url, hours, expiresAt, note });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/preview-token/:token — אימות טוקן (ציבורי)
+app.get('/api/preview-token/:token', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT expires_at, note FROM preview_tokens WHERE token=$1 AND expires_at > NOW()`,
+      [req.params.token]
+    );
+    if (!r.rows.length) return res.status(404).json({ valid: false });
+    res.json({ valid: true, expiresAt: new Date(r.rows[0].expires_at).getTime(), note: r.rows[0].note });
+  } catch(e) {
+    res.status(500).json({ valid: false });
+  }
+});
+
+// ===================================================================
+// ===== מערכת מייל מוצרים חדשים =====================================
+// ===================================================================
+
+const STORE_NAMES = {
+  'MEKIMI':  'מקימי',
+  'LICHI':   "ליצ'י",
+  'MIMA':    'מימה',
+  'AVIYAH':  'אביה יוסף',
+  'CHEMISE': 'שמיז',
+  'ORDMAN':  'אורדמן',
+  'RARE':    'רייר',
+  'AVIVIT':  'אביבית וייצמן',
+};
+
+const SITE_BASE = process.env.SITE_URL || 'https://lookli.co.il';
+
+// בנה HTML email
+function buildNewProductsEmail(storeGroups) {
+  const storeBlocks = storeGroups.map(({ store, storeName, products, total }) => {
+    const productCards = products.slice(0, 4).map(p => {
+      const img   = p.images?.[0] || p.image_url || '';
+      const price = p.original_price && p.original_price > p.price
+        ? `<span style="color:#e0a1c0;font-weight:700">₪${p.price}</span> <s style="color:#aaa;font-size:11px">₪${p.original_price}</s>`
+        : `<span style="color:#333;font-weight:700">₪${p.price}</span>`;
+      const slug  = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
+      const url   = `${SITE_BASE}/product/${slug||p.id}`;
+      return `
+        <td style="width:25%;padding:3px;vertical-align:top">
+          <a href="${url}" style="display:block;text-decoration:none;color:inherit">
+            <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff;transition:box-shadow .2s">
+              <div style="aspect-ratio:3/4;overflow:hidden;background:#f9f9f9">
+                <img src="${img}" alt="${(p.title||'').replace(/"/g,'')}" width="100%" style="display:block;width:100%;height:auto;object-fit:cover">
+              </div>
+              <div style="padding:8px 10px">
+                <div style="font-size:11px;color:#aaa;margin-bottom:2px">${storeName}</div>
+                <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">${p.title||''}</div>
+                <div style="font-size:13px;margin-top:4px">${price}</div>
+              </div>
+            </div>
+          </a>
+        </td>`;
+    }).join('');
+
+    const moreBtn = total > 4 ? `
+      <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
+        <a href="${SITE_BASE}/?store=${store}" style="display:inline-block;padding:8px 22px;background:#f8eef8;color:#c48cb3;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #e8d0e8">
+          + עוד ${total - 4} מוצרים חדשים ←
+        </a>
+      </td></tr>` : '';
+
+    return `
+      <tr><td style="padding:28px 0 8px">
+        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #e0a1c0;padding-right:12px">
+          ${storeName}
+          <span style="font-size:13px;font-weight:400;color:#aaa;margin-right:8px">${total} מוצרים חדשים</span>
+        </div>
+      </td></tr>
+      <tr><td>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+          <tr>${productCards}</tr>
+          ${moreBtn}
+        </table>
+      </td></tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>מוצרים חדשים על המדף</title></head>
+<body style="margin:0;padding:0;background:#f7f0f7;font-family:'Segoe UI',Arial,sans-serif;direction:rtl">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0f7;padding:32px 16px">
+<tr><td align="center">
+<table width="680" cellpadding="0" cellspacing="0" style="max-width:680px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#d191b0 0%,#c48cb3 100%);padding:32px 36px;text-align:center">
+    <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px">LOOKLI</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.85);margin-top:6px">מוצרים חדשים על המדף 🛍️</div>
+  </td></tr>
+
+  <!-- Stores -->
+  <tr><td style="padding:16px 16px 8px">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      ${storeBlocks}
+    </table>
+  </td></tr>
+
+  <!-- CTA -->
+  <tr><td style="padding:24px 28px 32px;text-align:center">
+    <a href="${SITE_BASE}" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;border-radius:28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(196,140,179,.35)">
+      לכל המוצרים באתר ←
+    </a>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
+    <p style="margin:0;font-size:11px;color:#bbb">
+      קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
+      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#c48cb3">הסרה מרשימת תפוצה</a>
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+// שלח דרך Brevo
+async function sendNewProductsEmail(toEmails, subject, htmlContent) {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  if (!BREVO_KEY) throw new Error('חסר BREVO_API_KEY');
+
+  // Brevo batch — עד 50 נמענים בבקשה אחת
+  const batchSize = 50;
+  let sent = 0;
+  for (let i = 0; i < toEmails.length; i += batchSize) {
+    const batch = toEmails.slice(i, i + batchSize);
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI', email: process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il' },
+        bcc: batch.map(e => ({ email: e })),
+        to: [{ email: process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il' }],
+        subject,
+        htmlContent
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      console.error('Brevo send error:', err);
+    } else {
+      sent += batch.length;
+    }
+  }
+  return sent;
+}
+
+// Cron endpoint — מופעל מ-Railway Cron
+// GET /api/cron/new-products-email?secret=CRON_SECRET
+app.get('/api/cron/new-products-email', async (req, res) => {
+  // הגנה בסיסית — סוד cron
+  const CRON_SECRET = process.env.CRON_SECRET || '';
+  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const dryRun = req.query.dry === '1'; // ?dry=1 → לא שולח, רק מחזיר JSON
+
+    // 1. בדוק אם עברו 5 ימים מהשליחה האחרונה
+    const lastSentRow = await pool.query(
+      `SELECT sent_at FROM email_campaign_log WHERE campaign_type='new_products' ORDER BY sent_at DESC LIMIT 1`
+    ).catch(() => ({ rows: [] }));
+
+    if (!dryRun && lastSentRow.rows.length) {
+      const lastSent = new Date(lastSentRow.rows[0].sent_at);
+      const daysSince = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < 7) {
+        return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
+      }
+    }
+
+    // 2. מצא חנויות עם 4+ מוצרים חדשים ב-4 ימים האחרונים
+    const newProductsRes = await pool.query(`
+      SELECT store, COUNT(*) as count
+      FROM products
+      WHERE created_at >= NOW() - INTERVAL '4 days'
+        AND store IS NOT NULL
+      GROUP BY store
+      HAVING COUNT(*) >= 4
+      ORDER BY count DESC
+    `);
+
+    if (!newProductsRes.rows.length) {
+      return res.json({ skipped: true, reason: 'אין חנויות עם 4+ מוצרים חדשים ב-4 ימים האחרונים' });
+    }
+
+    // 3. שלוף את המוצרים עצמם לכל חנות
+    const storeGroups = [];
+    for (const row of newProductsRes.rows) {
+      const productsRes = await pool.query(`
+        SELECT id, title, price, original_price, image_url, images, store, category
+        FROM products
+        WHERE store = $1 AND created_at >= NOW() - INTERVAL '4 days'
+        ORDER BY created_at DESC
+        LIMIT 12
+      `, [row.store]);
+
+      storeGroups.push({
+        store:     row.store,
+        storeName: STORE_NAMES[row.store] || row.store,
+        products:  productsRes.rows,
+        total:     parseInt(row.count)
+      });
+    }
+
+    // 4. בנה כותרת
+    const storeNamesList = storeGroups.map(s => s.storeName).join(', ');
+    const subject = `מוצרים חדשים על המדף ב${storeNamesList} 🛍️`;
+    const htmlContent = buildNewProductsEmail(storeGroups);
+
+    // dry run — החזר את ה-HTML בלבד
+    if (dryRun) {
+      return res.send(htmlContent);
+    }
+
+    // 5. שלוף מנויים פעילים
+    const subscribersRes = await pool.query(
+      `SELECT email FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC`
+    );
+    const emails = subscribersRes.rows.map(r => r.email);
+    if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
+
+    // 6. שלח
+    const sent = await sendNewProductsEmail(emails, subject, htmlContent);
+
+    // 7. תיעד בlog
+    await pool.query(
+      `INSERT INTO email_campaign_log (campaign_type, stores, recipients, subject, sent_at)
+       VALUES ('new_products', $1, $2, $3, NOW())`,
+      [storeGroups.map(s=>s.store).join(','), sent, subject]
+    ).catch(() => {}); // אם הטבלה לא קיימת — לא נופלים
+
+    res.json({
+      ok: true,
+      sent,
+      stores: storeGroups.map(s => ({ store: s.store, newProducts: s.total })),
+      subject
+    });
+
+  } catch(e) {
+    console.error('new-products-email cron error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// צור טבלת log אם לא קיימת (חד-פעמי בעליית שרת)
+async function ensureEmailCampaignLog() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_campaign_log (
+        id           SERIAL PRIMARY KEY,
+        campaign_type VARCHAR(50) NOT NULL,
+        stores       TEXT,
+        recipients   INTEGER DEFAULT 0,
+        subject      TEXT,
+        sent_at      TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_email_log_type ON email_campaign_log(campaign_type, sent_at DESC)`);
+  } catch(e) { console.error('email_campaign_log init:', e.message); }
+}
+
+// ===================================================================
+// ===== מערכת מייל ירידת מחירים =====================================
+// ===================================================================
+
+function buildPriceDropEmail(storeGroups) {
+  const storeBlocks = storeGroups.map(({ storeName, store, products, total }) => {
+    const productCards = products.slice(0, 4).map(p => {
+      const img = p.images?.[0] || p.image_url || '';
+      const disc = Math.round((1 - p.price / p.original_price) * 100);
+      const slug = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
+      const url = `${SITE_BASE}/product/${slug||p.id}`;
+      return `
+        <td style="width:25%;padding:3px;vertical-align:top">
+          <a href="${url}" style="display:block;text-decoration:none;color:inherit">
+            <div style="border-radius:10px;overflow:hidden;border:1px solid #f0e6f0;background:#fff;position:relative">
+              <div style="position:absolute;top:8px;left:8px;background:#d191b0;color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;z-index:1">-${disc}%</div>
+              <div style="aspect-ratio:3/4;overflow:hidden;background:#f9fafb">
+                <img src="${img}" alt="${(p.title||'').replace(/"/g,'')}" width="100%" style="display:block;width:100%;height:auto;object-fit:cover">
+              </div>
+              <div style="padding:8px 10px">
+                <div style="font-size:11px;color:#aaa;margin-bottom:2px">${storeName}</div>
+                <div style="font-size:12px;color:#444;line-height:1.3;height:32px;overflow:hidden">${p.title||''}</div>
+                <div style="font-size:13px;margin-top:4px">
+                  <span style="color:#d191b0;font-weight:800">₪${p.price}</span>
+                  <s style="color:#aaa;font-size:11px;margin-right:4px">₪${p.original_price}</s>
+                </div>
+              </div>
+            </div>
+          </a>
+        </td>`;
+    }).join('');
+
+    const moreBtn = total > 4 ? `
+      <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
+        <a href="${SITE_BASE}/?store=${store}&discount=10" style="display:inline-block;padding:8px 22px;background:#fdf0f7;color:#d191b0;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #e8d0e8">
+          + עוד ${total - 4} מוצרים במבצע ←
+        </a>
+      </td></tr>` : '';
+
+    return `
+      <tr><td style="padding:28px 0 8px">
+        <div style="font-size:18px;font-weight:800;color:#333;border-right:4px solid #d191b0;padding-right:12px">
+          ${storeName}
+          <span style="font-size:13px;font-weight:400;color:#aaa;margin-right:8px">${total} מוצרים במבצע</span>
+        </div>
+      </td></tr>
+      <tr><td>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+          <tr>${productCards}</tr>
+          ${moreBtn}
+        </table>
+      </td></tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ירידות מחיר השבוע</title></head>
+<body style="margin:0;padding:0;background:#f7f0f7;font-family:'Segoe UI',Arial,sans-serif;direction:rtl">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0f7;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+
+  <tr><td style="background:linear-gradient(135deg,#d191b0 0%,#c48cb3 100%);padding:32px 36px;text-align:center">
+    <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px">LOOKLI</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.85);margin-top:6px">ירידות מחיר השבוע 🏷️</div>
+  </td></tr>
+
+  <tr><td style="padding:16px 16px 8px">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      ${storeBlocks}
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:24px 28px 32px;text-align:center">
+    <a href="${SITE_BASE}/?discount=10" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;border-radius:28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(196,140,179,.35)">
+      לכל המוצרים במבצע ←
+    </a>
+  </td></tr>
+
+  <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
+    <p style="margin:0;font-size:11px;color:#bbb">
+      קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
+      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#d191b0">הסרה מרשימת תפוצה</a>
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+// GET /api/cron/price-drop-email
+app.get('/api/cron/price-drop-email', async (req, res) => {
+  const CRON_SECRET = process.env.CRON_SECRET || '';
+  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const dryRun = req.query.dry === '1';
+
+    // בדוק 7 ימים מהשליחה האחרונה
+    const lastSentRow = await pool.query(
+      `SELECT sent_at FROM email_campaign_log WHERE campaign_type='price_drop' ORDER BY sent_at DESC LIMIT 1`
+    ).catch(() => ({ rows: [] }));
+
+    if (!dryRun && lastSentRow.rows.length) {
+      const daysSince = (Date.now() - new Date(lastSentRow.rows[0].sent_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < 7) {
+        return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
+      }
+    }
+
+    // מצא מוצרים עם ירידת מחיר 10%+ ב-7 ימים האחרונים
+    const priceDropRes = await pool.query(`
+      SELECT store, COUNT(*) as count
+      FROM products
+      WHERE updated_at >= NOW() - INTERVAL '7 days'
+        AND original_price IS NOT NULL
+        AND original_price > 0
+        AND price > 0
+        AND original_price > price * 1.10
+        AND store IS NOT NULL
+      GROUP BY store
+      HAVING COUNT(*) >= 1
+      ORDER BY count DESC
+    `);
+
+    if (!priceDropRes.rows.length) {
+      return res.json({ skipped: true, reason: 'אין מוצרים עם ירידת מחיר 10%+ השבוע' });
+    }
+
+    // שלוף מוצרים לכל חנות
+    const storeGroups = [];
+    for (const row of priceDropRes.rows) {
+      const productsRes = await pool.query(`
+        SELECT id, title, price, original_price, image_url, images, store
+        FROM products
+        WHERE store = $1
+          AND updated_at >= NOW() - INTERVAL '7 days'
+          AND original_price IS NOT NULL
+          AND original_price > price * 1.10
+        ORDER BY (original_price - price) / original_price DESC
+        LIMIT 12
+      `, [row.store]);
+
+      storeGroups.push({
+        store:     row.store,
+        storeName: STORE_NAMES[row.store] || row.store,
+        products:  productsRes.rows,
+        total:     parseInt(row.count)
+      });
+    }
+
+    const storeNamesList = storeGroups.map(s => s.storeName).join(', ');
+    const subject = `ירידות מחיר השבוע ב${storeNamesList} 🏷️`;
+    const htmlContent = buildPriceDropEmail(storeGroups);
+
+    if (dryRun) return res.send(htmlContent);
+
+    // שלוף מנויים
+    const subscribersRes = await pool.query(
+      `SELECT email FROM newsletter_subscribers WHERE active=true`
+    );
+    const emails = subscribersRes.rows.map(r => r.email);
+    if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
+
+    const sent = await sendNewProductsEmail(emails, subject, htmlContent);
+
+    await pool.query(
+      `INSERT INTO email_campaign_log (campaign_type, stores, recipients, subject, sent_at)
+       VALUES ('price_drop', $1, $2, $3, NOW())`,
+      [storeGroups.map(s=>s.store).join(','), sent, subject]
+    ).catch(() => {});
+
+    res.json({ ok: true, sent, stores: storeGroups.map(s=>({ store:s.store, products:s.total })), subject });
+
+  } catch(e) {
+    console.error('price-drop-email error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== מדידת גודל תמונות (נטפרי) =====
+// GET /api/admin/measure-images — מודד גודל תמונות לכל המוצרים ומעדכן image_size_bytes
+app.get('/api/admin/measure-images', adminAuth, async (req, res) => {
+  // הגדרות
+  const BATCH = 20;        // בקשות מקביליות
+  const TIMEOUT = 8000;    // ms לכל תמונה
+  const MIN_BYTES = 500;   // פחות מזה = תמונה שבורה / חסומה
+
+  try {
+    // שלוף רק מוצרים שעדיין לא נמדדו (image_size_bytes = 0)
+    const onlyUnmeasured = req.query.all !== '1';
+    const rows = await pool.query(
+      `SELECT id, image_url FROM products
+       WHERE image_url IS NOT NULL AND image_url != ''
+       ${onlyUnmeasured ? 'AND (image_size_bytes IS NULL OR image_size_bytes = 0)' : ''}
+       ORDER BY id`
+    );
+
+    if (!rows.rows.length) {
+      return res.json({ ok: true, message: 'כל המוצרים כבר נמדדו', total: 0 });
+    }
+
+    // שלח תגובה מיידית כי זה תהליך ארוך
+    res.json({
+      ok: true,
+      message: `מתחיל מדידה של ${rows.rows.length} מוצרים ברקע...`,
+      total: rows.rows.length,
+      hint: 'עקוב אחרי הלוגים ב-Railway'
+    });
+
+    // הרץ ברקע
+    (async () => {
+      let updated = 0, failed = 0;
+      const products = rows.rows;
+
+      for (let i = 0; i < products.length; i += BATCH) {
+        const batch = products.slice(i, i + BATCH);
+        await Promise.all(batch.map(async (p) => {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), TIMEOUT);
+            const r = await fetch(p.image_url, {
+              method: 'HEAD',
+              signal: controller.signal
+            });
+            clearTimeout(timer);
+
+            let bytes = 0;
+            const cl = r.headers.get('content-length');
+            if (cl) {
+              bytes = parseInt(cl);
+            } else {
+              // HEAD לא החזיר content-length — GET ראשון כמה bytes
+              const r2 = await fetch(p.image_url, { signal: controller.signal });
+              const buf = await r2.arrayBuffer();
+              bytes = buf.byteLength;
+            }
+
+            if (bytes > MIN_BYTES) {
+              await pool.query(
+                'UPDATE products SET image_size_bytes=$1 WHERE id=$2',
+                [bytes, p.id]
+              );
+              updated++;
+            } else {
+              // סמן כחסום
+              await pool.query(
+                'UPDATE products SET image_size_bytes=$1 WHERE id=$2',
+                [bytes || 1, p.id]
+              );
+              failed++;
+            }
+          } catch(e) {
+            // timeout או שגיאה — סמן כ-1 (לא נמדד / חסום)
+            await pool.query('UPDATE products SET image_size_bytes=1 WHERE id=$1', [p.id]);
+            failed++;
+          }
+        }));
+        console.log(`measure-images: ${Math.min(i+BATCH, products.length)}/${products.length} (✅${updated} ❌${failed})`);
+      }
+      console.log(`measure-images הושלם: ✅${updated} תמונות תקינות, ❌${failed} חסומות/שגויות`);
+    })();
+
+  } catch(e) {
+    console.error('measure-images error:', e.message);
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== Scraper Config API =====
+// POST /api/admin/scraper-config/seed — מאכלס את ה-DB מהמפות הקיימות
+app.post('/api/admin/scraper-config/seed', adminAuth, async (req, res) => {
+  const allMaps = [
+    ['color',    {'שחור':['שחור','שחורה','black'],'לבן':['לבן','לבנה','white'],'כחול':['כחול','כחולה','נייבי','navy','blue','indigo','denim'],'אדום':['אדום','אדומה','red','scarlet','crimson'],'ירוק':['ירוק','ירוקה','זית','חאקי','green','olive','khaki','sage','teal','army','hunter'],'חום':['חום','חומה','brown','chocolate','coffee','קפה','mocha'],'קאמל':['קאמל','camel','cognac'],"בז'":["בז'","בז",'nude','ניוד','beige','sand','taupe'],'אפור':['אפור','אפורה','gray','grey','charcoal','slate'],'ורוד':['ורוד','ורודה','pink','coral','קורל','blush','rose','fuchsia','salmon','פודרה','powder'],'בורדו':['בורדו','burgundy','wine','maroon','cherry'],'שמנת':['שמנת','cream','ivory','ecru','vanilla'],'סגול':['סגול','סגולה','לילך','purple','lilac','lavender','violet','plum','שזיף'],'צהוב':['צהוב','צהובה','חרדל','yellow','mustard','gold','lemon'],'כתום':['כתום','כתומה','orange','rust','tangerine'],'זהב':['זהב','golden'],'כסף':['כסף','כסוף','silver'],'תכלת':['תכלת','טורקיז','turquoise','aqua','cyan','sky'],'מנטה':['מנטה','mint'],'אפרסק':['אפרסק','peach','apricot'],'אבן':['אבן','stone'],'צבעוני':['צבעוני','מולטי','multi','multicolor','ססגוני']}],
+    ['category', {'שמלה':['שמלה','שמלת','dress'],'חולצה':['חולצה','חולצת','טופ','top','shirt','blouse'],'חצאית':['חצאית','skirt'],'קרדיגן':['קרדיגן','cardigan'],'סוודר':['סוודר','sweater'],'טוניקה':['טוניקה','tunic'],'סרפן':['סרפן','pinafore'],"ז׳קט":["ז׳קט","ג׳קט",'jacket'],'בלייזר':['בלייזר','blazer'],'וסט':['וסט','vest'],'עליונית':['עליונית','שכמיה','cape'],'מעיל':['מעיל','coat'],'אוברול':['אוברול','jumpsuit'],'סט':['סט','set'],'בייסיק':['בייסיק','basic'],'חלוק':['חלוק','robe']}],
+    ['style',    {'ערב':['ערב','שבת','שבתי','אירוע','חגיגי','אלגנט','elegant'],'יום חול':['יומיומי','יומיומית','קז׳ואל','casual'],'חגיגי':['חגיגי','חגיגית'],'אלגנטי':['אלגנט','אלגנטי'],'קלאסי':['קלאסי','קלאסית'],'מינימליסטי':['מינימליסט','מינימליסטי'],'מודרני':['מודרני','מודרנית'],'רטרו':['רטרו',"וינטג׳"],'אוברסייז':['אוברסייז','oversize']}],
+    ['fit',      {'ארוכה':['מקסי','ארוכה','ארוך','maxi'],'מידי':['מידי','midi','אמצע'],'קצרה':['קצרה','קצר','מיני','mini'],'מעטפת':['מעטפת','wrap'],'צמודה':['צמוד','צמודה','fitted','bodycon'],'ישרה':['ישרה','straight'],'מתרחבת':['מתרחב','מתרחבת','flare'],'אוברסייז':['אוברסייז','oversize'],'הריון':['הריון','maternity'],'הנקה':['הנקה','nursing']}],
+    ['fabric',   {'סריג':['סריג','knit'],"ג׳רסי":["ג׳רסי",'גרסי','jersey'],'שיפון':['שיפון','chiffon'],'קרפ':['קרפ','crepe'],'סאטן':['סאטן','satin'],'קטיפה':['קטיפה','velvet'],'פליז':['פליז','fleece'],'תחרה':['תחרה','lace'],'טול':['טול','tulle'],'לייקרה':['לייקרה','lycra'],'כותנה':['כותנה','cotton'],'פשתן':['פשתן','linen'],'משי':['משי','silk'],'צמר':['צמר','wool'],'ריקמה':['ריקמה','רקומה','embroidery']}],
+    ['pattern',  {'פסים':['פסים','stripes'],'פרחוני':['פרחוני','פרחים','floral'],'משבצות':['משבצות','plaid','check'],'נקודות':['נקודות','dots','polka'],'חלק':['חלק','plain','solid'],'הדפס':['הדפס','print','מודפס']}],
+  ];
+  let inserted = 0, skipped = 0;
+  for (const [type, map] of allMaps) {
+    for (const [name, aliases] of Object.entries(map)) {
+      try {
+        const r = await pool.query(
+          `INSERT INTO scraper_config (type, name, aliases) VALUES ($1,$2,$3) ON CONFLICT (type, name) DO NOTHING`,
+          [type, name, aliases]
+        );
+        if (r.rowCount > 0) inserted++; else skipped++;
+      } catch(e) { skipped++; }
+    }
+  }
+  await loadSearchAliases();
+  res.json({ ok: true, inserted, skipped });
+});
+
+app.get('/api/admin/scraper-config', adminAuth, async (req, res) => {
+  const { type } = req.query;
+  const q = type
+    ? `SELECT * FROM scraper_config WHERE type=$1 ORDER BY name`
+    : `SELECT * FROM scraper_config ORDER BY type, name`;
+  const r = await pool.query(q, type ? [type] : []);
+  res.json({ ok: true, items: r.rows });
+});
+
+app.post('/api/admin/scraper-config', adminAuth, async (req, res) => {
+  const { type, name, aliases = [], color_hex } = req.body;
+  if (!type || !name) return res.status(400).json({ error: 'type ו-name חובה' });
+  const r = await pool.query(
+    `INSERT INTO scraper_config (type, name, aliases, color_hex)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (type, name) DO UPDATE SET aliases=$3, color_hex=$4, updated_at=NOW()
+     RETURNING *`,
+    [type, name, aliases, color_hex || null]
+  );
+  await loadSearchAliases(); // רענון מיידי
+  res.json({ ok: true, item: r.rows[0] });
+});
+
+app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
+  await pool.query(`DELETE FROM scraper_config WHERE id=$1`, [req.params.id]);
+  await loadSearchAliases(); // רענון מיידי
+  res.json({ ok: true });
+});
+
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  await ensureEmailCampaignLog();
+  // יצירת טבלת clicks אוטומטית אם לא קיימת
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS clicks (
+      id SERIAL PRIMARY KEY,
+      product_id INTEGER,
+      store VARCHAR(50),
+      product_title TEXT,
+      source_url TEXT,
+      user_agent TEXT,
+      ip_address VARCHAR(100),
+      clicked_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at DESC)`);
+    // טבלת טוקני תצוגה זמניים
+    await pool.query(`CREATE TABLE IF NOT EXISTS preview_tokens (
+      token VARCHAR(64) PRIMARY KEY,
+      note TEXT,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    // migrations
+    await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(30) NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      aliases TEXT[] DEFAULT '{}',
+      color_hex VARCHAR(20),
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(type, name)
+    )`);
+    // טען aliases לחיפוש אחרי שהטבלה קיימת
+    await loadSearchAliases();
+  } catch(e) { console.error('clicks table init:', e.message); }
+});

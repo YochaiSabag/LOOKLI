@@ -114,6 +114,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="main-header">
       <div class="main-title" id="mainTitle">🎨 צבעים</div>
       <button class="btn btn-primary" onclick="openAdd()">+ הוסף חדש</button>
+      <button class="btn" onclick="seedFromDefaults()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border)" title="ייבא את כל ברירות המחדל מהסקרייפרים">📥 ייבא ברירות מחדל</button>
     </div>
 
     <div class="type-info" id="typeInfo"></div>
@@ -164,6 +165,18 @@ const typeLabels = {
   fabric:   { label: '🧵 בדים',     info: '<strong>בדים</strong> — סוג הבד (כותנה, פשתן, סריג...). מזוהה מהכותרת והתיאור.' },
   pattern:  { label: '🌀 דוגמאות',  info: '<strong>דוגמאות</strong> — דוגמת הבד (פרחוני, פסים, חלק...). מזוהה מהכותרת.' },
 };
+
+async function seedFromDefaults() {
+  if (!confirm('ייבא את כל ברירות המחדל מהסקרייפרים?\nערכים קיימים לא יידרסו.')) return;
+  const r = await authFetch('/api/admin/scraper-config/seed', { method: 'POST' });
+  const d = await r.json();
+  if (d.ok) {
+    alert(`✅ יובאו ${d.inserted} ערכים חדשים (${d.skipped} כבר קיימים)`);
+    loadAll().then(() => setType(currentType));
+  } else {
+    alert('❌ שגיאה בייבוא');
+  }
+}
 
 function authFetch(url, opts={}) {
   return fetch(url, {...opts, credentials:'include'});

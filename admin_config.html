@@ -290,6 +290,7 @@ function removeAlias(a) {
 function renderAliasChips() {
   const container = document.getElementById('aliasesContainer');
   const input = document.getElementById('aliasInput');
+  input.value = ''; // נקה תמיד
   container.innerHTML = '';
   aliases.forEach(a => {
     const chip = document.createElement('span');

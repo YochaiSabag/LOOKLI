@@ -451,6 +451,30 @@ const COLOR_ALIASES = {
   'כסף': 'כסף', 'silver': 'כסף',
 };
 
+// מפת כינויים לכל הקטגוריות (נטענת מ-DB בהפעלה)
+let SEARCH_ALIASES = {}; // alias → { name, type }
+
+async function loadSearchAliases() {
+  try {
+    const r = await pool.query(`SELECT type, name, aliases FROM scraper_config WHERE aliases IS NOT NULL`);
+    r.rows.forEach(row => {
+      (row.aliases || []).forEach(alias => {
+        const key = alias.toLowerCase().trim();
+        if (!SEARCH_ALIASES[key]) SEARCH_ALIASES[key] = { name: row.name, type: row.type };
+      });
+      // גם השם עצמו
+      SEARCH_ALIASES[row.name.toLowerCase()] = { name: row.name, type: row.type };
+    });
+    // הוסף גם COLOR_ALIASES
+    Object.entries(COLOR_ALIASES).forEach(([alias, name]) => {
+      if (!SEARCH_ALIASES[alias.toLowerCase()]) SEARCH_ALIASES[alias.toLowerCase()] = { name, type: 'color' };
+    });
+    console.log(`✅ SEARCH_ALIASES נטען: ${Object.keys(SEARCH_ALIASES).length} כינויים`);
+  } catch(e) {
+    console.log('⚠️ loadSearchAliases:', e.message);
+  }
+}
+
 
 app.get("/api/products", async (req, res) => {
   try {
@@ -466,9 +490,27 @@ app.get("/api/products", async (req, res) => {
     if (q) {
       const qLower = q.toLowerCase().trim();
       const aliasColor = COLOR_ALIASES[qLower] || COLOR_ALIASES[q];
-      
-      if (aliasColor) {
-        // מחפש בכותרת + בצבע הנורמלי
+      const aliasMatch = SEARCH_ALIASES[qLower];
+
+      if (aliasMatch && aliasMatch.type === 'color') {
+        sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'category') {
+        sql += ` AND (title ILIKE $${i} OR category = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'style') {
+        sql += ` AND (title ILIKE $${i} OR style = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'fit') {
+        sql += ` AND (title ILIKE $${i} OR fit = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'fabric') {
+        sql += ` AND (title ILIKE $${i} OR fabric = $${i+1} OR description ILIKE $${i})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasMatch && aliasMatch.type === 'pattern') {
+        sql += ` AND (title ILIKE $${i} OR pattern = $${i+1})`;
+        params.push(`%${q}%`, aliasMatch.name); i += 2;
+      } else if (aliasColor) {
         sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
         params.push(`%${q}%`, aliasColor); i += 2;
       } else {
@@ -2582,6 +2624,7 @@ app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await ensureEmailCampaignLog();
+  await loadSearchAliases();
   // יצירת טבלת clicks אוטומטית אם לא קיימת
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS clicks (

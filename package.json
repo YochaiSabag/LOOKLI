@@ -12,6 +12,7 @@
     "db:start": "docker-compose up -d",
     "db:stop": "docker-compose down",
     "db:logs": "docker-compose logs -f db",
+    "postinstall": "npx playwright install chromium --with-deps",
     "scrape:mekimi": "node ./scrapers/mekimi_scraper_fixed.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:lichi": "node ./scrapers/lichi_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:mima": "node ./scrapers/mima_scraper.js && node ./check_alerts.js && node ./health_check.js",
@@ -31,11 +32,11 @@
     "express": "^4.18.2",
     "express-rate-limit": "^7.4.0",
     "google-auth-library": "^10.6.1",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "playwright": "^1.58.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11",
-    "playwright": "^1.58.1"
+    "nodemon": "^3.1.11"
   },
   "engines": {
     "node": ">=18.0.0"

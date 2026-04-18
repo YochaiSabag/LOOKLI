@@ -442,7 +442,7 @@ function expandHTML(t){
       </div>
     </div>
     <div class="exp-section">
-      <div class="exp-label">תת-משימות ${(t.subtasks||[]).length?`(${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length})`:''}` </div>
+      <div class="exp-label">תת-משימות ${(t.subtasks||[]).length?'('+( t.subtasks||[]).filter(s=>s.done).length+'/'+(t.subtasks||[]).length+')':''}</div>
       <div id="subs-${t.id}">${subsHTML}</div>
       <div class="add-sub">
         <input class="add-sub-inp" id="subinp-${t.id}" placeholder="תת-משימה חדשה..." maxlength="120"
@@ -451,7 +451,7 @@ function expandHTML(t){
       </div>
     </div>
     <div class="exp-section">
-      <div class="exp-label">לוג התקדמות ${(t.progressLog||[]).length?`(${(t.progressLog||[]).length})`:''}` </div>
+      <div class="exp-label">לוג התקדמות ${(t.progressLog||[]).length?'('+(t.progressLog||[]).length+')':''}</div>
       <div id="log-${t.id}">${logHTML}</div>
       <div class="add-log">
         <textarea class="add-log-inp" id="loginp-${t.id}" placeholder="הוסף עדכון..." rows="2"

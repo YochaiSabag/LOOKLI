@@ -16,27 +16,250 @@ await db.connect();
 console.log('🚀 LICHI Scraper - WooCommerce Store');
 
 // ======================================================================
+// מיפוי צבעים - זהה למקימי
 // ======================================================================
-// מיפוי צבעים
-// ======================================================================
-// טוען config מ-DB דרך scraper_utils
-import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const colorMap = {
+  'black': 'שחור', 'שחור': 'שחור',
+  'white': 'לבן', 'לבן': 'לבן',
+  'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
+  'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
+  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק',
+  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום',
+  'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
+  'beige': 'בז׳', 'בז': 'בז׳', 'nude': 'בז׳', 'ניוד': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
+  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור',
+  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד',
+  'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
+  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב',
+  'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
+  'זהב': 'זהב', 'golden': 'זהב',
+  'silver': 'כסף', 'כסף': 'כסף',
+  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו',
+  'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
+  'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
+  // צבעים מיוחדים
+  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
+  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
+  'בננה': 'צהוב', 'banana': 'צהוב',
+  'כסוף': 'כסף',
+  // חדש/מעודכן
+  'מוקה': 'חום', 'moka': 'חום',
+  'שזיף': 'סגול',
+  'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
+  'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
+  'פודרה': 'ורוד', 'powder': 'ורוד',
+  'אבן': 'אבן', 'stone': 'אבן',
+  'בהיר': 'בהיר',
+  // ג'ינס בכותרת → כחול (לאביה)
+  "גי'נס": 'כחול', 'ג׳ינס': 'כחול', 'jeans': 'כחול', 'denim': 'כחול',
+};
 
+const unknownColors = new Set();
+
+function normalizeColor(c) {
+  if (!c) return null;
+  const original = c;
+  let decoded = c;
+  try { decoded = decodeURIComponent(c); } catch(e) {}
+  const lower = decoded.toLowerCase().trim();
+  const noSpaces = lower.replace(/[-_\s]/g, '');
+  
+  if (colorMap[noSpaces]) return colorMap[noSpaces];
+  if (colorMap[lower]) return colorMap[lower];
+  
+  // בדיקה מילה-מילה: "כחול מעושן" → כחול
+  const words = lower.split(/\s+/);
+  for (const word of words) {
+    if (colorMap[word]) return colorMap[word];
+  }
+  
+  for (const [key, val] of Object.entries(colorMap)) {
+    if (lower.includes(key) || key.includes(lower)) return val;
+  }
+  unknownColors.add(original);
+  return 'אחר';
+}
+
+// ======================================================================
+// מיפוי מידות
+// ======================================================================
+const sizeMapping = {
+  'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
+  '34': ['XS'], '36': ['XS', 'S'], '38': ['S', 'M'], '40': ['M', 'L'],
+  '42': ['L', 'XL'], '44': ['XL', 'XXL'], '46': ['XXL', 'XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [];
+}
+
+// ======================================================================
+// UNIFIED DETECT FUNCTIONS - v2
+// ======================================================================
+
+function detectCategory(title) {
+  const t = (title || '').toLowerCase();
+  // סדר חשוב - ספציפי קודם
+  if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
+  if (/סוודר|sweater/i.test(t)) return 'סוודר';
+  if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
+  if (/סרפן|pinafore/i.test(t)) return 'סרפן';
+  if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
+  if (/חצאית|skirt/i.test(t)) return 'חצאית';
+  if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
+  if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
+  if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
+  if (/וסט|vest/i.test(t)) return 'וסט';
+  if (/עליונית/i.test(t)) return 'עליונית';
+  if (/מעיל|coat/i.test(t)) return 'מעיל';
+  if (/שכמיה|cape|poncho|פונצ׳ו/i.test(t)) return 'עליונית';
+  if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
+  if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
+  if (/סט|set/i.test(t)) return 'סט';
+  if (/בייסיק|basic/i.test(t)) return 'בייסיק';
+  if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
+  // מכנסיים - לא מציגים
+  return null;
+}
+
+function detectStyle(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף|חגיג|celebration|festive|אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'ערב';
+  if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|daily|everyday|יום.?יום/i.test(text)) return 'יום חול';
+  if (/קלאסי|classic|נצחי|timeless/i.test(text)) return 'קלאסי';
+  if (/מינימליסט|minimal|נקי|clean/i.test(text)) return 'מינימליסטי';
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  if (/רטרו|retro|וינטג׳|וינטג'|vintage/i.test(text)) return 'רטרו';
+  if (/מודרני|modern|עכשווי|contemporary/i.test(text)) return 'מודרני';
+  if (/בייסיק|basic|בסיסי/i.test(text)) return 'יום חול';
+  return '';
+}
+
+function detectFit(title, description = '') {
+  const text = (title || '').toLowerCase();
+  const fullText = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/ישרה|straight/i.test(text)) return 'ישרה';
+  if (/a.?line|איי.?ליין/i.test(text)) return 'A';
+  if (/מתרחב|flare|התרחבות/i.test(text)) return 'מתרחבת';
+  if (/רפוי|רחב|loose|relaxed|wide/i.test(text)) return 'רפויה';
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  if (/מחויט|tailored|מותאמ/i.test(text)) return 'מחויטת';
+  if (/מעטפ|wrap/i.test(text)) return 'מעטפת';
+  if (/עפרון|pencil/i.test(text)) return 'עפרון';
+  if (/צמוד|tight|fitted|bodycon|צר|narrow/i.test(text)) return 'צמודה';
+  if (/מקסי|maxi|ארוכ/i.test(text)) return 'ארוכה';
+  if (/מידי|midi|אמצע/i.test(text)) return 'מידי';
+  if (/קצר|מיני|mini|short/i.test(text)) return 'קצרה';
+  if (/במותן|מותן גבוה|מותן נמוך|high.?waist|waisted/i.test(fullText)) return 'מותן';
+  if (/הריון|pregnancy|maternity/i.test(fullText)) return 'הריון';
+  if (/הנקה|nursing|breastfeed/i.test(fullText)) return 'הנקה';
+  return '';
+}
+
+function detectPattern(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/פסים|פס |striped?/i.test(text)) return 'פסים';
+  if (/פרחוני|פרחים|floral|flower/i.test(text)) return 'פרחוני';
+  if (/משבצות|plaid|check/i.test(text)) return 'משבצות';
+  if (/נקודות|dots|polka/i.test(text)) return 'נקודות';
+  if (/גיאומטרי|geometric/i.test(text)) return 'גיאומטרי';
+  if (/אבסטרקט|abstract/i.test(text)) return 'אבסטרקטי';
+  if (/הדפס|print/i.test(text)) return 'הדפס';
+  if (/חלקה?\b|plain|solid/i.test(text)) return 'חלק';
+  return '';
+}
+
+function detectFabric(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/סריג|knit|knitted/i.test(text)) return 'סריג';
+  if (/אריג|woven/i.test(text)) return 'אריג';
+  if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
+  if (/פיקה|pique/i.test(text)) return 'פיקה';
+  if (/שיפון|chiffon/i.test(text)) return 'שיפון';
+  if (/קרפ|crepe/i.test(text)) return 'קרפ';
+  if (/סאטן|satin/i.test(text)) return 'סאטן';
+  if (/קטיפה|velvet/i.test(text)) return 'קטיפה';
+  if (/פליז|fleece/i.test(text)) return 'פליז';
+  if (/תחרה|lace/i.test(text)) return 'תחרה';
+  if (/טול|tulle/i.test(text)) return 'טול';
+  if (/לייקרה|lycra|spandex/i.test(text)) return 'לייקרה';
+  if (/טריקו|tricot/i.test(text)) return 'טריקו';
+  if (/רשת|mesh|net/i.test(text)) return 'רשת';
+  if (/ג׳ינס|ג'ינס|jeans|דנים|denim/i.test(text)) return 'ג׳ינס';
+  if (/קורדרוי|corduroy/i.test(text)) return 'קורדרוי';
+  if (/כותנה|cotton/i.test(text)) return 'כותנה';
+  if (/פשתן|linen/i.test(text)) return 'פשתן';
+  if (/משי|silk/i.test(text)) return 'משי';
+  if (/צמר|wool/i.test(text)) return 'צמר';
+  if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
+  if (/פרווה|fur|faux.?fur/i.test(text)) return 'פרווה';
+  return '';
+}
+
+function detectDesignDetails(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  const details = [];
+  // צווארון
+  if (/צווארון\s*וי|v.?neck/i.test(text)) details.push('צווארון V');
+  if (/צווארון\s*עגול|round.?neck|crew.?neck/i.test(text)) details.push('צווארון עגול');
+  if (/גולף|turtle.?neck|mock.?neck/i.test(text)) details.push('גולף');
+  if (/סטרפלס|strapless|חשוף.?כתפ/i.test(text)) details.push('סטרפלס');
+  if (/כתפיי?ה|off.?shoulder|חשוף/i.test(text) && !/חשוף.?כתפ/.test(text)) details.push('חשוף כתפיים');
+  if (/קולר|choker|halter/i.test(text)) details.push('קולר');
+  if (/סירה|boat.?neck|bateau/i.test(text)) details.push('צווארון סירה');
+  // שרוולים
+  if (/שרוול\s*ארוך|long.?sleeve/i.test(text)) details.push('שרוול ארוך');
+  if (/שרוול\s*קצר|short.?sleeve/i.test(text)) details.push('שרוול קצר');
+  if (/3\/4|שרוול\s*3|three.?quarter/i.test(text)) details.push('שרוול 3/4');
+  if (/ללא\s*שרוול|sleeveless|גופיי?ה/i.test(text)) details.push('ללא שרוולים');
+  if (/שרוול\s*פעמון|bell.?sleeve/i.test(text)) details.push('שרוול פעמון');
+  if (/שרוול\s*נפוח|puff.?sleeve|שרוול\s*בלון/i.test(text)) details.push('שרוול נפוח');
+  // כפתורים ורוכסנים
+  if (/כפתור|מכופתר|button/i.test(text)) details.push('כפתורים');
+  if (/רוכסן|zipper|zip/i.test(text)) details.push('רוכסן');
+  // חגורה וקשירה
+  if (/חגורה|belt/i.test(text)) details.push('חגורה');
+  if (/קשירה|tie|bow/i.test(text)) details.push('קשירה');
+  // כיסים
+  if (/כיס|pocket/i.test(text)) details.push('כיסים');
+  // שסע
+  if (/שסע|slit/i.test(text)) details.push('שסע');
+  // פפלום
+  if (/פפלום|peplum/i.test(text)) details.push('פפלום');
+  // שכבות
+  if (/שכבות|layer/i.test(text)) details.push('שכבות');
+  return details;
+}
+
+// ======================================================================
 // איסוף קישורי מוצרים - מכל קטגוריה (חוץ מנעליים)
 // ======================================================================
-async function getAllProductUrls(page, maxProducts = 99999) {
+async function getAllProductUrls(page, maxProducts = 10) {
   console.log('\n📂 איסוף קישורים מ-lichi-shop.com...\n');
   const allUrls = new Set();
   
-  // קטגוריות מעודכנות
+  // כל הקטגוריות (חוץ מנעליים)
   const categories = [
-    'https://lichi-shop.com/shop/',
+    'https://lichi-shop.com/product-category/sets/',
+    'https://lichi-shop.com/product-category/skirts/',
+    'https://lichi-shop.com/product-category/dresses/',
+    'https://lichi-shop.com/product-category/shirts/',
+    'https://lichi-shop.com/product-category/sale-2/',
   ];
   
   for (const catUrl of categories) {
+    if (allUrls.size >= maxProducts) break;
+    
     // עבור על דפים בכל קטגוריה
-    for (let pageNum = 1; pageNum <= 50; pageNum++) {
+    for (let pageNum = 1; pageNum <= 5; pageNum++) {
+      if (allUrls.size >= maxProducts) break;
       
       const url = pageNum === 1 ? catUrl : `${catUrl}page/${pageNum}/`;
       try {
@@ -44,48 +267,24 @@ async function getAllProductUrls(page, maxProducts = 99999) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(2000);
         
-        // Infinite scroll — גולל ומחכה לרשת בכל פעם
-        let lastCount = 0;
-        let noChangeCycles = 0;
-        for (let i = 0; i < 30; i++) {
+        // גלילה למטה
+        for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          // חכה שהרשת תסיים לטעון מוצרים חדשים
-          try {
-            await page.waitForLoadState('networkidle', { timeout: 8000 });
-          } catch(e) {}
-          await page.waitForTimeout(2000);
-
-          const count = await page.evaluate(() => {
-            const seen = new Set();
-            document.querySelectorAll('a.woocommerce-LoopProduct-link').forEach(a => {
-              seen.add(a.href.split('?')[0]);
-            });
-            return seen.size;
-          });
-
-          console.log(`      גלילה ${i+1}: ${count} מוצרים`);
-          if (count === lastCount) {
-            noChangeCycles++;
-            if (noChangeCycles >= 5) { console.log('      ⏹ עוצר'); break; }
-          } else {
-            noChangeCycles = 0;
-          }
-          lastCount = count;
+          await page.waitForTimeout(1000);
         }
         
-        const urls = await page.evaluate(() => {
-          const seen = new Set();
-          document.querySelectorAll('a.woocommerce-LoopProduct-link').forEach(a => {
-            const href = a.href.split('?')[0];
-            if (href.includes('lichi-shop.com/product/')) seen.add(href);
-          });
-          return [...seen];
-        });
+        const urls = await page.evaluate(() => 
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('lichi-shop.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
         
         const prevSize = allUrls.size;
         urls.forEach(u => allUrls.add(u));
         console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
         
+        // אם לא נוספו חדשים, אין עוד דפים
         if (allUrls.size === prevSize) break;
       } catch (e) {
         console.log(`    ✗ ${e.message.substring(0, 30)}`);
@@ -266,7 +465,6 @@ async function scrapeProduct(page, url) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
-    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
     
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);
@@ -554,10 +752,10 @@ async function saveProduct(product) {
   try {
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -577,9 +775,9 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = 99999;
+const MAX_PRODUCTS = 10;
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, slowMo: 30 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   viewport: { width: 1920, height: 1080 }

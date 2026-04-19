@@ -78,6 +78,12 @@ try {
   execSync('node ./check_alerts.js', { stdio: 'inherit', cwd: __dirname });
 } catch(e) {}
 
+// health check לאדמין
+console.log(`\n${'='.repeat(50)}\n🏥 מריץ health check...\n${'='.repeat(50)}`);
+try {
+  execSync('node ./health_check.js', { stdio: 'inherit', cwd: __dirname });
+} catch(e) {}
+
 const totalSec = ((Date.now() - startAll) / 1000 / 60).toFixed(1);
 console.log(`\n${'='.repeat(50)}`);
 console.log(`🏁 סיום — ✅ ${ok} הצליחו | ❌ ${fail} נכשלו | ⏱ ${totalSec} דקות`);

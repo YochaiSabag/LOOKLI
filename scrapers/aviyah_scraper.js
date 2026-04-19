@@ -42,14 +42,16 @@ const colorMap = {
   'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
   'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
   'כסוף': 'כסף',
+  // חדש/מעודכן
   'מוקה': 'חום', 'moka': 'חום',
   'שזיף': 'סגול',
   'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
   'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
   'פודרה': 'ורוד', 'powder': 'ורוד',
-  'אבן': 'אבן',
+  'אבן': 'אבן', 'stone': 'אבן',
   'בהיר': 'בהיר',
-  "גי'נס": 'כחול', 'ג׳ינס': 'כחול', 'jeans': 'כחול',
+  // ג'ינס בכותרת → כחול (לאביה)
+  "גי'נס": 'כחול', 'ג׳ינס': 'כחול', 'jeans': 'כחול', 'denim': 'כחול',
 };
 
 const unknownColors = new Set();
@@ -58,15 +60,21 @@ function normalizeColor(c) {
   if (!c) return null;
   const lower = c.toLowerCase().trim();
   const noSpaces = lower.replace(/[-_\s]/g, '');
+  
   if (colorMap[noSpaces]) return colorMap[noSpaces];
   if (colorMap[lower]) return colorMap[lower];
+  
+  // מילה-מילה
   const words = lower.split(/\s+/);
   for (const word of words) {
     if (colorMap[word]) return colorMap[word];
   }
+  
+  // חלקי
   for (const [key, val] of Object.entries(colorMap)) {
     if (lower.includes(key) || key.includes(lower)) return val;
   }
+  
   unknownColors.add(c);
   return 'אחר';
 }
@@ -89,44 +97,12 @@ function normalizeSize(s) {
 }
 
 // ======================================================================
-// סינון מוצרים לא רלוונטיים
+// UNIFIED DETECT FUNCTIONS - v2
 // ======================================================================
-const SKIP_KEYWORDS = [
-  // תכשיטים ואקססוריז
-  'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט',
-  'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
-  'גומייה','מטפחת','קשת','שעון','שיער',
-  // נעליים
-  'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
-  'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
-  // בגד ים
-  'בגד ים','xxxxxx','בגדי ים',
-  // ילדות
-  'ילדה','ילדות','ג׳וניור','junior','kids',
-  // אחר
-  'פיג׳מה','פיגמה','גרביון','גרביים','גרבי',
-];
-
-function shouldSkip(title) {
-  if (!title) return false;
-  const t = title.toLowerCase().trim();
-  return SKIP_KEYWORDS.some(k => {
-    const kl = k.toLowerCase();
-    if (kl.includes(' ')) {
-      // ביטוי של שתי מילים — חיפוש רגיל
-      return t.includes(kl);
-    }
-    // מילה בודדת — בדוק גבולות
-    const idx = t.indexOf(kl);
-    if (idx === -1) return false;
-    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
-    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
-    return before && after;
-  });
-}
 
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
+  // סדר חשוב - ספציפי קודם
   if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
   if (/סוודר|sweater/i.test(t)) return 'סוודר';
   if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
@@ -145,6 +121,8 @@ function detectCategory(title) {
   if (/סט|set/i.test(t)) return 'סט';
   if (/בייסיק|basic/i.test(t)) return 'בייסיק';
   if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
+  // מכנסיים - לא מציגים
   return null;
 }
 
@@ -288,7 +266,7 @@ async function getAllProductUrls(page) {
     try {
       console.log(`  → ${url}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(4000);
+      await page.waitForTimeout(2000);
       
       // גלגול למטה לטעינת מוצרים
       for (let i = 0; i < 3; i++) {
@@ -322,7 +300,7 @@ async function getAllProductUrls(page) {
     try {
       console.log(`  → ${url}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(4000);
+      await page.waitForTimeout(2000);
       
       for (let i = 0; i < 3; i++) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -363,17 +341,10 @@ async function scrapeProduct(page, url, isEvening = false) {
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(2500);
-
-    // המתן לטעינת הכותרת
-    try {
-      await page.waitForSelector('h1.product_title, h1.wd-entities-title, h1', { timeout: 8000 });
-    } catch(e) {
-      console.log('  ⚠️ כותרת לא נטענה — מנסה בכל זאת...');
-    }
     
     const data = await page.evaluate(() => {
       // === כותרת ===
-      let title = document.querySelector('h1.product_title, h1.wd-entities-title, h1.entry-title, h1')?.innerText?.trim() || '';
+      let title = document.querySelector('h1.product_title, h1')?.innerText?.trim() || '';
       // ניקוי קודי מוצר
       title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
       title = title.replace(/\s+[A-Z]?\d{3,}\s*$/g, '').trim();
@@ -508,7 +479,6 @@ async function scrapeProduct(page, url, isEvening = false) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
-    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
     
     // זיהוי מטא-דאטה
     const style = detectStyle(data.title, data.description, isEvening);
@@ -524,9 +494,9 @@ async function scrapeProduct(page, url, isEvening = false) {
     
     // חילוץ צבע מהכותרת (כל צבע בעמוד נפרד)
     // בדיקת ג'ינס בכותרת → כחול
-    const titleLower = (data.title || '').toLowerCase();
+    const titleLower = (title || '').toLowerCase();
     if (titleLower.includes("ג'ינס") || titleLower.includes("ג׳ינס") || titleLower.includes('jeans') || titleLower.includes('denim')) {
-      if (!(data.rawColors || []).length) { data.rawColors = data.rawColors || []; data.rawColors.push('כחול'); }
+      if (!rawColors.length) rawColors.push('כחול');
     }
     // רק מילים שמתאימות בדיוק לצבעים ידועים ב-colorMap
     let titleColor = null;
@@ -596,10 +566,10 @@ async function saveProduct(product) {
   try {
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -620,7 +590,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, slowMo: 30 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   viewport: { width: 1920, height: 1080 }
@@ -633,7 +603,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${totalUrls} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0, idx = 0;
-  const MAX_PRODUCTS = 99999;
+  const MAX_PRODUCTS = 50;
   for (const [url, meta] of urlMap) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     idx++;

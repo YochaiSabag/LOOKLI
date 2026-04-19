@@ -16,61 +16,86 @@ await db.connect();
 console.log('🚀 MIMA Scraper - Wix Store');
 
 // ======================================================================
-// ======================================================================
-// מיפוי צבעים
+// מיפוי צבעים - זהה למקימי
 // ======================================================================
 const colorMap = {
   'black': 'שחור', 'שחור': 'שחור',
   'white': 'לבן', 'לבן': 'לבן',
   'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
   'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
-  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק', 'דשא': 'ירוק',
-  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
+  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק',
+  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום',
   'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
-  'beige': "בז'", 'בז': "בז'", 'nude': "בז'", 'ניוד': "בז'", 'sand': "בז'", 'taupe': "בז'",
-  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור', 'ash': 'אפור',
-  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד', 'בייבי': 'ורוד',
+  'beige': 'בז׳', 'בז': 'בז׳', 'nude': 'בז׳', 'ניוד': 'בז׳', 'sand': 'בז׳', 'taupe': 'בז׳',
+  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור',
+  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד',
   'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
-  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב', 'בננה': 'צהוב', 'banana': 'צהוב',
+  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב',
   'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
   'זהב': 'זהב', 'golden': 'זהב',
-  'silver': 'כסף', 'כסף': 'כסף', 'כסוף': 'כסף',
-  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו', 'cherry': 'בורדו',
+  'silver': 'כסף', 'כסף': 'כסף',
+  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו',
   'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
   'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
-  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
+  // מנטה - צבע עצמאי
   'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
-  'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
+  // אפרסק - צבע עצמאי
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  // בננה → צהוב
+  'בננה': 'צהוב', 'banana': 'צהוב',
+  // כסוף → כסף
+  'כסוף': 'כסף',
+  // שמות דוגמא שמשמשים כשמות וריאנט ב-Wix (לא צבע אמיתי)
+  'חלק': null, 'משבצות': null, 'פסים': null, 'נקודות': null, 'הדפס': null,
+  
+  // צבעים מיוחדים
+  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
+  // חדש
   'מוקה': 'חום', 'moka': 'חום',
   'שזיף': 'סגול',
+  'גווני חורף': 'אחר', 'גוונים מעושנים': 'אחר',
   'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
   'פודרה': 'ורוד', 'powder': 'ורוד',
   'אבן': 'אבן',
   'בהיר': 'בהיר',
-  "גי'נס": 'כחול', "ג'ינס": 'כחול', 'jeans': 'כחול',
+  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק',
+  'בננה': 'צהוב', 'banana': 'צהוב',
+  'כסוף': 'כסף'
 };
 
+// צבעים לא מזוהים
 const unknownColors = new Set();
 
 function normalizeColor(c) {
   if (!c) return null;
-  const lower = c.toLowerCase().trim();
+  const trimmed = c.trim();
+  const lower = trimmed.toLowerCase();
   const noSpaces = lower.replace(/[-_\s]/g, '');
-  if (colorMap[noSpaces]) return colorMap[noSpaces];
-  if (colorMap[lower]) return colorMap[lower];
-  const words = lower.split(/[\s\-]+/);
+  
+  // בדיקה ישירה (ללא רווחים)
+  if (noSpaces in colorMap) return colorMap[noSpaces];
+  // בדיקה ישירה (עם רווחים)
+  if (lower in colorMap) return colorMap[lower];
+  
+  // בדיקה מילה-מילה: "כחול מעושן" → כחול, "פרחוני רכה" → פרחוני
+  const words = lower.split(/\s+/);
   for (const word of words) {
-    if (colorMap[word]) return colorMap[word];
+    if (word in colorMap && colorMap[word] !== null) return colorMap[word];
   }
+  
+  // חיפוש חלקי (רק צבעים אמיתיים)
   for (const [key, val] of Object.entries(colorMap)) {
+    if (val === null) continue;
     if (lower.includes(key) || key.includes(lower)) return val;
   }
-  unknownColors.add(c);
+  
+  unknownColors.add(trimmed);
   return 'אחר';
 }
 
 // ======================================================================
-// מיפוי מידות
+// מיפוי מידות - זהה למקימי
 // ======================================================================
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
@@ -81,51 +106,19 @@ const sizeMapping = {
 function normalizeSize(s) {
   if (!s) return [];
   const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|2?XXL|XXXL)$/i.test(val)) return [val.replace('2XL','XXL')];
+  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
   if (sizeMapping[val]) return sizeMapping[val];
   return [];
 }
 
 // ======================================================================
-// סינון מוצרים לא רלוונטיים — רק בגדי נשים בוגרות
+// UNIFIED DETECT FUNCTIONS - v2
 // ======================================================================
-const SKIP_KEYWORDS = [
-  // תכשיטים ואקססוריז
-  'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט',
-  'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
-  'גומייה','מטפחת','קשת','שעון','שיער',
-  // נעליים
-  'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
-  'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
-  // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
-  // ילדות
-  'ילדה','ילדות','ג׳וניור','junior','kids',
-  // אחר
-  'פיג׳מה','פיגמה','גרביון','גרביים','גרבי',
-];
-
-function shouldSkip(title) {
-  if (!title) return false;
-  const t = title.toLowerCase().trim();
-  return SKIP_KEYWORDS.some(k => {
-    const kl = k.toLowerCase();
-    if (kl.includes(' ')) {
-      // ביטוי של שתי מילים — חיפוש רגיל
-      return t.includes(kl);
-    }
-    // מילה בודדת — בדוק גבולות
-    const idx = t.indexOf(kl);
-    if (idx === -1) return false;
-    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
-    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
-    return before && after;
-  });
-}
 
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
+  // סדר חשוב - ספציפי קודם
   if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
   if (/סוודר|sweater/i.test(t)) return 'סוודר';
   if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
@@ -144,6 +137,8 @@ function detectCategory(title) {
   if (/סט|set/i.test(t)) return 'סט';
   if (/בייסיק|basic/i.test(t)) return 'בייסיק';
   if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  // סריג = בד, לא קטגוריה. מוצר "סריג" יהיה חולצה/סוודר/קרדיגן
+  // מכנסיים - לא מציגים
   return null;
 }
 
@@ -310,7 +305,7 @@ async function dismissPopups(page) {
 // ======================================================================
 // איסוף קישורי מוצרים מדף הבית של מימה (infinite scroll)
 // ======================================================================
-async function getAllProductUrls(page, maxProducts = 99999) {
+async function getAllProductUrls(page, maxProducts = 10) {
   console.log('\n📂 איסוף קישורים מ-mima-shop.co.il...\n');
   
   const allUrls = new Set();
@@ -335,10 +330,10 @@ async function getAllProductUrls(page, maxProducts = 99999) {
       let noChangeRounds = 0;
       
       // גלילה למטה לטעינת מוצרים (infinite scroll)
-      for (let scroll = 0; scroll < 50; scroll++) {
+      for (let scroll = 0; scroll < 30; scroll++) {
         await dismissPopups(page);
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(2000);
         
         const urls = await page.evaluate(() => {
           const links = new Set();
@@ -423,7 +418,7 @@ async function scrapeProduct(page, url) {
       } catch(e) {
         console.log(`    ⏳ ניסיון ${attempt + 1} - ממתין לטעינה...`);
         await dismissPopups(page);
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(2000);
       }
     }
     if (!titleLoaded) {
@@ -550,7 +545,6 @@ async function scrapeProduct(page, url) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
-    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
     
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);
@@ -589,17 +583,12 @@ async function scrapeProduct(page, url) {
         // לחיצה על dropdown לפתיחה
         const dropdownExists = await page.$('[data-hook="dropdown-base"]');
         if (!dropdownExists) {
-          console.log(`      ⚠️ dropdown לא נמצא - ממתין...`);
-          await page.waitForTimeout(3000);
-          const retryDropdown = await page.$('[data-hook="dropdown-base"]');
-          if (!retryDropdown) {
-            console.log(`      ✗ dropdown לא נמצא - מדלג`);
-            return {};
-          }
+          console.log(`      ⚠️ dropdown לא נמצא - מנסה fallback...`);
+          return await readSizesFromPageData();
         }
         
         await page.click('[data-hook="dropdown-base"]');
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(1500);
         
         const sizes = await page.evaluate(() => {
           const result = {};
@@ -611,29 +600,11 @@ async function scrapeProduct(page, url) {
           return result;
         });
         
-        // אם ריק — נסה פעם נוספת אחרי המתנה
+        // אם לא מצאנו מידות, נסה fallback
         if (Object.keys(sizes).length === 0) {
-          console.log(`      ⚠️ dropdown ריק - מנסה שוב...`);
-          await page.waitForTimeout(4000);
-          const retryClick = await page.$('[data-hook="dropdown-base"]');
-          if (retryClick) await retryClick.click();
-          await page.waitForTimeout(4000);
-          const retrySizes = await page.evaluate(() => {
-            const result = {};
-            document.querySelectorAll('[data-hook="dropdown-content-option"]').forEach(opt => {
-              const title = opt.getAttribute('title');
-              const disabled = opt.getAttribute('aria-disabled') === 'true';
-              if (title && title.trim()) result[title.trim()] = !disabled;
-            });
-            return result;
-          });
-          if (Object.keys(retrySizes).length === 0) {
-            console.log(`      ✗ dropdown נכשל - מדלג`);
-            await page.keyboard.press('Escape');
-            return {};
-          }
+          console.log(`      ⚠️ dropdown ריק - מנסה fallback...`);
           await page.keyboard.press('Escape');
-          return retrySizes;
+          return await readSizesFromPageData();
         }
         
         // סגירת dropdown
@@ -643,7 +614,8 @@ async function scrapeProduct(page, url) {
         return sizes;
       } catch(e) {
         console.log(`      ⚠️ שגיאה בקריאת מידות: ${e.message.substring(0, 40)}`);
-        return {};
+        // fallback
+        return await readSizesFromPageData();
       }
     }
     
@@ -851,10 +823,10 @@ async function saveProduct(product) {
   try {
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
@@ -874,9 +846,9 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = 99999;
+const MAX_PRODUCTS = 5; // בדיקה
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, slowMo: 50 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   viewport: { width: 1920, height: 1080 }

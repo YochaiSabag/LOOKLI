@@ -19,6 +19,20 @@ console.log('🚀 Aviyah Yosef Scraper');
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const sizeMapping = {
+  'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [];
+}
+
+
 
 // ======================================================================
 async function getAllProductUrls(page) {
@@ -277,9 +291,9 @@ async function scrapeProduct(page, url, isEvening = false) {
     
     // חילוץ צבע מהכותרת (כל צבע בעמוד נפרד)
     // בדיקת ג'ינס בכותרת → כחול
-    const titleLower = (title || '').toLowerCase();
+    const titleLower = (data.title || '').toLowerCase();
     if (titleLower.includes("ג'ינס") || titleLower.includes("ג׳ינס") || titleLower.includes('jeans') || titleLower.includes('denim')) {
-      if (!rawColors.length) rawColors.push('כחול');
+      if (!data.rawColors.length) data.rawColors.push('כחול');
     }
     // רק מילים שמתאימות בדיוק לצבעים ידועים
     let titleColor = null;
@@ -386,7 +400,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${totalUrls} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0, idx = 0;
-  const MAX_PRODUCTS = 50;
+  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 50;
   for (const [url, meta] of urlMap) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     idx++;

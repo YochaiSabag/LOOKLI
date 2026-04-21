@@ -97,14 +97,7 @@ const SKIP_KEYWORDS = [
   'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
   'גומייה','מטפחת','קשת','שעון','שיער',
   // נעליים
-  'נעל','נעלי','סנדל','סנדלי','מגף','מגפיים','מגפון',
-  'כפכף','בלרינה','מוקסין','אספדריל','קבקב','עקב',
-  // בגד ים
-  'בגד ים','ביקיני','בגדי ים',
-  // ילדות
-  'ילדה','ילדות','ג׳וניור','junior','kids',
-  // אחר
-  'פיג׳מה','פיגמה','גרביון','גרביים','גרבי',
+  'נעל','נעלי','סנדל','xxxxx','xxx','xxxxxx','xxxxx',	  'xxxx','xxxxxx','xxxxxx','xxxxxxx','xxxx','xxx',	  // xxx xx	  'xxx xx','xxxxxx','xxxx xx',	  // xxxxx	  'xxxx','xxxxx','xxxxxxx','xxxxxx','xxxx',	  // xxx	  'xxxxxx','xxxxx','xxxxxx','xxxxxx','גרבי',
 ];
 
 function shouldSkip(title) {
@@ -627,7 +620,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const MAX_PRODUCTS = 99999; // ללא הגבלה מעשית - סורק הכל
+const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({

@@ -21,6 +21,20 @@ console.log('🚀 MIMA Scraper - Wix Store');
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const sizeMapping = {
+  'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [];
+}
+
+
 
 async function dismissPopups(page) {
   try {
@@ -591,7 +605,7 @@ async function saveProduct(product) {
   try {
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes=EXCLUDED.image_size_bytes, 
@@ -616,7 +630,7 @@ async function saveProduct(product) {
 // ======================================================================
 const MAX_PRODUCTS = 5; // בדיקה
 
-const browser = await chromium.launch({ headless: false, slowMo: 50 });
+const browser = await chromium.launch({ headless: true, slowMo: 50 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   viewport: { width: 1920, height: 1080 }

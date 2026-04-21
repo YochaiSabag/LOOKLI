@@ -384,7 +384,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
 
   let ok = 0, fail = 0;
-  const MAX_PRODUCTS = 99999;
+  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);

@@ -13,6 +13,8 @@
     "db:stop": "docker-compose down",
     "db:logs": "docker-compose logs -f db",
     "postinstall": "npx playwright install chromium --with-deps",
+    "test": "node test_scrapers.js",
+    "test:one": "node test_scrapers.js",
     "scrape:mekimi": "node ./scrapers/mekimi_scraper_fixed.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:lichi": "node ./scrapers/lichi_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:mima": "node ./scrapers/mima_scraper.js && node ./check_alerts.js && node ./health_check.js",

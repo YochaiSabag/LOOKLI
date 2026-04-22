@@ -44,16 +44,13 @@ function normalizeSize(s) {
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
-  const categories = [
-    'https://mekimi.co.il/shop/',
-    'https://mekimi.co.il/shop/page/2/',
-    'https://mekimi.co.il/shop/page/3/',/*
-    'https://mekimi.co.il/shop/page/4/',*/
-  ];
-  
-  for (const url of categories) {
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+  const base = 'https://mekimi.co.il/shop/';
+
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const url = p === 1 ? base : `${base}page/${p}/`;
     try {
-      console.log(`  → ${url}`);
+      console.log(`  → page ${p}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(2000);
       for (let i = 0; i < 3; i++) {
@@ -66,10 +63,15 @@ async function getAllProductUrls(page) {
           .filter(h => h.includes('mekimi.co.il/product/'))
           .filter((v, i, a) => a.indexOf(v) === i)
       );
+      if (urls.length === 0) {
+        console.log(`    ⏹ עמוד ריק - עוצר`);
+        break;
+      }
       urls.forEach(u => allUrls.add(u));
-      console.log(`    ✓ ${urls.length}`);
+      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
     } catch (e) {
-      console.log(`    ✗ error`);
+      console.log(`    ⏹ שגיאה - עוצר`);
+      break;
     }
   }
   return [...allUrls];

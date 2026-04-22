@@ -335,7 +335,6 @@ async function scrapeProduct(page, url) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
     
-    console.log(`    Raw colors: ${data.rawColors.join(', ') || 'none'}`);
     
     // === פונקציה לפתיחת dropdown ולקריאת מידות ===
     async function openDropdownAndReadSizes() {
@@ -529,7 +528,6 @@ async function scrapeProduct(page, url) {
     } else {
       // אין צבעים - קרא מידות ישירות
       const sizes = await openDropdownAndReadSizes();
-      console.log(`    Raw sizes from dropdown: ${JSON.stringify(sizes)}`);
       for (const [size, available] of Object.entries(sizes)) {
         if (available) {
           const normSizes = normalizeSize(size);

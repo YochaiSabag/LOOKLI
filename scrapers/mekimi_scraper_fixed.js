@@ -216,8 +216,6 @@ async function scrapeProduct(page, url) {
     const availableSizes = new Set();
     const availableColors = new Set();
     
-    console.log(`    Raw colors: ${data.rawColors.join(', ') || 'none'}`);
-    console.log(`    Raw sizes: ${data.rawSizes.join(', ') || 'none'}`);
     
     if (data.rawColors.length > 0 && data.rawSizes.length > 0) {
       for (const color of data.rawColors) {
@@ -306,9 +304,9 @@ async function scrapeProduct(page, url) {
     const uniqueSizes = [...availableSizes];
     const mainColor = uniqueColors[0] || null;
     
-    console.log(`  ✓ ${data.title.substring(0, 35)}`);
-    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
-    console.log(`    📊 colorSizes: ${JSON.stringify(colorSizesMap)}`);
+    console.log(`  ✓ ${data.title.substring(0, 40)}`);
+    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
     
     return {
       title: data.title,

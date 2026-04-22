@@ -54,8 +54,8 @@ for (const name of toRun) {
       cwd: __dirname,
       env: {
         ...process.env,
-        SCRAPER_TEST_MODE: 'true',   // הסקרייפר יבדוק את המשתנה הזה
-        SCRAPER_MAX_PAGES: '2',
+        SCRAPER_TEST_MODE: 'true',
+        SCRAPER_MAX_PAGES: '1',
         SCRAPER_MAX_PRODUCTS: '5',
       }
     });

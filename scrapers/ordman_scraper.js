@@ -23,6 +23,20 @@ console.log('🚀 Ordman Scraper');
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const sizeMapping = {
+  'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [];
+}
+
+
 
 // איסוף קישורים
 // ======================================================================
@@ -224,9 +238,7 @@ async function scrapeProduct(page, url) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
 
-    console.log(`    Raw colors: ${data.rawColors.map(c => c.name + (c.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
-    console.log(`    Raw sizes:`);
-    data.rawSizes.forEach(s => console.log(`      ${s.disabled ? '✗' : '✓'} ${s.name}`));
+    console.log(`    מידות: ${data.rawSizes.map(s=>(s.disabled?'✗':'✓')+' '+s.name).join(' | ')}`);
 
     const colorSizesMap = {};
     const availableSizes = new Set();

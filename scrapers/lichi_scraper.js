@@ -294,8 +294,7 @@ async function scrapeProduct(page, url) {
     const availableSizes = new Set();
     const availableColors = new Set();
     
-    console.log(`    Raw colors: ${data.rawColors.join(', ') || 'none'}`);
-    console.log(`    Raw sizes: ${data.rawSizes.join(', ') || 'none'}`);
+    // === עיבוד צבעים ומידות ===
     
     if (variationsData && variationsData.length > 0) {
       // === שיטה מהירה: קריאת JSON (לא תלוי ב-JS של האתר) ===

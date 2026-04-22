@@ -81,3 +81,9 @@ results.forEach(r => {
 console.log(`\n${'='.repeat(50)}`);
 console.log(`🏁 סיום — ✅ ${ok} עברו | ❌ ${fail} נכשלו | ⏱ ${totalSec} דקות`);
 console.log('='.repeat(50));
+
+// שלח מייל סיכום טסט
+console.log(`\n${'='.repeat(50)}\n🏥 מריץ health check...\n${'='.repeat(50)}`);
+try {
+  execSync('node ./health_check.js', { stdio: 'inherit', cwd: __dirname });
+} catch(e) {}

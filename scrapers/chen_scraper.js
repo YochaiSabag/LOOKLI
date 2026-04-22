@@ -248,14 +248,15 @@ function detectDesignDetails(title, description = '') {
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-chen-fashion.com...\n');
   const allUrls = new Set();
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
   const categories = [
-    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/',        label: 'שמלות',           maxPages: 50 },
-    { base: 'https://www.chen-fashion.com/product-category/new-collection-2/',                       label: 'new-collection-2', maxPages: 50 },
-    { base: 'https://www.chen-fashion.com/product-category/new-collection/',                         label: 'new-collection',   maxPages: 50 },
-    { base: 'https://www.chen-fashion.com/product-category/sale-%d7%a7%d7%99%d7%a5/',               label: 'sale-קיץ',         maxPages: 50 },
-    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', label: 'חצאיות',           maxPages: 50 },
-    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', label: 'חולצות',           maxPages: 50 },
+    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/',        label: 'שמלות',           maxPages: MAX_PAGES },
+    { base: 'https://www.chen-fashion.com/product-category/new-collection-2/',                       label: 'new-collection-2', maxPages: MAX_PAGES },
+    { base: 'https://www.chen-fashion.com/product-category/new-collection/',                         label: 'new-collection',   maxPages: MAX_PAGES },
+    { base: 'https://www.chen-fashion.com/product-category/sale-%d7%a7%d7%99%d7%a5/',               label: 'sale-קיץ',         maxPages: MAX_PAGES },
+    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', label: 'חצאיות',           maxPages: MAX_PAGES },
+    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', label: 'חולצות',           maxPages: MAX_PAGES },
   ];
 
   for (const cat of categories) {
@@ -634,7 +635,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
 
   let ok = 0, fail = 0, skipped = 0;
-  for (let i = 0; i < urls.length; i++) {
+  for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; }

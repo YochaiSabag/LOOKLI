@@ -41,10 +41,11 @@ async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
   
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
   const categories = [
-    { base: 'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 15 },
-    { base: 'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 5 },
-    { base: 'https://chemise.co.il/product-category/%d7%94%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%a9%d7%9c%d7%a0%d7%95/%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: 5 },
+    { base: 'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: MAX_PAGES },
+    { base: 'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: MAX_PAGES },
+    { base: 'https://chemise.co.il/product-category/%d7%94%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%a9%d7%9c%d7%a0%d7%95/%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: MAX_PAGES },
   ];
   
   for (const cat of categories) {
@@ -246,9 +247,6 @@ async function scrapeProduct(page, url) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
     
-    console.log(`    Raw colors: ${data.rawColors.map(c=>c.name+(c.disabled?' ✗':' ✓')).join(', ') || 'none'}`);
-    console.log(`    Raw sizes: ${data.rawSizes.map(s=>s.name+(s.disabled?' ✗':' ✓')).join(', ') || 'none'}`);
-    
     // === עיבוד צבעים ומידות ===
     const colorSizesMap = {};
     const availableSizes = new Set();
@@ -340,9 +338,15 @@ async function scrapeProduct(page, url) {
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
     const mainColor = uniqueColors[0] || null;
-    
+
+    if (uniqueSizes.length === 0) {
+      console.log(`  ✗ אין מידות במלאי — ${data.title.substring(0, 35)}`);
+      return null;
+    }
+
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
-    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
     
     return {
       title: data.title,

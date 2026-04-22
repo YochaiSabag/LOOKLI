@@ -13,7 +13,7 @@ const db = new Client({
 
 await db.connect();
 
-console.log('🚀 MIMA Scraper - Wix Store');
+console.log('🚀 LICHI Scraper - WooCommerce Store');
 
 // ======================================================================
 // מיפוי צבעים - זהה למקימי
@@ -36,124 +36,56 @@ function normalizeSize(s) {
 
 
 
-async function dismissPopups(page) {
-  try {
-    // שיטה 1: הסרת overlay מסוג colorUnderlay (הפופאפ הספציפי של מימה)
-    await page.evaluate(() => {
-      // הסר את ה-overlay
-      document.querySelectorAll('[data-testid="colorUnderlay"]').forEach(el => el.remove());
-      // הסר lightbox containers
-      document.querySelectorAll('[data-testid="lightbox-wrapper"], [data-testid="lightbox"]').forEach(el => el.remove());
-      // הסר כל popup/overlay שחוסם
-      document.querySelectorAll('.tcElKx, .i1tH8h').forEach(el => el.remove());
-      // הסר popups גנריים של Wix
-      document.querySelectorAll('[id*="lightbox"], [class*="lightbox"]').forEach(el => {
-        if (el.style.position === 'fixed' || getComputedStyle(el).position === 'fixed') {
-          el.remove();
-        }
-      });
-    });
-    
-    // שיטה 2: נסה ללחוץ על כפתור סגירה אם קיים
-    const closeButtons = [
-      '[data-testid="lightbox-close-button"]',
-      '[aria-label="close"]',
-      '[aria-label="סגירה"]', 
-      'button[data-hook="close-button"]',
-      '.lightbox-close-button',
-      '[data-testid="closeButton"]'
-    ];
-    for (const sel of closeButtons) {
-      try {
-        const btn = await page.$(sel);
-        if (btn) {
-          await btn.click();
-          await page.waitForTimeout(500);
-          console.log(`    🚫 סגרתי popup (${sel})`);
-          return;
-        }
-      } catch(e) {}
-    }
-    
-    // שיטה 3: Escape key
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-    
-  } catch(e) {
-    // לא קריטי
-  }
-}
-
-// ======================================================================
-// איסוף קישורי מוצרים מדף הבית של מימה (infinite scroll)
-// ======================================================================
 async function getAllProductUrls(page, maxProducts = 10) {
-  console.log('\n📂 איסוף קישורים מ-mima-shop.co.il...\n');
-  
+  console.log('\n📂 איסוף קישורים מ-lichi-shop.com...\n');
   const allUrls = new Set();
   
-  // נסה מספר דפים
-  const startPages = [
-    'https://www.mima-shop.co.il/',
-    'https://www.mima-shop.co.il/shop'
+  // כל הקטגוריות (חוץ מנעליים)
+  const categories = [
+    'https://lichi-shop.com/product-category/sets/',
+    'https://lichi-shop.com/product-category/skirts/',
+    'https://lichi-shop.com/product-category/dresses/',
+    'https://lichi-shop.com/product-category/shirts/',
+    'https://lichi-shop.com/product-category/sale-2/',
   ];
   
-  for (const startUrl of startPages) {
-    try {
-      console.log(`  → ${startUrl}`);
-      await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(3000);
+  for (const catUrl of categories) {
+    if (allUrls.size >= maxProducts) break;
+    
+    // עבור על דפים בכל קטגוריה
+    for (let pageNum = 1; pageNum <= 5; pageNum++) {
+      if (allUrls.size >= maxProducts) break;
       
-      // סגירת popup ראשוני
-      await dismissPopups(page);
-      await page.waitForTimeout(1000);
-      
-      let lastCount = 0;
-      let noChangeRounds = 0;
-      
-      // גלילה למטה לטעינת מוצרים (infinite scroll)
-      for (let scroll = 0; scroll < 30; scroll++) {
-        await dismissPopups(page);
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const url = pageNum === 1 ? catUrl : `${catUrl}page/${pageNum}/`;
+      try {
+        console.log(`  → ${url}`);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(2000);
         
-        const urls = await page.evaluate(() => {
-          const links = new Set();
-          // כל הקישורים לדפי מוצר
-          document.querySelectorAll('a[href*="/product-page/"]').forEach(a => {
-            if (a.href) links.add(a.href.split('?')[0]);
-          });
-          // גם מ-Wix gallery/grid
-          document.querySelectorAll('[data-hook="product-item-container"] a, [data-hook="product-item-root"] a, [data-hook="product-item-name"] a').forEach(a => {
-            if (a.href && a.href.includes('/product-page/')) {
-              links.add(a.href.split('?')[0]);
-            }
-          });
-          // גם קישורים ישירים לתמונות מוצרים
-          document.querySelectorAll('a[href*="mima-shop"]').forEach(a => {
-            if (a.href.includes('/product-page/')) links.add(a.href.split('?')[0]);
-          });
-          return [...links];
-        });
-        
-        urls.forEach(u => allUrls.add(u));
-        console.log(`  גלילה ${scroll + 1}: ${allUrls.size} קישורים`);
-        
-        if (allUrls.size === lastCount) {
-          noChangeRounds++;
-          if (noChangeRounds >= 3) break;
-        } else {
-          noChangeRounds = 0;
+        // גלילה למטה
+        for (let i = 0; i < 3; i++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1000);
         }
-        lastCount = allUrls.size;
         
-        if (allUrls.size >= maxProducts) break;
+        const urls = await page.evaluate(() => 
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('lichi-shop.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        
+        const prevSize = allUrls.size;
+        urls.forEach(u => allUrls.add(u));
+        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+        
+        // אם לא נוספו חדשים, אין עוד דפים
+        if (allUrls.size === prevSize) break;
+      } catch (e) {
+        console.log(`    ✗ ${e.message.substring(0, 30)}`);
+        break;
       }
-    } catch(e) {
-      console.log(`  ✗ error: ${e.message.substring(0, 40)}`);
     }
-    
-    if (allUrls.size >= maxProducts) break;
   }
   
   const result = [...allUrls].slice(0, maxProducts);
@@ -162,168 +94,169 @@ async function getAllProductUrls(page, maxProducts = 10) {
 }
 
 // ======================================================================
-// סקרייפ מוצר בודד - WIX Store
+// סקרייפ מוצר בודד - LICHI (WooCommerce)
 // ======================================================================
 async function scrapeProduct(page, url) {
-  const shortUrl = url.split('/product-page/')[1]?.substring(0, 40) || url.substring(0, 50);
+  const shortUrl = url.split('/product/')[1]?.substring(0, 35) || url.substring(0, 50);
   console.log(`\n🔍 ${shortUrl}...`);
   
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(3000);
-    
-    // סגירת popup שצץ בכניסה לדף מוצר
-    await dismissPopups(page);
-    await page.waitForTimeout(1000);
-    
-    // הזרקת CSS שמסתיר popups לצמיתות
-    await page.addStyleTag({ content: `
-      [data-testid="colorUnderlay"], 
-      [data-testid="lightbox-wrapper"], 
-      [data-testid="lightbox"],
-      .tcElKx, .i1tH8h,
-      [id*="lightbox"][style*="position: fixed"],
-      [class*="lightbox"][style*="position: fixed"] { 
-        display: none !important; 
-        visibility: hidden !important;
-        pointer-events: none !important;
-      }
-    `});
-    
-    // חכה שהמוצר ייטען - עם retry
-    let titleLoaded = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        await page.waitForSelector('[data-hook="product-title"], h1', { timeout: 8000 });
-        titleLoaded = true;
-        break;
-      } catch(e) {
-        console.log(`    ⏳ ניסיון ${attempt + 1} - ממתין לטעינה...`);
-        await dismissPopups(page);
-        await page.waitForTimeout(2000);
-      }
-    }
-    if (!titleLoaded) {
-      // נסה reload
-      console.log('    🔄 טוען מחדש...');
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(4000);
-      await dismissPopups(page);
-    }
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(2500);
     
     const data = await page.evaluate(() => {
       // === כותרת ===
-      const titleEl = document.querySelector('[data-hook="product-title"]') || document.querySelector('h1');
-      let title = titleEl?.innerText?.trim() || '';
+      let title = document.querySelector('h1.product_title, h1.elementor-heading-title, h1')?.innerText?.trim() || '';
+      // ניקוי קודי מוצר
+      title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
       
-      // === מחירים ===
+      // === מחיר (WooCommerce standard) ===
       let price = 0;
       let originalPrice = null;
       
-      const primaryPriceEl = document.querySelector('[data-hook="formatted-primary-price"]');
-      const secondaryPriceEl = document.querySelector('[data-hook="formatted-secondary-price"]');
-      
-      if (primaryPriceEl) {
-        const priceText = primaryPriceEl.textContent.replace(/[^\d.]/g, '');
-        if (priceText) price = parseFloat(priceText);
-      }
-      if (secondaryPriceEl) {
-        const origText = secondaryPriceEl.textContent.replace(/[^\d.]/g, '');
-        if (origText) originalPrice = parseFloat(origText);
-      }
-      
-      // אם אין מחיר ראשי, נסה מחיר רגיל
-      if (!price) {
-        const anyPrice = document.querySelector('[data-hook="product-price"] span[data-wix-price]');
-        if (anyPrice) {
-          const t = anyPrice.getAttribute('data-wix-price')?.replace(/[^\d.]/g, '');
-          if (t) price = parseFloat(t);
+      const priceContainer = document.querySelector('p.price');
+      if (priceContainer) {
+        const hasDel = priceContainer.querySelector('del');
+        const hasIns = priceContainer.querySelector('ins');
+        
+        if (hasDel && hasIns) {
+          const delBdi = hasDel.querySelector('bdi');
+          const insBdi = hasIns.querySelector('bdi');
+          if (delBdi) {
+            const delText = delBdi.textContent.replace(/[^\d.]/g, '');
+            if (delText) originalPrice = parseFloat(delText);
+          }
+          if (insBdi) {
+            const insText = insBdi.textContent.replace(/[^\d.]/g, '');
+            if (insText) price = parseFloat(insText);
+          }
+        } else {
+          const regularBdi = priceContainer.querySelector('.woocommerce-Price-amount bdi');
+          if (regularBdi) {
+            const priceText = regularBdi.textContent.replace(/[^\d.]/g, '');
+            if (priceText) price = parseFloat(priceText);
+          }
         }
       }
       
-      // === תמונות - רק מגלריית המוצר! ===
-      const imageUris = new Set();
+      // === תמונות ===
       const images = [];
       
-      // מציאת container הגלריה
-      const gallery = document.querySelector('[data-hook="product-gallery-root"]');
-      
-      // חלץ תמונות מ-img src ישירות (הכי אמין — מכיל ~mv2.jpg)
-      const allImgs = gallery
-        ? [...gallery.querySelectorAll('img[src*="wixstatic"]')]
-        : [...document.querySelectorAll('img[src*="wixstatic"]')];
-
-      allImgs.forEach(img => {
-        const src = img.getAttribute('src') || img.src || '';
-        // חלץ media/FILENAME~mv2.EXT
-        const m = src.match(/media\/([^/?#]+~mv2\.[a-z0-9]+)/i);
-        if (m && !imageUris.has(m[1])) {
-          imageUris.add(m[1]);
-          images.push(`https://static.wixstatic.com/media/${m[1]}`);
-        }
+      // שיטה 1: WooCommerce gallery
+      document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {
+        if (a.href && a.href.includes('uploads') && !images.includes(a.href)) images.push(a.href);
       });
-
-      // fallback מ-data-src אם אין src
+      document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
+        const src = img.getAttribute('data-large_image');
+        if (src && !images.includes(src)) images.push(src);
+      });
+      
+      // שיטה 2: Elementor gallery / gallery-icon
       if (images.length === 0) {
-        document.querySelectorAll('[data-src*="wixstatic"]').forEach(el => {
-          const src = el.getAttribute('data-src') || '';
-          const m = src.match(/media\/([^/?#]+~mv2\.[a-z0-9]+)/i);
-          if (m && !imageUris.has(m[1])) {
-            imageUris.add(m[1]);
-            images.push(`https://static.wixstatic.com/media/${m[1]}`);
+        document.querySelectorAll('.gallery-icon img, .gallery-item img').forEach(img => {
+          let src = img.src;
+          if (src && src.includes('uploads')) {
+            // הסר resize suffixes כדי לקבל תמונה מלאה
+            src = src.replace(/-\d+x\d+(?=\.\w+$)/, '');
+            if (!images.includes(src)) images.push(src);
           }
         });
       }
       
-      // === תיאור - מהסקשן "תיאור השמלה" / "תיאור" בלבד ===
+      // שיטה 3: כל התמונות של המוצר
+      if (images.length === 0) {
+        document.querySelectorAll('.product img, .product-images img').forEach(img => {
+          if (img.src && img.src.includes('uploads') && !img.src.includes('-150x') && 
+              !img.src.includes('-50x') && !images.includes(img.src)) {
+            images.push(img.src);
+          }
+        });
+      }
+      
+      // === תיאור - רק מטאב "מידע נוסף" ===
       let description = '';
       
-      // שיטה 1: חפש סקשן לפי כותרת "תיאור" (ב-collapse items)
-      // חשוב: הסקשנים סגורים (display:none) אז innerText ריק - משתמשים ב-textContent
-      document.querySelectorAll('[data-hook="collapse-info-item"], li').forEach(section => {
-        const titleEl = section.querySelector('[data-hook="info-section-title"]');
-        const titleText = titleEl?.textContent?.trim() || '';
-        if (titleText.includes('תיאור')) {
-          const descEl = section.querySelector('[data-hook="info-section-description"]');
-          if (descEl) {
-            // textContent עובד גם על אלמנטים מוסתרים
-            let text = descEl.textContent?.trim() || '';
-            // ניקוי רווחים מיותרים
-            text = text.replace(/\s+/g, ' ').trim();
-            if (text && text.length > description.length) description = text;
+      // חפש לפי כותרת טאב "מידע נוסף" / "תיאור" - רק משם!
+      const tabTitles = document.querySelectorAll('.elementor-tab-title, .elementor-tab-mobile-title');
+      for (const titleEl of tabTitles) {
+        const tabTitle = titleEl.textContent?.trim() || '';
+        if (tabTitle === 'מידע נוסף' || tabTitle.includes('תיאור')) {
+          const tabId = titleEl.getAttribute('data-tab');
+          if (tabId) {
+            const contentEl = document.querySelector(`.elementor-tab-content[data-tab="${tabId}"]`);
+            if (contentEl) {
+              // קח רק טקסט מ-p tags (לא מטבלאות)
+              const paragraphs = contentEl.querySelectorAll('p');
+              if (paragraphs.length > 0) {
+                const texts = [];
+                paragraphs.forEach(p => {
+                  const t = p.innerText?.trim();
+                  if (t) texts.push(t);
+                });
+                description = texts.join('\n');
+              } else {
+                // אם אין p tags, קח את כל הטקסט
+                const text = contentEl.innerText?.trim();
+                // אבל רק אם זה לא טבלת מידות
+                if (text && !text.includes('היקף חזה') && !text.includes('היקף מותן') && 
+                    !text.match(/\b(76|81|86|91|96)\b.*\b(76|81|86|91|96)\b/)) {
+                  description = text;
+                }
+              }
+            }
           }
+          break; // מצאנו את הטאב, לא ממשיכים
+        }
+      }
+      
+      // fallback: WooCommerce short description (לא מטאבים אחרים!)
+      if (!description) {
+        const descEl = document.querySelector('.woocommerce-product-details__short-description');
+        if (descEl) description = descEl.innerText?.trim() || '';
+      }
+      
+      // === צבעים ומידות (WooCommerce WVS swatches) ===
+      const rawColors = [];
+      const rawSizes = [];
+      
+      // שיטה 1: מ-swatches/buttons (variable-items-wrapper)
+      document.querySelectorAll('.variable-items-wrapper li').forEach(el => {
+        const attrName = el.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || 
+                        el.getAttribute('data-attribute_name') || '';
+        // LICHI uses data-title for display name, data-value for URL-encoded value
+        const displayTitle = el.getAttribute('data-title') || el.getAttribute('title') || '';
+        const val = el.getAttribute('data-value') || displayTitle;
+        
+        if (!val) return;
+        
+        if (attrName.includes('tzba') || attrName.includes('color') || attrName.includes('צבע')) {
+          // Use display title (Hebrew) not URL-encoded value
+          if (displayTitle && !rawColors.includes(displayTitle)) rawColors.push(displayTitle);
+          else if (!rawColors.includes(val)) rawColors.push(val);
+        } else if (attrName.includes('mydh') || attrName.includes('size') || attrName.includes('מידה')) {
+          if (displayTitle && !rawSizes.includes(displayTitle)) rawSizes.push(displayTitle);
+          else if (!rawSizes.includes(val)) rawSizes.push(val);
         }
       });
       
-      // שיטה 2: אם לא נמצא, חפש description שאינו משלוח/מידות
-      if (!description) {
-        document.querySelectorAll('[data-hook="info-section-description"]').forEach(el => {
-          const parent = el.closest('[data-hook="collapse-info-item"]') || el.closest('li');
-          const parentTitle = parent?.querySelector('[data-hook="info-section-title"]')?.textContent || '';
-          if (parentTitle.includes('משלוח') || parentTitle.includes('מידות') || 
-              parentTitle.includes('החזר') || parentTitle.includes('טבלת')) return;
-          let text = el.textContent?.trim() || '';
-          text = text.replace(/\s+/g, ' ').trim();
-          if (text.includes('משלוח חינם') || text.includes('ימי עסקים') || text.includes('עלות משלוח')) return;
-          if (text && (!description || text.length > description.length)) description = text;
+      // שיטה 2: מ-select elements
+      document.querySelectorAll('select').forEach(select => {
+        const name = (select.name || select.id || '').toLowerCase();
+        Array.from(select.options).forEach(opt => {
+          const val = opt.value?.trim();
+          const text = opt.textContent?.trim();
+          if (!val || val === '' || val.includes('בחירת') || val.includes('choose')) return;
+          if (name.includes('color') || name.includes('צבע') || name.includes('tzba')) {
+            const displayVal = text || val;
+            if (!rawColors.includes(displayVal)) rawColors.push(displayVal);
+          } else if (name.includes('size') || name.includes('מידה') || name.includes('mydh')) {
+            const displayVal = text || val;
+            if (!rawSizes.includes(displayVal)) rawSizes.push(displayVal);
+          }
         });
-      }
-      
-      // שיטה 3: fallback
-      if (!description) {
-        const descEl = document.querySelector('[data-hook="description"] p, .product-description p');
-        if (descEl) description = descEl.textContent?.trim() || '';
-      }
-      
-      // === צבעים (color picker) ===
-      const rawColors = [];
-      document.querySelectorAll('[data-hook="color-picker-item"]').forEach(el => {
-        const label = el.getAttribute('aria-label') || el.querySelector('input')?.getAttribute('aria-label');
-        if (label && label.trim()) rawColors.push(label.trim());
       });
       
-      // === מידות - לא קוראים כאן, נקרא אחרי לחיצה על dropdown ===
-      return { title, price, originalPrice, images, description, rawColors };
+      return { title, price, originalPrice, images, description, rawColors, rawSizes };
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
@@ -335,202 +268,237 @@ async function scrapeProduct(page, url) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
     
-    
-    // === פונקציה לפתיחת dropdown ולקריאת מידות ===
-    async function openDropdownAndReadSizes() {
-      try {
-        await dismissPopups(page);
-        
-        // בדוק אם יש שגיאת Widget
-        const hasWidgetError = await page.evaluate(() => {
-          return !!document.querySelector('.jZ7zzU, .YHlH9M');
-        });
-        
-        if (hasWidgetError) {
-          console.log(`      ⚠️ Widget Didn't Load - מנסה fallback...`);
-          // נסה reload של הדף
-          await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-          await page.waitForTimeout(4000);
-          await dismissPopups(page);
-          
-          // בדוק שוב
-          const stillError = await page.evaluate(() => !!document.querySelector('.jZ7zzU, .YHlH9M'));
-          if (stillError) {
-            console.log(`      ⚠️ Widget עדיין לא עובד - מנסה לקרוא מ-JSON...`);
-            return await readSizesFromPageData();
-          }
-        }
-        
-        // לחיצה על dropdown לפתיחה
-        const dropdownExists = await page.$('[data-hook="dropdown-base"]');
-        if (!dropdownExists) {
-          console.log(`      ⚠️ dropdown לא נמצא - מנסה fallback...`);
-          return await readSizesFromPageData();
-        }
-        
-        await page.click('[data-hook="dropdown-base"]');
-        await page.waitForTimeout(1500);
-        
-        const sizes = await page.evaluate(() => {
-          const result = {};
-          document.querySelectorAll('[data-hook="dropdown-content-option"]').forEach(opt => {
-            const title = opt.getAttribute('title');
-            const disabled = opt.getAttribute('aria-disabled') === 'true';
-            if (title && title.trim()) result[title.trim()] = !disabled;
-          });
-          return result;
-        });
-        
-        // אם לא מצאנו מידות, נסה fallback
-        if (Object.keys(sizes).length === 0) {
-          console.log(`      ⚠️ dropdown ריק - מנסה fallback...`);
-          await page.keyboard.press('Escape');
-          return await readSizesFromPageData();
-        }
-        
-        // סגירת dropdown
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(500);
-        
-        return sizes;
-      } catch(e) {
-        console.log(`      ⚠️ שגיאה בקריאת מידות: ${e.message.substring(0, 40)}`);
-        // fallback
-        return await readSizesFromPageData();
-      }
-    }
-    
-    // Fallback - קריאת מידות מתוך הדף (JSON, select, או טקסט)
-    async function readSizesFromPageData() {
-      try {
-        const sizes = await page.evaluate(() => {
-          const result = {};
-          
-          // שיטה 1: חפש ב-JSON של Wix product data
-          const scripts = document.querySelectorAll('script[type="application/json"], script:not([src])');
-          for (const script of scripts) {
-            const text = script.textContent || '';
-            // חיפוש מידות בפורמט Wix
-            const sizeMatch = text.match(/"choices":\s*\[(.*?)\]/);
-            if (sizeMatch) {
-              try {
-                const choices = JSON.parse(`[${sizeMatch[1]}]`);
-                choices.forEach(c => {
-                  if (c.description || c.value) {
-                    const name = c.description || c.value;
-                    const inStock = c.inStock !== false;
-                    result[name] = inStock;
-                  }
-                });
-                if (Object.keys(result).length > 0) return result;
-              } catch(e) {}
-            }
-          }
-          
-          // שיטה 2: חפש select רגיל
-          document.querySelectorAll('select').forEach(sel => {
-            const name = (sel.name || sel.id || '').toLowerCase();
-            if (name.includes('size') || name.includes('מידה') || name.includes('option')) {
-              Array.from(sel.options).forEach(opt => {
-                const val = opt.value?.trim() || opt.textContent?.trim();
-                if (val && !val.includes('בחירת') && !val.includes('choose') && val !== '') {
-                  result[val] = !opt.disabled;
-                }
-              });
-            }
-          });
-          
-          // שיטה 3: חפש טקסט של מידות בדף
-          if (Object.keys(result).length === 0) {
-            const sizeLabels = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'ONE SIZE'];
-            const bodyText = document.body.innerText;
-            sizeLabels.forEach(s => {
-              if (bodyText.includes(s)) result[s] = true;
-            });
-          }
-          
-          return result;
-        });
-        
-        if (Object.keys(sizes).length > 0) {
-          console.log(`      📋 Fallback מצא מידות: ${Object.keys(sizes).join(', ')}`);
-        }
-        return sizes;
-      } catch(e) {
-        return {};
-      }
-    }
-    
     // === עיבוד צבעים ומידות ===
+    // שיטה 1: נסה לקרוא מ-variations JSON שמוטמע בדף
+    const variationsData = await page.evaluate(() => {
+      // WooCommerce שומר את כל הוריאציות ב-form data-product_variations
+      const form = document.querySelector('form.variations_form');
+      if (form) {
+        try {
+          const variationsJson = form.getAttribute('data-product_variations');
+          if (variationsJson) {
+            const variations = JSON.parse(variationsJson);
+            return variations.map(v => ({
+              attributes: v.attributes,
+              is_in_stock: v.is_in_stock,
+              is_purchasable: v.is_purchasable,
+              stock_status: v.stock_status || (v.is_in_stock ? 'instock' : 'outofstock')
+            }));
+          }
+        } catch(e) {}
+      }
+      return null;
+    });
+    
     const colorSizesMap = {};
     const availableSizes = new Set();
     const availableColors = new Set();
     
-    if (data.rawColors.length > 0) {
-      // יש צבעים/וריאנטים - לכל אחד בודקים מידות
-      for (const colorName of data.rawColors) {
-        const normColor = normalizeColor(colorName);
-        // אם normColor = null, זה יכול להיות שם דוגמא (כמו "פרחוני") - עדיין נבדוק מידות
-        const variantLabel = normColor || colorName; // השתמש בשם המקורי כ-label
+    // === עיבוד צבעים ומידות ===
+    
+    if (variationsData && variationsData.length > 0) {
+      // === שיטה מהירה: קריאת JSON (לא תלוי ב-JS של האתר) ===
+      console.log(`    📋 נמצאו ${variationsData.length} וריאציות ב-JSON`);
+      
+      for (const v of variationsData) {
+        if (!v.is_in_stock) continue; // רק מוצרים במלאי
         
-        if (!normColor) {
-          console.log(`      ℹ️ וריאנט "${colorName}" - לא צבע מוכר, משתמש כשם וריאנט`);
+        const attrs = v.attributes || {};
+        let colorVal = null;
+        let sizeVal = null;
+        
+        for (const [key, val] of Object.entries(attrs)) {
+          const k = key.toLowerCase();
+          if (k.includes('tzba') || k.includes('color') || k.includes('צבע')) colorVal = val;
+          else if (k.includes('mydh') || k.includes('size') || k.includes('מידה')) sizeVal = val;
         }
         
-        // לחיצה על צבע ב-Wix
-        try {
-          await dismissPopups(page);
-          // נסה ללחוץ על ה-input radio של הצבע
-          const clicked = await page.evaluate((cn) => {
-            const items = document.querySelectorAll('[data-hook="color-picker-item"]');
-            for (const item of items) {
-              const label = item.getAttribute('aria-label') || '';
-              const input = item.querySelector('input');
-              const inputLabel = input?.getAttribute('aria-label') || '';
-              if (label === cn || inputLabel === cn) {
-                input?.click();
-                return true;
-              }
+        // נרמול צבע - ייתכן שהערך encoded או באנגלית
+        let normColor = null;
+        if (colorVal) {
+          // נסה למצוא את שם התצוגה מ-rawColors
+          let displayColor = colorVal;
+          try { displayColor = decodeURIComponent(colorVal); } catch(e) {}
+          // חפש ב-rawColors שם שמתאים
+          for (const rc of data.rawColors) {
+            const rcLower = rc.toLowerCase();
+            const valLower = displayColor.toLowerCase();
+            if (rcLower === valLower || rcLower.includes(valLower) || valLower.includes(rcLower)) {
+              displayColor = rc;
+              break;
             }
-            return false;
-          }, colorName);
-          
-          if (!clicked) {
-            console.log(`      ⚠️ לא מצאתי צבע: ${colorName}`);
           }
-          await page.waitForTimeout(1500);
-        } catch(e) {
-          console.log(`      ⚠️ לא הצלחתי ללחוץ על צבע: ${colorName}`);
+          normColor = normalizeColor(displayColor);
         }
         
-        // פתיחת dropdown וקריאת מידות
-        const sizesForColor = await openDropdownAndReadSizes();
-        console.log(`      מידות ל-${normColor}: ${JSON.stringify(sizesForColor)}`);
+        // נרמול מידה
+        let normSizes = [];
+        if (sizeVal) {
+          let displaySize = sizeVal;
+          try { displaySize = decodeURIComponent(sizeVal); } catch(e) {}
+          normSizes = normalizeSize(displaySize);
+        }
         
-        if (!colorSizesMap[variantLabel]) colorSizesMap[variantLabel] = [];
+        if (normSizes.length > 0) {
+          for (const ns of normSizes) {
+            availableSizes.add(ns);
+            if (normColor) {
+              availableColors.add(normColor);
+              if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
+              if (!colorSizesMap[normColor].includes(ns)) colorSizesMap[normColor].push(ns);
+            }
+          }
+          console.log(`      ✓ ${normColor || '-'} + ${normSizes.join('/')}`);
+        }
+      }
+    } else if (data.rawColors.length > 0 && data.rawSizes.length > 0) {
+      // === שיטה 2: fallback - בדיקה דרך לחיצות (WooCommerce JS) ===
+      console.log(`    ⚠️ אין variations JSON - מנסה בדיקה ידנית...`);
+      
+      // בדוק אם ה-variation handler עובד
+      let variationWorks = false;
+      
+      // נסה לחיצה אחת לבדיקה
+      try {
+        await page.evaluate((c) => {
+          const items = document.querySelectorAll('.variable-items-wrapper li');
+          for (const item of items) {
+            const attrName = item.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || '';
+            if (attrName.includes('tzba') || attrName.includes('color')) {
+              const title = item.getAttribute('data-title') || item.getAttribute('title');
+              if (title === c) { item.click(); return; }
+            }
+          }
+          const sel = document.querySelector('select[name*="tzba"], select[name*="color"]');
+          if (sel) { sel.value = sel.options[1]?.value; sel.dispatchEvent(new Event('change', {bubbles:true})); }
+        }, data.rawColors[0]);
+        await page.waitForTimeout(800);
         
-        for (const [size, available] of Object.entries(sizesForColor)) {
-          const normSizes = normalizeSize(size);
-          if (available && normSizes.length > 0) {
+        await page.evaluate((s) => {
+          const items = document.querySelectorAll('.variable-items-wrapper li');
+          for (const item of items) {
+            const attrName = item.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || '';
+            if (attrName.includes('mydh') || attrName.includes('size')) {
+              const title = item.getAttribute('data-title') || item.getAttribute('title');
+              if (title === s) { item.click(); return; }
+            }
+          }
+        }, data.rawSizes[0]);
+        await page.waitForTimeout(1000);
+        
+        variationWorks = await page.evaluate(() => {
+          // בדוק אם יש תגובת variation
+          const variation = document.querySelector('.woocommerce-variation');
+          if (variation && variation.style.display !== 'none') return true;
+          const priceDisplay = document.querySelector('.woocommerce-variation-price');
+          if (priceDisplay && priceDisplay.innerHTML.trim()) return true;
+          return false;
+        });
+      } catch(e) {}
+      
+      if (!variationWorks) {
+        // האתר שבור - נניח שכל מה שמופיע במלאי
+        console.log(`    ⚠️ WooCommerce variation handler שבור - מניח שכל המידות במלאי`);
+        for (const color of data.rawColors) {
+          const normColor = normalizeColor(color);
+          if (!normColor) continue;
+          if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
+          for (const size of data.rawSizes) {
+            const normSizes = normalizeSize(size);
             for (const ns of normSizes) {
               availableSizes.add(ns);
-              if (normColor) availableColors.add(normColor);
-              if (!colorSizesMap[variantLabel].includes(ns)) {
-                colorSizesMap[variantLabel].push(ns);
+              availableColors.add(normColor);
+              if (!colorSizesMap[normColor].includes(ns)) colorSizesMap[normColor].push(ns);
+            }
+          }
+        }
+      } else {
+        // variation handler עובד - בדוק כל שילוב
+        for (const color of data.rawColors) {
+          await page.evaluate((c) => {
+            const items = document.querySelectorAll('.variable-items-wrapper li');
+            for (const item of items) {
+              const attrName = item.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || '';
+              if (attrName.includes('tzba') || attrName.includes('color') || attrName.includes('צבע')) {
+                const title = item.getAttribute('data-title') || item.getAttribute('title');
+                if (title === c) { item.click(); return; }
               }
             }
-            console.log(`      ✓ ${variantLabel} + ${normSizes.join('/')}`);
-          } else if (normSizes.length > 0) {
-            console.log(`      ✗ ${variantLabel} + ${normSizes.join('/')} (אזל)`);
+            const sel = document.querySelector('select[name*="tzba"], select[name*="color"]');
+            if (sel) { for (const opt of sel.options) { if (opt.textContent?.trim() === c || opt.value === c) { sel.value = opt.value; sel.dispatchEvent(new Event('change', {bubbles:true})); return; } } }
+          }, color);
+          await page.waitForTimeout(800);
+          
+          const normColor = normalizeColor(color);
+          if (!normColor) { console.log(`      ⚠️ צבע לא מזוהה: ${color}`); continue; }
+          if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
+          
+          for (const size of data.rawSizes) {
+            await page.evaluate((s) => {
+              const items = document.querySelectorAll('.variable-items-wrapper li');
+              for (const item of items) {
+                const attrName = item.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || '';
+                if (attrName.includes('mydh') || attrName.includes('size') || attrName.includes('מידה')) {
+                  const title = item.getAttribute('data-title') || item.getAttribute('title');
+                  if (title === s) { item.click(); return; }
+                }
+              }
+              const sel = document.querySelector('select[name*="mydh"], select[name*="size"]');
+              if (sel) { for (const opt of sel.options) { if (opt.textContent?.trim() === s || opt.value === s.toLowerCase()) { sel.value = opt.value; sel.dispatchEvent(new Event('change', {bubbles:true})); return; } } }
+            }, size);
+            await page.waitForTimeout(600);
+            
+            const inStock = await page.evaluate(() => {
+              const stockEl = document.querySelector('.woocommerce-variation-availability .stock');
+              if (stockEl) {
+                if (stockEl.classList.contains('out-of-stock') || stockEl.textContent.toLowerCase().includes('אזל')) return false;
+                if (stockEl.classList.contains('in-stock') || stockEl.textContent.toLowerCase().includes('במלאי')) return true;
+              }
+              const btn = document.querySelector('.single_add_to_cart_button');
+              if (btn && btn.disabled) return false;
+              const variation = document.querySelector('.woocommerce-variation-add-to-cart');
+              if (variation?.classList.contains('woocommerce-variation-add-to-cart-disabled')) return false;
+              return true;
+            });
+            
+            const normSizes = normalizeSize(size);
+            if (inStock && normSizes.length > 0) {
+              for (const normSize of normSizes) {
+                availableSizes.add(normSize);
+                availableColors.add(normColor);
+                if (!colorSizesMap[normColor].includes(normSize)) colorSizesMap[normColor].push(normSize);
+              }
+              console.log(`      ✓ ${normColor} + ${normSizes.join('/')}`);
+            } else if (normSizes.length > 0) {
+              console.log(`      ✗ ${normColor} + ${normSizes.join('/')} (אזל)`);
+            }
           }
         }
       }
-    } else {
-      // אין צבעים - קרא מידות ישירות
-      const sizes = await openDropdownAndReadSizes();
-      for (const [size, available] of Object.entries(sizes)) {
-        if (available) {
-          const normSizes = normalizeSize(size);
+    } else if (data.rawSizes.length > 0) {
+      // אין צבעים, רק מידות
+      for (const size of data.rawSizes) {
+        await page.evaluate((s) => {
+          const items = document.querySelectorAll('.variable-items-wrapper li');
+          for (const item of items) {
+            const attrName = item.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || '';
+            if (attrName.includes('mydh') || attrName.includes('size')) {
+              const title = item.getAttribute('data-title') || item.getAttribute('title');
+              if (title === s) { item.click(); return; }
+            }
+          }
+        }, size);
+        await page.waitForTimeout(600);
+        
+        const inStock = await page.evaluate(() => {
+          const stockEl = document.querySelector('.woocommerce-variation-availability .stock');
+          if (stockEl?.classList.contains('out-of-stock')) return false;
+          const btn = document.querySelector('.single_add_to_cart_button');
+          return !btn?.disabled;
+        });
+        
+        const normSizes = normalizeSize(size);
+        if (inStock && normSizes.length > 0) {
           normSizes.forEach(s => availableSizes.add(s));
         }
       }
@@ -542,8 +510,7 @@ async function scrapeProduct(page, url) {
     
     console.log(`  ✓ ${data.title.substring(0, 35)}`);
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
-    console.log(`    📊 colorSizes: ${JSON.stringify(colorSizesMap)}`);
-    if (category) console.log(`    📁 ${category} | 🎨 ${style || '-'} | 📐 ${fit || '-'} | 🧵 ${fabric || '-'} | 🎭 ${pattern}`);
+    if (category) console.log(`    📁 ${category} | 🎨 ${style || '-'} | 📐 ${fit || '-'} | 🧵 ${fabric || '-'} | 🎭 ${pattern || '-'}`);
     
     return {
       title: data.title,
@@ -571,33 +538,9 @@ async function scrapeProduct(page, url) {
 }
 
 // ======================================================================
-// שמירה ל-DB - זהה למקימי, חנות = MIMA
+// שמירה ל-DB - חנות = LICHI
 // ======================================================================
 
-async function getImageSizeBytes(url, depth=0) {
-  if (!url || depth > 5) return 0;
-  try {
-    const mod = url.startsWith('https') ? https : http;
-    return new Promise(resolve => {
-      const req = mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }, res => {
-        if ([301,302,303,307,308].includes(res.statusCode) && res.headers.location) {
-          req.destroy();
-          const loc = res.headers.location;
-          const next = loc.startsWith('http') ? loc : new URL(loc, url).href;
-          return getImageSizeBytes(next, depth+1).then(resolve);
-        }
-        const len = res.headers['content-length'];
-        if (len && parseInt(len) > 0) { req.destroy(); return resolve(parseInt(len)); }
-        let size = 0;
-        res.on('data', chunk => { size += chunk.length; if (size > 500000) { req.destroy(); resolve(size); } });
-        res.on('end', () => resolve(size));
-        res.on('error', () => resolve(0));
-      });
-      req.on('error', () => resolve(0));
-      req.on('timeout', () => { req.destroy(); resolve(0); });
-    });
-  } catch(e) { return 0; }
-}
 async function saveProduct(product) {
   if (!product) return;
   try {
@@ -611,7 +554,7 @@ async function saveProduct(product) {
          category=EXCLUDED.category, description=EXCLUDED.description, 
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
          design_details=EXCLUDED.design_details, last_seen=NOW()`,
-      ['MIMA', product.title, product.price || 0, product.originalPrice || null,
+      ['LICHI', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
@@ -626,9 +569,9 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
+const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 10;
 
-const browser = await chromium.launch({ headless: true, slowMo: 50 });
+const browser = await chromium.launch({ headless: true, slowMo: 30 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   viewport: { width: 1920, height: 1080 }
@@ -644,12 +587,11 @@ try {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
   
-  // בדיקת בריאות
   if (unknownColors.size > 0) {
     console.log(`\n${'='.repeat(50)}`);
     console.log(`🎨 צבעים לא מזוהים (${unknownColors.size}):`);

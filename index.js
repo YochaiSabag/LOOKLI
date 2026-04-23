@@ -1419,6 +1419,20 @@ app.get("/admin/ads", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_ads.html'));
 });
 
+// GET /api/product-sizes — מחזיר מידות מוצר לפי URL (לממשק ההתראות)
+app.get("/api/product-sizes", async (req, res) => {
+  try {
+    const url = (req.query.url || '').trim().replace(/\/+$/, '');
+    if (!url) return res.status(400).json({ error: 'חסר url' });
+    const r = await pool.query(
+      `SELECT sizes FROM products WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
+      [url, url + '%']
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
+    res.json({ sizes: r.rows[0].sizes || [] });
+  } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
+});
+
 // ===== SPONSORED ADMIN ROUTES =====
 
 // GET /api/product-by-url — מחפש מוצר לפי URL (לממשק הניהול)

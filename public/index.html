@@ -2944,7 +2944,7 @@ document.addEventListener('click', e => {
     const sel = document.getElementById('alertSizeSelect');
     sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
     try {
-      const res = await fetch('/api/product-by-url?url=' + encodeURIComponent(url));
+      const res = await fetch('/api/product-sizes?url=' + encodeURIComponent(url));
       const sizeOpt = document.getElementById('alertSizeOption');
       sel.innerHTML = '';
       sel.disabled = false;
@@ -6049,7 +6049,7 @@ document.addEventListener('click', e => {
     const sel = document.getElementById('alertSizeSelect');
     sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
     try {
-      const res = await fetch('/api/product-by-url?url=' + encodeURIComponent(url));
+      const res = await fetch('/api/product-sizes?url=' + encodeURIComponent(url));
       const sizeOpt = document.getElementById('alertSizeOption');
       sel.innerHTML = '';
       sel.disabled = false;

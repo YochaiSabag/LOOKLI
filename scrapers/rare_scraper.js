@@ -218,7 +218,8 @@ async function scrapeProduct(page, url) {
     for (const word of titleWords) {
       if (word.length < 2) continue;
       const lower = word.toLowerCase().trim();
-      if (colorMap[lower]) { mainColor = colorMap[lower]; break; }
+      const c = normalizeColor(lower);
+      if (c && c !== 'אחר') { mainColor = c; break; }
     }
     if (!mainColor) mainColor = normalizeColor(data.title) !== 'אחר' ? normalizeColor(data.title) : null;
 

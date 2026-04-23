@@ -55,7 +55,7 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
         await page.waitForTimeout(2000);
         
         for (let i = 0; i < 3; i++) {

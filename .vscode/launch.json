@@ -1,0 +1,59 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Start Server (dev)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/index.js",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "runtimeArgs": ["--inspect"],
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal",
+      "restart": true
+    },
+    {
+      "name": "Run Scrapers (all)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_scrapers.js",
+      "args": ["all"],
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Test Scrapers",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/test_scrapers.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Init DB",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/init-db.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Health Check",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/health_check.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Check Alerts",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/check_alerts.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

@@ -2962,24 +2962,28 @@ document.addEventListener('click', e => {
         if (productLetterSizes.length === 0) {
           // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
-
-        } else if (productLetterSizes.length >= letterSizes.length) {
-          // כל 7 המידות הסטנדרטיות במלאי — כל המידות במלאי
-          sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
-          sel.disabled = true;
-          sel.classList.add('show');
-          document.getElementById('alertSizeCheck').disabled = true;
-          document.getElementById('alertSizeCheck').checked = false;
-
         } else {
-          // הצג רק מידות שחסרות (לא במלאי כרגע)
-          const missingSizes = letterSizes.filter(s => !productLetterSizes.includes(s));
-          sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
-          missingSizes.forEach(s => {
-            const o = document.createElement('option');
-            o.value = s; o.textContent = s;
-            sel.appendChild(o);
-          });
+          // מציאת טווח המוצר: בין המידה הקטנה לגדולה שבמלאי
+          const idxMin = Math.min(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          const idxMax = Math.max(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          const productRange = letterSizes.slice(idxMin, idxMax + 1);
+          const missingSizes = productRange.filter(s => !productLetterSizes.includes(s));
+
+          if (missingSizes.length === 0) {
+            // כל המידות בטווח המוצר במלאי
+            sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+            sel.disabled = true;
+            sel.classList.add('show');
+            document.getElementById('alertSizeCheck').disabled = true;
+            document.getElementById('alertSizeCheck').checked = false;
+          } else {
+            sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+            missingSizes.forEach(s => {
+              const o = document.createElement('option');
+              o.value = s; o.textContent = s;
+              sel.appendChild(o);
+            });
+          }
         }
       } else {
         // לא נמצא מוצר ב-DB — הצג ברירת מחדל
@@ -6067,24 +6071,28 @@ document.addEventListener('click', e => {
         if (productLetterSizes.length === 0) {
           // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
-
-        } else if (productLetterSizes.length >= letterSizes.length) {
-          // כל 7 המידות הסטנדרטיות במלאי — כל המידות במלאי
-          sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
-          sel.disabled = true;
-          sel.classList.add('show');
-          document.getElementById('alertSizeCheck').disabled = true;
-          document.getElementById('alertSizeCheck').checked = false;
-
         } else {
-          // הצג רק מידות שחסרות (לא במלאי כרגע)
-          const missingSizes = letterSizes.filter(s => !productLetterSizes.includes(s));
-          sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
-          missingSizes.forEach(s => {
-            const o = document.createElement('option');
-            o.value = s; o.textContent = s;
-            sel.appendChild(o);
-          });
+          // מציאת טווח המוצר: בין המידה הקטנה לגדולה שבמלאי
+          const idxMin = Math.min(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          const idxMax = Math.max(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          const productRange = letterSizes.slice(idxMin, idxMax + 1);
+          const missingSizes = productRange.filter(s => !productLetterSizes.includes(s));
+
+          if (missingSizes.length === 0) {
+            // כל המידות בטווח המוצר במלאי
+            sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+            sel.disabled = true;
+            sel.classList.add('show');
+            document.getElementById('alertSizeCheck').disabled = true;
+            document.getElementById('alertSizeCheck').checked = false;
+          } else {
+            sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+            missingSizes.forEach(s => {
+              const o = document.createElement('option');
+              o.value = s; o.textContent = s;
+              sel.appendChild(o);
+            });
+          }
         }
       } else {
         // לא נמצא מוצר ב-DB — הצג ברירת מחדל

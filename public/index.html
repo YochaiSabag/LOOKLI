@@ -2972,9 +2972,10 @@ document.addEventListener('click', e => {
           document.getElementById('alertSizeCheck').checked = false;
 
         } else {
-          // יש מידות ספציפיות — הצג רק אותן
-          sel.innerHTML = '';
-          productLetterSizes.forEach(s => {
+          // הצג רק מידות שחסרות (לא במלאי כרגע)
+          const missingSizes = letterSizes.filter(s => !productLetterSizes.includes(s));
+          sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+          missingSizes.forEach(s => {
             const o = document.createElement('option');
             o.value = s; o.textContent = s;
             sel.appendChild(o);
@@ -6076,9 +6077,10 @@ document.addEventListener('click', e => {
           document.getElementById('alertSizeCheck').checked = false;
 
         } else {
-          // יש מידות ספציפיות — הצג רק אותן
-          sel.innerHTML = '';
-          productLetterSizes.forEach(s => {
+          // הצג רק מידות שחסרות (לא במלאי כרגע)
+          const missingSizes = letterSizes.filter(s => !productLetterSizes.includes(s));
+          sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+          missingSizes.forEach(s => {
             const o = document.createElement('option');
             o.value = s; o.textContent = s;
             sel.appendChild(o);

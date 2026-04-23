@@ -61,6 +61,23 @@ async function getAllProductUrls(page) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(4000);
 
+        // סגור popup אם קיים
+        try {
+          await page.evaluate(() => {
+            const selectors = [
+              '.pum-close', '.popup-close', '.modal-close', '[class*="close"]',
+              '.elementor-popup-modal .dialog-close-button',
+              'button[aria-label*="Close"]', 'button[aria-label*="סגור"]',
+              '.pum-overlay', '[data-elementor-type="popup"] .dialog-lightbox-close-button'
+            ];
+            for (const sel of selectors) {
+              const el = document.querySelector(sel);
+              if (el) { el.click(); return; }
+            }
+          });
+          await page.waitForTimeout(500);
+        } catch(e) {}
+
         // גלילה למטה — האתר טוען עוד מוצרים בגלילה
         let lastCount = 0;
         for (let scroll = 0; scroll < 8; scroll++) {

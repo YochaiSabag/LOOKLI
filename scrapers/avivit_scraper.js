@@ -60,7 +60,7 @@ async function getAllProductUrls(page) {
       try {
         console.log(`  → page ${p}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(5000);
 
         // סגור popup אם קיים
         try {
@@ -79,15 +79,20 @@ async function getAllProductUrls(page) {
           await page.waitForTimeout(500);
         } catch(e) {}
 
-        // גלילה למטה — האתר טוען עוד מוצרים בגלילה
-        let lastCount = 0;
-        for (let scroll = 0; scroll < 8; scroll++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1500);
+        // גלילה עם Elementor lazy loading — לא שוברים אם count=0 בהתחלה
+        let lastCount = -1;
+        for (let scroll = 0; scroll < 10; scroll++) {
+          await page.evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+            // טריגר ל-IntersectionObserver של Elementor
+            window.dispatchEvent(new Event('scroll'));
+          });
+          await page.waitForTimeout(2000);
           const count = await page.evaluate(() =>
             document.querySelectorAll('a[href*="/product/"]').length
           );
-          if (count === lastCount) break;
+          console.log(`    scroll ${scroll + 1}: ${count} links`);
+          if (count > 0 && count === lastCount) break;
           lastCount = count;
         }
 

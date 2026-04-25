@@ -38,93 +38,32 @@ function normalizeSize(s) {
 // איסוף קישורים
 // ======================================================================
 async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il...\n');
+  console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il (sitemap)...\n');
   const allUrls = new Set();
 
-  const categories = [
-    { base: 'https://avivit-weizman.co.il/shop/', label: 'shop (כל המוצרים)', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%91%d7%99%d7%91-26/', label: 'קולקציית אביב 26', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/sale/', label: 'sale', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/basic/', label: 'basic', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa-%d7%9c%d7%97%d7%92/', label: 'שמלות לחג', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/%d7%a0%d7%a2%d7%a8%d7%95%d7%aa/', label: 'נערות', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/%d7%a1%d7%98%d7%99%d7%9d/', label: 'סטים', maxPages: 50 },
-    { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%99%d7%a8%d7%95%d7%a2%d7%99%d7%9d/', label: 'קולקציית אירועים', maxPages: 50 },
+  // ניסיון לקרוא sitemap ישירות (HTTP, לא Playwright - עוקף Cloudflare)
+  const sitemapSources = [
+    'https://avivit-weizman.co.il/wp-sitemap-posts-product-1.xml',
+    'https://avivit-weizman.co.il/wp-sitemap-posts-product-2.xml',
+    'https://avivit-weizman.co.il/wp-sitemap-posts-product-3.xml',
+    'https://avivit-weizman.co.il/wp-sitemap-posts-product-4.xml',
+    'https://avivit-weizman.co.il/wp-sitemap-posts-product-5.xml',
   ];
 
-  for (const cat of categories) {
-    console.log(`  📁 [${cat.label}]`);
-
-    for (let p = 1; p <= cat.maxPages; p++) {
-      const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
-      try {
-        console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(5000);
-
-        // סגור popup אם קיים
-        try {
-          await page.evaluate(() => {
-            const selectors = [
-              '.pum-close', '.popup-close', '.modal-close', '[class*="close"]',
-              '.elementor-popup-modal .dialog-close-button',
-              'button[aria-label*="Close"]', 'button[aria-label*="סגור"]',
-              '.pum-overlay', '[data-elementor-type="popup"] .dialog-lightbox-close-button'
-            ];
-            for (const sel of selectors) {
-              const el = document.querySelector(sel);
-              if (el) { el.click(); return; }
-            }
-          });
-          await page.waitForTimeout(500);
-        } catch(e) {}
-
-        // גלילה עם Elementor lazy loading — לא שוברים אם count=0 בהתחלה
-        let lastCount = -1;
-        for (let scroll = 0; scroll < 10; scroll++) {
-          await page.evaluate(() => {
-            window.scrollTo(0, document.body.scrollHeight);
-            // טריגר ל-IntersectionObserver של Elementor
-            window.dispatchEvent(new Event('scroll'));
-          });
-          await page.waitForTimeout(2000);
-          const count = await page.evaluate(() =>
-            document.querySelectorAll('a[href*="/product/"]').length
-          );
-          console.log(`    scroll ${scroll + 1}: ${count} links`);
-          if (count > 0 && count === lastCount) break;
-          lastCount = count;
-        }
-
-        const urls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('avivit-weizman.co.il/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-
-        if (urls.length === 0) {
-          // דיאגנוז: הדפס את כל הלינקים הייחודיים בדף
-          const allLinks = await page.evaluate(() =>
-            [...new Set([...document.querySelectorAll('a[href]')]
-              .map(a => a.href.split('?')[0])
-              .filter(h => h.includes('avivit-weizman.co.il'))
-              .map(h => h.replace('https://avivit-weizman.co.il', '').split('/').slice(0,3).join('/'))
-            )].slice(0, 30)
-          );
-          console.log(`    🔍 לינקים שנמצאו: ${allLinks.join(' | ')}`);
-          console.log(`    ⏹ עמוד ריק - עוצר`); break;
-        }
-
-        const before = allUrls.size;
-        urls.forEach(u => allUrls.add(u));
-        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-
-        if (allUrls.size === before && p > 1) break;
-      } catch (e) {
-        console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
-        break;
-      }
+  for (const sitemapUrl of sitemapSources) {
+    try {
+      const res = await fetch(sitemapUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' }
+      });
+      if (!res.ok) { console.log(`  ⏭️ ${sitemapUrl.split('/').pop()} — ${res.status}`); break; }
+      const xml = await res.text();
+      const matches = [...xml.matchAll(/<loc>(https:\/\/avivit-weizman\.co\.il\/product\/[^<]+)<\/loc>/g)];
+      matches.forEach(m => allUrls.add(m[1].trim()));
+      console.log(`  ✓ ${sitemapUrl.split('/').pop()} → ${matches.length} URLs`);
+      if (matches.length === 0) break;
+    } catch(e) {
+      console.log(`  ✗ ${e.message.substring(0, 40)}`);
+      break;
     }
   }
 

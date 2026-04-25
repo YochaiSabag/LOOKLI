@@ -199,12 +199,18 @@ async function scrapeProduct(page, url) {
 
     // עיבוד מידות
     const availableSizes = new Set();
+    const allSizesSet = new Set();
     for (const size of rawSizes) {
       if (size.disabled) continue;
       normalizeSize(size.name).forEach(s => availableSizes.add(s));
     }
+    // collect all sizes regardless of disabled status
+    rawSizes.forEach(size => {
+      normalizeSize(size.name).forEach(s => allSizesSet.add(s));
+    });
 
     const uniqueSizes = [...availableSizes];
+    const allUniqueSizes = [...allSizesSet];
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
@@ -234,6 +240,7 @@ async function scrapeProduct(page, url) {
       images: data.images,
       colors: mainColor ? [mainColor] : [],
       sizes: uniqueSizes,
+      allSizes: allUniqueSizes,
       mainColor,
       category,
       style,
@@ -259,21 +266,22 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description,
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, last_seen=NOW()`,
+         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
       ['RARE', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null,
-       product.designDetails?.length ? product.designDetails : null]
+       product.designDetails?.length ? product.designDetails : null,
+       product.allSizes]
     );
     console.log('  💾 saved');
   } catch (err) {

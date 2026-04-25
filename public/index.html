@@ -2955,19 +2955,25 @@ document.addEventListener('click', e => {
         const p = await res.json();
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
-        // מידות אות שיש כרגע במלאי
-        // מידות אות שיש למוצר כרגע במלאי
         const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
+        // קבע את טווח המוצר: all_sizes אם קיים, אחרת הסקה מהטווח שבמלאי
+        let sizeRangeBase;
+        if (p.all_sizes && p.all_sizes.length > 0) {
+          const norm = p.all_sizes.map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
+          sizeRangeBase = norm.filter(s => letterSizes.includes(s));
+        } else if (productLetterSizes.length > 0) {
+          const idxMin = Math.min(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          const idxMax = Math.max(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          sizeRangeBase = letterSizes.slice(idxMin, idxMax + 1);
+        } else {
+          sizeRangeBase = [];
+        }
 
-        if (productLetterSizes.length === 0) {
+        if (sizeRangeBase.length === 0) {
           // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
         } else {
-          // מציאת טווח המוצר: בין המידה הקטנה לגדולה שבמלאי
-          const idxMin = Math.min(...productLetterSizes.map(s => letterSizes.indexOf(s)));
-          const idxMax = Math.max(...productLetterSizes.map(s => letterSizes.indexOf(s)));
-          const productRange = letterSizes.slice(idxMin, idxMax + 1);
-          const missingSizes = productRange.filter(s => !productLetterSizes.includes(s));
+          const missingSizes = sizeRangeBase.filter(s => !productLetterSizes.includes(s));
 
           if (missingSizes.length === 0) {
             // כל המידות בטווח המוצר במלאי
@@ -6064,19 +6070,25 @@ document.addEventListener('click', e => {
         const p = await res.json();
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
-        // מידות אות שיש כרגע במלאי
-        // מידות אות שיש למוצר כרגע במלאי
         const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
+        // קבע את טווח המוצר: all_sizes אם קיים, אחרת הסקה מהטווח שבמלאי
+        let sizeRangeBase;
+        if (p.all_sizes && p.all_sizes.length > 0) {
+          const norm = p.all_sizes.map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
+          sizeRangeBase = norm.filter(s => letterSizes.includes(s));
+        } else if (productLetterSizes.length > 0) {
+          const idxMin = Math.min(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          const idxMax = Math.max(...productLetterSizes.map(s => letterSizes.indexOf(s)));
+          sizeRangeBase = letterSizes.slice(idxMin, idxMax + 1);
+        } else {
+          sizeRangeBase = [];
+        }
 
-        if (productLetterSizes.length === 0) {
+        if (sizeRangeBase.length === 0) {
           // אין מידות אות — "כל מידה"
           sel.innerHTML = '<option value="any">כל מידה</option>';
         } else {
-          // מציאת טווח המוצר: בין המידה הקטנה לגדולה שבמלאי
-          const idxMin = Math.min(...productLetterSizes.map(s => letterSizes.indexOf(s)));
-          const idxMax = Math.max(...productLetterSizes.map(s => letterSizes.indexOf(s)));
-          const productRange = letterSizes.slice(idxMin, idxMax + 1);
-          const missingSizes = productRange.filter(s => !productLetterSizes.includes(s));
+          const missingSizes = sizeRangeBase.filter(s => !productLetterSizes.includes(s));
 
           if (missingSizes.length === 0) {
             // כל המידות בטווח המוצר במלאי

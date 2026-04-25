@@ -1425,11 +1425,11 @@ app.get("/api/product-sizes", async (req, res) => {
     const url = (req.query.url || '').trim().replace(/\/+$/, '');
     if (!url) return res.status(400).json({ error: 'חסר url' });
     const r = await pool.query(
-      `SELECT sizes FROM products WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
+      `SELECT sizes, all_sizes FROM products WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
       [url, url + '%']
     );
     if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
-    res.json({ sizes: r.rows[0].sizes || [] });
+    res.json({ sizes: r.rows[0].sizes || [], all_sizes: r.rows[0].all_sizes || [] });
   } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });
 

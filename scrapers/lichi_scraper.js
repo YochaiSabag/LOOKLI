@@ -292,6 +292,7 @@ async function scrapeProduct(page, url) {
     
     const colorSizesMap = {};
     const availableSizes = new Set();
+    const allSizesSet = new Set();
     const availableColors = new Set();
     
     // === עיבוד צבעים ומידות ===
@@ -301,18 +302,25 @@ async function scrapeProduct(page, url) {
       console.log(`    📋 נמצאו ${variationsData.length} וריאציות ב-JSON`);
       
       for (const v of variationsData) {
-        if (!v.is_in_stock) continue; // רק מוצרים במלאי
-        
         const attrs = v.attributes || {};
         let colorVal = null;
         let sizeVal = null;
-        
+
         for (const [key, val] of Object.entries(attrs)) {
           const k = key.toLowerCase();
           if (k.includes('tzba') || k.includes('color') || k.includes('צבע')) colorVal = val;
           else if (k.includes('mydh') || k.includes('size') || k.includes('מידה')) sizeVal = val;
         }
-        
+
+        // collect all sizes regardless of stock
+        if (sizeVal) {
+          let displaySize = sizeVal;
+          try { displaySize = decodeURIComponent(sizeVal); } catch(e) {}
+          normalizeSize(displaySize).forEach(s => allSizesSet.add(s));
+        }
+
+        if (!v.is_in_stock) continue; // רק מוצרים במלאי
+
         // נרמול צבע - ייתכן שהערך encoded או באנגלית
         let normColor = null;
         if (colorVal) {
@@ -330,7 +338,7 @@ async function scrapeProduct(page, url) {
           }
           normColor = normalizeColor(displayColor);
         }
-        
+
         // נרמול מידה
         let normSizes = [];
         if (sizeVal) {
@@ -338,7 +346,7 @@ async function scrapeProduct(page, url) {
           try { displaySize = decodeURIComponent(sizeVal); } catch(e) {}
           normSizes = normalizeSize(displaySize);
         }
-        
+
         if (normSizes.length > 0) {
           for (const ns of normSizes) {
             availableSizes.add(ns);
@@ -462,6 +470,7 @@ async function scrapeProduct(page, url) {
             });
             
             const normSizes = normalizeSize(size);
+            normSizes.forEach(s => allSizesSet.add(s));
             if (inStock && normSizes.length > 0) {
               for (const normSize of normSizes) {
                 availableSizes.add(normSize);
@@ -498,14 +507,16 @@ async function scrapeProduct(page, url) {
         });
         
         const normSizes = normalizeSize(size);
+        normSizes.forEach(s => allSizesSet.add(s));
         if (inStock && normSizes.length > 0) {
           normSizes.forEach(s => availableSizes.add(s));
         }
       }
     }
-    
+
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
+    const allUniqueSizes = [...allSizesSet];
     const mainColor = uniqueColors[0] || null;
     
     console.log(`  ✓ ${data.title.substring(0, 35)}`);
@@ -519,6 +530,7 @@ async function scrapeProduct(page, url) {
       images: data.images,
       colors: uniqueColors,
       sizes: uniqueSizes,
+      allSizes: allUniqueSizes,
       mainColor,
       category,
       style,
@@ -530,7 +542,7 @@ async function scrapeProduct(page, url) {
       colorSizes: colorSizesMap,
       url
     };
-    
+
   } catch (err) {
     console.log(`  ✗ ${err.message.substring(0, 50)}`);
     return null;
@@ -545,20 +557,21 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
-         category=EXCLUDED.category, description=EXCLUDED.description, 
+         category=EXCLUDED.category, description=EXCLUDED.description,
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, last_seen=NOW()`,
+         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
       ['LICHI', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
-       product.pattern || null, product.fabric || null, product.designDetails || []]
+       product.pattern || null, product.fabric || null, product.designDetails || [],
+       product.allSizes]
     );
     console.log('  💾 saved');
   } catch (err) {

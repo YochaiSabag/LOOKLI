@@ -464,6 +464,7 @@ async function scrapeProduct(page, url) {
     // === עיבוד צבעים ומידות ===
     const colorSizesMap = {};
     const availableSizes = new Set();
+    const allSizesSet = new Set();
     const availableColors = new Set();
     
     if (data.rawColors.length > 0) {
@@ -511,6 +512,7 @@ async function scrapeProduct(page, url) {
         
         for (const [size, available] of Object.entries(sizesForColor)) {
           const normSizes = normalizeSize(size);
+          normSizes.forEach(s => allSizesSet.add(s));
           if (available && normSizes.length > 0) {
             for (const ns of normSizes) {
               availableSizes.add(ns);
@@ -529,22 +531,24 @@ async function scrapeProduct(page, url) {
       // אין צבעים - קרא מידות ישירות
       const sizes = await openDropdownAndReadSizes();
       for (const [size, available] of Object.entries(sizes)) {
+        const normSizes = normalizeSize(size);
+        normSizes.forEach(s => allSizesSet.add(s));
         if (available) {
-          const normSizes = normalizeSize(size);
           normSizes.forEach(s => availableSizes.add(s));
         }
       }
     }
-    
+
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
+    const allUniqueSizes = [...allSizesSet];
     const mainColor = uniqueColors[0] || null;
-    
+
     console.log(`  ✓ ${data.title.substring(0, 35)}`);
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📊 colorSizes: ${JSON.stringify(colorSizesMap)}`);
     if (category) console.log(`    📁 ${category} | 🎨 ${style || '-'} | 📐 ${fit || '-'} | 🧵 ${fabric || '-'} | 🎭 ${pattern}`);
-    
+
     return {
       title: data.title,
       price: data.price,
@@ -552,6 +556,7 @@ async function scrapeProduct(page, url) {
       images: data.images,
       colors: uniqueColors,
       sizes: uniqueSizes,
+      allSizes: allUniqueSizes,
       mainColor,
       category,
       style,
@@ -602,20 +607,21 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes, 
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
-         category=EXCLUDED.category, description=EXCLUDED.description, 
+         category=EXCLUDED.category, description=EXCLUDED.description,
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, last_seen=NOW()`,
+         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
       ['MIMA', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
-       product.pattern || null, product.fabric || null, product.designDetails || []]
+       product.pattern || null, product.fabric || null, product.designDetails || [],
+       product.allSizes]
     );
     console.log('  💾 saved');
   } catch (err) {

@@ -284,14 +284,10 @@ async function scrapeProduct(page, url) {
       if (/פרחוני|פרחונית|floral/i.test(data.title)) {
         mainColor = 'פרחוני';
       } else {
-        // חפש צבע מהכותרת — רק התאמה מדויקת
-        const words = (data.title || '').split(/[\s\-–,/]+/);
-        for (const word of words) {
-          if (word.length < 2) continue;
-          const lower = word.toLowerCase().trim();
-          const c = normalizeColor(lower);
-          if (c && c !== 'אחר') { mainColor = c; break; }
-        }
+        // חפש צבע מהכותרת — normalizeColor מטפל בפיצול פנימית
+        // אם לא נמצא, הכותרת המלאה תתווסף ל-unknownColors לדיוק
+        const c = normalizeColor(data.title);
+        if (c && c !== 'אחר') mainColor = c;
       }
     }
 

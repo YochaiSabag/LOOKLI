@@ -42,6 +42,7 @@ async function getAllProductUrls(page) {
   const allUrls = new Set();
 
   const categories = [
+    { base: 'https://avivit-weizman.co.il/shop/', label: 'shop (כל המוצרים)', maxPages: 50 },
     { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%91%d7%99%d7%91-26/', label: 'קולקציית אביב 26', maxPages: 50 },
     { base: 'https://avivit-weizman.co.il/product-category/sale/', label: 'sale', maxPages: 50 },
     { base: 'https://avivit-weizman.co.il/product-category/basic/', label: 'basic', maxPages: 50 },

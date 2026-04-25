@@ -103,7 +103,18 @@ async function getAllProductUrls(page) {
             .filter((v, i, a) => a.indexOf(v) === i)
         );
 
-        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק - עוצר`); break; }
+        if (urls.length === 0) {
+          // דיאגנוז: הדפס את כל הלינקים הייחודיים בדף
+          const allLinks = await page.evaluate(() =>
+            [...new Set([...document.querySelectorAll('a[href]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('avivit-weizman.co.il'))
+              .map(h => h.replace('https://avivit-weizman.co.il', '').split('/').slice(0,3).join('/'))
+            )].slice(0, 30)
+          );
+          console.log(`    🔍 לינקים שנמצאו: ${allLinks.join(' | ')}`);
+          console.log(`    ⏹ עמוד ריק - עוצר`); break;
+        }
 
         const before = allUrls.size;
         urls.forEach(u => allUrls.add(u));

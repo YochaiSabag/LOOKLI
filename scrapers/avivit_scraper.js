@@ -68,8 +68,63 @@ async function getAllProductUrls(page) {
   }
 
   const result = [...allUrls];
-  console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
-  return result;
+  
+  // Fallback: אם sitemap ריק — סרוק את דפי החנות ישירות
+  if (result.length === 0) {
+    console.log(`  ⚠️ sitemap ריק — נופל לסריקת דפי חנות\n`);
+    const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 30;
+    const shopUrls = [
+      'https://avivit-weizman.co.il/shop/',
+      'https://avivit-weizman.co.il/product-category/all/',
+    ];
+    
+    for (const baseUrl of shopUrls) {
+      for (let p = 1; p <= MAX_PAGES; p++) {
+        const url = p === 1 ? baseUrl : `${baseUrl}page/${p}/`;
+        try {
+          console.log(`  → ${url}`);
+          await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
+          await page.waitForTimeout(2000);
+          
+          // סגור popup
+          try {
+            await page.evaluate(() => {
+              const sels = ['.pum-close','.popup-close','.elementor-popup-modal .dialog-close-button','[class*="close-popup"]','button[aria-label*="Close"]','button[aria-label*="סגור"]','.mfp-close','.fancybox-close'];
+              for (const s of sels) { const el = document.querySelector(s); if (el) { el.click(); return; } }
+            });
+            await page.waitForTimeout(500);
+          } catch(e) {}
+          
+          for (let i = 0; i < 3; i++) {
+            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await page.waitForTimeout(800);
+          }
+          
+          const urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href)
+              .filter(h => h.includes('avivit-weizman.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          
+          if (urls.length === 0) {
+            console.log(`    ⏹ עמוד ריק — עוצר`);
+            break;
+          }
+          urls.forEach(u => allUrls.add(u));
+          console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+        } catch(e) {
+          console.log(`    ⏹ שגיאה: ${e.message.substring(0,50)}`);
+          break;
+        }
+      }
+      if (allUrls.size > 0) break;
+    }
+  }
+  
+  const finalResult = [...allUrls];
+  console.log(`\n  ✓ סה"כ: ${finalResult.length} קישורים\n`);
+  return finalResult;
 }
 
 // ======================================================================
@@ -82,25 +137,6 @@ async function scrapeProduct(page, url) {
   try {
     await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
     await page.waitForTimeout(2000);
-
-    // סגור popup אם קיים (לפני evaluate!)
-    try {
-      await page.evaluate(() => {
-        const selectors = [
-          '.pum-close', '.popup-close', '.modal-close',
-          '.elementor-popup-modal .dialog-close-button',
-          '[class*="close-popup"]', '[class*="popup-close"]',
-          'button[aria-label*="Close"]', 'button[aria-label*="סגור"]',
-          '.pum-overlay', '[data-elementor-type="popup"] .dialog-lightbox-close-button',
-          '.mfp-close', '.fancybox-close'
-        ];
-        for (const sel of selectors) {
-          const el = document.querySelector(sel);
-          if (el) { el.click(); return; }
-        }
-      });
-      await page.waitForTimeout(600);
-    } catch(e) {}
 
     // המתן שהוריאציות ייטענו
     try {
@@ -195,8 +231,6 @@ async function scrapeProduct(page, url) {
       // ===  Variations JSON (WooCommerce classic) ===
       let variationsData = null;
       const form = document.querySelector('form.variations_form');
-      const productId = form?.getAttribute('data-product_id') ||
-                        document.querySelector('input[name="product_id"]')?.value || null;
       if (form) {
         const json = form.getAttribute('data-product_variations');
         if (json && json !== '[]' && json !== 'false') {
@@ -278,41 +312,10 @@ async function scrapeProduct(page, url) {
 
       return {
         title, price, originalPrice, images, description, shipping,
-        rawColors, rawSizes, variationsData, productId,
+        rawColors, rawSizes, variationsData,
         _debug: { selects: debugSelects, swatchWrappers: debugSwatchWrappers, forms: debugForms, globals: debugGlobals }
       };
     });
-
-    // === אם אין וריאציות — נסה AJAX ישירות מתוך הדפדפן ===
-    if (!data.variationsData && data.productId) {
-      console.log(`    🔄 שולף וריאציות דרך AJAX (productId=${data.productId})...`);
-      try {
-        const ajaxVars = await page.evaluate(async (pid) => {
-          // WooCommerce REST API
-          const res = await fetch(`/wp-json/wc/v3/products/${pid}/variations?per_page=100`, {
-            credentials: 'same-origin'
-          });
-          if (res.ok) {
-            const vars = await res.json();
-            return vars.map(v => ({
-              is_in_stock: v.stock_status === 'instock',
-              attributes: v.attributes.reduce((acc, a) => {
-                acc[`attribute_${a.name.toLowerCase()}`] = a.option;
-                return acc;
-              }, {})
-            }));
-          }
-          return null;
-        }, data.productId);
-
-        if (ajaxVars && ajaxVars.length > 0) {
-          data.variationsData = ajaxVars;
-          console.log(`    ✓ נטענו ${ajaxVars.length} וריאציות דרך AJAX`);
-        }
-      } catch(e) {
-        console.log(`    ⚠️ AJAX נכשל: ${e.message.substring(0, 50)}`);
-      }
-    }
 
     // === Debug log ===
     const d = data._debug;

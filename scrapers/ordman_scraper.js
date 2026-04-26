@@ -290,6 +290,7 @@ async function scrapeProduct(page, url) {
         if (c && c !== 'אחר') mainColor = c;
       }
     }
+    if (!mainColor) console.log(`    ⚠️ לא זוהה צבע מכותרת: ${data.title}`);
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {

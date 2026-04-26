@@ -228,6 +228,7 @@ async function scrapeProduct(page, url) {
       if (c && c !== 'אחר') { mainColor = c; break; }
     }
     if (!mainColor) mainColor = normalizeColor(data.title) !== 'אחר' ? normalizeColor(data.title) : null;
+    if (!mainColor) console.log(`    ⚠️ לא זוהה צבע מכותרת: ${data.title}`);
 
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);

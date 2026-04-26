@@ -21,7 +21,9 @@ const columns = [
   ['fabric', 'VARCHAR(50)'],
   ['pattern', 'VARCHAR(50)'],
   ['design', 'TEXT[]'],
-  ['design_details', 'TEXT[]']
+  ['design_details', 'TEXT[]'],
+  ['all_sizes', 'TEXT[]'],
+  ['fits', 'TEXT[]'],
 ];
 
 for (const [name, type] of columns) {

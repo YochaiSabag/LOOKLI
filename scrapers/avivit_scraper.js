@@ -81,133 +81,193 @@ async function scrapeProduct(page, url) {
 
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(2000);
+
+    // גלילה להפעיל lazy loading
+    await page.evaluate(() => { window.scrollTo(0, 400); });
+    await page.waitForTimeout(1500);
 
     const data = await page.evaluate(() => {
-      // === כותרת — Elementor h2 ===
-      let title = document.querySelector('.elementor-widget-heading h1, .elementor-widget-heading h2, h1.product_title, h1')?.innerText?.trim() || '';
+      // === כותרת ===
+      let title = document.querySelector(
+        'h1.product_title, h1.entry-title, .elementor-widget-heading h1, .elementor-widget-heading h2, h1'
+      )?.innerText?.trim() || '';
       title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
 
       // === מחיר (WooCommerce del/ins) ===
       let price = 0, originalPrice = null;
-      const priceContainer = document.querySelector('p.price');
-      if (priceContainer) {
-        const hasDel = priceContainer.querySelector('del');
-        const hasIns = priceContainer.querySelector('ins');
+      const priceEl = document.querySelector('p.price, .price, .jet-woo-product-price');
+      if (priceEl) {
+        const hasDel = priceEl.querySelector('del');
+        const hasIns = priceEl.querySelector('ins');
         if (hasDel && hasIns) {
           const t1 = hasDel.querySelector('bdi')?.textContent.replace(/[^\d.]/g, '');
           const t2 = hasIns.querySelector('bdi')?.textContent.replace(/[^\d.]/g, '');
           if (t1) originalPrice = parseFloat(t1);
           if (t2) price = parseFloat(t2);
         } else {
-          const bdi = priceContainer.querySelector('.woocommerce-Price-amount bdi');
+          const bdi = priceEl.querySelector('.woocommerce-Price-amount bdi, bdi');
           if (bdi) { const t = bdi.textContent.replace(/[^\d.]/g, ''); if (t) price = parseFloat(t); }
         }
       }
 
-      // === תמונות — JetWoo gallery ===
+      // === תמונות — JetWoo + WooCommerce + fallbacks ===
       const images = [];
+      const addImg = src => { if (src && src.includes('uploads') && !images.includes(src)) images.push(src); };
 
-      // תמונה ראשית
+      // JetWoo gallery
       document.querySelectorAll('.jet-woo-product-gallery__image img').forEach(img => {
-        const src = img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src || '';
-        if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
       });
-
-      // תמונות משניות מ-swiper thumbs
       document.querySelectorAll('.jet-woo-swiper-control-thumbs__item img').forEach(img => {
-        const src = img.getAttribute('data-large_image') || img.getAttribute('data-src') || '';
-        if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src'));
       });
-
-      // fallback: WooCommerce gallery
+      // Standard WooCommerce gallery links (full size)
+      document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => addImg(a.href));
+      document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src'));
+      });
+      // WooCommerce Blocks gallery
+      document.querySelectorAll('.wc-block-components-product-image img, [class*="product-gallery"] img').forEach(img => {
+        addImg(img.getAttribute('data-src') || img.src);
+      });
+      // Elementor image widgets with srcset
       if (images.length === 0) {
-        document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {
-          if (a.href && a.href.includes('uploads') && !images.includes(a.href)) images.push(a.href);
+        document.querySelectorAll('img[srcset], img[data-srcset]').forEach(img => {
+          const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
+          const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]).filter(s => s.includes('uploads'));
+          parts.forEach(addImg);
+          addImg(img.getAttribute('data-src') || img.src);
         });
       }
 
       // === תיאור ===
       let description = '';
-      const descEl = document.querySelector('.woocommerce-product-details__short-description');
+      const descEl = document.querySelector(
+        '.woocommerce-product-details__short-description, [class*="short-description"], .product-short-description'
+      );
       if (descEl) description = descEl.innerText?.trim() || '';
 
-      // === משלוח — מ-accordion ===
+      // === משלוח — מ-accordion / tabs ===
       let shipping = null;
-      const tabContents = document.querySelectorAll('.wc-tab-inner, .elementor-tab-content');
+      const tabContents = document.querySelectorAll(
+        '.wc-tab-inner, .elementor-tab-content, [class*="tab-content"], .wc-tab, [id*="tab-shipping"]'
+      );
       for (const tab of tabContents) {
         const text = tab.innerText || '';
         if (text.includes('משלוח') || text.includes('שליח')) {
-          // חפש סכום וסף
-          const costMatch = text.match(/עלות\s*(\d+)/);
-          const thresholdMatch = text.match(/מעל\s*(\d+)/);
+          const costMatch = text.match(/(\d+)\s*(?:ש["״]ח|₪)/);
+          const thresholdMatch = text.match(/(?:מעל|מעל\s+רכישה\s+של)\s*(\d+)/);
           if (costMatch) {
-            const cost = parseInt(costMatch[1]);
-            const threshold = thresholdMatch ? parseInt(thresholdMatch[1]) : 300;
-            shipping = { cost, threshold };
+            shipping = {
+              cost: parseInt(costMatch[1]),
+              threshold: thresholdMatch ? parseInt(thresholdMatch[1]) : 399
+            };
           }
           break;
         }
       }
 
-      // === צבעים ומידות (WooCommerce variation swatches) ===
-      const rawColors = [];
-      const rawSizes = [];
-
-      document.querySelectorAll('.variable-items-wrapper li').forEach(el => {
-        const attrName = (
-          el.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') ||
-          el.getAttribute('data-attribute_name') || ''
-        ).toLowerCase();
-        const title = el.getAttribute('data-title') || el.getAttribute('title') || '';
-        const isDisabled = el.classList.contains('disabled');
-        if (!title) return;
-
-        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color')) {
-          rawColors.push({ name: title, disabled: isDisabled });
-        } else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('pa_size')) {
-          rawSizes.push({ name: title, disabled: isDisabled });
-        }
-      });
-
-      // fallback: select
-      if (rawColors.length === 0) {
-        document.querySelectorAll('select').forEach(sel => {
-          const name = (sel.name || sel.id || '').toLowerCase();
-          if (name.includes('color') || name.includes('pa_color') || name.includes('צבע')) {
-            Array.from(sel.options).forEach(opt => {
-              const val = opt.textContent?.trim();
-              if (!val || /בחירת|choose/i.test(val)) return;
-              rawColors.push({ name: val, disabled: opt.disabled });
-            });
-          }
-        });
-      }
-      if (rawSizes.length === 0) {
-        document.querySelectorAll('select').forEach(sel => {
-          const name = (sel.name || sel.id || '').toLowerCase();
-          if (name.includes('size') || name.includes('pa_size') || name.includes('מידה')) {
-            Array.from(sel.options).forEach(opt => {
-              const val = opt.textContent?.trim();
-              if (!val || /בחירת|choose/i.test(val)) return;
-              rawSizes.push({ name: val, disabled: opt.disabled });
-            });
-          }
-        });
-      }
-
-      // === Variations JSON ===
+      // ===  Variations JSON (WooCommerce classic) ===
       let variationsData = null;
       const form = document.querySelector('form.variations_form');
       if (form) {
-        try {
-          const json = form.getAttribute('data-product_variations');
-          if (json) variationsData = JSON.parse(json);
-        } catch(e) {}
+        const json = form.getAttribute('data-product_variations');
+        if (json && json !== '[]' && json !== 'false') {
+          try { variationsData = JSON.parse(json); } catch(e) {}
+        }
       }
 
-      return { title, price, originalPrice, images, description, shipping, rawColors, rawSizes, variationsData };
+      // === Debug: כל ה-selects וה-swatches בדף ===
+      const debugSelects = [...document.querySelectorAll('select')].map(s => ({
+        name: s.name, id: s.id, cls: s.className.substring(0,50),
+        options: [...s.options].map(o => o.text.trim()).filter(Boolean)
+      }));
+      const debugSwatchWrappers = [...document.querySelectorAll('[data-attribute_name]')].map(w => ({
+        attr: w.getAttribute('data-attribute_name'),
+        cls: w.className.substring(0,60),
+        liCount: w.querySelectorAll('li').length
+      }));
+      const debugForms = [...document.querySelectorAll('form')].map(f => ({
+        cls: f.className.substring(0,60), id: f.id,
+        hasDataVariations: !!f.getAttribute('data-product_variations'),
+        dataLen: f.getAttribute('data-product_variations')?.length
+      }));
+      // Global WC data from window
+      const debugGlobals = Object.keys(window).filter(k =>
+        k.toLowerCase().includes('wc') || k.toLowerCase().includes('product') || k.toLowerCase().includes('variation')
+      ).slice(0, 15);
+
+      // === צבעים ומידות — כל השיטות ===
+      const rawColors = [], rawSizes = [];
+
+      // שיטה 1: WooCommerce Variation Swatches plugin (.variable-items-wrapper)
+      document.querySelectorAll('.variable-items-wrapper li, ul.variable-items-wrapper li').forEach(el => {
+        const wrapper = el.closest('[data-attribute_name]');
+        const attrName = (wrapper?.getAttribute('data-attribute_name') || el.getAttribute('data-attribute_name') || '').toLowerCase();
+        const val = el.getAttribute('data-title') || el.getAttribute('title') || el.innerText?.trim() || '';
+        const isDisabled = el.classList.contains('disabled') || el.classList.contains('out-of-stock');
+        if (!val) return;
+        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('tzba')) rawColors.push({ name: val, disabled: isDisabled });
+        else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('mida')) rawSizes.push({ name: val, disabled: isDisabled });
+        else {
+          // attribute name לא ברור — נסה לגלות לפי context
+          rawSizes.push({ name: val, disabled: isDisabled });
+        }
+      });
+
+      // שיטה 2: selects (כולל כל attribute_pa_*)
+      document.querySelectorAll('select').forEach(sel => {
+        const name = (sel.name || sel.id || sel.className || '').toLowerCase();
+        const isColor = name.includes('color') || name.includes('tzba') || name.includes('pa_color') || name.includes('colour');
+        const isSize  = name.includes('size') || name.includes('pa_size') || name.includes('mida') || name.includes('pa_mida');
+        if (!isColor && !isSize && !name.includes('attribute_pa_')) return;
+        Array.from(sel.options).forEach(opt => {
+          const val = opt.textContent?.trim();
+          if (!val || /בחירת|choose|select/i.test(val)) return;
+          if (isColor) rawColors.push({ name: val, disabled: opt.disabled });
+          else rawSizes.push({ name: val, disabled: opt.disabled });
+        });
+      });
+
+      // שיטה 3: radio buttons
+      document.querySelectorAll('input[type="radio"][name^="attribute_"]').forEach(radio => {
+        const name = radio.name.toLowerCase();
+        const val = radio.getAttribute('data-original_value') || radio.value;
+        const label = document.querySelector(`label[for="${radio.id}"]`)?.innerText?.trim() || val;
+        if (!val || val === '') return;
+        if (name.includes('color') || name.includes('tzba')) rawColors.push({ name: label, disabled: radio.disabled });
+        else rawSizes.push({ name: label, disabled: radio.disabled });
+      });
+
+      // שיטה 4: TAWCVS / YITH swatches
+      document.querySelectorAll('.tawcvs-swatches span[data-value], .wvs-product-attribute-item').forEach(el => {
+        const wrapper = el.closest('[data-attribute_name], [data-taxonomy]');
+        const attrName = (wrapper?.getAttribute('data-attribute_name') || wrapper?.getAttribute('data-taxonomy') || '').toLowerCase();
+        const val = el.getAttribute('data-value') || el.getAttribute('data-title') || el.innerText?.trim() || '';
+        if (!val) return;
+        if (attrName.includes('color') || attrName.includes('tzba')) rawColors.push({ name: val, disabled: el.classList.contains('disabled') });
+        else rawSizes.push({ name: val, disabled: el.classList.contains('disabled') });
+      });
+
+      return {
+        title, price, originalPrice, images, description, shipping,
+        rawColors, rawSizes, variationsData,
+        _debug: { selects: debugSelects, swatchWrappers: debugSwatchWrappers, forms: debugForms, globals: debugGlobals }
+      };
     });
+
+    // === Debug log ===
+    const d = data._debug;
+    if (d.selects.length > 0) console.log(`    🔧 selects: ${d.selects.map(s=>`${s.name||s.id}(${s.options.length})`).join(', ')}`);
+    if (d.swatchWrappers.length > 0) console.log(`    🔧 swatches: ${d.swatchWrappers.map(w=>`${w.attr}[${w.liCount}li]`).join(', ')}`);
+    if (d.forms.length > 0) console.log(`    🔧 forms: ${d.forms.map(f=>`${f.cls||f.id}(vars:${f.dataLen||0})`).join(', ')}`);
+    if (data.rawColors.length === 0 && data.rawSizes.length === 0 && !data.variationsData) {
+      console.log(`    ⚠️ DEBUG - אין צבעים/מידות/JSON`);
+      console.log(`    ⚠️ selects: ${JSON.stringify(d.selects)}`);
+      console.log(`    ⚠️ swatches: ${JSON.stringify(d.swatchWrappers)}`);
+      console.log(`    ⚠️ forms: ${JSON.stringify(d.forms)}`);
+    }
 
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
@@ -303,7 +363,22 @@ async function scrapeProduct(page, url) {
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
     const allUniqueSizes = [...allSizesSet];
-    const mainColor = uniqueColors[0] || null;
+
+    // חילוץ צבע מהכותרת אם לא נמצא מהסלקטורים (כי אביבית שמה צבע בשם מוצר)
+    let mainColor = uniqueColors[0] || null;
+    if (!mainColor) {
+      const titleWords = (data.title || '').split(/[\s\-–,]+/);
+      for (const word of titleWords) {
+        if (word.length < 2) continue;
+        const c = normalizeColor(word.toLowerCase().trim());
+        if (c && c !== 'אחר') { mainColor = c; break; }
+      }
+      if (!mainColor) {
+        const c = normalizeColor(data.title);
+        if (c && c !== 'אחר') mainColor = c;
+      }
+      if (!mainColor) console.log(`    ⚠️ לא זוהה צבע מכותרת: ${data.title}`);
+    }
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
@@ -321,15 +396,21 @@ async function scrapeProduct(page, url) {
     }
 
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
-    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📊 סגנון: ${style || '-'} | קטגוריה: ${category || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'} | דוגמא: ${pattern || '-'}`);
+
+    // אם צבע מהכותרת — בנה colorSizesMap ממנו
+    const finalColors = mainColor ? (uniqueColors.length > 0 ? uniqueColors : [mainColor]) : uniqueColors;
+    if (mainColor && Object.keys(colorSizesMap).length === 0 && uniqueSizes.length > 0) {
+      colorSizesMap[mainColor] = uniqueSizes;
+    }
 
     return {
       title: data.title,
       price: data.price,
       originalPrice: data.originalPrice,
       images: data.images,
-      colors: uniqueColors,
+      colors: finalColors,
       sizes: uniqueSizes,
       allSizes: allUniqueSizes,
       mainColor,

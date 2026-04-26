@@ -80,8 +80,32 @@ async function scrapeProduct(page, url) {
   console.log(`\n🔍 ${shortUrl}...`);
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
     await page.waitForTimeout(2000);
+
+    // סגור popup אם קיים (לפני evaluate!)
+    try {
+      await page.evaluate(() => {
+        const selectors = [
+          '.pum-close', '.popup-close', '.modal-close',
+          '.elementor-popup-modal .dialog-close-button',
+          '[class*="close-popup"]', '[class*="popup-close"]',
+          'button[aria-label*="Close"]', 'button[aria-label*="סגור"]',
+          '.pum-overlay', '[data-elementor-type="popup"] .dialog-lightbox-close-button',
+          '.mfp-close', '.fancybox-close'
+        ];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) { el.click(); return; }
+        }
+      });
+      await page.waitForTimeout(600);
+    } catch(e) {}
+
+    // המתן שהוריאציות ייטענו
+    try {
+      await page.waitForSelector('.variable-items-wrapper li, form.variations_form, select[name*="pa_"]', { timeout: 8000 });
+    } catch(e) {}
 
     // גלילה להפעיל lazy loading
     await page.evaluate(() => { window.scrollTo(0, 400); });
@@ -171,6 +195,8 @@ async function scrapeProduct(page, url) {
       // ===  Variations JSON (WooCommerce classic) ===
       let variationsData = null;
       const form = document.querySelector('form.variations_form');
+      const productId = form?.getAttribute('data-product_id') ||
+                        document.querySelector('input[name="product_id"]')?.value || null;
       if (form) {
         const json = form.getAttribute('data-product_variations');
         if (json && json !== '[]' && json !== 'false') {
@@ -252,10 +278,41 @@ async function scrapeProduct(page, url) {
 
       return {
         title, price, originalPrice, images, description, shipping,
-        rawColors, rawSizes, variationsData,
+        rawColors, rawSizes, variationsData, productId,
         _debug: { selects: debugSelects, swatchWrappers: debugSwatchWrappers, forms: debugForms, globals: debugGlobals }
       };
     });
+
+    // === אם אין וריאציות — נסה AJAX ישירות מתוך הדפדפן ===
+    if (!data.variationsData && data.productId) {
+      console.log(`    🔄 שולף וריאציות דרך AJAX (productId=${data.productId})...`);
+      try {
+        const ajaxVars = await page.evaluate(async (pid) => {
+          // WooCommerce REST API
+          const res = await fetch(`/wp-json/wc/v3/products/${pid}/variations?per_page=100`, {
+            credentials: 'same-origin'
+          });
+          if (res.ok) {
+            const vars = await res.json();
+            return vars.map(v => ({
+              is_in_stock: v.stock_status === 'instock',
+              attributes: v.attributes.reduce((acc, a) => {
+                acc[`attribute_${a.name.toLowerCase()}`] = a.option;
+                return acc;
+              }, {})
+            }));
+          }
+          return null;
+        }, data.productId);
+
+        if (ajaxVars && ajaxVars.length > 0) {
+          data.variationsData = ajaxVars;
+          console.log(`    ✓ נטענו ${ajaxVars.length} וריאציות דרך AJAX`);
+        }
+      } catch(e) {
+        console.log(`    ⚠️ AJAX נכשל: ${e.message.substring(0, 50)}`);
+      }
+    }
 
     // === Debug log ===
     const d = data._debug;
@@ -282,7 +339,6 @@ async function scrapeProduct(page, url) {
 
     const colorSizesMap = {};
     const availableSizes = new Set();
-    const allSizesSet = new Set();
     const availableColors = new Set();
 
     if (data.variationsData && data.variationsData.length > 0) {
@@ -357,12 +413,10 @@ async function scrapeProduct(page, url) {
 
     // collect all sizes regardless of disabled status
     (data.rawSizes || []).forEach(size => {
-      normalizeSize(size.name).forEach(s => allSizesSet.add(s));
     });
 
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
-    const allUniqueSizes = [...allSizesSet];
 
     // חילוץ צבע מהכותרת אם לא נמצא מהסלקטורים (כי אביבית שמה צבע בשם מוצר)
     let mainColor = uniqueColors[0] || null;
@@ -412,7 +466,6 @@ async function scrapeProduct(page, url) {
       images: data.images,
       colors: finalColors,
       sizes: uniqueSizes,
-      allSizes: allUniqueSizes,
       mainColor,
       category,
       style,
@@ -439,22 +492,21 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
          color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
          category=EXCLUDED.category, description=EXCLUDED.description,
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
+         design_details=EXCLUDED.design_details, last_seen=NOW()`,
       ['AVIVIT', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null,
-       product.designDetails?.length ? product.designDetails : null,
-       product.allSizes]
+       product.designDetails?.length ? product.designDetails : null]
     );
     console.log('  💾 saved');
   } catch (err) {

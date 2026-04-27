@@ -19,6 +19,7 @@ console.log('🚀 Avivit Weizman Scraper');
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -32,99 +33,75 @@ function normalizeSize(s) {
   return [];
 }
 
-
-
-// ======================================================================
-// איסוף קישורים
-// ======================================================================
 async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il (sitemap)...\n');
+  console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il...\n');
   const allUrls = new Set();
 
-  // ניסיון לקרוא sitemap ישירות (HTTP, לא Playwright - עוקף Cloudflare)
-  const sitemapSources = [
-    'https://avivit-weizman.co.il/wp-sitemap-posts-product-1.xml',
-    'https://avivit-weizman.co.il/wp-sitemap-posts-product-2.xml',
-    'https://avivit-weizman.co.il/wp-sitemap-posts-product-3.xml',
-    'https://avivit-weizman.co.il/wp-sitemap-posts-product-4.xml',
-    'https://avivit-weizman.co.il/wp-sitemap-posts-product-5.xml',
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+  const categories = [
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%91%d7%99%d7%91-26/', label: 'קולקציית אביב 26', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/sale/', label: 'sale', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/basic/', label: 'basic', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa-%d7%9c%d7%97%d7%92/', label: 'שמלות לחג', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a0%d7%a2%d7%a8%d7%95%d7%aa/', label: 'נערות', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a1%d7%98%d7%99%d7%9d/', label: 'סטים', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%99%d7%a8%d7%95%d7%a2%d7%99%d7%9d/', label: 'קולקציית אירועים', maxPages: MAX_PAGES },
   ];
 
-  for (const sitemapUrl of sitemapSources) {
-    try {
-      const res = await fetch(sitemapUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' }
-      });
-      if (!res.ok) { console.log(`  ⏭️ ${sitemapUrl.split('/').pop()} — ${res.status}`); break; }
-      const xml = await res.text();
-      const matches = [...xml.matchAll(/<loc>(https:\/\/avivit-weizman\.co\.il\/product\/[^<]+)<\/loc>/g)];
-      matches.forEach(m => allUrls.add(m[1].trim()));
-      console.log(`  ✓ ${sitemapUrl.split('/').pop()} → ${matches.length} URLs`);
-      if (matches.length === 0) break;
-    } catch(e) {
-      console.log(`  ✗ ${e.message.substring(0, 40)}`);
-      break;
+  for (const cat of categories) {
+    console.log(`  📁 [${cat.label}]`);
+
+    for (let p = 1; p <= cat.maxPages; p++) {
+      const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
+      try {
+        console.log(`  → page ${p}`);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(4000);
+        
+        // בדוק אם Cloudflare חוסם
+        const pageTitle = await page.title();
+        console.log(`    📄 כותרת: ${pageTitle.substring(0,60)}`);
+        if (pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('checking')) {
+          console.log(`    🚫 Cloudflare חוסם — מחכה...`);
+          await page.waitForTimeout(8000);
+        }
+
+        // גלילה למטה — האתר טוען עוד מוצרים בגלילה
+        let lastCount = 0;
+        for (let scroll = 0; scroll < 8; scroll++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1500);
+          const count = await page.evaluate(() =>
+            document.querySelectorAll('a[href*="/product/"]').length
+          );
+          if (count === lastCount) break;
+          lastCount = count;
+        }
+
+        const urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('avivit-weizman.co.il/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+
+        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק - עוצר`); break; }
+
+        const before = allUrls.size;
+        urls.forEach(u => allUrls.add(u));
+        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+
+        if (allUrls.size === before && p > 1) break;
+      } catch (e) {
+        console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
+        break;
+      }
     }
   }
 
   const result = [...allUrls];
-  
-  // Fallback: אם sitemap ריק — סרוק את דפי החנות ישירות
-  if (result.length === 0) {
-    console.log(`  ⚠️ sitemap ריק — נופל לסריקת דפי חנות\n`);
-    const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 30;
-    const shopUrls = [
-      'https://avivit-weizman.co.il/shop/',
-      'https://avivit-weizman.co.il/product-category/all/',
-    ];
-    
-    for (const baseUrl of shopUrls) {
-      for (let p = 1; p <= MAX_PAGES; p++) {
-        const url = p === 1 ? baseUrl : `${baseUrl}page/${p}/`;
-        try {
-          console.log(`  → ${url}`);
-          await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
-          await page.waitForTimeout(2000);
-          
-          // סגור popup
-          try {
-            await page.evaluate(() => {
-              const sels = ['.pum-close','.popup-close','.elementor-popup-modal .dialog-close-button','[class*="close-popup"]','button[aria-label*="Close"]','button[aria-label*="סגור"]','.mfp-close','.fancybox-close'];
-              for (const s of sels) { const el = document.querySelector(s); if (el) { el.click(); return; } }
-            });
-            await page.waitForTimeout(500);
-          } catch(e) {}
-          
-          for (let i = 0; i < 3; i++) {
-            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await page.waitForTimeout(800);
-          }
-          
-          const urls = await page.evaluate(() =>
-            [...document.querySelectorAll('a[href*="/product/"]')]
-              .map(a => a.href)
-              .filter(h => h.includes('avivit-weizman.co.il/product/'))
-              .filter((v, i, a) => a.indexOf(v) === i)
-          );
-          
-          if (urls.length === 0) {
-            console.log(`    ⏹ עמוד ריק — עוצר`);
-            break;
-          }
-          urls.forEach(u => allUrls.add(u));
-          console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-        } catch(e) {
-          console.log(`    ⏹ שגיאה: ${e.message.substring(0,50)}`);
-          break;
-        }
-      }
-      if (allUrls.size > 0) break;
-    }
-  }
-  
-  const finalResult = [...allUrls];
-  console.log(`\n  ✓ סה"כ: ${finalResult.length} קישורים\n`);
-  return finalResult;
+  console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
+  return result;
 }
 
 // ======================================================================
@@ -135,199 +112,134 @@ async function scrapeProduct(page, url) {
   console.log(`\n🔍 ${shortUrl}...`);
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
-    await page.waitForTimeout(2000);
-
-    // המתן שהוריאציות ייטענו
-    try {
-      await page.waitForSelector('.variable-items-wrapper li, form.variations_form, select[name*="pa_"]', { timeout: 8000 });
-    } catch(e) {}
-
-    // גלילה להפעיל lazy loading
-    await page.evaluate(() => { window.scrollTo(0, 400); });
-    await page.waitForTimeout(1500);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await page.waitForTimeout(2500);
 
     const data = await page.evaluate(() => {
-      // === כותרת ===
-      let title = document.querySelector(
-        'h1.product_title, h1.entry-title, .elementor-widget-heading h1, .elementor-widget-heading h2, h1'
-      )?.innerText?.trim() || '';
+      // === כותרת — Elementor h2 ===
+      let title = document.querySelector('.elementor-widget-heading h1, .elementor-widget-heading h2, h1.product_title, h1')?.innerText?.trim() || '';
       title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
 
       // === מחיר (WooCommerce del/ins) ===
       let price = 0, originalPrice = null;
-      const priceEl = document.querySelector('p.price, .price, .jet-woo-product-price');
-      if (priceEl) {
-        const hasDel = priceEl.querySelector('del');
-        const hasIns = priceEl.querySelector('ins');
+      const priceContainer = document.querySelector('p.price');
+      if (priceContainer) {
+        const hasDel = priceContainer.querySelector('del');
+        const hasIns = priceContainer.querySelector('ins');
         if (hasDel && hasIns) {
           const t1 = hasDel.querySelector('bdi')?.textContent.replace(/[^\d.]/g, '');
           const t2 = hasIns.querySelector('bdi')?.textContent.replace(/[^\d.]/g, '');
           if (t1) originalPrice = parseFloat(t1);
           if (t2) price = parseFloat(t2);
         } else {
-          const bdi = priceEl.querySelector('.woocommerce-Price-amount bdi, bdi');
+          const bdi = priceContainer.querySelector('.woocommerce-Price-amount bdi');
           if (bdi) { const t = bdi.textContent.replace(/[^\d.]/g, ''); if (t) price = parseFloat(t); }
         }
       }
 
-      // === תמונות — JetWoo + WooCommerce + fallbacks ===
+      // === תמונות — JetWoo gallery ===
       const images = [];
-      const addImg = src => { if (src && src.includes('uploads') && !images.includes(src)) images.push(src); };
 
-      // JetWoo gallery
+      // תמונה ראשית
       document.querySelectorAll('.jet-woo-product-gallery__image img').forEach(img => {
-        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
+        const src = img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src || '';
+        if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
       });
+
+      // תמונות משניות מ-swiper thumbs
       document.querySelectorAll('.jet-woo-swiper-control-thumbs__item img').forEach(img => {
-        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src'));
+        const src = img.getAttribute('data-large_image') || img.getAttribute('data-src') || '';
+        if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
       });
-      // Standard WooCommerce gallery links (full size)
-      document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => addImg(a.href));
-      document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
-        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src'));
-      });
-      // WooCommerce Blocks gallery
-      document.querySelectorAll('.wc-block-components-product-image img, [class*="product-gallery"] img').forEach(img => {
-        addImg(img.getAttribute('data-src') || img.src);
-      });
-      // Elementor image widgets with srcset
+
+      // fallback: WooCommerce gallery
       if (images.length === 0) {
-        document.querySelectorAll('img[srcset], img[data-srcset]').forEach(img => {
-          const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
-          const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]).filter(s => s.includes('uploads'));
-          parts.forEach(addImg);
-          addImg(img.getAttribute('data-src') || img.src);
+        document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {
+          if (a.href && a.href.includes('uploads') && !images.includes(a.href)) images.push(a.href);
         });
       }
 
       // === תיאור ===
       let description = '';
-      const descEl = document.querySelector(
-        '.woocommerce-product-details__short-description, [class*="short-description"], .product-short-description'
-      );
+      const descEl = document.querySelector('.woocommerce-product-details__short-description');
       if (descEl) description = descEl.innerText?.trim() || '';
 
-      // === משלוח — מ-accordion / tabs ===
+      // === משלוח — מ-accordion ===
       let shipping = null;
-      const tabContents = document.querySelectorAll(
-        '.wc-tab-inner, .elementor-tab-content, [class*="tab-content"], .wc-tab, [id*="tab-shipping"]'
-      );
+      const tabContents = document.querySelectorAll('.wc-tab-inner, .elementor-tab-content');
       for (const tab of tabContents) {
         const text = tab.innerText || '';
         if (text.includes('משלוח') || text.includes('שליח')) {
-          const costMatch = text.match(/(\d+)\s*(?:ש["״]ח|₪)/);
-          const thresholdMatch = text.match(/(?:מעל|מעל\s+רכישה\s+של)\s*(\d+)/);
+          // חפש סכום וסף
+          const costMatch = text.match(/עלות\s*(\d+)/);
+          const thresholdMatch = text.match(/מעל\s*(\d+)/);
           if (costMatch) {
-            shipping = {
-              cost: parseInt(costMatch[1]),
-              threshold: thresholdMatch ? parseInt(thresholdMatch[1]) : 399
-            };
+            const cost = parseInt(costMatch[1]);
+            const threshold = thresholdMatch ? parseInt(thresholdMatch[1]) : 300;
+            shipping = { cost, threshold };
           }
           break;
         }
       }
 
-      // ===  Variations JSON (WooCommerce classic) ===
+      // === צבעים ומידות (WooCommerce variation swatches) ===
+      const rawColors = [];
+      const rawSizes = [];
+
+      document.querySelectorAll('.variable-items-wrapper li').forEach(el => {
+        const attrName = (
+          el.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') ||
+          el.getAttribute('data-attribute_name') || ''
+        ).toLowerCase();
+        const title = el.getAttribute('data-title') || el.getAttribute('title') || '';
+        const isDisabled = el.classList.contains('disabled');
+        if (!title) return;
+
+        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color')) {
+          rawColors.push({ name: title, disabled: isDisabled });
+        } else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('pa_size')) {
+          rawSizes.push({ name: title, disabled: isDisabled });
+        }
+      });
+
+      // fallback: select
+      if (rawColors.length === 0) {
+        document.querySelectorAll('select').forEach(sel => {
+          const name = (sel.name || sel.id || '').toLowerCase();
+          if (name.includes('color') || name.includes('pa_color') || name.includes('צבע')) {
+            Array.from(sel.options).forEach(opt => {
+              const val = opt.textContent?.trim();
+              if (!val || /בחירת|choose/i.test(val)) return;
+              rawColors.push({ name: val, disabled: opt.disabled });
+            });
+          }
+        });
+      }
+      if (rawSizes.length === 0) {
+        document.querySelectorAll('select').forEach(sel => {
+          const name = (sel.name || sel.id || '').toLowerCase();
+          if (name.includes('size') || name.includes('pa_size') || name.includes('מידה')) {
+            Array.from(sel.options).forEach(opt => {
+              const val = opt.textContent?.trim();
+              if (!val || /בחירת|choose/i.test(val)) return;
+              rawSizes.push({ name: val, disabled: opt.disabled });
+            });
+          }
+        });
+      }
+
+      // === Variations JSON ===
       let variationsData = null;
       const form = document.querySelector('form.variations_form');
       if (form) {
-        const json = form.getAttribute('data-product_variations');
-        if (json && json !== '[]' && json !== 'false') {
-          try { variationsData = JSON.parse(json); } catch(e) {}
-        }
+        try {
+          const json = form.getAttribute('data-product_variations');
+          if (json) variationsData = JSON.parse(json);
+        } catch(e) {}
       }
 
-      // === Debug: כל ה-selects וה-swatches בדף ===
-      const debugSelects = [...document.querySelectorAll('select')].map(s => ({
-        name: s.name, id: s.id, cls: s.className.substring(0,50),
-        options: [...s.options].map(o => o.text.trim()).filter(Boolean)
-      }));
-      const debugSwatchWrappers = [...document.querySelectorAll('[data-attribute_name]')].map(w => ({
-        attr: w.getAttribute('data-attribute_name'),
-        cls: w.className.substring(0,60),
-        liCount: w.querySelectorAll('li').length
-      }));
-      const debugForms = [...document.querySelectorAll('form')].map(f => ({
-        cls: f.className.substring(0,60), id: f.id,
-        hasDataVariations: !!f.getAttribute('data-product_variations'),
-        dataLen: f.getAttribute('data-product_variations')?.length
-      }));
-      // Global WC data from window
-      const debugGlobals = Object.keys(window).filter(k =>
-        k.toLowerCase().includes('wc') || k.toLowerCase().includes('product') || k.toLowerCase().includes('variation')
-      ).slice(0, 15);
-
-      // === צבעים ומידות — כל השיטות ===
-      const rawColors = [], rawSizes = [];
-
-      // שיטה 1: WooCommerce Variation Swatches plugin (.variable-items-wrapper)
-      document.querySelectorAll('.variable-items-wrapper li, ul.variable-items-wrapper li').forEach(el => {
-        const wrapper = el.closest('[data-attribute_name]');
-        const attrName = (wrapper?.getAttribute('data-attribute_name') || el.getAttribute('data-attribute_name') || '').toLowerCase();
-        const val = el.getAttribute('data-title') || el.getAttribute('title') || el.innerText?.trim() || '';
-        const isDisabled = el.classList.contains('disabled') || el.classList.contains('out-of-stock');
-        if (!val) return;
-        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('tzba')) rawColors.push({ name: val, disabled: isDisabled });
-        else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('mida')) rawSizes.push({ name: val, disabled: isDisabled });
-        else {
-          // attribute name לא ברור — נסה לגלות לפי context
-          rawSizes.push({ name: val, disabled: isDisabled });
-        }
-      });
-
-      // שיטה 2: selects (כולל כל attribute_pa_*)
-      document.querySelectorAll('select').forEach(sel => {
-        const name = (sel.name || sel.id || sel.className || '').toLowerCase();
-        const isColor = name.includes('color') || name.includes('tzba') || name.includes('pa_color') || name.includes('colour');
-        const isSize  = name.includes('size') || name.includes('pa_size') || name.includes('mida') || name.includes('pa_mida');
-        if (!isColor && !isSize && !name.includes('attribute_pa_')) return;
-        Array.from(sel.options).forEach(opt => {
-          const val = opt.textContent?.trim();
-          if (!val || /בחירת|choose|select/i.test(val)) return;
-          if (isColor) rawColors.push({ name: val, disabled: opt.disabled });
-          else rawSizes.push({ name: val, disabled: opt.disabled });
-        });
-      });
-
-      // שיטה 3: radio buttons
-      document.querySelectorAll('input[type="radio"][name^="attribute_"]').forEach(radio => {
-        const name = radio.name.toLowerCase();
-        const val = radio.getAttribute('data-original_value') || radio.value;
-        const label = document.querySelector(`label[for="${radio.id}"]`)?.innerText?.trim() || val;
-        if (!val || val === '') return;
-        if (name.includes('color') || name.includes('tzba')) rawColors.push({ name: label, disabled: radio.disabled });
-        else rawSizes.push({ name: label, disabled: radio.disabled });
-      });
-
-      // שיטה 4: TAWCVS / YITH swatches
-      document.querySelectorAll('.tawcvs-swatches span[data-value], .wvs-product-attribute-item').forEach(el => {
-        const wrapper = el.closest('[data-attribute_name], [data-taxonomy]');
-        const attrName = (wrapper?.getAttribute('data-attribute_name') || wrapper?.getAttribute('data-taxonomy') || '').toLowerCase();
-        const val = el.getAttribute('data-value') || el.getAttribute('data-title') || el.innerText?.trim() || '';
-        if (!val) return;
-        if (attrName.includes('color') || attrName.includes('tzba')) rawColors.push({ name: val, disabled: el.classList.contains('disabled') });
-        else rawSizes.push({ name: val, disabled: el.classList.contains('disabled') });
-      });
-
-      return {
-        title, price, originalPrice, images, description, shipping,
-        rawColors, rawSizes, variationsData,
-        _debug: { selects: debugSelects, swatchWrappers: debugSwatchWrappers, forms: debugForms, globals: debugGlobals }
-      };
+      return { title, price, originalPrice, images, description, shipping, rawColors, rawSizes, variationsData };
     });
-
-    // === Debug log ===
-    const d = data._debug;
-    if (d.selects.length > 0) console.log(`    🔧 selects: ${d.selects.map(s=>`${s.name||s.id}(${s.options.length})`).join(', ')}`);
-    if (d.swatchWrappers.length > 0) console.log(`    🔧 swatches: ${d.swatchWrappers.map(w=>`${w.attr}[${w.liCount}li]`).join(', ')}`);
-    if (d.forms.length > 0) console.log(`    🔧 forms: ${d.forms.map(f=>`${f.cls||f.id}(vars:${f.dataLen||0})`).join(', ')}`);
-    if (data.rawColors.length === 0 && data.rawSizes.length === 0 && !data.variationsData) {
-      console.log(`    ⚠️ DEBUG - אין צבעים/מידות/JSON`);
-      console.log(`    ⚠️ selects: ${JSON.stringify(d.selects)}`);
-      console.log(`    ⚠️ swatches: ${JSON.stringify(d.swatchWrappers)}`);
-      console.log(`    ⚠️ forms: ${JSON.stringify(d.forms)}`);
-    }
 
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
@@ -339,6 +251,8 @@ async function scrapeProduct(page, url) {
     const fabric = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
 
+    console.log(`    Raw colors: ${data.rawColors.map(c => c.name + (c.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
+    console.log(`    Raw sizes:  ${data.rawSizes.map(s => s.name + (s.disabled ? ' ✗' : ' ✓')).join(', ') || 'none'}`);
 
     const colorSizesMap = {};
     const availableSizes = new Set();
@@ -414,28 +328,9 @@ async function scrapeProduct(page, url) {
       }
     }
 
-    // collect all sizes regardless of disabled status
-    (data.rawSizes || []).forEach(size => {
-    });
-
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
-
-    // חילוץ צבע מהכותרת אם לא נמצא מהסלקטורים (כי אביבית שמה צבע בשם מוצר)
-    let mainColor = uniqueColors[0] || null;
-    if (!mainColor) {
-      const titleWords = (data.title || '').split(/[\s\-–,]+/);
-      for (const word of titleWords) {
-        if (word.length < 2) continue;
-        const c = normalizeColor(word.toLowerCase().trim());
-        if (c && c !== 'אחר') { mainColor = c; break; }
-      }
-      if (!mainColor) {
-        const c = normalizeColor(data.title);
-        if (c && c !== 'אחר') mainColor = c;
-      }
-      if (!mainColor) console.log(`    ⚠️ לא זוהה צבע מכותרת: ${data.title}`);
-    }
+    const mainColor = uniqueColors[0] || null;
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
@@ -453,21 +348,15 @@ async function scrapeProduct(page, url) {
     }
 
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
-    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📊 סגנון: ${style || '-'} | קטגוריה: ${category || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'} | דוגמא: ${pattern || '-'}`);
-
-    // אם צבע מהכותרת — בנה colorSizesMap ממנו
-    const finalColors = mainColor ? (uniqueColors.length > 0 ? uniqueColors : [mainColor]) : uniqueColors;
-    if (mainColor && Object.keys(colorSizesMap).length === 0 && uniqueSizes.length > 0) {
-      colorSizesMap[mainColor] = uniqueSizes;
-    }
 
     return {
       title: data.title,
       price: data.price,
       originalPrice: data.originalPrice,
       images: data.images,
-      colors: finalColors,
+      colors: uniqueColors,
       sizes: uniqueSizes,
       mainColor,
       category,

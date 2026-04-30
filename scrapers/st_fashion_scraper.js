@@ -150,8 +150,7 @@ async function scrapeProduct(page, url) {
       // שיטה 1: wd-swatches (הפורמט של st-fashion)
       document.querySelectorAll('.wd-swatches-product .wd-swatch').forEach(el => {
         const title = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
-        const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled') ||
-                         !el.classList.contains('wd-enabled');
+        const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
         if (title) rawSizes.push({ name: title.toUpperCase(), disabled });
       });
 

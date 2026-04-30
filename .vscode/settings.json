@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "prettier.enable": false,
+  "eslint.enable": false,
+  "[javascript]": {
+    "editor.formatOnSave": false
+  },
+  "[html]": {
+    "editor.formatOnSave": false
+  }
+}

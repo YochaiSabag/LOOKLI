@@ -85,12 +85,13 @@ async function checkAlerts() {
   const { rows: alerts } = await pool.query(`
     SELECT
       pa.id, pa.user_id, pa.product_source_url,
-      pa.alert_price, pa.alert_size,
+      pa.alert_price, pa.alert_size, pa.alert_color,
       pa.last_price, pa.last_sizes,
       pa.triggered_at,
       u.email AS user_email,
       p.price AS current_price,
       p.sizes AS current_sizes,
+      p.color_sizes AS current_color_sizes,
       p.title AS product_title,
       p.image_url AS product_image,
       p.store AS product_store
@@ -107,11 +108,16 @@ async function checkAlerts() {
   for (const alert of alerts) {
     const {
       id, user_email, product_source_url,
-      alert_price, alert_size,
+      alert_price, alert_size, alert_color,
       last_price, last_sizes,
-      current_price, current_sizes,
+      current_price, current_sizes, current_color_sizes,
       product_title, product_image, product_store,
     } = alert;
+
+    // מידות נוכחיות — לפי צבע אם צויין
+    const relevantSizes = alert_color && current_color_sizes?.[alert_color]
+      ? current_color_sizes[alert_color]
+      : current_sizes;
 
     // ── 1. התראת מחיר ──────────────────────────────────────
     if (alert_price && current_price && last_price) {
@@ -140,40 +146,40 @@ async function checkAlerts() {
       }
     }
 
-    // ── 2. התראת מידה ──────────────────────────────────────
-    if (alert_size && current_sizes) {
+    if (alert_size && relevantSizes) {
       const prevSizes = last_sizes || [];
       const sizeBack = alert_size === 'any'
-        ? current_sizes.some(s => !prevSizes.includes(s))   // כל מידה חדשה
-        : current_sizes.includes(alert_size) && !prevSizes.includes(alert_size);
+        ? relevantSizes.some(s => !prevSizes.includes(s))
+        : relevantSizes.includes(alert_size) && !prevSizes.includes(alert_size);
 
       if (sizeBack) {
         const sizeLabel = alert_size === 'any' ? 'חדשה' : alert_size;
-        console.log(`  📦 מידה חזרה: ${product_title} מידה ${sizeLabel} (${user_email})`);
+        const colorLabel = alert_color ? ` (${alert_color})` : '';
+        console.log(`  📦 מידה חזרה: ${product_title} מידה ${sizeLabel}${colorLabel} (${user_email})`);
         const ok = await sendEmail(
           user_email,
           `📦 מידה חזרה למלאי! ${product_title}`,
           buildEmail({
             type: 'size', title: product_title,
             image: product_image, store: product_store,
-            newVal: sizeLabel, url: product_source_url,
+            newVal: sizeLabel + colorLabel, url: product_source_url,
           })
         );
         if (ok) {
           sent++;
           await pool.query(
             "UPDATE price_alerts SET last_sizes=$1, triggered_at=NOW() WHERE id=$2",
-            [current_sizes, id]
+            [relevantSizes, id]
           );
         }
       }
     }
 
-    // עדכן last_price/last_sizes גם אם לא נשלח (לנקודת ייחוס עדכנית)
-    if (current_price || current_sizes) {
+    // עדכן last_price/last_sizes
+    if (current_price || relevantSizes) {
       await pool.query(
         "UPDATE price_alerts SET last_price=COALESCE($1,last_price), last_sizes=COALESCE($2,last_sizes) WHERE id=$3",
-        [current_price || null, current_sizes || null, id]
+        [current_price || null, relevantSizes || null, id]
       );
     }
   }

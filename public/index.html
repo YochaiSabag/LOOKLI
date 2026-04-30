@@ -2145,6 +2145,9 @@ document.addEventListener('click', e => {
         <input type="checkbox" id="alertSizeCheck" onchange="syncAlertSizeCheckbox(this)" onclick="event.stopPropagation()"/>
         <div class="alert-option-label" style="flex:1">
           <div>הודיעי כשמידה נכנסת למלאי</div>
+          <div id="alertColorRow" style="display:none;margin-top:6px">
+            <select class="alert-size-select" id="alertColorSelect" onclick="event.stopPropagation()"></select>
+          </div>
           <select class="alert-size-select" id="alertSizeSelect" onclick="event.stopPropagation()">
             <option value="any">כל מידה</option>
           </select>
@@ -2941,6 +2944,11 @@ document.addEventListener('click', e => {
     sizeOptEl.style.display = ''; // תמיד הצג — יוסתר רק אם כל מידות במלאי
     document.getElementById('alertSizeCheck').disabled = false;
 
+    // איפוס בחירת צבע
+    const colorRow = document.getElementById('alertColorRow');
+    const colorSel = document.getElementById('alertColorSelect');
+    if (colorRow) { colorRow.style.display = 'none'; colorSel.innerHTML = ''; }
+
     // טען מידות
     const sel = document.getElementById('alertSizeSelect');
     sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
@@ -2957,6 +2965,36 @@ document.addEventListener('click', e => {
         const letterSizes = ['XS','S','M','L','XL','XXL','XXXL'];
         const inStock = (p.sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase());
         const productLetterSizes = inStock.filter(s => letterSizes.includes(s));
+
+        // ── בחירת צבע אם יש כמה צבעים ──
+        const colorSizes = p.color_sizes || {};
+        const colors = Object.keys(colorSizes).filter(c => colorSizes[c]?.length > 0);
+        if (colors.length > 1 && colorRow) {
+          colorSel.innerHTML = colors.map(c => `<option value="${c}">${c}</option>`).join('');
+          colorRow.style.display = '';
+          // עדכן מידות לפי צבע ראשון
+          const updateBySel = () => {
+            const c = colorSel.value;
+            const cs = (colorSizes[c] || []).map(s => s.toUpperCase()).filter(s => letterSizes.includes(s));
+            const missing = cs.filter(s => !inStock.includes(s));
+            sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+            missing.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+            if (missing.length === 0) {
+              sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+              sel.disabled = true;
+              document.getElementById('alertSizeCheck').disabled = true;
+              document.getElementById('alertSizeCheck').checked = false;
+            } else { sel.disabled = false; document.getElementById('alertSizeCheck').disabled = false; }
+          };
+          colorSel.onchange = updateBySel;
+          updateBySel();
+          // דלג על הלוגיקה הרגילה
+          const existing2 = null; // יטופל מתחת
+        } else {
+          // צבע אחד — קבע אוטומטי
+          if (colors.length === 1 && colorRow) colorRow.style.display = 'none';
+        }
+
         // קבע את טווח המוצר: all_sizes אם קיים, אחרת הסקה מהטווח שבמלאי
         let sizeRangeBase;
         if (p.all_sizes && p.all_sizes.length > 0) {
@@ -3064,6 +3102,9 @@ document.addEventListener('click', e => {
     const alertPrice = document.getElementById('alertPriceCheck').checked;
     const alertSizeChk = document.getElementById('alertSizeCheck').checked;
     const alertSize = alertSizeChk ? document.getElementById('alertSizeSelect').value : null;
+    const colorSelEl = document.getElementById('alertColorSelect');
+    const alertColor = (colorSelEl && colorSelEl.options.length > 0 && document.getElementById('alertColorRow')?.style.display !== 'none')
+      ? colorSelEl.value : null;
     const btn = document.getElementById('alertSaveBtn');
     btn.disabled = true; btn.textContent = 'שומר...';
 
@@ -3079,7 +3120,7 @@ document.addEventListener('click', e => {
       await fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
-        body: JSON.stringify({ product_source_url: _alertUrl, alert_price: alertPrice, alert_size: alertSize })
+        body: JSON.stringify({ product_source_url: _alertUrl, alert_price: alertPrice, alert_size: alertSize, alert_color: alertColor })
       });
       if (_alertBtn) _alertBtn.classList.add('active');
     }

@@ -1,46 +1,99 @@
-{
-  "name": "lookli-fashion",
-  "version": "2.0.0",
-  "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "start": "node init-db.js && node index.js",
-    "dev": "NODE_ENV=development node index.js",
-    "prod": "NODE_ENV=production node index.js",
-    "init-db": "node init-db.js",
-    "scrape": "node scraper.js",
-    "db:start": "docker-compose up -d",
-    "db:stop": "docker-compose down",
-    "db:logs": "docker-compose logs -f db",
-    "postinstall": "npx playwright install chromium --with-deps",
-    "test": "node test_scrapers.js",
-    "test:one": "node test_scrapers.js",
-    "scrape:mekimi": "node ./scrapers/mekimi_scraper_fixed.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:lichi": "node ./scrapers/lichi_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:mima": "node ./scrapers/mima_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:aviyah": "node ./scrapers/aviyah_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:chemise": "node ./scrapers/chemise_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:chen": "node ./scrapers/chen_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:ordman": "node ./scrapers/ordman_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:rare": "node ./scrapers/rare_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:avivit": "node ./scrapers/avivit_scraper.js && node ./check_alerts.js && node ./health_check.js",
-    "scrape:run": "node ./run_scrapers.js",
-    "scrape:all": "node ./run_scrapers.js all",
-    "alerts": "node ./check_alerts.js",
-    "health": "node ./health_check.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.4.0",
-    "google-auth-library": "^10.6.1",
-    "pg": "^8.16.3",
-    "playwright": "^1.58.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.11"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
-}
+-- חיפושIT - Fashion Search Engine Database Schema
+-- SAFE schema - never drops existing data
+
+-- Products table
+CREATE TABLE IF NOT EXISTS products (
+  id SERIAL PRIMARY KEY,
+  store VARCHAR(50) NOT NULL,
+  title TEXT NOT NULL,
+  price DECIMAL(10, 2) DEFAULT 0,
+  original_price DECIMAL(10, 2),
+  image_url TEXT,
+  images TEXT[],
+  sizes TEXT[],
+  color VARCHAR(50),
+  colors TEXT[],
+  style VARCHAR(50),
+  fit VARCHAR(50),
+  category VARCHAR(50),
+  description TEXT,
+  source_url TEXT UNIQUE NOT NULL,
+  color_sizes JSONB,
+  color_images JSONB,
+  fabric VARCHAR(50),
+  pattern VARCHAR(50),
+  design_details TEXT[],
+  image_size_bytes INTEGER DEFAULT 0,
+  last_seen TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add columns if missing (safe for existing DB)
+DO $$ BEGIN
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS fabric VARCHAR(50);
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS pattern VARCHAR(50);
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS design_details TEXT[];
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS color_sizes JSONB;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP DEFAULT NOW();
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS image_size_bytes INTEGER DEFAULT 0;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS all_sizes TEXT[];
+  ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS alert_color VARCHAR(50);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Clicks tracking table
+CREATE TABLE IF NOT EXISTS clicks (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER,
+  store VARCHAR(50),
+  product_title TEXT,
+  source_url TEXT,
+  user_agent TEXT,
+  ip_address VARCHAR(50),
+  clicked_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_products_store ON products(store);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_color ON products(color);
+CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);
+CREATE INDEX IF NOT EXISTS idx_products_colors ON products USING gin(colors);
+CREATE INDEX IF NOT EXISTS idx_products_sizes ON products USING gin(sizes);
+CREATE INDEX IF NOT EXISTS idx_products_last_seen ON products(last_seen);
+CREATE INDEX IF NOT EXISTS idx_products_fabric ON products(fabric);
+CREATE INDEX IF NOT EXISTS idx_products_pattern ON products(pattern);
+CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
+
+-- Hebrew text search index
+DO $$ BEGIN
+  CREATE INDEX IF NOT EXISTS idx_products_title ON products USING gin(to_tsvector('hebrew', title));
+EXCEPTION WHEN OTHERS THEN
+  CREATE INDEX IF NOT EXISTS idx_products_title_simple ON products USING gin(to_tsvector('simple', title));
+END $$;
+
+-- Auto-update updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
+CREATE TRIGGER update_products_updated_at
+    BEFORE UPDATE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+-- Migration: fit → fits (TEXT array for multi-value support)
+DO $$ BEGIN
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS fits TEXT[];
+  -- העתק ערכים קיימים
+  UPDATE products SET fits = ARRAY[fit] WHERE fit IS NOT NULL AND fits IS NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_products_fits ON products USING gin(fits);

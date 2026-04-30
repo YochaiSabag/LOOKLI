@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 /**
  * test_scrapers.js — בדיקת תקינות סקרייפרים
- * מגביל כל סקרייפר ל-2 עמודים ו-5 מוצרים
- * שימוש: node test_scrapers.js         — כולם
- *        node test_scrapers.js lichi    — אחד בלבד
+ * מגביל כל סקרייפר ל-1 עמוד ו-5 מוצרים
+ *
+ * שימוש:
+ *   npm test                        — כל הסקרייפרים
+ *   npm test lichi                  — סקרייפר אחד
+ *   npm test lichi mima chemise     — כמה ספציפיים
+ *   npm test st-fashion             — ST Fashion
+ *
+ * או ישירות:
+ *   node test_scrapers.js
+ *   node test_scrapers.js lichi
+ *   node test_scrapers.js lichi mima
  */
 
 import { execSync } from 'child_process';
@@ -22,6 +31,7 @@ const SCRAPERS = {
   avivit:  './scrapers/avivit_scraper.js',
   rare:    './scrapers/rare_scraper.js',
   ordman:  './scrapers/ordman_scraper.js',
+  'st-fashion': './scrapers/st_fashion_scraper.js',
 };
 
 const args = process.argv.slice(2).map(a => a.toLowerCase());

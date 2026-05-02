@@ -4,12 +4,12 @@ const {Client}=pkg;
 const db=new Client({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}});
 await db.connect();
 
-// עמודות price_alerts
-const r1=await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='price_alerts' ORDER BY ordinal_position");
-console.log('price_alerts:', r1.rows.map(x=>x.column_name).join(', '));
+// בדוק שעמודת alert_color קיימת
+const r1=await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='price_alerts' AND column_name='alert_color'");
+console.log('alert_color קיימת:', r1.rows.length > 0 ? '✅' : '❌');
 
-// דוגמה של color_sizes
-const r2=await db.query("SELECT title, color_sizes FROM products WHERE color_sizes IS NOT NULL AND color_sizes != '{}' LIMIT 3");
-console.log('color_sizes sample:', JSON.stringify(r2.rows, null, 2));
+// בדוק דוגמאות של התראות
+const r2=await db.query("SELECT id, alert_price, alert_size, alert_color, active FROM price_alerts WHERE active=true LIMIT 5");
+console.log('התראות פעילות:', JSON.stringify(r2.rows, null, 2));
 
 await db.end();

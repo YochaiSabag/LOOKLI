@@ -170,9 +170,36 @@ async function scrapeProduct(page, url) {
 
     // ONE SIZE — מוצר במידה אחת
     if (data.isOneSize) {
-      availableSizes.add('ONE SIZE');
       allSizesSet.add('ONE SIZE');
       console.log(`    📏 ONE SIZE`);
+      // לחץ על כל צבע ובדוק מלאי
+      for (const colorName of data.colorSwatches) {
+        try {
+          await page.evaluate((name) => {
+            const swatches = document.querySelectorAll('[data-id="pa_color"] .wd-swatch');
+            for (const el of swatches) {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              if (t.trim() === name) { el.click(); return; }
+            }
+          }, colorName);
+          await page.waitForTimeout(800);
+
+          const inStock = await page.evaluate(() => {
+            const avail = document.querySelector('.woocommerce-variation-availability');
+            if (!avail) return true;
+            return !avail.innerText.includes('אזל') && !avail.innerText.includes('אין במלאי');
+          });
+
+          const normalColor = normalizeColor(colorName) !== 'אחר' ? normalizeColor(colorName) : colorName;
+          console.log(`    🎨 ${colorName} → ${inStock ? '✓' : '✗'}`);
+          if (inStock) {
+            colorSizesMap[normalColor] = ['ONE SIZE'];
+            availableSizes.add('ONE SIZE');
+          }
+        } catch(e) {
+          console.log(`    ⚠️ ${colorName}: ${e.message.substring(0,30)}`);
+        }
+      }
     } else if (data.colorSwatches.length > 0) {
       for (const colorName of data.colorSwatches) {
         try {

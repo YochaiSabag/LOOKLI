@@ -32,6 +32,7 @@ const SCRAPERS = {
   rare:    './scrapers/rare_scraper.js',
   ordman:  './scrapers/ordman_scraper.js',
   'st-fashion': './scrapers/st_fashion_scraper.js',
+  'salina':      './scrapers/salina_scraper.js',
 };
 
 const args = process.argv.slice(2).map(a => a.toLowerCase());

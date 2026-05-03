@@ -4,23 +4,19 @@ const {Client}=pkg;
 const db=new Client({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}});
 await db.connect();
 
-// בדוק בדיוק איך נשמר source_url ב-DB
-const r=await db.query("SELECT source_url FROM products WHERE store='MEKIMI' LIMIT 3");
-r.rows.forEach(x=>console.log('DB URL:', x.source_url));
+const url='https://mekimi.co.il/product/textured-floral-buttoned-blousew261050/';
+console.log('Testing URL:', url);
 
-// האם URL עם lowercase encoding נמצא
-const testUrl='https://mekimi.co.il/product/%d7%a7%d7%a8%d7%93%d7%99%d7%92%d7%9f-%d7%9b%d7%a4%d7%aa%d7%95%d7%a8%d7%95%d7%aa-%d7%9e%d7%a9%d7%95%d7%9c%d7%a9s262110/';
-const r2=await db.query("SELECT title FROM products WHERE source_url=$1",[testUrl]);
-console.log('\nExact lowercase:', r2.rows[0]?.title || 'לא נמצא');
+// בדוק ב-price_alerts
+const a=await db.query("SELECT id,product_id,product_source_url FROM price_alerts WHERE product_source_url ILIKE '%w261050%' LIMIT 1");
+console.log('price_alerts match:', a.rows[0] || 'לא נמצא');
 
-// נסה decode
-const decoded=decodeURIComponent(testUrl);
-const r3=await db.query("SELECT title FROM products WHERE source_url=$1",[decoded]);
-console.log('Decoded:', r3.rows[0]?.title || 'לא נמצא');
-
-// חיפוש חלקי
-const r4=await db.query("SELECT source_url,title FROM products WHERE source_url ILIKE '%s262110%' LIMIT 1");
-console.log('ILIKE match:', r4.rows[0]?.title || 'לא נמצא');
-console.log('ILIKE URL:', r4.rows[0]?.source_url);
+// בדוק ב-products
+const p=await db.query("SELECT id,title,source_url,color_sizes,colors FROM products WHERE source_url ILIKE '%w261050%' LIMIT 1");
+console.log('product match:', p.rows[0]?.title || 'לא נמצא');
+console.log('product source_url:', p.rows[0]?.source_url);
+console.log('product id:', p.rows[0]?.id);
+console.log('colors:', p.rows[0]?.colors);
+console.log('color_sizes:', JSON.stringify(p.rows[0]?.color_sizes));
 
 await db.end();

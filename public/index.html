@@ -2975,7 +2975,7 @@ document.addEventListener('click', e => {
           : Object.keys(colorSizes).filter(c => colorSizes[c]?.length > 0);
         if (colors.length > 1 && colorRow) {
           colorSel.innerHTML = colors.map(c => `<option value="${c}">${c}</option>`).join('');
-          colorRow.style.display = '';
+          colorRow.style.display = 'block';
           // עדכן מידות לפי צבע ראשון
           const updateBySel = () => {
             const c = colorSel.value;
@@ -3113,7 +3113,7 @@ document.addEventListener('click', e => {
     const alertSizeChk = document.getElementById('alertSizeCheck').checked;
     const alertSize = alertSizeChk ? document.getElementById('alertSizeSelect').value : null;
     const colorSelEl = document.getElementById('alertColorSelect');
-    const alertColor = (colorSelEl && colorSelEl.options.length > 0 && document.getElementById('alertColorRow')?.style.display !== 'none')
+    const alertColor = (colorSelEl && colorSelEl.options.length > 0 && document.getElementById('alertColorRow')?.style.display === 'block')
       ? colorSelEl.value : null;
     const btn = document.getElementById('alertSaveBtn');
     btn.disabled = true; btn.textContent = 'שומר...';

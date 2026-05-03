@@ -2948,7 +2948,7 @@ document.addEventListener('click', e => {
     // איפוס בחירת צבע
     const colorRow = document.getElementById('alertColorRow');
     const colorSel = document.getElementById('alertColorSelect');
-    if (colorRow) { colorRow.style.display = 'none'; colorSel.innerHTML = ''; }
+    if (colorRow) { colorRow.style.display = 'none'; colorSel.innerHTML = ''; colorSel.classList.remove('show'); }
 
     // טען מידות
     const sel = document.getElementById('alertSizeSelect');
@@ -2975,6 +2975,7 @@ document.addEventListener('click', e => {
           : Object.keys(colorSizes).filter(c => colorSizes[c]?.length > 0);
         if (colors.length > 1 && colorRow) {
           colorSel.innerHTML = colors.map(c => `<option value="${c}">${c}</option>`).join('');
+          colorSel.classList.add('show');
           colorRow.style.display = 'block';
           // עדכן מידות לפי צבע ראשון
           const updateBySel = () => {

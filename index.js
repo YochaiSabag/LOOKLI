@@ -1422,14 +1422,24 @@ app.get("/admin/ads", adminAuth, (req, res) => {
 // GET /api/product-sizes — מחזיר מידות מוצר לפי URL (לממשק ההתראות)
 app.get("/api/product-sizes", async (req, res) => {
   try {
-    const url = (req.query.url || '').trim().replace(/\/+$/, '');
-    if (!url) return res.status(400).json({ error: 'חסר url' });
+    const raw = (req.query.url || '').trim();
+    if (!raw) return res.status(400).json({ error: 'חסר url' });
+    // נסה גם עם וגם בלי slash בסוף
+    const urlNoSlash = raw.replace(/\/+$/, '');
+    const urlWithSlash = urlNoSlash + '/';
     const r = await pool.query(
-      `SELECT sizes, all_sizes, color_sizes FROM products WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
-      [url, url + '%']
+      `SELECT sizes, all_sizes, color_sizes, colors FROM products
+       WHERE source_url = $1 OR source_url = $2
+       OR source_url LIKE $3 LIMIT 1`,
+      [urlNoSlash, urlWithSlash, urlNoSlash + '%']
     );
     if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
-    res.json({ sizes: r.rows[0].sizes || [], all_sizes: r.rows[0].all_sizes || [], color_sizes: r.rows[0].color_sizes || {} });
+    res.json({
+      sizes: r.rows[0].sizes || [],
+      all_sizes: r.rows[0].all_sizes || [],
+      color_sizes: r.rows[0].color_sizes || {},
+      colors: r.rows[0].colors || []
+    });
   } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });
 
@@ -1535,34 +1545,28 @@ app.get("/api/alerts", authMiddleware, async (req, res) => {
 // POST /api/alerts — הגדר/עדכן התראה
 app.post("/api/alerts", authMiddleware, async (req, res) => {
   try {
-    const { product_source_url, alert_price, alert_size, alert_color } = req.body;
+    const { product_source_url, alert_price, alert_size } = req.body;
     if (!product_source_url) return res.status(400).json({ error: 'חסר product_source_url' });
 
     // שלוף מחיר ומידות נוכחיים
     const prod = await pool.query(
-      "SELECT id, price, sizes, color_sizes FROM products WHERE source_url = $1 LIMIT 1",
+      "SELECT id, price, sizes FROM products WHERE source_url = $1 LIMIT 1",
       [product_source_url]
     );
     const p = prod.rows[0];
 
-    // מידות נוכחיות לפי צבע אם צויין
-    const currentSizes = alert_color && p?.color_sizes?.[alert_color]
-      ? p.color_sizes[alert_color]
-      : p?.sizes || null;
-
     await pool.query(
-      `INSERT INTO price_alerts (user_id, product_source_url, product_id, alert_price, alert_size, alert_color, last_price, last_sizes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO price_alerts (user_id, product_source_url, product_id, alert_price, alert_size, last_price, last_sizes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (user_id, product_source_url) DO UPDATE SET
          alert_price = EXCLUDED.alert_price,
          alert_size  = EXCLUDED.alert_size,
-         alert_color = EXCLUDED.alert_color,
          last_price  = EXCLUDED.last_price,
          last_sizes  = EXCLUDED.last_sizes,
          active      = true`,
       [req.userId, product_source_url, p?.id || null,
-       !!alert_price, alert_size || null, alert_color || null,
-       p?.price || null, currentSizes]
+       !!alert_price, alert_size || null,
+       p?.price || null, p?.sizes || null]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -1425,10 +1425,27 @@ app.get("/api/product-sizes", async (req, res) => {
     const raw = (req.query.url || '').trim();
     if (!raw) return res.status(400).json({ error: 'חסר url' });
 
-    // נסה את כל הווריאציות האפשריות של ה-URL
+    // ניסיון 1: חיפוש ישיר לפי product_id מתוך price_alerts (הכי מדויק)
+    const alertRow = await pool.query(
+      "SELECT product_id FROM price_alerts WHERE product_source_url = $1 LIMIT 1",
+      [raw]
+    );
+    if (alertRow.rows[0]?.product_id) {
+      const r = await pool.query(
+        "SELECT sizes, all_sizes, color_sizes, colors FROM products WHERE id = $1 LIMIT 1",
+        [alertRow.rows[0].product_id]
+      );
+      if (r.rows.length) return res.json({
+        sizes: r.rows[0].sizes || [],
+        all_sizes: r.rows[0].all_sizes || [],
+        color_sizes: r.rows[0].color_sizes || {},
+        colors: r.rows[0].colors || []
+      });
+    }
+
+    // ניסיון 2: חיפוש לפי URL עם כל הווריאציות
     const urlNoSlash = raw.replace(/\/+$/, '');
     const urlWithSlash = urlNoSlash + '/';
-    // re-encode Hebrew chars שExpress פיענח
     const urlEncoded = urlNoSlash.replace(/[\u0080-\uffff]/g, c =>
       encodeURIComponent(c).toLowerCase()
     );
@@ -1437,10 +1454,8 @@ app.get("/api/product-sizes", async (req, res) => {
     const r = await pool.query(
       `SELECT sizes, all_sizes, color_sizes, colors FROM products
        WHERE source_url = $1 OR source_url = $2
-          OR source_url = $3 OR source_url = $4
-          OR source_url ILIKE $5 LIMIT 1`,
-      [urlNoSlash, urlWithSlash, urlEncoded, urlEncodedSlash,
-       '%' + urlNoSlash.split('/').pop().replace(/\/+$/, '') + '%']
+          OR source_url = $3 OR source_url = $4 LIMIT 1`,
+      [urlNoSlash, urlWithSlash, urlEncoded, urlEncodedSlash]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
     res.json({

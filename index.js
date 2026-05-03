@@ -1424,14 +1424,23 @@ app.get("/api/product-sizes", async (req, res) => {
   try {
     const raw = (req.query.url || '').trim();
     if (!raw) return res.status(400).json({ error: 'חסר url' });
-    // נסה גם עם וגם בלי slash בסוף
+
+    // נסה את כל הווריאציות האפשריות של ה-URL
     const urlNoSlash = raw.replace(/\/+$/, '');
     const urlWithSlash = urlNoSlash + '/';
+    // re-encode Hebrew chars שExpress פיענח
+    const urlEncoded = urlNoSlash.replace(/[\u0080-\uffff]/g, c =>
+      encodeURIComponent(c).toLowerCase()
+    );
+    const urlEncodedSlash = urlEncoded + '/';
+
     const r = await pool.query(
       `SELECT sizes, all_sizes, color_sizes, colors FROM products
        WHERE source_url = $1 OR source_url = $2
-       OR source_url LIKE $3 LIMIT 1`,
-      [urlNoSlash, urlWithSlash, urlNoSlash + '%']
+          OR source_url = $3 OR source_url = $4
+          OR source_url ILIKE $5 LIMIT 1`,
+      [urlNoSlash, urlWithSlash, urlEncoded, urlEncodedSlash,
+       '%' + urlNoSlash.split('/').pop().replace(/\/+$/, '') + '%']
     );
     if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
     res.json({

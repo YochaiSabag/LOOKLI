@@ -2980,29 +2980,41 @@ document.addEventListener('click', e => {
           // עדכן מידות לפי צבע ראשון
           const updateBySel = () => {
             const c = colorSel.value;
-            sel.disabled = false; // איפוס תמיד לפני עדכון
+            sel.disabled = false;
             const rawCs = (colorSizes[c] || []).map(s => s.toUpperCase());
             const isOneSizeColor = rawCs.includes('ONE SIZE');
-            // בסיס: all_sizes — כל המידות שהיו אי פעם
-            const allBase = (p.all_sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase()).filter(s => letterSizes.includes(s));
-            // מה חסר = מה שב-all_sizes אבל לא ב-color_sizes[צבע]
+
+            // בסיס: all_sizes, או fallback לאיחוד כל color_sizes
+            let allBase = (p.all_sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase()).filter(s => letterSizes.includes(s));
+            if (allBase.length === 0) {
+              // fallback: כל המידות שמופיעות בכל הצבעים
+              const allFromColors = new Set();
+              Object.values(colorSizes).forEach(sizes =>
+                sizes.forEach(s => { const n=s.toUpperCase(); if(letterSizes.includes(n)) allFromColors.add(n); })
+              );
+              allBase = [...allFromColors];
+            }
+
+            // מה חסר בצבע זה = מה שב-allBase אבל לא ב-color_sizes[צבע]
             const missing = allBase.filter(s => !rawCs.includes(s));
+
             sel.innerHTML = '';
             if (!isOneSizeColor) {
-              missing.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
-              if (missing.length === 0) sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+              if (missing.length > 0) {
+                missing.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+                sel.disabled = false;
+                document.getElementById('alertSizeCheck').disabled = false;
+              } else {
+                sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
+                sel.disabled = true;
+                document.getElementById('alertSizeCheck').disabled = true;
+              }
             }
-            if (!isOneSizeColor && allBase.length > 0 && missing.length === 0) {
-              sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
-              sel.disabled = true;
-              sel.classList.add('show');
-              document.getElementById('alertSizeCheck').disabled = true;
-              // לא מבטלים את הוי — המשתמש בחר אחרת
-            } else {
-              sel.disabled = false;
-              sel.classList.add('show');
-              document.getElementById('alertSizeCheck').disabled = false;
-            }
+
+            // show רק אם הוי לחוץ
+            const chk = document.getElementById('alertSizeCheck');
+            if (chk.checked && !sel.disabled) sel.classList.add('show');
+            else if (!chk.checked) sel.classList.remove('show');
           };
           colorSel.onchange = updateBySel;
           updateBySel();
@@ -3103,7 +3115,16 @@ document.addEventListener('click', e => {
     chk.checked = !chk.checked;
     _applyAlertSize(chk.checked);
   }
-  function syncAlertSizeCheckbox(chk) { _applyAlertSize(chk.checked); }
+  function syncAlertSizeCheckbox(chk) {
+    _applyAlertSize(chk.checked);
+    // אם ביטלנו וי ואין גם וי מחיר — שמור ביטול אוטומטי
+    if (!chk.checked) {
+      const priceChk = document.getElementById('alertPriceCheck');
+      if (!priceChk || !priceChk.checked) {
+        setTimeout(() => saveAlert(), 300);
+      }
+    }
+  }
   function toggleAlertPriceFromDiv(e, divEl) {
     if (e && e.target && e.target.type === 'checkbox') return;
     const chk = document.getElementById('alertPriceCheck');

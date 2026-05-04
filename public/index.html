@@ -2138,16 +2138,17 @@ document.addEventListener('click', e => {
       <div class="alert-option" id="alertPriceOption" onclick="toggleAlertPriceFromDiv(event,this)">
         <input type="checkbox" id="alertPriceCheck" onchange="syncAlertPriceCheckbox(this)" onclick="event.stopPropagation()"/>
         <div class="alert-option-label">
-          <div>הודיעי כשהמחיר יורד</div>
+          <div>עדכן אותי כשהמחיר יורד</div>
           <div style="font-size:11px;font-weight:400;color:#9ca3af;margin-top:1px" id="alertCurrentPrice"></div>
         </div>
       </div>
       <div class="alert-option" id="alertSizeOption" onclick="toggleAlertSizeFromDiv(event,this)">
         <input type="checkbox" id="alertSizeCheck" onchange="syncAlertSizeCheckbox(this)" onclick="event.stopPropagation()"/>
         <div class="alert-option-label" style="flex:1">
-          <div>הודיעי כשמידה נכנסת למלאי</div>
+          <div>עדכן אותי כשמידה נכנסת למלאי</div>
           <div id="alertColorRow" style="display:none;margin-top:6px">
-            <select class="alert-size-select" id="alertColorSelect" onclick="event.stopPropagation()"></select>
+            <div style="font-size:11px;color:#9ca3af;margin-bottom:4px">בחרי צבע:</div>
+            <select class="alert-size-select show" id="alertColorSelect" onclick="event.stopPropagation()"></select>
           </div>
           <select class="alert-size-select" id="alertSizeSelect" onclick="event.stopPropagation()">
             <option value="any">כל מידה</option>
@@ -2948,7 +2949,7 @@ document.addEventListener('click', e => {
     // איפוס בחירת צבע
     const colorRow = document.getElementById('alertColorRow');
     const colorSel = document.getElementById('alertColorSelect');
-    if (colorRow) { colorRow.style.display = 'none'; colorSel.innerHTML = ''; colorSel.classList.remove('show'); }
+    if (colorRow) { colorRow.style.display = 'none'; colorSel.innerHTML = ''; }
 
     // טען מידות
     const sel = document.getElementById('alertSizeSelect');
@@ -2975,8 +2976,7 @@ document.addEventListener('click', e => {
           : Object.keys(colorSizes).filter(c => colorSizes[c]?.length > 0);
         if (colors.length > 1 && colorRow) {
           colorSel.innerHTML = colors.map(c => `<option value="${c}">${c}</option>`).join('');
-          colorSel.classList.add('show');
-          colorRow.style.display = 'block';
+          colorRow.style.display = 'none'; // יוצג רק בלחיצה על הצ'קבוקס
           // עדכן מידות לפי צבע ראשון
           const updateBySel = () => {
             const c = colorSel.value;
@@ -3074,11 +3074,17 @@ document.addEventListener('click', e => {
   function _applyAlertSize(checked) {
     const optEl = document.getElementById('alertSizeOption');
     const sel = document.getElementById('alertSizeSelect');
+    const colorRow = document.getElementById('alertColorRow');
+    const colorSel = document.getElementById('alertColorSelect');
     optEl.classList.toggle('selected', checked);
     if (checked && sel.options.length > 0 && !sel.disabled) {
       sel.classList.add('show');
     } else {
       sel.classList.remove('show');
+    }
+    // הצג colorRow רק כשהצ'קבוקס מסומן ויש צבעים
+    if (colorSel && colorSel.options.length > 0) {
+      colorRow.style.display = checked ? 'block' : 'none';
     }
   }
   function toggleAlertSizeFromDiv(e, divEl) {

@@ -2953,7 +2953,7 @@ document.addEventListener('click', e => {
 
     // טען מידות
     const sel = document.getElementById('alertSizeSelect');
-    sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+    sel.innerHTML = '';
     try {
       const res = await fetch('/api/product-sizes?url=' + encodeURIComponent(url));
       const sizeOpt = document.getElementById('alertSizeOption');
@@ -3011,12 +3011,11 @@ document.addEventListener('click', e => {
               }
             }
 
-            // show רק אם הוי לחוץ
-            const chk = document.getElementById('alertSizeCheck');
-            if (chk.checked && !sel.disabled) sel.classList.add('show');
-            else if (!chk.checked) sel.classList.remove('show');
+            // עדכן show לפי מצב הוי
+            _applyAlertSize(document.getElementById('alertSizeCheck').checked);
           };
           colorSel.onchange = updateBySel;
+          window._currentUpdateBySel = updateBySel;
           updateBySel();
           // דלג על הלוגיקה הרגילה
           const existing2 = null; // יטופל מתחת
@@ -3053,7 +3052,7 @@ document.addEventListener('click', e => {
             document.getElementById('alertSizeCheck').disabled = true;
             document.getElementById('alertSizeCheck').checked = false;
           } else {
-            sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+            sel.innerHTML = '';
             missingSizes.forEach(s => {
               const o = document.createElement('option');
               o.value = s; o.textContent = s;
@@ -3097,14 +3096,23 @@ document.addEventListener('click', e => {
     const colorRow = document.getElementById('alertColorRow');
     const colorSel = document.getElementById('alertColorSelect');
     optEl.classList.toggle('selected', checked);
-    if (checked && sel.options.length > 0 && !sel.disabled) {
+
+    const hasColors = colorSel && colorSel.options.length > 0;
+
+    if (!checked) {
+      sel.classList.remove('show');
+      if (colorRow) colorRow.style.display = 'none';
+      return;
+    }
+
+    // מסומן — הצג colorRow אם יש צבעים
+    if (hasColors && colorRow) colorRow.style.display = 'block';
+
+    // הצג sel רק אם יש אפשרויות ולא disabled
+    if (sel.options.length > 0 && !sel.disabled) {
       sel.classList.add('show');
     } else {
       sel.classList.remove('show');
-    }
-    // הצג colorRow רק כשהצ'קבוקס מסומן ויש צבעים
-    if (colorSel && colorSel.options.length > 0) {
-      colorRow.style.display = checked ? 'block' : 'none';
     }
   }
   function toggleAlertSizeFromDiv(e, divEl) {
@@ -3117,6 +3125,10 @@ document.addEventListener('click', e => {
   }
   function syncAlertSizeCheckbox(chk) {
     _applyAlertSize(chk.checked);
+    // אם יש צבעים — עדכן מידות לפי הצבע הנבחר
+    if (chk.checked && typeof _currentUpdateBySel === 'function') {
+      _currentUpdateBySel();
+    }
     // אם ביטלנו וי ואין גם וי מחיר — שמור ביטול אוטומטי
     if (!chk.checked) {
       const priceChk = document.getElementById('alertPriceCheck');

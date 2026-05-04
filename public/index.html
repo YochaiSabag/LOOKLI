@@ -2986,15 +2986,16 @@ document.addEventListener('click', e => {
             const allBase = (p.all_sizes || []).map(s => s.replace(/^EU_/i,'').trim().toUpperCase()).filter(s => letterSizes.includes(s));
             // מה חסר = מה שב-all_sizes אבל לא ב-color_sizes[צבע]
             const missing = allBase.filter(s => !rawCs.includes(s));
-            sel.innerHTML = '<option value="any">כל מידה שחסרה</option>';
+            sel.innerHTML = '';
             if (!isOneSizeColor) {
               missing.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+              if (missing.length === 0) sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
             }
             if (!isOneSizeColor && allBase.length > 0 && missing.length === 0) {
               sel.innerHTML = '<option value="">כל המידות במלאי ✓</option>';
               sel.disabled = true;
               document.getElementById('alertSizeCheck').disabled = true;
-              document.getElementById('alertSizeCheck').checked = false;
+              // לא מבטלים את הוי — המשתמש בחר אחרת
             } else { sel.disabled = false; document.getElementById('alertSizeCheck').disabled = false; }
           };
           colorSel.onchange = updateBySel;

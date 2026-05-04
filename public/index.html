@@ -2135,6 +2135,10 @@ document.addEventListener('click', e => {
     <div class="alert-popup" onclick="event.stopPropagation()">
       <div class="alert-popup-title">🔔 התראת מחיר ומלאי</div>
       <div class="alert-popup-product" id="alertProductTitle"></div>
+      <div id="alertActiveSummary" style="display:none;background:#fdf2f8;border:1.5px solid #e8c6e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#7c3f6e;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span id="alertActiveSummaryText">✅ התראה פעילה</span>
+        <button onclick="cancelAlert()" style="background:none;border:1px solid #c48cb3;color:#c48cb3;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap">בטל</button>
+      </div>
       <div class="alert-option" id="alertPriceOption" onclick="toggleAlertPriceFromDiv(event,this)">
         <input type="checkbox" id="alertPriceCheck" onchange="syncAlertPriceCheckbox(this)" onclick="event.stopPropagation()"/>
         <div class="alert-option-label">
@@ -2157,7 +2161,7 @@ document.addEventListener('click', e => {
       </div>
       <div class="alert-popup-actions">
         <button class="alert-cancel-btn" onclick="closeAlertPopup()">ביטול</button>
-        <button class="alert-save-btn" id="alertSaveBtn" onclick="saveAlert()">שמור התראה</button>
+        <button class="alert-save-btn" id="alertSaveBtn" onclick="saveAlert()">שמור</button>
       </div>
     </div>
   </div>
@@ -3075,7 +3079,21 @@ document.addEventListener('click', e => {
       const ar = await fetch('/api/alerts', { headers: { Authorization: 'Bearer ' + authToken } });
       const ad = await ar.json();
       const existing = (ad.alerts || []).find(a => a.product_source_url === url);
+      const summaryDiv = document.getElementById('alertActiveSummary');
+      const summaryText = document.getElementById('alertActiveSummaryText');
       if (existing) {
+        // הצג סיכום התראה פעילה
+        const parts = [];
+        if (existing.alert_price) parts.push('ירידת מחיר');
+        if (existing.alert_size) {
+          const colorPart = existing.alert_color ? ` ${existing.alert_color}` : '';
+          const sizePart = existing.alert_size === 'any' ? 'כל מידה' : existing.alert_size;
+          parts.push(`מידה ${sizePart}${colorPart}`);
+        }
+        if (parts.length > 0) {
+          summaryText.textContent = '✅ פעיל: ' + parts.join(' | ');
+          summaryDiv.style.display = 'flex';
+        }
         document.getElementById('alertPriceCheck').checked = !!existing.alert_price;
         if (existing.alert_price) document.getElementById('alertPriceOption').classList.add('selected');
         if (existing.alert_size) {
@@ -3084,6 +3102,8 @@ document.addEventListener('click', e => {
           sel.value = existing.alert_size;
           sel.classList.add('show');
         }
+      } else {
+        summaryDiv.style.display = 'none';
       }
     } catch(_) {}
 
@@ -3129,13 +3149,7 @@ document.addEventListener('click', e => {
     if (chk.checked && typeof _currentUpdateBySel === 'function') {
       _currentUpdateBySel();
     }
-    // אם ביטלנו וי ואין גם וי מחיר — שמור ביטול אוטומטי
-    if (!chk.checked) {
-      const priceChk = document.getElementById('alertPriceCheck');
-      if (!priceChk || !priceChk.checked) {
-        setTimeout(() => saveAlert(), 300);
-      }
-    }
+
   }
   function toggleAlertPriceFromDiv(e, divEl) {
     if (e && e.target && e.target.type === 'checkbox') return;
@@ -3149,6 +3163,18 @@ document.addEventListener('click', e => {
   function toggleAlertCheck(checkId, optEl) {
     if (checkId === 'alertSizeCheck') toggleAlertSizeFromDiv(null, optEl);
     else toggleAlertPriceFromDiv(null, optEl);
+  }
+
+  async function cancelAlert() {
+    try {
+      await fetch('/api/alerts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ product_source_url: _alertUrl })
+      });
+      if (_alertBtn) _alertBtn.classList.remove('active');
+      closeAlertPopup();
+    } catch(e) {}
   }
 
   function closeAlertPopup(e) {
@@ -3183,7 +3209,7 @@ document.addEventListener('click', e => {
       if (_alertBtn) _alertBtn.classList.add('active');
     }
 
-    btn.disabled = false; btn.textContent = 'שמור התראה';
+    btn.disabled = false; btn.textContent = 'שמור';
     document.getElementById('alertPopupBg').classList.remove('open');
   }
 </script>

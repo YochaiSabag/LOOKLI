@@ -33,8 +33,12 @@ async function sendEmail(toEmail, subject, htmlBody) {
         htmlContent: htmlBody,
       }),
     });
-    if (res.ok) { console.log(`  ✅ מייל נשלח: ${toEmail}`); return true; }
-    const e = await res.json(); console.error('  ❌ Brevo:', e); return false;
+    if (res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.log(`  ✅ מייל נשלח: ${toEmail} | messageId: ${body.messageId || '—'}`);
+      return true;
+    }
+    const e = await res.json(); console.error('  ❌ Brevo:', JSON.stringify(e)); return false;
   } catch(e) { console.error('  ❌ שגיאה:', e.message); return false; }
 }
 
@@ -46,6 +50,8 @@ async function runHealthCheck() {
   }
 
   console.log('\n🏥 LOOKLI Health Check', new Date().toLocaleString('he-IL'));
+  console.log(`  📧 FROM: ${FROM_EMAIL} → TO: ${ADMIN_EMAIL}`);
+  console.log(`  🔑 BREVO_API_KEY: ${BREVO_KEY ? BREVO_KEY.slice(0,8)+'...' : '❌ חסר!'}`);
 
   const { rows } = await pool.query(`
     SELECT

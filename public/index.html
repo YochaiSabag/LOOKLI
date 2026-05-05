@@ -972,6 +972,10 @@
           <div class="modal-colors-section">
             <div class="label">צבעים זמינים</div>
             <div class="modal-colors" id="modalColors"></div>
+            <div id="modalColorSizes" style="display:none;margin-top:8px;font-size:13px;color:#374151">
+              <span id="modalColorSizesLabel" style="color:#9ca3af;font-size:11px;margin-bottom:4px;display:block"></span>
+              <div id="modalColorSizesTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+            </div>
           </div>
           <div>
             <div class="desc-title">פירוט המוצר</div>
@@ -1706,8 +1710,42 @@ async function openProduct(id){
     document.getElementById("modalKpi").innerHTML=kpis.join("");
 
     const colors=p.colors||(p.color?[p.color]:[]);
+    const colorSizes=p.color_sizes||{};
     const colorsDiv=document.getElementById("modalColors");
-    if(colors.length){colors.forEach(c=>{colorsDiv.innerHTML+=`<span class="modal-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`})}else{colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>'}
+    const colorSizesDiv=document.getElementById("modalColorSizes");
+    const colorSizesLabel=document.getElementById("modalColorSizesLabel");
+    const colorSizesTags=document.getElementById("modalColorSizesTags");
+
+    const showColorSizes = (color) => {
+      const sizes = colorSizes[color];
+      if (!sizes || sizes.length === 0) { colorSizesDiv.style.display='none'; return; }
+      colorSizesLabel.textContent = `מידות ב${color}:`;
+      colorSizesTags.innerHTML = sizes.map(s =>
+        `<span style="background:#f3f4f6;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">${s}</span>`
+      ).join('');
+      colorSizesDiv.style.display = 'block';
+      // סמן צבע פעיל
+      colorsDiv.querySelectorAll('.modal-color').forEach(el => el.style.borderColor = '#ddd');
+      const active = colorsDiv.querySelector(`[data-color="${color}"]`);
+      if (active) active.style.borderColor = '#c48cb3';
+    };
+
+    if(colors.length){
+      colors.forEach(c=>{
+        const dot = document.createElement('span');
+        dot.className = 'modal-color';
+        dot.style.background = getColorHex(c);
+        dot.title = c;
+        dot.setAttribute('data-color', c);
+        dot.onclick = () => showColorSizes(c);
+        colorsDiv.appendChild(dot);
+      });
+      // הצג אוטומטית את הצבע הראשון שיש לו מידות
+      const firstWithSizes = colors.find(c => colorSizes[c]?.length > 0);
+      if (firstWithSizes) showColorSizes(firstWithSizes);
+    } else {
+      colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>';
+    }
 
     // שלב 2 — תמונה ראשית
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
@@ -2135,9 +2173,12 @@ document.addEventListener('click', e => {
     <div class="alert-popup" onclick="event.stopPropagation()">
       <div class="alert-popup-title">🔔 התראת מחיר ומלאי</div>
       <div class="alert-popup-product" id="alertProductTitle"></div>
-      <div id="alertActiveSummary" style="display:none;background:#fdf2f8;border:1.5px solid #e8c6e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#7c3f6e;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div id="alertActiveSummary" style="display:none;background:#fdf2f8;border:1.5px solid #e8c6e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#7c3f6e;display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span id="alertActiveSummaryText">✅ התראה פעילה</span>
-        <button onclick="cancelAlert()" style="background:none;border:1px solid #c48cb3;color:#c48cb3;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap">בטל</button>
+        <div style="display:flex;gap:6px">
+          <button onclick="document.getElementById('alertActiveSummary').style.display='none';document.getElementById('alertSizeOption').style.display='';document.getElementById('alertSizeCheck').checked=true;_applyAlertSize(true);if(typeof _currentUpdateBySel==='function')_currentUpdateBySel();" style="background:none;border:1px solid #c48cb3;color:#c48cb3;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">הוסף</button>
+          <button onclick="cancelAlert()" style="background:none;border:1px solid #e57373;color:#e57373;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">בטל</button>
+        </div>
       </div>
       <div class="alert-option" id="alertPriceOption" onclick="toggleAlertPriceFromDiv(event,this)">
         <input type="checkbox" id="alertPriceCheck" onchange="syncAlertPriceCheckbox(this)" onclick="event.stopPropagation()"/>
@@ -3083,16 +3124,15 @@ document.addEventListener('click', e => {
       const summaryText = document.getElementById('alertActiveSummaryText');
       if (existing) {
         // הצג סיכום התראה פעילה
-        const parts = [];
-        if (existing.alert_price) parts.push('ירידת מחיר');
         if (existing.alert_size) {
           const colorPart = existing.alert_color ? ` ${existing.alert_color}` : '';
           const sizePart = existing.alert_size === 'any' ? 'כל מידה' : existing.alert_size;
-          parts.push(`מידה ${sizePart}${colorPart}`);
-        }
-        if (parts.length > 0) {
-          summaryText.textContent = '✅ פעיל: ' + parts.join(' | ');
+          summaryText.textContent = '✅ פעיל: מידה ' + sizePart + colorPart;
           summaryDiv.style.display = 'flex';
+          document.getElementById('alertSizeOption').style.display = 'none';
+        } else {
+          summaryDiv.style.display = 'none';
+          document.getElementById('alertSizeOption').style.display = '';
         }
         document.getElementById('alertPriceCheck').checked = !!existing.alert_price;
         if (existing.alert_price) document.getElementById('alertPriceOption').classList.add('selected');

@@ -91,20 +91,21 @@ export async function loadScraperConfig(db) {
   try {
     const r = await db.query(`SELECT type, name, aliases FROM scraper_config ORDER BY type, name`);
     if (r.rows.length > 0) {
-      // אפס מפות ובנה מחדש מה-DB
+      // בנה מה-DB ומזג עם ברירות המחדל (DB מנצח באותו מפתח)
       const maps = { color:{}, category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
       r.rows.forEach(row => {
         if (maps[row.type] !== undefined) {
           maps[row.type][row.name] = row.aliases || [];
         }
       });
-      if (Object.keys(maps.color).length > 0)    colorMap    = maps.color;
-      if (Object.keys(maps.category).length > 0) categoryMap = maps.category;
-      if (Object.keys(maps.style).length > 0)    styleMap    = maps.style;
-      if (Object.keys(maps.fit).length > 0)      fitMap      = maps.fit;
-      if (Object.keys(maps.fabric).length > 0)   fabricMap   = maps.fabric;
-      if (Object.keys(maps.pattern).length > 0)  patternMap  = maps.pattern;
-      console.log(`✅ scraper_config נטען מ-DB: ${r.rows.length} הגדרות`);
+      // מיזוג: ברירות המחדל תמיד קיימות, DB מוסיף/דורס מעליהן
+      colorMap    = { ...DEFAULT_COLORS,    ...maps.color    };
+      categoryMap = { ...DEFAULT_CATEGORIES,...maps.category };
+      styleMap    = { ...DEFAULT_STYLES,    ...maps.style    };
+      fitMap      = { ...DEFAULT_FITS,      ...maps.fit      };
+      fabricMap   = { ...DEFAULT_FABRICS,   ...maps.fabric   };
+      patternMap  = { ...DEFAULT_PATTERNS,  ...maps.pattern  };
+      console.log(`✅ scraper_config נטען מ-DB: ${r.rows.length} הגדרות (ממוזג עם ברירות מחדל)`);
     } else {
       console.log('⚠️ scraper_config ריק — משתמש בברירות מחדל');
     }

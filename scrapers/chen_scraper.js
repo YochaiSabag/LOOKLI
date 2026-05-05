@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { chromium } from 'playwright';
 import pkg from 'pg';
+import { loadScraperConfig } from './scraper_utils.js';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Client } = pkg;
 
@@ -16,59 +17,17 @@ await db.connect();
 
 console.log('🚀 Chen Fashion Scraper');
 
-// ======================================================================
-// ======================================================================
-// מיפוי צבעים
-// ======================================================================
-const colorMap = {
-  'black': 'שחור', 'שחור': 'שחור',
-  'white': 'לבן', 'לבן': 'לבן',
-  'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
-  'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
-  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק', 'דשא': 'ירוק',
-  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
-  'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
-  'beige': "בז'", 'בז': "בז'", 'nude': "בז'", 'ניוד': "בז'", 'sand': "בז'", 'taupe': "בז'",
-  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור', 'ash': 'אפור',
-  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד', 'בייבי': 'ורוד',
-  'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
-  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב', 'בננה': 'צהוב', 'banana': 'צהוב',
-  'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
-  'זהב': 'זהב', 'golden': 'זהב',
-  'silver': 'כסף', 'כסף': 'כסף', 'כסוף': 'כסף',
-  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו', 'cherry': 'בורדו',
-  'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
-  'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
-  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
-  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
-  'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
-  'מוקה': 'חום', 'moka': 'חום',
-  'שזיף': 'סגול',
-  'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
-  'פודרה': 'ורוד', 'powder': 'ורוד',
-  'אבן': 'אבן',
-  'בהיר': 'בהיר',
-  "גי'נס": 'כחול', "ג'ינס": 'כחול', 'jeans': 'כחול',
-};
-
-const unknownColors = new Set();
-
-function normalizeColor(c) {
-  if (!c) return null;
-  const lower = c.toLowerCase().trim();
-  const noSpaces = lower.replace(/[-_\s]/g, '');
-  if (colorMap[noSpaces]) return colorMap[noSpaces];
-  if (colorMap[lower]) return colorMap[lower];
-  const words = lower.split(/[\s\-]+/);
-  for (const word of words) {
-    if (colorMap[word]) return colorMap[word];
-  }
-  for (const [key, val] of Object.entries(colorMap)) {
-    if (lower.includes(key) || key.includes(lower)) return val;
-  }
-  unknownColors.add(c);
-  return 'אחר';
-}
+// טען הגדרות מה-DB (כולל ווריאציות שהוגדרו ב-admin/config)
+const {
+  normalizeColor,
+  unknownColors,
+  shouldSkip: shouldSkipFromConfig,
+  detectCategory: detectCategoryFromConfig,
+  detectStyle: detectStyleFromConfig,
+  detectFit: detectFitFromConfig,
+  detectFabric: detectFabricFromConfig,
+  detectPattern: detectPatternFromConfig,
+} = await loadScraperConfig(db);
 
 // ======================================================================
 // מיפוי מידות
@@ -89,36 +48,18 @@ function normalizeSize(s) {
 }
 
 // ======================================================================
-// סינון מוצרים לא רלוונטיים — רק בגדי נשים בוגרות
+// פונקציות זיהוי — config מה-DB (admin) ראשון, fallback לרג'קסים עשירים
 // ======================================================================
-const SKIP_KEYWORDS = [
-  // תכשיטים ואקססוריז
-  'עגיל','עגילי','עגיות','שרשרת','צמיד','טבעת','תכשיט',
-  'כובע','צעיף','תיק','ארנק','משקפיים','משקפי שמש',
-  'גומייה','מטפחת','קשת','שעון','שיער',
-  // נעליים
-  'נעל','נעלי','סנדל','xxxxx','xxx','xxxxxx','xxxxx',	  'xxxx','xxxxxx','xxxxxx','xxxxxxx','xxxx','xxx',	  // xxx xx	  'xxx xx','xxxxxx','xxxx xx',	  // xxxxx	  'xxxx','xxxxx','xxxxxxx','xxxxxx','xxxx',	  // xxx	  'xxxxxx','xxxxx','xxxxxx','xxxxxx','גרבי',
-];
 
+// shouldSkip — config מה-DB
 function shouldSkip(title) {
-  if (!title) return false;
-  const t = title.toLowerCase().trim();
-  return SKIP_KEYWORDS.some(k => {
-    const kl = k.toLowerCase();
-    if (kl.includes(' ')) {
-      // ביטוי של שתי מילים — חיפוש רגיל
-      return t.includes(kl);
-    }
-    // מילה בודדת — בדוק גבולות
-    const idx = t.indexOf(kl);
-    if (idx === -1) return false;
-    const before = idx === 0 || /[\s,\-–\/״"()]/.test(t[idx - 1]);
-    const after = idx + kl.length === t.length || /[\s,\-–\/״"().!?]/.test(t[idx + kl.length]);
-    return before && after;
-  });
+  return shouldSkipFromConfig(title);
 }
 
+// detectCategory — config מה-DB ראשון, regex כגיבוי
 function detectCategory(title) {
+  const fromConfig = detectCategoryFromConfig(title);
+  if (fromConfig) return fromConfig;
   const t = (title || '').toLowerCase();
   if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
   if (/סוודר|sweater/i.test(t)) return 'סוודר';
@@ -141,7 +82,10 @@ function detectCategory(title) {
   return null;
 }
 
+// detectStyle — config ראשון, regex כגיבוי
 function detectStyle(title, description = '') {
+  const fromConfig = detectStyleFromConfig(title, description);
+  if (fromConfig) return fromConfig;
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף|חגיג|celebration|festive|אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'ערב';
   if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|daily|everyday|יום.?יום/i.test(text)) return 'יום חול';
@@ -154,7 +98,10 @@ function detectStyle(title, description = '') {
   return '';
 }
 
+// detectFit — config ראשון, regex כגיבוי (יש ל-chen גיזרות עשירות יותר)
 function detectFit(title, description = '') {
+  const fromConfig = detectFitFromConfig(title, description);
+  if (fromConfig) return fromConfig;
   const text = (title || '').toLowerCase();
   const fullText = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/ישרה|straight/i.test(text)) return 'ישרה';
@@ -175,7 +122,10 @@ function detectFit(title, description = '') {
   return '';
 }
 
+// detectPattern — config ראשון, regex כגיבוי
 function detectPattern(title, description = '') {
+  const fromConfig = detectPatternFromConfig(title, description);
+  if (fromConfig) return fromConfig;
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/פסים|פס |striped?/i.test(text)) return 'פסים';
   if (/פרחוני|פרחים|floral|flower/i.test(text)) return 'פרחוני';
@@ -188,7 +138,10 @@ function detectPattern(title, description = '') {
   return '';
 }
 
+// detectFabric — config ראשון, regex כגיבוי (ל-chen יש בדים נוספים)
 function detectFabric(title, description = '') {
+  const fromConfig = detectFabricFromConfig(title, description);
+  if (fromConfig) return fromConfig;
   const text = ((title || '') + ' ' + (description || '')).toLowerCase();
   if (/סריג|knit|knitted/i.test(text)) return 'סריג';
   if (/אריג|woven/i.test(text)) return 'אריג';

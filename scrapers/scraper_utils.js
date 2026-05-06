@@ -64,6 +64,7 @@ const DEFAULT_FABRICS = {
   'לייקרה':['לייקרה','lycra'],'כותנה':['כותנה','cotton'],
   'פשתן':['פשתן','linen'],'משי':['משי','silk'],'צמר':['צמר','wool'],
   'ריקמה':['ריקמה','רקומה','embroidery'],
+  "ג'ינס":["ג'ינס","ג׳ינס",'גינס','denim','jeans'],
 };
 
 const DEFAULT_PATTERNS = {
@@ -151,7 +152,20 @@ export async function loadScraperConfig(db) {
   }
 
   return {
-    normalizeColor: (c) => normalizeWithLookup(c, colorLookup, unknownColors) || 'אחר',
+    // normalizeColor(colorValue, title?)
+    // title אופציונלי — אם מועבר, מפעיל לוגיקת ג'ינס חכמה
+    normalizeColor(c, title) {
+      const JEANS_WORDS = ["ג'ינס","ג׻ינס",'גינס','denim','jeans'];
+      const result = normalizeWithLookup(c, colorLookup, unknownColors);
+      if (result) return result;
+      const t = (title || c || '').toLowerCase();
+      const hasJeans = JEANS_WORDS.some(w => t.includes(w.toLowerCase()));
+      if (!hasJeans) { unknownColors.add(c); return 'אחר'; }
+      const withoutJeans = JEANS_WORDS.reduce((s,w) => s.replace(new RegExp(w.replace(/'/g,"['’]"),'gi'),''), t).trim();
+      const otherColor = normalizeWithLookup(withoutJeans, colorLookup, null);
+      if (otherColor && otherColor !== 'אחר') return otherColor;
+      return 'כחול'; // ג'ינס לבד = כחול
+    },
     unknownColors,
 
     shouldSkip(title) {

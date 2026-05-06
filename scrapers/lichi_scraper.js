@@ -42,10 +42,13 @@ async function getAllProductUrls(page, maxProducts = 10) {
   
   // כל הקטגוריות (חוץ מנעליים)
   const categories = [
+    'https://lichi-shop.com/shop/',
     'https://lichi-shop.com/product-category/sets/',
     'https://lichi-shop.com/product-category/skirts/',
     'https://lichi-shop.com/product-category/dresses/',
     'https://lichi-shop.com/product-category/shirts/',
+    'https://lichi-shop.com/product-category/tops/',
+    'https://lichi-shop.com/product-category/jackets/',
     'https://lichi-shop.com/product-category/sale-2/',
   ];
   
@@ -53,7 +56,7 @@ async function getAllProductUrls(page, maxProducts = 10) {
     if (allUrls.size >= maxProducts) break;
     
     // עבור על דפים בכל קטגוריה
-    for (let pageNum = 1; pageNum <= 5; pageNum++) {
+    for (let pageNum = 1; pageNum <= 20; pageNum++) {
       if (allUrls.size >= maxProducts) break;
       
       const url = pageNum === 1 ? catUrl : `${catUrl}page/${pageNum}/`;

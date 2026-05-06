@@ -63,7 +63,11 @@ for (const name of toRun) {
   console.log(`\n${'='.repeat(50)}\n▶️  מתחיל: ${name.toUpperCase()}\n${'='.repeat(50)}`);
   const start = Date.now();
   try {
-    execSync(`node ${file}`, { stdio: 'inherit', cwd: __dirname });
+    execSync(`node --max-old-space-size=512 ${file}`, {
+      stdio: 'inherit',
+      cwd: __dirname,
+      timeout: 20 * 60 * 1000, // 20 דקות מקסימום לכל סקרייפר
+    });
     const sec = ((Date.now() - start) / 1000).toFixed(0);
     console.log(`\n✅ ${name.toUpperCase()} הסתיים (${sec}s)`);
     ok++;

@@ -2575,6 +2575,156 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
   }
 });
 
+
+// GET /api/cron/check-alerts?secret=CRON_SECRET
+// מריץ בדיקת התראות מחיר ומלאי — נקרא מ-Railway Cron
+app.get('/api/cron/check-alerts', async (req, res) => {
+  const CRON_SECRET = process.env.CRON_SECRET || '';
+  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const BREVO_KEY  = process.env.BREVO_API_KEY;
+  const SITE_URL_  = process.env.SITE_URL || 'https://lookli.co.il';
+  const FROM_EMAIL_= process.env.FROM_EMAIL || 'alerts@lookli.co.il';
+  const FROM_NAME  = 'LOOKLI התראות';
+
+  async function sendAlertEmail(toEmail, subject, htmlBody) {
+    if (!BREVO_KEY) return false;
+    try {
+      const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: { name: FROM_NAME, email: FROM_EMAIL_ },
+          to: [{ email: toEmail }],
+          subject,
+          htmlContent: htmlBody,
+        }),
+      });
+      return r.ok;
+    } catch(e) { return false; }
+  }
+
+  function buildAlertEmail({ type, title, image, store, oldVal, newVal, url }) {
+    const isPrice = type === 'price';
+    const body = isPrice
+      ? `<p style="font-size:16px">המחיר של <strong>${title}</strong> ירד!</p>
+         <p style="font-size:22px;color:#e0a1c0;font-weight:900">₪${newVal} <span style="text-decoration:line-through;font-size:14px;color:#999">₪${oldVal}</span></p>`
+      : `<p style="font-size:16px">מידה <strong>${newVal}</strong> של <strong>${title}</strong> חזרה למלאי!</p>`;
+    return `<!DOCTYPE html><html dir="rtl" lang="he">
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:520px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:24px 28px;text-align:center">
+      <div style="font-size:28px;font-weight:900;color:#fff">LOOKLI</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px">התראת מחיר ומלאי</div>
+    </div>
+    <div style="padding:28px">
+      ${image ? `<img src="${image}" alt="${title}" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:20px"/>` : ''}
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:6px">${store || ''}</div>
+      ${body}
+      <a href="${url}" target="_blank" style="display:block;margin-top:20px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">לרכישה באתר ←</a>
+    </div>
+    <div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">
+      קיבלת מייל זה כי הגדרת התראה ב-LOOKLI •
+      <a href="${SITE_URL_}" style="color:#c48cb3;text-decoration:none">לביטול כניסי לפרופיל</a>
+    </div>
+  </div>
+</body></html>`;
+  }
+
+  try {
+    const { rows: alerts } = await pool.query(`
+      SELECT
+        pa.id, pa.user_id, pa.product_source_url,
+        pa.alert_price, pa.alert_size, pa.alert_color,
+        pa.last_price, pa.last_sizes,
+        u.email AS user_email,
+        p.price AS current_price,
+        p.sizes AS current_sizes,
+        p.color_sizes AS current_color_sizes,
+        p.title AS product_title,
+        p.image_url AS product_image,
+        p.store AS product_store
+      FROM price_alerts pa
+      JOIN users u ON u.id = pa.user_id
+      LEFT JOIN products p ON p.source_url = pa.product_source_url
+      WHERE pa.active = true
+    `);
+
+    console.log(`[check-alerts] התראות פעילות: ${alerts.length}`);
+    let sent = 0;
+
+    for (const alert of alerts) {
+      const {
+        id, user_email, product_source_url,
+        alert_price, alert_size, alert_color,
+        last_price, last_sizes,
+        current_price, current_sizes, current_color_sizes,
+        product_title, product_image, product_store,
+      } = alert;
+
+      const relevantSizes = alert_color && current_color_sizes?.[alert_color]
+        ? current_color_sizes[alert_color]
+        : current_sizes;
+
+      // התראת מחיר
+      if (alert_price && current_price && last_price) {
+        const prev = parseFloat(last_price);
+        const curr = parseFloat(current_price);
+        if (curr < prev) {
+          const ok = await sendAlertEmail(
+            user_email,
+            `💰 המחיר ירד! ${product_title}`,
+            buildAlertEmail({ type:'price', title:product_title, image:product_image, store:product_store, oldVal:prev.toFixed(0), newVal:curr.toFixed(0), url:product_source_url })
+          );
+          if (ok) {
+            sent++;
+            await pool.query("UPDATE price_alerts SET last_price=$1, triggered_at=NOW() WHERE id=$2", [current_price, id]);
+          }
+        }
+      }
+
+      // התראת מידה
+      if (alert_size && relevantSizes) {
+        const prevSizes = last_sizes || [];
+        const sizeBack = alert_size === 'any'
+          ? relevantSizes.some(s => !prevSizes.includes(s))
+          : relevantSizes.includes(alert_size) && !prevSizes.includes(alert_size);
+        if (sizeBack) {
+          const sizeLabel = alert_size === 'any' ? 'חדשה' : alert_size;
+          const colorLabel = alert_color ? ` (${alert_color})` : '';
+          const ok = await sendAlertEmail(
+            user_email,
+            `📦 מידה חזרה למלאי! ${product_title}`,
+            buildAlertEmail({ type:'size', title:product_title, image:product_image, store:product_store, newVal:sizeLabel+colorLabel, url:product_source_url })
+          );
+          if (ok) {
+            sent++;
+            await pool.query("UPDATE price_alerts SET last_sizes=$1, triggered_at=NOW() WHERE id=$2", [relevantSizes, id]);
+          }
+        }
+      }
+
+      // עדכן last_price/last_sizes
+      if (current_price || relevantSizes) {
+        await pool.query(
+          "UPDATE price_alerts SET last_price=COALESCE($1,last_price), last_sizes=COALESCE($2,last_sizes) WHERE id=$3",
+          [current_price || null, relevantSizes || null, id]
+        );
+      }
+    }
+
+    console.log(`[check-alerts] ✅ נשלחו ${sent} התראות`);
+    res.json({ ok: true, checked: alerts.length, sent });
+
+  } catch(e) {
+    console.error('[check-alerts] שגיאה:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ===== מדידת גודל תמונות (נטפרי) =====
 // GET /api/admin/measure-images — מודד גודל תמונות לכל המוצרים ומעדכן image_size_bytes
 app.get('/api/admin/measure-images', adminAuth, async (req, res) => {

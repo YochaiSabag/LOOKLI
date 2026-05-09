@@ -2299,19 +2299,19 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       }
     }
 
-    // 2. מצא חנויות עם 4+ מוצרים חדשים ב-4 ימים האחרונים
+    // 2. מצא חנויות עם 3+ מוצרים חדשים ב-7 ימים האחרונים
     const newProductsRes = await pool.query(`
       SELECT store, COUNT(*) as count
       FROM products
-      WHERE created_at >= NOW() - INTERVAL '4 days'
+      WHERE first_seen >= NOW() - INTERVAL '7 days'
         AND store IS NOT NULL
       GROUP BY store
-      HAVING COUNT(*) >= 4
+      HAVING COUNT(*) >= 3
       ORDER BY count DESC
     `);
 
     if (!newProductsRes.rows.length) {
-      return res.json({ skipped: true, reason: 'אין חנויות עם 4+ מוצרים חדשים ב-4 ימים האחרונים' });
+      return res.json({ skipped: true, reason: 'אין חנויות עם 3+ מוצרים חדשים ב-7 ימים האחרונים' });
     }
 
     // 3. שלוף את המוצרים עצמם לכל חנות
@@ -2320,8 +2320,8 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       const productsRes = await pool.query(`
         SELECT id, title, price, original_price, image_url, images, store, category
         FROM products
-        WHERE store = $1 AND created_at >= NOW() - INTERVAL '4 days'
-        ORDER BY created_at DESC
+        WHERE store = $1 AND first_seen >= NOW() - INTERVAL '7 days'
+        ORDER BY first_seen DESC
         LIMIT 12
       `, [row.store]);
 
@@ -2897,6 +2897,8 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);
+    await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

@@ -42,13 +42,10 @@ async function getAllProductUrls(page, maxProducts = 10) {
   
   // כל הקטגוריות (חוץ מנעליים)
   const categories = [
-    'https://lichi-shop.com/shop/',
     'https://lichi-shop.com/product-category/sets/',
     'https://lichi-shop.com/product-category/skirts/',
     'https://lichi-shop.com/product-category/dresses/',
     'https://lichi-shop.com/product-category/shirts/',
-    'https://lichi-shop.com/product-category/tops/',
-    'https://lichi-shop.com/product-category/jackets/',
     'https://lichi-shop.com/product-category/sale-2/',
   ];
   
@@ -56,7 +53,7 @@ async function getAllProductUrls(page, maxProducts = 10) {
     if (allUrls.size >= maxProducts) break;
     
     // עבור על דפים בכל קטגוריה
-    for (let pageNum = 1; pageNum <= 20; pageNum++) {
+    for (let pageNum = 1; pageNum <= 5; pageNum++) {
       if (allUrls.size >= maxProducts) break;
       
       const url = pageNum === 1 ? catUrl : `${catUrl}page/${pageNum}/`;
@@ -560,8 +557,8 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
          image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
@@ -585,7 +582,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
+const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 10;
 
 const browser = await chromium.launch({ headless: true, slowMo: 30 });
 const context = await browser.newContext({

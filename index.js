@@ -2052,6 +2052,26 @@ app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirnam
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
 
+// ===== TASKS API =====
+app.get('/api/admin/tasks-data', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT value FROM admin_store WHERE key='tasks_data'`);
+    if (!r.rows.length) return res.json({ tasks: [], persons: ['נעמי','יועי','שירה','דן'] });
+    res.json(r.rows[0].value);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
+  try {
+    const { tasks, persons } = req.body;
+    await pool.query(`
+      INSERT INTO admin_store (key, value, updated_at) VALUES ('tasks_data', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()
+    `, [JSON.stringify({ tasks, persons })]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ===== TAGGER API =====
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   try {
@@ -2926,6 +2946,7 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

@@ -345,6 +345,18 @@ async function saveProduct(product) {
          design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
          all_sizes      = EXCLUDED.all_sizes,
          last_seen      = NOW(),
+         tagged_fields  = (
+           SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
+             COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
+             CASE WHEN EXCLUDED.style IS NOT NULL          THEN ARRAY['style']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.category IS NOT NULL       THEN ARRAY['category']       ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fit IS NOT NULL            THEN ARRAY['fit']            ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fabric IS NOT NULL         THEN ARRAY['fabric']         ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.pattern IS NOT NULL        THEN ARRAY['pattern']        ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.color IS NOT NULL          THEN ARRAY['color']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN cardinality(COALESCE(EXCLUDED.design_details, ARRAY[]::TEXT[])) > 0 THEN ARRAY['design_details'] ELSE ARRAY[]::TEXT[] END
+           ) AS f
+         ),
          price_dropped_at = CASE
            WHEN EXCLUDED.original_price IS NOT NULL
             AND EXCLUDED.original_price > EXCLUDED.price * 1.10

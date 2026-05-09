@@ -349,8 +349,13 @@ let currentValue = '';
 let page = 1;
 const PAGE_SIZE = 60;
 
-// ─── Presets ───
+// ─── Presets — נטענים דינמית מ-/api/admin/scraper-config ───
 const PRESETS = {
+  style: [], category: [], fit: [], fabric: [], pattern: [], color: [], design_details: []
+};
+
+// fallback למקרה שה-API נכשל
+const PRESETS_FALLBACK = {
   style: ['ערב','שבת','חגיגי','יום חול','קלאסי','מינימליסטי','מודרני','רטרו','אוברסייז'],
   category: ['שמלה','חולצה','חצאית','קרדיגן','סוודר','מעיל','בלייזר','טוניקה','סרפן','סט','אוברול','וסט','עליונית','חלוק'],
   fit: ['ארוכה','מידי','קצרה','מותן','מתרחבת','ישרה','מחויטת','מעטפת','צמודה','רפויה','הריון','הנקה'],
@@ -360,11 +365,33 @@ const PRESETS = {
   design_details: ['צווארון V','צווארון עגול','צווארון גבוה','גולף','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','שסע','מעטפת','חשוף כתפיים'],
 };
 
+async function loadPresets() {
+  try {
+    const r = await fetch('/api/admin/scraper-config', { credentials: 'include' });
+    if (!r.ok) throw new Error('config API failed');
+    const { items } = await r.json();
+    // מפה: type → שמות ממוינים
+    const typeMap = { color: [], category: [], style: [], fit: [], fabric: [], pattern: [] };
+    items.forEach(item => {
+      if (typeMap[item.type] !== undefined) typeMap[item.type].push(item.name);
+    });
+    Object.keys(typeMap).forEach(t => {
+      if (typeMap[t].length > 0) PRESETS[t] = typeMap[t].sort((a, b) => a.localeCompare(b, 'he'));
+      else PRESETS[t] = PRESETS_FALLBACK[t] || [];
+    });
+    // design_details אין בקונפיג — תמיד fallback
+    PRESETS.design_details = PRESETS_FALLBACK.design_details;
+  } catch {
+    // fallback לכל השדות
+    Object.assign(PRESETS, PRESETS_FALLBACK);
+  }
+}
+
 // ─── Init ───
 // auth דרך cookie session (adminAuth)
 
 (async function init() {
-  await loadProducts();
+  await Promise.all([loadProducts(), loadPresets()]);
   renderPresets();
   renderStoreFilter();
 })();

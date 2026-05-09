@@ -2175,7 +2175,17 @@ app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ===== TAGGER API =====
+app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
+  clearTimeout(_taskChangeTimer);
+  const batch = _taskChangeBuf.splice(0);
+  if (!batch.length) return res.json({ ok: true, sent: 0 });
+  await _flushTaskNotifications(batch);
+  res.json({ ok: true, sent: batch.length });
+});
+
+app.get('/api/admin/tasks-pending-changes', adminAuth, (req, res) => {
+  res.json({ count: _taskChangeBuf.length });
+});
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   try {
     const { ids, field, value } = req.body;

@@ -201,6 +201,7 @@ body::before{content:'';position:fixed;inset:0;background:
       <option value="progress">מיון: התקדמות</option>
     </select>
     <button class="ghost-btn" id="viewBtn" onclick="toggleView()">📋 רשימה</button>
+    <button class="ghost-btn" id="notifyBtn" onclick="sendNow()" style="display:none">📧 שלח עכשיו <span id="notifyCount" style="background:var(--accent);color:#fff;border-radius:20px;padding:1px 6px;font-size:10px;font-weight:700"></span></button>
   </div>
 
   <div class="stats" id="statsBar"></div>
@@ -676,6 +677,38 @@ function rmPerson(name){
   persons=persons.filter(p=>p!==name);tasks.forEach(t=>{if(t.person===name)t.person='';});
   save();renderPersonsList();fillPersonSelect();render();showToast('🗑️ '+name+' הוסר');
 }
+
+async function sendNow(){
+  const btn=document.getElementById('notifyBtn');
+  btn.textContent='שולח...';btn.disabled=true;
+  try{
+    const r=await fetch('/api/admin/tasks-notify-now',{method:'POST'});
+    const d=await r.json();
+    showToast(d.sent?`📧 נשלח מייל — ${d.sent} שינויים`:'אין שינויים ממתינים');
+  }catch{showToast('⚠️ שגיאת שליחה');}
+  btn.disabled=false;
+  updateNotifyBtn(0);
+}
+
+function updateNotifyBtn(count){
+  const btn=document.getElementById('notifyBtn');
+  const badge=document.getElementById('notifyCount');
+  if(!btn)return;
+  if(count>0){
+    btn.style.display='';
+    btn.innerHTML=`📧 שלח עכשיו <span style="background:var(--accent);color:#fff;border-radius:20px;padding:1px 6px;font-size:10px;font-weight:700">${count}</span>`;
+  } else {
+    btn.style.display='none';
+  }
+}
+
+// בדוק כל 10 שניות כמה שינויים ממתינים
+setInterval(async()=>{
+  const r=await fetch('/api/admin/tasks-pending-changes').catch(()=>null);
+  if(!r)return;
+  const d=await r.json().catch(()=>null);
+  if(d)updateNotifyBtn(d.count);
+},10000);
 
 load().then(()=>render());
 </script>

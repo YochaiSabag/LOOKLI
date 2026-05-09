@@ -2062,19 +2062,31 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
 
     if (field === 'design_details') {
       await pool.query(
-        `UPDATE products SET design_details = array_append(COALESCE(design_details,'{}'), $1), updated_at=NOW()
+        `UPDATE products
+         SET design_details = array_append(COALESCE(design_details,'{}'), $1),
+             tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
+             updated_at     = NOW()
          WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
         [value, ids]
       );
     } else if (field === 'fit') {
       await pool.query(
-        `UPDATE products SET fit=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        `UPDATE products
+         SET fit           = $1,
+             fits          = array_append(COALESCE(fits,'{}'), $1),
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'fit'), 'fit'),
+             updated_at    = NOW()
+         WHERE id = ANY($2::int[])`,
         [value, ids]
       );
     } else {
       await pool.query(
-        `UPDATE products SET ${field}=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
-        [value, ids]
+        `UPDATE products
+         SET ${field}      = $1,
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2), $2),
+             updated_at    = NOW()
+         WHERE id = ANY($3::int[])`,
+        [value, field, ids]
       );
     }
     res.json({ ok: true, updated: ids.length });
@@ -2087,7 +2099,14 @@ app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) =>
   try {
     const { ids } = req.body;
     if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
-    await pool.query(`UPDATE products SET design_details=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    await pool.query(
+      `UPDATE products
+       SET design_details = NULL,
+           tagged_fields  = array_remove(COALESCE(tagged_fields,'{}'), 'design_details'),
+           updated_at     = NOW()
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
     res.json({ ok: true, updated: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2096,7 +2115,15 @@ app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
-    await pool.query(`UPDATE products SET fit=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    await pool.query(
+      `UPDATE products
+       SET fit           = NULL,
+           fits          = NULL,
+           tagged_fields = array_remove(COALESCE(tagged_fields,'{}'), 'fit'),
+           updated_at    = NOW()
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
     res.json({ ok: true, updated: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2505,18 +2532,17 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
       }
     }
 
-    // מצא מוצרים עם ירידת מחיר 10%+ ב-7 ימים האחרונים
+    // מצא מוצרים שקיבלו הנחה 10%+ ב-7 ימים האחרונים
     const priceDropRes = await pool.query(`
       SELECT store, COUNT(*) as count
       FROM products
-      WHERE updated_at >= NOW() - INTERVAL '7 days'
+      WHERE price_dropped_at >= NOW() - INTERVAL '7 days'
         AND original_price IS NOT NULL
         AND original_price > 0
         AND price > 0
         AND original_price > price * 1.10
         AND store IS NOT NULL
       GROUP BY store
-      HAVING COUNT(*) >= 1
       ORDER BY count DESC
     `);
 
@@ -2531,7 +2557,7 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
         SELECT id, title, price, original_price, image_url, images, store
         FROM products
         WHERE store = $1
-          AND updated_at >= NOW() - INTERVAL '7 days'
+          AND price_dropped_at >= NOW() - INTERVAL '7 days'
           AND original_price IS NOT NULL
           AND original_price > price * 1.10
         ORDER BY (original_price - price) / original_price DESC
@@ -2899,6 +2925,8 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
+    await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

@@ -392,12 +392,31 @@ async function saveProduct(product) {
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
-         title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
-         color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
-         category=EXCLUDED.category, description=EXCLUDED.description,
-         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
+         title          = EXCLUDED.title,
+         price          = EXCLUDED.price,
+         original_price = EXCLUDED.original_price,
+         image_url      = EXCLUDED.image_url,
+         images         = EXCLUDED.images,
+         sizes          = EXCLUDED.sizes,
+         color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
+         colors         = EXCLUDED.colors,
+         style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
+         fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
+         category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
+         description    = EXCLUDED.description,
+         color_sizes    = EXCLUDED.color_sizes,
+         pattern        = CASE WHEN products.tagged_fields @> ARRAY['pattern']        THEN products.pattern        ELSE EXCLUDED.pattern        END,
+         fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
+         design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
+         all_sizes      = EXCLUDED.all_sizes,
+         last_seen      = NOW(),
+         price_dropped_at = CASE
+           WHEN EXCLUDED.original_price IS NOT NULL
+            AND EXCLUDED.original_price > EXCLUDED.price * 1.10
+            AND (products.original_price IS NULL OR products.original_price <= products.price * 1.10)
+           THEN NOW()
+           ELSE products.price_dropped_at
+         END`,
       ['CHEMISE', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,

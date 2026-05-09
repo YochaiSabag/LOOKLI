@@ -2326,19 +2326,18 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       }
     }
 
-    // 2. מצא חנויות עם 3+ מוצרים חדשים ב-7 ימים האחרונים
+    // 2. מצא חנויות עם מוצרים חדשים ב-7 ימים האחרונים
     const newProductsRes = await pool.query(`
       SELECT store, COUNT(*) as count
       FROM products
       WHERE first_seen >= NOW() - INTERVAL '7 days'
         AND store IS NOT NULL
       GROUP BY store
-      HAVING COUNT(*) >= 3
       ORDER BY count DESC
     `);
 
     if (!newProductsRes.rows.length) {
-      return res.json({ skipped: true, reason: 'אין חנויות עם 3+ מוצרים חדשים ב-7 ימים האחרונים' });
+      return res.json({ skipped: true, reason: 'אין מוצרים חדשים ב-7 ימים האחרונים' });
     }
 
     // 3. שלוף את המוצרים עצמם לכל חנות

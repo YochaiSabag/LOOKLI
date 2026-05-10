@@ -2209,6 +2209,7 @@ app.get('/api/admin/tasks-test-email', adminAuth, async (req, res) => {
 });
 
 
+app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
   clearTimeout(_taskChangeTimer);
   const batch = _taskChangeBuf.splice(0);
   if (!batch.length) return res.json({ ok: true, sent: 0 });

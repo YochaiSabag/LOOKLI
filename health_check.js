@@ -113,11 +113,11 @@ async function runHealthCheck() {
           <div style="font-size:13px;font-weight:700;color:#c97cc0;margin-bottom:8px;padding:6px 12px;background:#fdf4ff;border-radius:8px;display:inline-block">
             ${store} — ${titles.length} מוצרים
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            ${titles.map(t => `
-              <div style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px 12px;font-family:monospace;word-break:break-all">
-                "${t}"
-              </div>`).join('')}
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${titles.map(t => {
+              const short = t.length > 40 ? t.substring(0, 38) + '…' : t;
+              return `<span style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:20px;padding:4px 12px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;display:inline-block" title="${t.replace(/"/g,'&quot;')}">${short}</span>`;
+            }).join('')}
           </div>
         </div>`).join('')}
     </div>`;

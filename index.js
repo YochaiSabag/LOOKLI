@@ -2067,7 +2067,7 @@ let _taskChangeTimer = null;
 
 async function _flushTaskNotifications(changes) {
   const BREVO_KEY  = process.env.BREVO_API_KEY;
-  const FROM_EMAIL = process.env.FROM_EMAIL  || 'alerts@lookli.co.il';
+  const SENDER     = process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il';
   const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
   const SITE_URL   = process.env.SITE_URL    || 'https://lookli.co.il';
   if (!BREVO_KEY || !NOTIFY || !changes.length) return;
@@ -2119,17 +2119,23 @@ async function _flushTaskNotifications(changes) {
 
   const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
   try {
-    await fetch('https://api.brevo.com/v3/smtp/email', {
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sender: { name: 'LOOKLI משימות', email: FROM_EMAIL },
-        to,
+        sender: { name: 'LOOKLI משימות', email: SENDER },
+        to: [{ email: SENDER }],
+        bcc: to,
         subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
         htmlContent: html,
       }),
     });
-    console.log(`[tasks] מייל נשלח: ${changes.length} שינויים`);
+    if (!resp.ok) {
+      const err = await resp.json();
+      console.error('[tasks] Brevo error:', JSON.stringify(err));
+    } else {
+      console.log(`[tasks] מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
+    }
   } catch(e) { console.error('[tasks] שגיאת מייל:', e.message); }
 }
 
@@ -2879,150 +2885,6 @@ app.get('/api/cron/check-alerts', async (req, res) => {
 
   } catch(e) {
     console.error('[check-alerts] שגיאה:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ===== Health Check Cron =====
-// GET /api/cron/health-check?secret=CRON_SECRET — דוח בריאות סקרייפרים + מיילים לאדמין
-app.get('/api/cron/health-check', async (req, res) => {
-  const CRON_SECRET = process.env.CRON_SECRET || '';
-  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  try {
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-    if (!ADMIN_EMAIL) return res.status(500).json({ error: 'ADMIN_EMAIL לא מוגדר' });
-
-    const { rows } = await pool.query(`
-      SELECT store,
-        COUNT(*)                                                         AS total,
-        COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 days')  AS fresh,
-        MAX(last_seen)                                                   AS last_seen,
-        COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
-        COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,
-        COUNT(*) FILTER (WHERE sizes IS NULL OR array_length(sizes,1) IS NULL OR array_length(sizes,1) = 0) AS no_sizes,
-        COUNT(*) FILTER (WHERE category IS NULL OR category = '')       AS no_category,
-        COUNT(*) FILTER (WHERE price = 0 OR price IS NULL)             AS zero_price,
-        COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '1 day'
-                           AND (sizes IS NULL OR array_length(sizes,1) IS NULL OR array_length(sizes,1) = 0)) AS new_no_stock
-      FROM products GROUP BY store ORDER BY store
-    `);
-
-    const { rows: noColorRows } = await pool.query(`
-      SELECT store, title FROM products
-      WHERE (color IS NULL OR color = '' OR color = 'אחר')
-        AND last_seen >= NOW() - INTERVAL '3 days'
-      ORDER BY store, title LIMIT 300
-    `);
-    const noColorByStore = {};
-    for (const r of noColorRows) {
-      if (!noColorByStore[r.store]) noColorByStore[r.store] = [];
-      noColorByStore[r.store].push(r.title);
-    }
-
-    function pct(n, total) { return !total ? '0%' : Math.round((n / total) * 100) + '%'; }
-    function cell(val, total, warnPct = 10, critPct = 30) {
-      if (!val || val == 0) return `<td style="color:#16a34a;text-align:center">✅</td>`;
-      const p = total ? (val / total) * 100 : 0;
-      const color = p >= critPct ? '#dc2626' : p >= warnPct ? '#d97706' : '#ca8a04';
-      return `<td style="color:${color};font-weight:700;text-align:center">${val} (${pct(val,total)})</td>`;
-    }
-    function storeStatus(r) {
-      if (r.fresh == 0 && r.total > 0) return '🔴';
-      if (r.fresh < r.total || r.no_image > 0 || r.zero_price > 0 || r.no_color > 0 || r.no_sizes > 0 || r.no_category > 0 || r.new_no_stock > 0) return '🟡';
-      return '🟢';
-    }
-
-    const hasRed    = rows.some(r => storeStatus(r) === '🔴');
-    const hasYellow = rows.some(r => storeStatus(r) === '🟡');
-
-    const tableRows = rows.map(r => {
-      const lastDate = r.last_seen
-        ? new Date(r.last_seen).toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-        : '—';
-      const dateColor = r.fresh == 0 ? '#dc2626' : r.fresh < r.total ? '#d97706' : '#16a34a';
-      return `<tr style="border-bottom:1px solid #f3f4f6">
-        <td style="padding:10px 8px;font-weight:700">${storeStatus(r)} ${r.store}</td>
-        <td style="text-align:center">${r.total}</td>
-        <td style="text-align:center;color:${dateColor};font-weight:${dateColor !== '#16a34a' ? '700' : '400'}">${lastDate}</td>
-        ${cell(r.no_image,    r.total, 5,  20)}
-        ${cell(r.no_color,    r.total, 20, 50)}
-        ${cell(r.no_sizes,    r.total, 10, 30)}
-        ${cell(r.no_category, r.total, 20, 50)}
-        ${cell(r.zero_price,  r.total, 5,  15)}
-        <td style="text-align:center;color:${r.new_no_stock > 0 ? '#d97706' : '#16a34a'}">${r.new_no_stock > 0 ? r.new_no_stock : '✅'}</td>
-      </tr>`;
-    }).join('');
-
-    const noColorSection = Object.keys(noColorByStore).length === 0 ? '' : `
-      <div style="padding:0 24px 24px">
-        <div style="font-size:15px;font-weight:800;color:#1f2937;margin-bottom:14px">🎨 מוצרים ללא צבע מזוהה (עדכניים)</div>
-        ${Object.entries(noColorByStore).map(([store, titles]) => `
-          <div style="margin-bottom:18px">
-            <div style="font-size:13px;font-weight:700;color:#c97cc0;margin-bottom:8px;padding:6px 12px;background:#fdf4ff;border-radius:8px;display:inline-block">
-              ${store} — ${titles.length} מוצרים
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              ${titles.map(t => `<div style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px 12px;font-family:monospace;word-break:break-all">"${t.replace(/"/g,'&quot;')}"</div>`).join('')}
-            </div>
-          </div>`).join('')}
-      </div>`;
-
-    const html = `<!DOCTYPE html>
-<html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;direction:rtl">
-  <div style="max-width:780px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-    <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:22px 28px;text-align:center">
-      <div style="font-size:26px;font-weight:900;color:#fff">LOOKLI — דוח סקרייפרים</div>
-      <div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px">${new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}</div>
-    </div>
-    <div style="padding:24px;overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px">
-        <thead>
-          <tr style="background:#f9fafb;font-size:12px;color:#6b7280">
-            <th style="padding:10px 8px;text-align:right">חנות</th>
-            <th style="text-align:center">סה"כ</th>
-            <th style="text-align:center">עדכון אחרון</th>
-            <th style="text-align:center">🖼️ תמונה</th>
-            <th style="text-align:center">🎨 צבע</th>
-            <th style="text-align:center">📏 מידה</th>
-            <th style="text-align:center">🏷️ קטגוריה</th>
-            <th style="text-align:center">💰 מחיר 0</th>
-            <th style="text-align:center">🆕 ללא מלאי</th>
-          </tr>
-        </thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-      <div style="margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.9">
-        <strong>מקרא:</strong> 🟢 הכל תקין | 🟡 אזהרה | 🔴 קריטי — סקרייפר לא רץ 3+ ימים<br/>
-        ✅ = אין בעיות | % = אחוז מסה"כ מוצרי החנות
-      </div>
-    </div>
-    ${noColorSection}
-  </div>
-</body></html>`;
-
-    const BREVO_KEY  = process.env.BREVO_API_KEY;
-    const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
-    let sent = false;
-    if (BREVO_KEY) {
-      const mailRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender: { name: 'LOOKLI מערכת', email: FROM_EMAIL },
-          to: [{ email: ADMIN_EMAIL }],
-          subject: `${hasRed ? '🔴' : hasYellow ? '⚠️' : '✅'} LOOKLI Scrapers — ${hasRed ? 'קריטי' : hasYellow ? 'אזהרה' : 'הכל תקין'} | ${new Date().toLocaleDateString('he-IL')}`,
-          htmlContent: html,
-        }),
-      });
-      sent = mailRes.ok;
-    }
-
-    res.json({ ok: true, sent, stores: rows.length, noColor: noColorRows.length });
-  } catch(e) {
-    console.error('health-check cron error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

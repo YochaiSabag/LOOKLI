@@ -1422,14 +1422,50 @@ app.get("/admin/ads", adminAuth, (req, res) => {
 // GET /api/product-sizes — מחזיר מידות מוצר לפי URL (לממשק ההתראות)
 app.get("/api/product-sizes", async (req, res) => {
   try {
-    const url = (req.query.url || '').trim().replace(/\/+$/, '');
-    if (!url) return res.status(400).json({ error: 'חסר url' });
+    const raw = (req.query.url || '').trim();
+    if (!raw) return res.status(400).json({ error: 'חסר url' });
+
+    // re-encode Hebrew chars שExpress פיענח
+    const reEncoded = raw.replace(/[\u0080-\uffff]/g, c =>
+      encodeURIComponent(c).toLowerCase()
+    );
+
+    // ניסיון 1: חפש ב-price_alerts לפי URL (decoded + encoded) → קבל product_id
+    const alertRow = await pool.query(
+      `SELECT product_id FROM price_alerts
+       WHERE product_source_url = $1 OR product_source_url = $2
+       LIMIT 1`,
+      [raw, reEncoded]
+    );
+    if (alertRow.rows[0]?.product_id) {
+      const r = await pool.query(
+        "SELECT sizes, all_sizes, color_sizes, colors FROM products WHERE id = $1",
+        [alertRow.rows[0].product_id]
+      );
+      if (r.rows.length) return res.json({
+        sizes: r.rows[0].sizes || [],
+        all_sizes: r.rows[0].all_sizes || [],
+        color_sizes: r.rows[0].color_sizes || {},
+        colors: r.rows[0].colors || []
+      });
+    }
+
+    // ניסיון 2: חיפוש ישיר ב-products לפי URL
+    const urlNoSlash = raw.replace(/\/+$/, '');
+    const reEncodedNoSlash = reEncoded.replace(/\/+$/, '');
     const r = await pool.query(
-      `SELECT sizes, all_sizes FROM products WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
-      [url, url + '%']
+      `SELECT sizes, all_sizes, color_sizes, colors FROM products
+       WHERE source_url = $1 OR source_url = $2
+          OR source_url = $3 OR source_url = $4 LIMIT 1`,
+      [urlNoSlash, urlNoSlash+'/', reEncodedNoSlash, reEncodedNoSlash+'/']
     );
     if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
-    res.json({ sizes: r.rows[0].sizes || [], all_sizes: r.rows[0].all_sizes || [] });
+    res.json({
+      sizes: r.rows[0].sizes || [],
+      all_sizes: r.rows[0].all_sizes || [],
+      color_sizes: r.rows[0].color_sizes || {},
+      colors: r.rows[0].colors || []
+    });
   } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });
 
@@ -2016,7 +2052,146 @@ app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirnam
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
 
-// ===== TAGGER API =====
+// ===== TASKS API =====
+app.get('/api/admin/tasks-data', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT value FROM admin_store WHERE key='tasks_data'`);
+    if (!r.rows.length) return res.json({ tasks: [], persons: ['נעמי','יועי','שירה','דן'] });
+    res.json(r.rows[0].value);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── debounce buffer לשליחת מייל סיכום ──────────────────────
+let _taskChangeBuf = [];
+let _taskChangeTimer = null;
+
+async function _flushTaskNotifications(changes) {
+  const BREVO_KEY  = process.env.BREVO_API_KEY;
+  const SENDER     = process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il';
+  const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
+  const SITE_URL   = process.env.SITE_URL    || 'https://lookli.co.il';
+  if (!BREVO_KEY || !NOTIFY || !changes.length) return;
+
+  const PRIO = { high:'🔴 גבוהה', medium:'🟡 בינונית', low:'🟢 נמוכה' };
+  const TYPE  = { created:'✅ נוצרה', completed:'🎉 הושלמה', deleted:'🗑️ נמחקה', reassigned:'👤 שויכה מחדש' };
+
+  const rows = changes.map(c => {
+    const t = c.task;
+    const extra = c.type === 'reassigned'
+      ? `<span style="color:#9ca3af;font-size:12px"> — מ-${c.from||'ללא'} ל-${c.to||'ללא'}</span>`
+      : '';
+    const person = t.person ? `<span style="color:#c084fc">${t.person}</span>` : '';
+    const prio   = PRIO[t.priority||'medium'];
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:14px">${TYPE[c.type]||c.type}${extra}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:14px;font-weight:600">${t.title||''}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px;color:#9ca3af">${person}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:12px;color:#6b7280">${prio}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#0a0a0f;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:580px;margin:30px auto;background:#12121a;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a">
+    <div style="background:linear-gradient(135deg,#c084fc,#818cf8);padding:20px 24px;display:flex;align-items:center;gap:10px">
+      <div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.8)">עדכון משימות</div>
+    </div>
+    <div style="padding:20px 24px">
+      <p style="color:#f1f0ff;font-size:14px;margin-bottom:16px">${changes.length} שינויים בוצעו:</p>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#1a1a26">
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">פעולה</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">משימה</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">אחראי</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">עדיפות</th>
+          </tr>
+        </thead>
+        <tbody style="color:#f1f0ff">${rows}</tbody>
+      </table>
+      <a href="${SITE_URL}/admin/tasks" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>
+    </div>
+  </div>
+</body></html>`;
+
+  const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
+  try {
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI משימות', email: SENDER },
+        to: [{ email: SENDER }],
+        bcc: to,
+        subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
+        htmlContent: html,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      console.error('[tasks] Brevo error:', JSON.stringify(err));
+    } else {
+      console.log(`[tasks] מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
+    }
+  } catch(e) { console.error('[tasks] שגיאת מייל:', e.message); }
+}
+
+function _scheduleTaskNotif(change) {
+  _taskChangeBuf.push(change);
+  clearTimeout(_taskChangeTimer);
+  _taskChangeTimer = setTimeout(() => {
+    const batch = _taskChangeBuf.splice(0);
+    _flushTaskNotifications(batch);
+  }, 5 * 60 * 1000); // 5 דקות אחרי השינוי האחרון
+}
+
+app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
+  try {
+    const { tasks, persons } = req.body;
+
+    // שלוף סטייט קודם להשוואה
+    const prev = await pool.query(`SELECT value FROM admin_store WHERE key='tasks_data'`);
+    const oldTasks = prev.rows[0]?.value?.tasks || [];
+    const oldMap = Object.fromEntries(oldTasks.map(t => [t.id, t]));
+    const newMap = Object.fromEntries((tasks||[]).map(t => [t.id, t]));
+
+    // זהה שינויים
+    for (const t of (tasks||[])) {
+      if (!oldMap[t.id]) {
+        _scheduleTaskNotif({ type: 'created', task: t });
+      } else {
+        const o = oldMap[t.id];
+        if (!o.done && t.done)         _scheduleTaskNotif({ type: 'completed',   task: t });
+        if (o.person !== t.person)     _scheduleTaskNotif({ type: 'reassigned',  task: t, from: o.person, to: t.person });
+      }
+    }
+    for (const t of oldTasks) {
+      if (!newMap[t.id])               _scheduleTaskNotif({ type: 'deleted',     task: t });
+    }
+
+    // שמור
+    await pool.query(`
+      INSERT INTO admin_store (key, value, updated_at) VALUES ('tasks_data', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()
+    `, [JSON.stringify({ tasks, persons })]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
+  clearTimeout(_taskChangeTimer);
+  const batch = _taskChangeBuf.splice(0);
+  if (!batch.length) return res.json({ ok: true, sent: 0 });
+  await _flushTaskNotifications(batch);
+  res.json({ ok: true, sent: batch.length });
+});
+
+app.get('/api/admin/tasks-pending-changes', adminAuth, (req, res) => {
+  res.json({ count: _taskChangeBuf.length });
+});
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   try {
     const { ids, field, value } = req.body;
@@ -2026,19 +2201,31 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
 
     if (field === 'design_details') {
       await pool.query(
-        `UPDATE products SET design_details = array_append(COALESCE(design_details,'{}'), $1), updated_at=NOW()
+        `UPDATE products
+         SET design_details = array_append(COALESCE(design_details,'{}'), $1),
+             tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
+             updated_at     = NOW()
          WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
         [value, ids]
       );
     } else if (field === 'fit') {
       await pool.query(
-        `UPDATE products SET fit=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        `UPDATE products
+         SET fit           = $1,
+             fits          = array_append(COALESCE(fits,'{}'), $1),
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'fit'), 'fit'),
+             updated_at    = NOW()
+         WHERE id = ANY($2::int[])`,
         [value, ids]
       );
     } else {
       await pool.query(
-        `UPDATE products SET ${field}=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
-        [value, ids]
+        `UPDATE products
+         SET ${field}      = $1,
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2), $2),
+             updated_at    = NOW()
+         WHERE id = ANY($3::int[])`,
+        [value, field, ids]
       );
     }
     res.json({ ok: true, updated: ids.length });
@@ -2051,7 +2238,14 @@ app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) =>
   try {
     const { ids } = req.body;
     if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
-    await pool.query(`UPDATE products SET design_details=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    await pool.query(
+      `UPDATE products
+       SET design_details = NULL,
+           tagged_fields  = array_remove(COALESCE(tagged_fields,'{}'), 'design_details'),
+           updated_at     = NOW()
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
     res.json({ ok: true, updated: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2060,7 +2254,15 @@ app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
-    await pool.query(`UPDATE products SET fit=NULL, updated_at=NOW() WHERE id = ANY($1::int[])`, [ids]);
+    await pool.query(
+      `UPDATE products
+       SET fit           = NULL,
+           fits          = NULL,
+           tagged_fields = array_remove(COALESCE(tagged_fields,'{}'), 'fit'),
+           updated_at    = NOW()
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
     res.json({ ok: true, updated: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2263,19 +2465,18 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       }
     }
 
-    // 2. מצא חנויות עם 4+ מוצרים חדשים ב-4 ימים האחרונים
+    // 2. מצא חנויות עם מוצרים חדשים ב-7 ימים האחרונים
     const newProductsRes = await pool.query(`
       SELECT store, COUNT(*) as count
       FROM products
-      WHERE created_at >= NOW() - INTERVAL '4 days'
+      WHERE first_seen >= NOW() - INTERVAL '7 days'
         AND store IS NOT NULL
       GROUP BY store
-      HAVING COUNT(*) >= 4
       ORDER BY count DESC
     `);
 
     if (!newProductsRes.rows.length) {
-      return res.json({ skipped: true, reason: 'אין חנויות עם 4+ מוצרים חדשים ב-4 ימים האחרונים' });
+      return res.json({ skipped: true, reason: 'אין מוצרים חדשים ב-7 ימים האחרונים' });
     }
 
     // 3. שלוף את המוצרים עצמם לכל חנות
@@ -2284,8 +2485,8 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       const productsRes = await pool.query(`
         SELECT id, title, price, original_price, image_url, images, store, category
         FROM products
-        WHERE store = $1 AND created_at >= NOW() - INTERVAL '4 days'
-        ORDER BY created_at DESC
+        WHERE store = $1 AND first_seen >= NOW() - INTERVAL '7 days'
+        ORDER BY first_seen DESC
         LIMIT 12
       `, [row.store]);
 
@@ -2469,18 +2670,17 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
       }
     }
 
-    // מצא מוצרים עם ירידת מחיר 10%+ ב-7 ימים האחרונים
+    // מצא מוצרים שקיבלו הנחה 10%+ ב-7 ימים האחרונים
     const priceDropRes = await pool.query(`
       SELECT store, COUNT(*) as count
       FROM products
-      WHERE updated_at >= NOW() - INTERVAL '7 days'
+      WHERE price_dropped_at >= NOW() - INTERVAL '7 days'
         AND original_price IS NOT NULL
         AND original_price > 0
         AND price > 0
         AND original_price > price * 1.10
         AND store IS NOT NULL
       GROUP BY store
-      HAVING COUNT(*) >= 1
       ORDER BY count DESC
     `);
 
@@ -2495,7 +2695,7 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
         SELECT id, title, price, original_price, image_url, images, store
         FROM products
         WHERE store = $1
-          AND updated_at >= NOW() - INTERVAL '7 days'
+          AND price_dropped_at >= NOW() - INTERVAL '7 days'
           AND original_price IS NOT NULL
           AND original_price > price * 1.10
         ORDER BY (original_price - price) / original_price DESC
@@ -2535,6 +2735,156 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
 
   } catch(e) {
     console.error('price-drop-email error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// GET /api/cron/check-alerts?secret=CRON_SECRET
+// מריץ בדיקת התראות מחיר ומלאי — נקרא מ-Railway Cron
+app.get('/api/cron/check-alerts', async (req, res) => {
+  const CRON_SECRET = process.env.CRON_SECRET || '';
+  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const BREVO_KEY  = process.env.BREVO_API_KEY;
+  const SITE_URL_  = process.env.SITE_URL || 'https://lookli.co.il';
+  const FROM_EMAIL_= process.env.FROM_EMAIL || 'alerts@lookli.co.il';
+  const FROM_NAME  = 'LOOKLI התראות';
+
+  async function sendAlertEmail(toEmail, subject, htmlBody) {
+    if (!BREVO_KEY) return false;
+    try {
+      const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: { name: FROM_NAME, email: FROM_EMAIL_ },
+          to: [{ email: toEmail }],
+          subject,
+          htmlContent: htmlBody,
+        }),
+      });
+      return r.ok;
+    } catch(e) { return false; }
+  }
+
+  function buildAlertEmail({ type, title, image, store, oldVal, newVal, url }) {
+    const isPrice = type === 'price';
+    const body = isPrice
+      ? `<p style="font-size:16px">המחיר של <strong>${title}</strong> ירד!</p>
+         <p style="font-size:22px;color:#e0a1c0;font-weight:900">₪${newVal} <span style="text-decoration:line-through;font-size:14px;color:#999">₪${oldVal}</span></p>`
+      : `<p style="font-size:16px">מידה <strong>${newVal}</strong> של <strong>${title}</strong> חזרה למלאי!</p>`;
+    return `<!DOCTYPE html><html dir="rtl" lang="he">
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:520px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:24px 28px;text-align:center">
+      <div style="font-size:28px;font-weight:900;color:#fff">LOOKLI</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px">התראת מחיר ומלאי</div>
+    </div>
+    <div style="padding:28px">
+      ${image ? `<img src="${image}" alt="${title}" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-bottom:20px"/>` : ''}
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:6px">${store || ''}</div>
+      ${body}
+      <a href="${url}" target="_blank" style="display:block;margin-top:20px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">לרכישה באתר ←</a>
+    </div>
+    <div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">
+      קיבלת מייל זה כי הגדרת התראה ב-LOOKLI •
+      <a href="${SITE_URL_}" style="color:#c48cb3;text-decoration:none">לביטול כניסי לפרופיל</a>
+    </div>
+  </div>
+</body></html>`;
+  }
+
+  try {
+    const { rows: alerts } = await pool.query(`
+      SELECT
+        pa.id, pa.user_id, pa.product_source_url,
+        pa.alert_price, pa.alert_size, pa.alert_color,
+        pa.last_price, pa.last_sizes,
+        u.email AS user_email,
+        p.price AS current_price,
+        p.sizes AS current_sizes,
+        p.color_sizes AS current_color_sizes,
+        p.title AS product_title,
+        p.image_url AS product_image,
+        p.store AS product_store
+      FROM price_alerts pa
+      JOIN users u ON u.id = pa.user_id
+      LEFT JOIN products p ON p.source_url = pa.product_source_url
+      WHERE pa.active = true
+    `);
+
+    console.log(`[check-alerts] התראות פעילות: ${alerts.length}`);
+    let sent = 0;
+
+    for (const alert of alerts) {
+      const {
+        id, user_email, product_source_url,
+        alert_price, alert_size, alert_color,
+        last_price, last_sizes,
+        current_price, current_sizes, current_color_sizes,
+        product_title, product_image, product_store,
+      } = alert;
+
+      const relevantSizes = alert_color && current_color_sizes?.[alert_color]
+        ? current_color_sizes[alert_color]
+        : current_sizes;
+
+      // התראת מחיר
+      if (alert_price && current_price && last_price) {
+        const prev = parseFloat(last_price);
+        const curr = parseFloat(current_price);
+        if (curr < prev) {
+          const ok = await sendAlertEmail(
+            user_email,
+            `💰 המחיר ירד! ${product_title}`,
+            buildAlertEmail({ type:'price', title:product_title, image:product_image, store:product_store, oldVal:prev.toFixed(0), newVal:curr.toFixed(0), url:product_source_url })
+          );
+          if (ok) {
+            sent++;
+            await pool.query("UPDATE price_alerts SET last_price=$1, triggered_at=NOW() WHERE id=$2", [current_price, id]);
+          }
+        }
+      }
+
+      // התראת מידה
+      if (alert_size && relevantSizes) {
+        const prevSizes = last_sizes || [];
+        const sizeBack = alert_size === 'any'
+          ? relevantSizes.some(s => !prevSizes.includes(s))
+          : relevantSizes.includes(alert_size) && !prevSizes.includes(alert_size);
+        if (sizeBack) {
+          const sizeLabel = alert_size === 'any' ? 'חדשה' : alert_size;
+          const colorLabel = alert_color ? ` (${alert_color})` : '';
+          const ok = await sendAlertEmail(
+            user_email,
+            `📦 מידה חזרה למלאי! ${product_title}`,
+            buildAlertEmail({ type:'size', title:product_title, image:product_image, store:product_store, newVal:sizeLabel+colorLabel, url:product_source_url })
+          );
+          if (ok) {
+            sent++;
+            await pool.query("UPDATE price_alerts SET last_sizes=$1, triggered_at=NOW() WHERE id=$2", [relevantSizes, id]);
+          }
+        }
+      }
+
+      // עדכן last_price/last_sizes
+      if (current_price || relevantSizes) {
+        await pool.query(
+          "UPDATE price_alerts SET last_price=COALESCE($1,last_price), last_sizes=COALESCE($2,last_sizes) WHERE id=$3",
+          [current_price || null, relevantSizes || null, id]
+        );
+      }
+    }
+
+    console.log(`[check-alerts] ✅ נשלחו ${sent} התראות`);
+    res.json({ ok: true, checked: alerts.length, sent });
+
+  } catch(e) {
+    console.error('[check-alerts] שגיאה:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -2711,6 +3061,11 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);
+    await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
+    await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

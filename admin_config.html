@@ -232,8 +232,8 @@ function renderList(items) {
           </div>
         </div>
         <div class="item-actions">
-          <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted)" onclick='openEdit(${JSON.stringify(item)})'>✏️ עריכה</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.id},'${esc(item.name)}')">🗑️</button>
+          <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted)" data-item="${esc(JSON.stringify(item))}" onclick="openEdit(JSON.parse(this.getAttribute('data-item')))">✏️ עריכה</button>
+          <button class="btn btn-sm btn-danger" data-id="${item.id}" data-name="${esc(item.name)}" onclick="deleteItem(+this.getAttribute('data-id'),this.getAttribute('data-name'))">🗑️</button>
         </div>
       </div>`).join('')
   }</div>`;

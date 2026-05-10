@@ -201,6 +201,7 @@ body::before{content:'';position:fixed;inset:0;background:
       <option value="progress">מיון: התקדמות</option>
     </select>
     <button class="ghost-btn" id="viewBtn" onclick="toggleView()">📋 רשימה</button>
+    <button class="ghost-btn" id="notifyBtn" onclick="sendNow()" style="display:none">📧 שלח עכשיו <span id="notifyCount" style="background:var(--accent);color:#fff;border-radius:20px;padding:1px 6px;font-size:10px;font-weight:700"></span></button>
   </div>
 
   <div class="stats" id="statsBar"></div>
@@ -272,24 +273,45 @@ body::before{content:'';position:fixed;inset:0;background:
 <div class="toast" id="toast"></div>
 
 <script>
-const SK='lookli_tasks_v3', PK='lookli_persons_v1';
 const DEFAULT_PERSONS=['נעמי','יועי','שירה','דן'];
 const PC=['#c084fc','#f472b6','#34d399','#818cf8','#fbbf24','#f87171','#38bdf8'];
 const CAT={dev:'💻 פיתוח',design:'🎨 עיצוב',content:'✍️ תוכן',marketing:'📣 שיווק',ops:'⚙️ תפעול',other:'📌 אחר'};
 const PRIO_SORT={high:0,medium:1,low:2};
 
 let tasks=[],persons=[],filter='all',editId=null,viewMode='list',mSubs=[];
+let _saving=false;
 
-function load(){
-  try{tasks=JSON.parse(localStorage.getItem(SK))||[];}catch{tasks=[];}
-  try{persons=JSON.parse(localStorage.getItem(PK))||DEFAULT_PERSONS;}catch{persons=DEFAULT_PERSONS;}
+async function load(){
+  try{
+    const r=await fetch('/api/admin/tasks-data');
+    const d=await r.json();
+    tasks=d.tasks||[];
+    persons=d.persons||DEFAULT_PERSONS;
+  }catch{tasks=[];persons=DEFAULT_PERSONS;}
   tasks.forEach(t=>{
     if(t.progress==null)t.progress=t.done?100:0;
     if(!t.progressLog)t.progressLog=[];
     if(!t.subtasks)t.subtasks=[];
   });
 }
-function save(){localStorage.setItem(SK,JSON.stringify(tasks));localStorage.setItem(PK,JSON.stringify(persons));}
+async function save(){
+  _saving=true;
+  try{
+    await fetch('/api/admin/tasks-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks,persons})});
+  }catch(e){showToast('⚠️ שגיאת שמירה');}
+  _saving=false;
+}
+// סנכרון אוטומטי כל 30 שניות
+setInterval(async()=>{
+  if(_saving||document.getElementById('modalBg').classList.contains('open'))return;
+  const r=await fetch('/api/admin/tasks-data').catch(()=>null);
+  if(!r)return;
+  const d=await r.json().catch(()=>null);
+  if(!d)return;
+  tasks=d.tasks||[];persons=d.persons||DEFAULT_PERSONS;
+  tasks.forEach(t=>{if(t.progress==null)t.progress=0;if(!t.progressLog)t.progressLog=[];if(!t.subtasks)t.subtasks=[];});
+  render();
+},30000);
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function today(){return new Date().toISOString().slice(0,10);}
 function isOver(due){return due&&due<today();}
@@ -656,7 +678,39 @@ function rmPerson(name){
   save();renderPersonsList();fillPersonSelect();render();showToast('🗑️ '+name+' הוסר');
 }
 
-load();render();
+async function sendNow(){
+  const btn=document.getElementById('notifyBtn');
+  btn.textContent='שולח...';btn.disabled=true;
+  try{
+    const r=await fetch('/api/admin/tasks-notify-now',{method:'POST'});
+    const d=await r.json();
+    showToast(d.sent?`📧 נשלח מייל — ${d.sent} שינויים`:'אין שינויים ממתינים');
+  }catch{showToast('⚠️ שגיאת שליחה');}
+  btn.disabled=false;
+  updateNotifyBtn(0);
+}
+
+function updateNotifyBtn(count){
+  const btn=document.getElementById('notifyBtn');
+  const badge=document.getElementById('notifyCount');
+  if(!btn)return;
+  if(count>0){
+    btn.style.display='';
+    btn.innerHTML=`📧 שלח עכשיו <span style="background:var(--accent);color:#fff;border-radius:20px;padding:1px 6px;font-size:10px;font-weight:700">${count}</span>`;
+  } else {
+    btn.style.display='none';
+  }
+}
+
+// בדוק כל 10 שניות כמה שינויים ממתינים
+setInterval(async()=>{
+  const r=await fetch('/api/admin/tasks-pending-changes').catch(()=>null);
+  if(!r)return;
+  const d=await r.json().catch(()=>null);
+  if(d)updateNotifyBtn(d.count);
+},10000);
+
+load().then(()=>render());
 </script>
 </body>
 </html>

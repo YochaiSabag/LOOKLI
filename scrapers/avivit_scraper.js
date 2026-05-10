@@ -329,6 +329,9 @@ async function scrapeProduct(page, url) {
     }
 
     const uniqueColors = [...availableColors];
+    const allSizesSet = new Set();
+    data.rawSizes.forEach(size => { normalizeSize(size.name).forEach(s => allSizesSet.add(s)); });
+    const allUniqueSizes = [...allSizesSet];
     const uniqueSizes = [...availableSizes];
     const mainColor = uniqueColors[0] || null;
 
@@ -384,21 +387,53 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
-         title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
-         color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
-         category=EXCLUDED.category, description=EXCLUDED.description,
-         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, last_seen=NOW()`,
+         title          = EXCLUDED.title,
+         price          = EXCLUDED.price,
+         original_price = EXCLUDED.original_price,
+         image_url      = EXCLUDED.image_url,
+         images         = EXCLUDED.images,
+         sizes          = EXCLUDED.sizes,
+         color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
+         colors         = EXCLUDED.colors,
+         style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
+         fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
+         category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
+         description    = EXCLUDED.description,
+         color_sizes    = EXCLUDED.color_sizes,
+         pattern        = CASE WHEN products.tagged_fields @> ARRAY['pattern']        THEN products.pattern        ELSE EXCLUDED.pattern        END,
+         fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
+         design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
+         all_sizes      = EXCLUDED.all_sizes,
+         last_seen      = NOW(),
+         tagged_fields  = (
+           SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
+             COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
+             CASE WHEN EXCLUDED.style IS NOT NULL          THEN ARRAY['style']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.category IS NOT NULL       THEN ARRAY['category']       ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fit IS NOT NULL            THEN ARRAY['fit']            ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fabric IS NOT NULL         THEN ARRAY['fabric']         ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.pattern IS NOT NULL        THEN ARRAY['pattern']        ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.color IS NOT NULL          THEN ARRAY['color']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN cardinality(COALESCE(EXCLUDED.design_details, ARRAY[]::TEXT[])) > 0 THEN ARRAY['design_details'] ELSE ARRAY[]::TEXT[] END
+           ) AS f
+         ),
+         price_dropped_at = CASE
+           WHEN EXCLUDED.original_price IS NOT NULL
+            AND EXCLUDED.original_price > EXCLUDED.price * 1.10
+            AND (products.original_price IS NULL OR products.original_price <= products.price * 1.10)
+           THEN NOW()
+           ELSE products.price_dropped_at
+         END`,
       ['AVIVIT', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null,
-       product.designDetails?.length ? product.designDetails : null]
+       product.designDetails?.length ? product.designDetails : null,
+       product.allSizes || []]
     );
     console.log('  💾 saved');
   } catch (err) {

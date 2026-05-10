@@ -25,6 +25,7 @@
     "scrape:rare": "node ./scrapers/rare_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:avivit": "node ./scrapers/avivit_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:st-fashion": "node ./scrapers/st_fashion_scraper.js && node ./check_alerts.js && node ./health_check.js",
+    "scrape:salina": "node ./scrapers/salina_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:run": "node ./run_scrapers.js",
     "scrape:all": "node ./run_scrapers.js all",
     "alerts": "node ./check_alerts.js",

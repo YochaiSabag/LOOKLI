@@ -13,9 +13,8 @@ const db = new Client({
 });
 
 await db.connect();
-console.log('🚀 ST Fashion Scraper');
+console.log('🚀 Salina Fashion Scraper');
 
-// טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
@@ -26,58 +25,52 @@ const sizeMapping = {
 function normalizeSize(s) {
   if (!s) return [];
   const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL)$/i.test(val)) return [val.toUpperCase()];
+  if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(val)) return [val.toUpperCase()];
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (/^L-?XL$/i.test(val)) return ['L','XL'];
+  if (/^S-?M$/i.test(val)) return ['S','M'];
   if (sizeMapping[val]) return sizeMapping[val];
-  return [];
+  return [val]; // שמור כפי שהוא אם לא ידוע
 }
 
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
 async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-st-fashion.co.il...\n');
+  console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
-  const categories = [
-    { base: 'https://www.st-fashion.co.il/product-category/sale/', label: 'sale', maxPages: MAX_PAGES },
-    { base: 'https://www.st-fashion.co.il/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', label: 'חצאיות', maxPages: MAX_PAGES },
-    { base: 'https://www.st-fashion.co.il/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', label: 'חולצות', maxPages: MAX_PAGES },
-    { base: 'https://www.st-fashion.co.il/product-category/%d7%9b%d7%95%d7%aa%d7%a0%d7%95%d7%aa/', label: 'כותנות', maxPages: MAX_PAGES },
-    { base: 'https://www.st-fashion.co.il/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa-%d7%91%d7%99%d7%aa/', label: 'שמלות בית', maxPages: MAX_PAGES },
-    { base: 'https://www.st-fashion.co.il/product-category/new-collection/', label: 'new-collection', maxPages: MAX_PAGES },
-  ];
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const url = p === 1
+      ? 'https://salinafashion.com/shop/'
+      : `https://salinafashion.com/shop/page/${p}/`;
+    try {
+      console.log(`  → עמוד ${p}`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(2000);
 
-  for (const cat of categories) {
-    console.log(`\n  📁 ${cat.label}`);
-    for (let p = 1; p <= cat.maxPages; p++) {
-      const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
-      try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
-
-        for (let i = 0; i < 3; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(800);
-        }
-
-        const urls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('st-fashion.co.il/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-
-        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
-        const before = allUrls.size;
-        urls.forEach(u => allUrls.add(u));
-        console.log(`    ✓ עמוד ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
-        if (allUrls.size === before) break; // לא התווסף שום דבר חדש
-      } catch(e) {
-        console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);
-        break;
+      // גלילה לטעינה מלאה
+      for (let i = 0; i < 4; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(800);
       }
+
+      const urls = await page.evaluate(() =>
+        [...document.querySelectorAll('h3.wd-entities-title a, a.wd-product-img-link')]
+          .map(a => a.href.split('?')[0])
+          .filter(h => h.includes('salinafashion.com/shop/') && !h.endsWith('/shop/'))
+          .filter((v, i, a) => a.indexOf(v) === i)
+      );
+
+      if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+      const before = allUrls.size;
+      urls.forEach(u => allUrls.add(u));
+      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+      if (allUrls.size === before) break;
+    } catch(e) {
+      console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);
+      break;
     }
   }
 
@@ -90,25 +83,26 @@ async function getAllProductUrls(page) {
 // סריקת מוצר
 // ======================================================================
 async function scrapeProduct(page, url) {
-  const shortUrl = url.split('/product/')[1]?.substring(0, 40) || url.substring(0, 50);
+  const shortUrl = url.split('/shop/')[1]?.substring(0, 40) || url.substring(0, 50);
   console.log(`\n🔍 ${shortUrl}...`);
 
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
     await page.waitForTimeout(2500);
 
-    // המתן למידות — נסה כמה selectors
+    // המתן למידות/צבעים
     try {
-      await page.waitForSelector('.wd-swatch, select[name*="pa_size"], .variations', { timeout: 8000 });
+      await page.waitForSelector('.wd-swatch, .variations', { timeout: 7000 });
     } catch(e) {}
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(800);
 
+    // שלב 1: חלץ נתונים בסיסיים
     const data = await page.evaluate(() => {
-      // === כותרת ===
+      // כותרת
       const title = document.querySelector('h1.product_title, h1.entry-title, .wd-entities-title')
         ?.innerText?.trim() || '';
 
-      // === מחיר ===
+      // מחיר
       let price = 0, originalPrice = null;
       const priceEl = document.querySelector('p.price, .price');
       if (priceEl) {
@@ -123,92 +117,175 @@ async function scrapeProduct(page, url) {
         }
       }
 
-      // === תמונות ===
+      // תמונות
       const images = [];
       const seen = new Set();
       const addImg = (src) => {
         if (!src || src.startsWith('data:') || seen.has(src)) return;
-        if (!src.includes('st-fashion.co.il')) return;
+        if (!src.includes('salinafashion.com')) return;
+        if (src.includes('-150x') || src.includes('-300x') || src.includes('-100x')) return;
         seen.add(src); images.push(src);
       };
-      document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => addImg(a.href));
+      document.querySelectorAll('.rtwpvg-gallery-image img').forEach(img => {
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
+      });
       document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
         addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
       });
-      document.querySelectorAll('.wd-carousel-item img').forEach(img => {
-        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
-      });
 
-      // === תיאור ===
-      const description = document.querySelector(
-        '.woocommerce-product-details__short-description, [class*="short-description"]'
+      // תיאור
+      const description = (
+        document.querySelector('.woocommerce-Tabs-panel--description .wd-scroll-content') ||
+        document.querySelector('.woocommerce-product-details__short-description')
       )?.innerText?.trim() || '';
 
-      // === מידות — wd-swatches ===
-      const rawSizes = [];
-
-      // שיטה 1: wd-swatches (הפורמט של st-fashion)
-      document.querySelectorAll('.wd-swatches-product .wd-swatch').forEach(el => {
+      // צבעים — swatches של pa_color
+      const colorSwatches = [];
+      document.querySelectorAll('[data-id="pa_color"] .wd-swatch, [data-attribute_name="attribute_pa_color"] .wd-swatch').forEach(el => {
         const title = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
-        const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
-        if (title) rawSizes.push({ name: title.toUpperCase(), disabled });
+        if (title) colorSwatches.push(title.trim());
       });
 
-      // שיטה 2: variable-items-wrapper (WooCommerce Swatches plugin)
-      if (rawSizes.length === 0) {
-        document.querySelectorAll('.variable-items-wrapper li[data-title]').forEach(el => {
-          const title = el.getAttribute('data-title') || '';
-          const disabled = el.classList.contains('disabled') || el.classList.contains('out-of-stock');
-          if (title) rawSizes.push({ name: title.toUpperCase(), disabled });
-        });
-      }
+      // מידות כלליות — כל המידות הקיימות
+      const allSizeEls = [];
+      document.querySelectorAll('[data-id="pa_size"] .wd-swatch, [data-attribute_name="attribute_pa_size"] .wd-swatch').forEach(el => {
+        const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+        if (t) allSizeEls.push(t.trim());
+      });
 
-      // שיטה 3: select options
-      if (rawSizes.length === 0) {
-        document.querySelectorAll('select[name*="pa_size"] option, select[name*="pa_"] option').forEach(opt => {
-          const val = opt.value;
-          if (!val || val === '') return;
-          rawSizes.push({ name: opt.text.trim().toUpperCase(), disabled: opt.disabled });
-        });
-      }
+      // בדוק ONE SIZE בטקסט
+      const bodyText = document.body?.innerText || '';
+      const isOneSize = /ONE\s*SIZE/i.test(bodyText) && allSizeEls.length === 0;
 
-      return { title, price, originalPrice, images, description, rawSizes };
+      return { title, price, originalPrice, images, description, colorSwatches, allSizeEls, isOneSize };
     });
 
     if (!data.title) { console.log('  ✗ אין כותרת'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ דלג: ${data.title.substring(0, 30)}`); return null; }
 
-    // === עיבוד מידות ===
+    // שלב 2: לחץ על כל צבע ואסוף מידות זמינות
+    const colorSizesMap = {};
     const availableSizes = new Set();
-    console.log(`    מידות: ${data.rawSizes.map(s => (s.disabled ? '✗' : '✓') + ' ' + s.name).join(' | ')}`);
-    for (const size of data.rawSizes) {
-      if (size.disabled) continue;
-      normalizeSize(size.name).forEach(s => availableSizes.add(s));
-    }
     const allSizesSet = new Set();
-    data.rawSizes.forEach(size => { normalizeSize(size.name).forEach(s => allSizesSet.add(s)); });
-    const allUniqueSizes = [...allSizesSet];
-    const uniqueSizes = [...availableSizes];
 
-    if (uniqueSizes.length === 0) {
-      console.log(`  ⏭️ דלג — אין מידות`);
-      return null;
+    // ONE SIZE — מוצר במידה אחת
+    if (data.isOneSize) {
+      allSizesSet.add('ONE SIZE');
+      console.log(`    📏 ONE SIZE`);
+      // לחץ על כל צבע ובדוק מלאי
+      for (const colorName of data.colorSwatches) {
+        try {
+          await page.evaluate((name) => {
+            const swatches = document.querySelectorAll('[data-id="pa_color"] .wd-swatch');
+            for (const el of swatches) {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              if (t.trim() === name) { el.click(); return; }
+            }
+          }, colorName);
+          await page.waitForTimeout(800);
+
+          const inStock = await page.evaluate(() => {
+            const avail = document.querySelector('.woocommerce-variation-availability');
+            if (!avail) return true;
+            return !avail.innerText.includes('אזל') && !avail.innerText.includes('אין במלאי');
+          });
+
+          const normalColor = normalizeColor(colorName) !== 'אחר' ? normalizeColor(colorName) : colorName;
+          console.log(`    🎨 ${colorName} → ${inStock ? '✓' : '✗'}`);
+          if (inStock) {
+            colorSizesMap[normalColor] = ['ONE SIZE'];
+            availableSizes.add('ONE SIZE');
+          }
+        } catch(e) {
+          console.log(`    ⚠️ ${colorName}: ${e.message.substring(0,30)}`);
+        }
+      }
+    } else if (data.colorSwatches.length > 0) {
+      for (const colorName of data.colorSwatches) {
+        try {
+          // לחץ על ה-swatch של הצבע
+          await page.evaluate((name) => {
+            const swatches = document.querySelectorAll('[data-id="pa_color"] .wd-swatch, [data-attribute_name="attribute_pa_color"] .wd-swatch');
+            for (const el of swatches) {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              if (t.trim() === name) { el.click(); return; }
+            }
+          }, colorName);
+          await page.waitForTimeout(1000);
+
+          // קרא מידות זמינות אחרי הלחיצה
+          const sizesForColor = await page.evaluate(() => {
+            const sizes = [];
+            document.querySelectorAll('[data-id="pa_size"] .wd-swatch, [data-attribute_name="attribute_pa_size"] .wd-swatch').forEach(el => {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
+              if (t) sizes.push({ name: t.trim(), disabled });
+            });
+            return sizes;
+          });
+
+          const normalColor = normalizeColor(colorName) !== 'אחר' ? normalizeColor(colorName) : colorName;
+          const avail = [];
+          const allForColor = [];
+
+          for (const s of sizesForColor) {
+            const norm = normalizeSize(s.name);
+            norm.forEach(n => allForColor.push(n));
+            allForColor.forEach(n => allSizesSet.add(n));
+            if (!s.disabled) {
+              norm.forEach(n => { avail.push(n); availableSizes.add(n); });
+            }
+          }
+
+          if (avail.length > 0) colorSizesMap[normalColor] = avail;
+          console.log(`    🎨 ${colorName} (${normalColor}): ${sizesForColor.map(s => (s.disabled?'✗':'✓')+s.name).join(' | ')}`);
+        } catch(e) {
+          console.log(`    ⚠️ שגיאה בצבע ${colorName}: ${e.message.substring(0,40)}`);
+        }
+      }
+    } else {
+      // אין צבעים — קרא מידות ישירות
+      const sizes = await page.evaluate(() => {
+        const res = [];
+        document.querySelectorAll('[data-id="pa_size"] .wd-swatch, .wd-swatches-product .wd-swatch').forEach(el => {
+          const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+          const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
+          if (t) res.push({ name: t.trim(), disabled });
+        });
+        return res;
+      });
+      sizes.forEach(s => {
+        normalizeSize(s.name).forEach(n => {
+          allSizesSet.add(n);
+          if (!s.disabled) availableSizes.add(n);
+        });
+      });
     }
 
-    // === צבע מהכותרת ===
+    // צבע ראשי מהכותרת
     let mainColor = null;
-    const titleWords = (data.title || '').split(/[\s\-–,/]+/);
-    for (const word of titleWords) {
-      if (word.length < 2) continue;
-      const c = normalizeColor(word.toLowerCase().trim());
-      if (c && c !== 'אחר') { mainColor = c; break; }
+    const colors = Object.keys(colorSizesMap);
+    if (colors.length === 1) {
+      mainColor = colors[0];
+    } else if (colors.length > 1) {
+      for (const word of data.title.split(/[\s\-–,/]+/)) {
+        const c = normalizeColor(word.toLowerCase().trim());
+        if (c && c !== 'אחר') { mainColor = c; break; }
+      }
     }
     if (!mainColor) {
       const c = normalizeColor(data.title);
       if (c && c !== 'אחר') mainColor = c;
     }
 
-    // === מטא-דאטה ===
+    const uniqueSizes = [...availableSizes];
+    const allUniqueSizes = [...allSizesSet];
+
+    if (uniqueSizes.length === 0) {
+      console.log(`  ⏭️ דלג — אין מידות במלאי`);
+      return null;
+    }
+
     const category    = detectCategory(data.title);
     const style       = detectStyle(data.title, data.description);
     const fit         = detectFit(data.title, data.description);
@@ -226,22 +303,16 @@ async function scrapeProduct(page, url) {
       originalPrice: data.originalPrice,
       images: data.images,
       sizes: uniqueSizes,
-      mainColor,
-      colors: mainColor ? [mainColor] : [],
-      colorSizes: {},
       allSizes: allUniqueSizes,
-      category,
-      style,
-      fit,
-      pattern,
-      fabric,
-      designDetails,
+      mainColor,
+      colors: colors.length > 0 ? colors : (mainColor ? [mainColor] : []),
+      colorSizes: colorSizesMap,
+      category, style, fit, pattern, fabric, designDetails,
       description: data.description,
       url,
     };
-
   } catch(err) {
-    console.log(`  ✗ ${err.message.substring(0, 50)}`);
+    console.log(`  ✗ ${err.message.substring(0, 60)}`);
     return null;
   }
 }
@@ -293,7 +364,7 @@ async function saveProduct(product) {
            THEN NOW()
            ELSE products.price_dropped_at
          END`,
-      ['ST-FASHION', product.title, product.price || 0, product.originalPrice || null,
+      ['SALINA', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
@@ -310,7 +381,7 @@ async function saveProduct(product) {
 // ======================================================================
 // health check
 // ======================================================================
-async function runHealthCheck(ok, fail) {
+async function runHealthCheck() {
   console.log('\n🔍 בודק תקינות נתונים...');
   const problems = [];
 
@@ -319,14 +390,14 @@ async function runHealthCheck(ok, fail) {
     for (const c of unknownColors) problems.push(`   ❓ "${c}"`);
   }
 
-  const mi = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='ST-FASHION' AND (images IS NULL OR array_length(images,1)=0)`);
+  const mi = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='SALINA' AND (images IS NULL OR array_length(images,1)=0)`);
   if (parseInt(mi.rows[0].c) > 0) problems.push(`⚠️ ללא תמונות: ${mi.rows[0].c}`);
 
-  const ms = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='ST-FASHION' AND (sizes IS NULL OR array_length(sizes,1)=0)`);
+  const ms = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='SALINA' AND (sizes IS NULL OR array_length(sizes,1)=0)`);
   if (parseInt(ms.rows[0].c) > 0) problems.push(`⚠️ ללא מידות: ${ms.rows[0].c}`);
 
-  const total = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='ST-FASHION'`);
-  console.log(`\n📊 סה"כ ST-FASHION ב-DB: ${total.rows[0].c}`);
+  const total = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='SALINA'`);
+  console.log(`\n📊 סה"כ SALINA ב-DB: ${total.rows[0].c}`);
 
   if (problems.length > 0) {
     console.log(`\n${'='.repeat(50)}\n🚨 בעיות:`);
@@ -357,11 +428,11 @@ try {
     console.log(`\n[${i + 1}/${Math.min(urls.length, MAX_PRODUCTS)}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
-  await runHealthCheck(ok, fail);
+  await runHealthCheck();
 
 } finally {
   await browser.close();

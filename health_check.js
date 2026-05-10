@@ -88,6 +88,40 @@ async function runHealthCheck() {
     return '🟢';
   }
 
+  // ─── מוצרים ללא צבע — כותרות מלאות ────────────────────────
+  const { rows: noColorRows } = await pool.query(`
+    SELECT store, title
+    FROM products
+    WHERE (color IS NULL OR color = '' OR color = 'אחר')
+      AND last_seen >= NOW() - INTERVAL '3 days'
+    ORDER BY store, title
+    LIMIT 300
+  `);
+
+  // קבץ לפי חנות
+  const noColorByStore = {};
+  for (const r of noColorRows) {
+    if (!noColorByStore[r.store]) noColorByStore[r.store] = [];
+    noColorByStore[r.store].push(r.title);
+  }
+
+  const noColorSection = Object.keys(noColorByStore).length === 0 ? '' : `
+    <div style="padding:0 24px 24px">
+      <div style="font-size:15px;font-weight:800;color:#1f2937;margin-bottom:14px">🎨 מוצרים ללא צבע מזוהה (עדכניים)</div>
+      ${Object.entries(noColorByStore).map(([store, titles]) => `
+        <div style="margin-bottom:18px">
+          <div style="font-size:13px;font-weight:700;color:#c97cc0;margin-bottom:8px;padding:6px 12px;background:#fdf4ff;border-radius:8px;display:inline-block">
+            ${store} — ${titles.length} מוצרים
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            ${titles.map(t => `
+              <div style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px 12px;font-family:monospace;word-break:break-all">
+                "${t}"
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+
   const hasRed    = rows.some(r => storeStatus(r) === '🔴');
   const hasYellow = rows.some(r => storeStatus(r) === '🟡');
 
@@ -144,6 +178,7 @@ async function runHealthCheck() {
         ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מסה"כ מוצרי החנות
       </div>
     </div>
+    ${noColorSection}
   </div>
 </body>
 </html>`;

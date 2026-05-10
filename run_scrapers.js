@@ -20,6 +20,7 @@ const SCRAPERS = {
   rare:    './scrapers/rare_scraper.js',
   ordman:  './scrapers/ordman_scraper.js',
   'st-fashion': './scrapers/st_fashion_scraper.js',
+  'salina':      './scrapers/salina_scraper.js',
 };
 
 const args = process.argv.slice(2).map(a => a.toLowerCase());
@@ -62,7 +63,11 @@ for (const name of toRun) {
   console.log(`\n${'='.repeat(50)}\n▶️  מתחיל: ${name.toUpperCase()}\n${'='.repeat(50)}`);
   const start = Date.now();
   try {
-    execSync(`node ${file}`, { stdio: 'inherit', cwd: __dirname });
+    execSync(`node --max-old-space-size=512 ${file}`, {
+      stdio: 'inherit',
+      cwd: __dirname,
+      timeout: 20 * 60 * 1000, // 20 דקות מקסימום לכל סקרייפר
+    });
     const sec = ((Date.now() - start) / 1000).toFixed(0);
     console.log(`\n✅ ${name.toUpperCase()} הסתיים (${sec}s)`);
     ok++;

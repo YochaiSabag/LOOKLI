@@ -2072,21 +2072,32 @@ async function _flushTaskNotifications(changes) {
   const SITE_URL   = process.env.SITE_URL    || 'https://lookli.co.il';
   if (!BREVO_KEY || !NOTIFY || !changes.length) return;
 
+  const TYPE_LABEL = {
+    created:     '✅ נוצרה',
+    completed:   '🎉 הושלמה',
+    deleted:     '🗑️ נמחקה',
+    reassigned:  '👤 שויכה מחדש',
+    progress:    '⚡ התקדמות עודכנה',
+    sub_added:   '➕ תת-משימה נוספה',
+    sub_toggled: '☑️ תת-משימה עודכנה',
+    sub_deleted: '🗑️ תת-משימה נמחקה',
+    log_added:   '📝 עדכון נוסף ללוג',
+    log_deleted: '🗑️ עדכון נמחק מהלוג',
+  };
   const PRIO = { high:'🔴 גבוהה', medium:'🟡 בינונית', low:'🟢 נמוכה' };
-  const TYPE  = { created:'✅ נוצרה', completed:'🎉 הושלמה', deleted:'🗑️ נמחקה', reassigned:'👤 שויכה מחדש' };
 
   const rows = changes.map(c => {
-    const t = c.task;
-    const extra = c.type === 'reassigned'
-      ? `<span style="color:#9ca3af;font-size:12px"> — מ-${c.from||'ללא'} ל-${c.to||'ללא'}</span>`
-      : '';
-    const person = t.person ? `<span style="color:#c084fc">${t.person}</span>` : '';
-    const prio   = PRIO[t.priority||'medium'];
+    const label = TYPE_LABEL[c.type] || c.type;
+    let extra = '';
+    if (c.type === 'reassigned') extra = `<br><span style="color:#9ca3af;font-size:11px">מ-${c.from||'ללא'} ל-${c.to||'ללא'}</span>`;
+    if (c.type === 'progress')   extra = `<br><span style="color:#9ca3af;font-size:11px">${c.val}%</span>`;
+    if (c.type === 'sub_added' || c.type === 'sub_toggled' || c.type === 'sub_deleted') extra = `<br><span style="color:#9ca3af;font-size:11px">${c.subText||c.text||''}</span>`;
+    if (c.type === 'log_added')  extra = `<br><span style="color:#9ca3af;font-size:11px">${c.text||''}</span>`;
+    const person = c.person ? `<span style="color:#c084fc">${c.person}</span>` : '';
     return `<tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:14px">${TYPE[c.type]||c.type}${extra}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:14px;font-weight:600">${t.title||''}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px;color:#9ca3af">${person}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:12px;color:#6b7280">${prio}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px">${label}${extra}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px;font-weight:600">${c.taskTitle||''}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:12px">${person}</td>
     </tr>`;
   }).join('');
 
@@ -2107,7 +2118,6 @@ async function _flushTaskNotifications(changes) {
             <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">פעולה</th>
             <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">משימה</th>
             <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">אחראי</th>
-            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">עדיפות</th>
           </tr>
         </thead>
         <tbody style="color:#f1f0ff">${rows}</tbody>
@@ -2124,8 +2134,7 @@ async function _flushTaskNotifications(changes) {
       headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: { name: 'LOOKLI משימות', email: SENDER },
-        to: [{ email: SENDER }],
-        bcc: to,
+        to,
         subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
         htmlContent: html,
       }),
@@ -2150,7 +2159,7 @@ function _scheduleTaskNotif(change) {
 
 app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
   try {
-    const { tasks, persons } = req.body;
+    const { tasks, persons, changeHint } = req.body;
 
     // שלוף סטייט קודם להשוואה
     const prev = await pool.query(`SELECT value FROM admin_store WHERE key='tasks_data'`);
@@ -2159,17 +2168,23 @@ app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
     const newMap = Object.fromEntries((tasks||[]).map(t => [t.id, t]));
 
     // זהה שינויים
-    for (const t of (tasks||[])) {
-      if (!oldMap[t.id]) {
-        _scheduleTaskNotif({ type: 'created', task: t });
-      } else {
-        const o = oldMap[t.id];
-        if (!o.done && t.done)         _scheduleTaskNotif({ type: 'completed',   task: t });
-        if (o.person !== t.person)     _scheduleTaskNotif({ type: 'reassigned',  task: t, from: o.person, to: t.person });
+    if (changeHint) {
+      // שינוי ספציפי נשלח מה-frontend
+      _scheduleTaskNotif(changeHint);
+    } else {
+      // diff מלא — לשמירות מה-modal
+      for (const t of (tasks||[])) {
+        if (!oldMap[t.id]) {
+          _scheduleTaskNotif({ type: 'created', taskId: t.id, taskTitle: t.title, person: t.person, priority: t.priority });
+        } else {
+          const o = oldMap[t.id];
+          if (!o.done && t.done)       _scheduleTaskNotif({ type: 'completed',  taskId: t.id, taskTitle: t.title, person: t.person });
+          if (o.person !== t.person)   _scheduleTaskNotif({ type: 'reassigned', taskId: t.id, taskTitle: t.title, from: o.person, to: t.person });
+        }
       }
-    }
-    for (const t of oldTasks) {
-      if (!newMap[t.id])               _scheduleTaskNotif({ type: 'deleted',     task: t });
+      for (const t of oldTasks) {
+        if (!newMap[t.id])             _scheduleTaskNotif({ type: 'deleted',    taskId: t.id, taskTitle: t.title, person: t.person });
+      }
     }
 
     // שמור
@@ -2180,6 +2195,35 @@ app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+app.get('/api/admin/tasks-test-email', adminAuth, async (req, res) => {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  const SENDER    = process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il';
+  const NOTIFY    = process.env.ADMIN_NOTIFY_EMAIL;
+
+  if (!BREVO_KEY) return res.json({ error: 'חסר BREVO_API_KEY' });
+  if (!NOTIFY)    return res.json({ error: 'חסר ADMIN_NOTIFY_EMAIL' });
+
+  const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
+
+  try {
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI Test', email: SENDER },
+        to,
+        subject: '✅ בדיקת מייל משימות LOOKLI',
+        htmlContent: '<p>זה מייל בדיקה — אם קיבלת אותו הכל עובד!</p>',
+      }),
+    });
+    const data = await resp.json();
+    res.json({ status: resp.status, ok: resp.ok, brevo: data, sender: SENDER, to });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
 
 app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
   clearTimeout(_taskChangeTimer);
@@ -3060,7 +3104,6 @@ app.listen(PORT, async () => {
     // migrations
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
-    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS tagged_fields TEXT[] DEFAULT '{}'`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);

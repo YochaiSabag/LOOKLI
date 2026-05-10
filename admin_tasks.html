@@ -201,7 +201,6 @@ body::before{content:'';position:fixed;inset:0;background:
       <option value="progress">מיון: התקדמות</option>
     </select>
     <button class="ghost-btn" id="viewBtn" onclick="toggleView()">📋 רשימה</button>
-    <button class="ghost-btn" id="notifyBtn" onclick="sendNow()" style="display:none">📧 שלח עכשיו <span id="notifyCount" style="background:var(--accent);color:#fff;border-radius:20px;padding:1px 6px;font-size:10px;font-weight:700"></span></button>
   </div>
 
   <div class="stats" id="statsBar"></div>
@@ -272,6 +271,10 @@ body::before{content:'';position:fixed;inset:0;background:
 
 <div class="toast" id="toast"></div>
 
+<button id="notifyBtn" onclick="sendNow()" style="display:none;position:fixed;bottom:28px;left:24px;z-index:150;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;padding:10px 18px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(192,132,252,.4);transition:all .2s">
+  📧 שלח עכשיו &nbsp;<span id="notifyCount" style="background:rgba(255,255,255,.25);border-radius:20px;padding:1px 7px;font-size:11px"></span>
+</button>
+
 <script>
 const DEFAULT_PERSONS=['נעמי','יועי','שירה','דן'];
 const PC=['#c084fc','#f472b6','#34d399','#818cf8','#fbbf24','#f87171','#38bdf8'];
@@ -294,10 +297,10 @@ async function load(){
     if(!t.subtasks)t.subtasks=[];
   });
 }
-async function save(){
+async function save(changeHint){
   _saving=true;
   try{
-    await fetch('/api/admin/tasks-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks,persons})});
+    await fetch('/api/admin/tasks-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks,persons,changeHint})});
   }catch(e){showToast('⚠️ שגיאת שמירה');}
   _saving=false;
 }
@@ -525,7 +528,7 @@ function updateProg(id,val,sl){
     else if(val>0){const b=document.createElement('div');b.className='task-pbar';b.innerHTML=`<div class="task-pfill" style="width:${val}%"></div>`;card.insertBefore(b,card.querySelector('.task-expand'));}
     if(val===100)card.classList.add('done');else card.classList.remove('done');
   }
-  save();refreshBadges(id);
+  save({type:'progress',taskId:id,taskTitle:t.title,val,person:t.person});refreshBadges(id);
 }
 
 function addSub(tid){
@@ -534,7 +537,7 @@ function addSub(tid){
   const t=tasks.find(x=>x.id===tid);if(!t)return;
   if(!t.subtasks)t.subtasks=[];
   t.subtasks.push({id:uid(),text,done:false});
-  save();inp.value='';reExp(tid);refreshBadges(tid);
+  save({type:'sub_added',taskId:tid,taskTitle:t.title,text,person:t.person});inp.value='';reExp(tid);refreshBadges(tid);
 }
 function toggleSub(tid,sid){
   const t=tasks.find(x=>x.id===tid);if(!t)return;
@@ -542,12 +545,13 @@ function toggleSub(tid,sid){
   s.done=!s.done;
   const tot=t.subtasks.length,dn=t.subtasks.filter(x=>x.done).length;
   if(tot>0)t.progress=Math.round((dn/tot)*100);
-  save();reExp(tid);refreshBadges(tid);
+  save({type:'sub_toggled',taskId:tid,taskTitle:t.title,subText:s.text,subDone:s.done,person:t.person});reExp(tid);refreshBadges(tid);
 }
 function delSub(tid,sid){
   const t=tasks.find(x=>x.id===tid);if(!t)return;
+  const s=(t.subtasks||[]).find(x=>x.id===sid);
   t.subtasks=(t.subtasks||[]).filter(s=>s.id!==sid);
-  save();reExp(tid);refreshBadges(tid);
+  save({type:'sub_deleted',taskId:tid,taskTitle:t.title,subText:s?.text,person:t.person});reExp(tid);refreshBadges(tid);
 }
 function addLog(tid){
   const inp=document.getElementById('loginp-'+tid);if(!inp)return;
@@ -555,13 +559,13 @@ function addLog(tid){
   const t=tasks.find(x=>x.id===tid);if(!t)return;
   if(!t.progressLog)t.progressLog=[];
   t.progressLog.push({id:uid(),text,ts:new Date().toISOString()});
-  save();inp.value='';reExp(tid);refreshBadges(tid);
+  save({type:'log_added',taskId:tid,taskTitle:t.title,text,person:t.person});inp.value='';reExp(tid);refreshBadges(tid);
   showToast('📝 עדכון נשמר');
 }
 function delLog(tid,eid){
   const t=tasks.find(x=>x.id===tid);if(!t)return;
   t.progressLog=(t.progressLog||[]).filter(e=>e.id!==eid);
-  save();reExp(tid);refreshBadges(tid);
+  save({type:'log_deleted',taskId:tid,taskTitle:t.title,person:t.person});reExp(tid);refreshBadges(tid);
 }
 function reExp(tid){
   const t=tasks.find(x=>x.id===tid);if(!t)return;
@@ -661,7 +665,7 @@ function renderPersonsList(){
       <div style="width:24px;height:24px;border-radius:50%;background:${color}22;color:${color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${pInit(p)}</div>
       <span style="flex:1;font-size:13px">${esc(p)}</span>
       <span style="font-size:11px;color:var(--muted)">${count} משימות</span>
-      <button onclick="rmPerson(${JSON.stringify(p)})"
+      <button onclick="rmPerson(this.dataset.name)" data-name="${esc(p)}"
         style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.1);color:#f87171;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">×</button>
     </div>`;}).join('');
 }

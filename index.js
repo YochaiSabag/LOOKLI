@@ -2067,7 +2067,7 @@ let _taskChangeTimer = null;
 
 async function _flushTaskNotifications(changes) {
   const BREVO_KEY  = process.env.BREVO_API_KEY;
-  const SENDER     = process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il';
+  const SENDER     = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
   const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
   const SITE_URL   = process.env.SITE_URL    || 'https://lookli.co.il';
   if (!BREVO_KEY || !NOTIFY || !changes.length) return;
@@ -2198,7 +2198,7 @@ app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
 
 app.get('/api/admin/tasks-test-email', adminAuth, async (req, res) => {
   const BREVO_KEY = process.env.BREVO_API_KEY;
-  const SENDER    = process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il';
+  const SENDER    = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
   const NOTIFY    = process.env.ADMIN_NOTIFY_EMAIL;
 
   if (!BREVO_KEY) return res.json({ error: 'חסר BREVO_API_KEY' });

@@ -124,7 +124,23 @@ async function scrapeProduct(page, url) {
       // === תמונות ===
       const images = [];
 
-      // פונקציה: מחלץ את ה-URL הכי גדול מ-srcset (אלה הקבצים שבטוח קיימים בשרת)
+      // שלב 0 (הכי אמין): data-default JSON שמוטמע ב-HTML לפני כל JS
+      const galleryWrap = document.querySelector('.iconic-woothumbs-all-images-wrap[data-default]');
+      if (galleryWrap) {
+        try {
+          const defaultImgs = JSON.parse(galleryWrap.getAttribute('data-default') || '[]');
+          // סנן תמונות סיזצ'ארט (aspect ratio מאוד רחב) ואסוף URL הכי גדול לכל תמונה
+          defaultImgs.forEach(item => {
+            const aspect = parseFloat((item.aspect || '').split(':')[0]) /
+                           parseFloat((item.aspect || '1:1').split(':')[1] || 1);
+            if (aspect > 2) return; // תמונת טבלת מידות — דלג
+            const url = item.full_src || item.src || item.large_src || '';
+            if (url && url.includes('uploads') && !images.includes(url)) images.push(url);
+          });
+        } catch(e) { /* fallback לשלבים הבאים */ }
+      }
+
+      // פונקציה: מחלץ את ה-URL הכי גדול מ-srcset
       function getBestSrcsetUrl(img) {
         const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
         if (!srcset || srcset.startsWith('data:')) return '';
@@ -137,7 +153,7 @@ async function scrapeProduct(page, url) {
         return best;
       }
 
-      // מחלץ URL מ-img: srcset > src (אם לא data URI) > data-large_image
+      // מחלץ URL מ-img: srcset > src (אם לא data URI) > data-large_image > data-lazy
       function getImgUrl(img) {
         const srcset = getBestSrcsetUrl(img);
         if (srcset && srcset.includes('uploads')) return srcset;
@@ -145,20 +161,24 @@ async function scrapeProduct(page, url) {
         if (src && !src.startsWith('data:') && src.includes('uploads')) return src;
         const large = img.getAttribute('data-large_image') || '';
         if (large && large.includes('uploads')) return large;
+        const lazy = img.getAttribute('data-lazy') || '';
+        if (lazy && lazy.includes('uploads')) return lazy;
         return '';
       }
 
-      // שלב 1: סליידים אמיתיים בלבד (ללא clones) לפי data-index ייחודי
-      const seenIndexes = new Set();
-      document.querySelectorAll('.iconic-woothumbs-images__slide').forEach(slide => {
-        const idx = slide.getAttribute('data-index');
-        if (idx === null || seenIndexes.has(idx)) return; // דלג על clones
-        seenIndexes.add(idx);
-        const img = slide.querySelector('img');
-        if (!img) return;
-        const url = getImgUrl(img);
-        if (url && !images.includes(url)) images.push(url);
-      });
+      // שלב 1: סליידים אמיתיים (ללא clones) — fallback אם data-default ריק
+      if (images.length === 0) {
+        const seenIndexes = new Set();
+        document.querySelectorAll('.iconic-woothumbs-images__slide').forEach(slide => {
+          const idx = slide.getAttribute('data-index');
+          if (idx === null || seenIndexes.has(idx)) return;
+          seenIndexes.add(idx);
+          const img = slide.querySelector('img');
+          if (!img) return;
+          const url = getImgUrl(img);
+          if (url && !images.includes(url)) images.push(url);
+        });
+      }
 
       // שלב 2: fallback — WooCommerce gallery
       if (images.length === 0) {

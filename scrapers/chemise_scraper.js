@@ -134,7 +134,10 @@ async function scrapeProduct(page, url) {
             const aspect = parseFloat((item.aspect || '').split(':')[0]) /
                            parseFloat((item.aspect || '1:1').split(':')[1] || 1);
             if (aspect > 2) return; // תמונת טבלת מידות — דלג
-            const url = item.full_src || item.src || item.large_src || '';
+            // עדיפות: full_src → src (ללא suffix גודל)
+            // חייב להסיר -WxH suffix כי thumbUrl יממיר אותו ל-400x600 שלא קיים ב-chemise!
+            const rawUrl = item.full_src || item.src || item.large_src || '';
+            const url = rawUrl.replace(/-\d+x\d+(\.\w+)$/, '$1'); // הסר suffix כמו -1400x2508
             if (url && url.includes('uploads') && !images.includes(url)) images.push(url);
           });
         } catch(e) { /* fallback לשלבים הבאים */ }

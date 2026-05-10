@@ -2124,8 +2124,7 @@ async function _flushTaskNotifications(changes) {
       headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: { name: 'LOOKLI משימות', email: SENDER },
-        to: [{ email: SENDER }],
-        bcc: to,
+        to,
         subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
         htmlContent: html,
       }),
@@ -2181,7 +2180,35 @@ app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
+app.get('/api/admin/tasks-test-email', adminAuth, async (req, res) => {
+  const BREVO_KEY = process.env.BREVO_API_KEY;
+  const SENDER    = process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il';
+  const NOTIFY    = process.env.ADMIN_NOTIFY_EMAIL;
+
+  if (!BREVO_KEY) return res.json({ error: 'חסר BREVO_API_KEY' });
+  if (!NOTIFY)    return res.json({ error: 'חסר ADMIN_NOTIFY_EMAIL' });
+
+  const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
+
+  try {
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI Test', email: SENDER },
+        to,
+        subject: '✅ בדיקת מייל משימות LOOKLI',
+        htmlContent: '<p>זה מייל בדיקה — אם קיבלת אותו הכל עובד!</p>',
+      }),
+    });
+    const data = await resp.json();
+    res.json({ status: resp.status, ok: resp.ok, brevo: data, sender: SENDER, to });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
+
   clearTimeout(_taskChangeTimer);
   const batch = _taskChangeBuf.splice(0);
   if (!batch.length) return res.json({ ok: true, sent: 0 });

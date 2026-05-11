@@ -52,6 +52,7 @@ async function runHealthCheck() {
       store,
       COUNT(*)                                                         AS total,
       COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 days')  AS fresh,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 hours') AS current_run,
       MAX(last_seen)                                                   AS last_seen,
       COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
       COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,
@@ -90,9 +91,9 @@ async function runHealthCheck() {
 
   // ─── מוצרים ללא צבע — כותרות מלאות ────────────────────────
   const { rows: noColorRows } = await pool.query(`
-    SELECT store, title, color
+    SELECT store, title
     FROM products
-    WHERE (color IS NULL OR color = '' OR color = 'אחר' OR color = 'other')
+    WHERE (color IS NULL OR color = '' OR color = 'אחר')
       AND last_seen >= NOW() - INTERVAL '3 days'
     ORDER BY store, title
     LIMIT 300
@@ -102,33 +103,23 @@ async function runHealthCheck() {
   const noColorByStore = {};
   for (const r of noColorRows) {
     if (!noColorByStore[r.store]) noColorByStore[r.store] = [];
-    // אם יש ערך צבע (לא null/ריק/'אחר') — הצג את הצבע, אחרת הצג כותרת
-    const hasExplicitColor = r.color && r.color !== '' && r.color !== 'אחר' && r.color !== 'other';
-    noColorByStore[r.store].push({
-      display: hasExplicitColor ? r.color : r.title,
-      full:    hasExplicitColor ? `${r.color} | ${r.title}` : r.title,
-      isColor: hasExplicitColor,
-    });
+    noColorByStore[r.store].push(r.title);
   }
 
   const noColorSection = Object.keys(noColorByStore).length === 0 ? '' : `
     <div style="padding:0 24px 24px">
       <div style="font-size:15px;font-weight:800;color:#1f2937;margin-bottom:14px">🎨 מוצרים ללא צבע מזוהה (עדכניים)</div>
-      ${Object.entries(noColorByStore).map(([store, items]) => `
-        <div style="margin-bottom:20px;background:#fafafa;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb">
-          <div style="font-size:13px;font-weight:700;color:#fff;background:#c97cc0;padding:8px 14px">
-            ${store} — ${items.length} מוצרים
+      ${Object.entries(noColorByStore).map(([store, titles]) => `
+        <div style="margin-bottom:18px">
+          <div style="font-size:13px;font-weight:700;color:#c97cc0;margin-bottom:8px;padding:6px 12px;background:#fdf4ff;border-radius:8px;display:inline-block">
+            ${store} — ${titles.length} מוצרים
           </div>
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
-            ${items.map((item, i) => `
-            <tr style="background:${i % 2 === 0 ? '#fff' : '#fafafa'}">
-              <td style="padding:6px 14px;color:#374151;line-height:1.5;border-bottom:1px solid #f0f0f0">
-                ${item.isColor
-                  ? `<span style="display:inline-block;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;font-size:11px;font-weight:600;color:#92400e">${item.display}</span><span style="color:#9ca3af">${item.full.split(' | ')[1] || ''}</span>`
-                  : `<span style="color:#374151">${item.display}</span>`}
-              </td>
-            </tr>`).join('')}
-          </table>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${titles.map(t => {
+              const short = t.length > 40 ? t.substring(0, 38) + '…' : t;
+              return `<span style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:20px;padding:4px 12px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;display:inline-block" title="${t.replace(/"/g,'&quot;')}">${short}</span>`;
+            }).join('')}
+          </div>
         </div>`).join('')}
     </div>`;
 
@@ -144,6 +135,7 @@ async function runHealthCheck() {
     return `
       <tr style="border-bottom:1px solid #f3f4f6">
         <td style="padding:10px 8px;font-weight:700">${storeStatus(r)} ${r.store}</td>
+        <td style="text-align:center;font-weight:700;color:${r.current_run > 0 ? '#16a34a' : '#6b7280'}">${r.current_run > 0 ? r.current_run : '—'}</td>
         <td style="text-align:center">${r.total}</td>
         <td style="text-align:center;color:${dateColor};font-weight:${dateColor !== '#16a34a' ? '700' : '400'}">${lastDate}</td>
         ${cell(r.no_image,    r.total, 5,  20)}
@@ -171,6 +163,7 @@ async function runHealthCheck() {
         <thead>
           <tr style="background:#f9fafb;font-size:12px;color:#6b7280">
             <th style="padding:10px 8px;text-align:right">חנות</th>
+            <th style="text-align:center">הרצה נוכחית</th>
             <th style="text-align:center">סה"כ</th>
             <th style="text-align:center">עדכון אחרון</th>
             <th style="text-align:center">🖼️ תמונה</th>

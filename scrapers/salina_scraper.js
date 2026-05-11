@@ -1,197 +1,470 @@
-/**
- * health_check.js — LOOKLI
- * בודק בריאות סקרייפרים ושולח דוח לאדמין
- * הרצה: node health_check.js
- * נדרש: ADMIN_EMAIL, BREVO_API_KEY, DATABASE_URL
- */
-
 import 'dotenv/config';
+import { chromium } from 'playwright';
 import pkg from 'pg';
-const { Pool } = pkg;
+console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
+const { Client } = pkg;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('rlwy.net') ? { rejectUnauthorized: false } : undefined,
+const connStr = process.env.DATABASE_URL;
+const useSSL = connStr && (connStr.includes('rlwy.net') || connStr.includes('amazonaws.com') || connStr.includes('supabase'));
+
+const db = new Client({
+  connectionString: connStr,
+  ssl: useSSL ? { rejectUnauthorized: false } : undefined,
 });
 
-const BREVO_KEY  = process.env.BREVO_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
-const FROM_NAME  = 'LOOKLI מערכת';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+await db.connect();
+console.log('🚀 Salina Fashion Scraper');
 
-// ─── שלח מייל ────────────────────────────────────────────
-async function sendEmail(toEmail, subject, htmlBody) {
-  if (!BREVO_KEY) { console.log('[HEALTH] BREVO_API_KEY חסר'); return false; }
+import { loadScraperConfig } from './scraper_utils.js';
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+
+const sizeMapping = {
+  'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(val)) return [val.toUpperCase()];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (/^L-?XL$/i.test(val)) return ['L','XL'];
+  if (/^S-?M$/i.test(val)) return ['S','M'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [val]; // שמור כפי שהוא אם לא ידוע
+}
+
+// ======================================================================
+// איסוף קישורים
+// ======================================================================
+async function getAllProductUrls(page) {
+  console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
+  const allUrls = new Set();
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const url = p === 1
+      ? 'https://salinafashion.com/shop/'
+      : `https://salinafashion.com/shop/page/${p}/`;
+    try {
+      console.log(`  → עמוד ${p}`);
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      await page.waitForTimeout(3000);
+
+      // גלילה לטעינה מלאה
+      for (let i = 0; i < 4; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(800);
+      }
+
+      const urls = await page.evaluate(() =>
+        [...document.querySelectorAll('h3.wd-entities-title a, a.wd-product-img-link')]
+          .map(a => a.href.split('?')[0])
+          .filter(h => h.includes('salinafashion.com/shop/') && !h.endsWith('/shop/'))
+          .filter((v, i, a) => a.indexOf(v) === i)
+      );
+
+      if (urls.length === 0) {
+        // debug — הדפס כותרת העמוד וכמה טקסט לאבחון
+        const debugInfo = await page.evaluate(() => ({
+          title: document.title,
+          bodySnippet: document.body?.innerText?.substring(0, 200) || '',
+          productCount: document.querySelectorAll('[class*="product"]').length,
+        }));
+        console.log(`    ⏹ עמוד ריק — debug: title="${debugInfo.title}" | products=${debugInfo.productCount} | body="${debugInfo.bodySnippet.replace(/\n/g,' ')}"`);
+        break;
+      }
+      const before = allUrls.size;
+      urls.forEach(u => allUrls.add(u));
+      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+      if (allUrls.size === before) break;
+    } catch(e) {
+      console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);
+      break;
+    }
+  }
+
+  const result = [...allUrls];
+  console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
+  return result;
+}
+
+// ======================================================================
+// סריקת מוצר
+// ======================================================================
+async function scrapeProduct(page, url) {
+  const shortUrl = url.split('/shop/')[1]?.substring(0, 40) || url.substring(0, 50);
+  console.log(`\n🔍 ${shortUrl}...`);
+
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sender: { name: FROM_NAME, email: FROM_EMAIL },
-        to: [{ email: toEmail }],
-        subject,
-        htmlContent: htmlBody,
-      }),
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await page.waitForTimeout(2500);
+
+    // המתן למידות/צבעים
+    try {
+      await page.waitForSelector('.wd-swatch, .variations', { timeout: 7000 });
+    } catch(e) {}
+    await page.waitForTimeout(800);
+
+    // שלב 1: חלץ נתונים בסיסיים
+    const data = await page.evaluate(() => {
+      // כותרת
+      const title = document.querySelector('h1.product_title, h1.entry-title, .wd-entities-title')
+        ?.innerText?.trim() || '';
+
+      // מחיר
+      let price = 0, originalPrice = null;
+      const priceEl = document.querySelector('p.price, .price');
+      if (priceEl) {
+        const ins = priceEl.querySelector('ins .woocommerce-Price-amount bdi');
+        const del = priceEl.querySelector('del .woocommerce-Price-amount bdi');
+        const regular = priceEl.querySelector('.woocommerce-Price-amount bdi');
+        if (ins) {
+          price = parseFloat(ins.textContent.replace(/[^\d.]/g, '')) || 0;
+          if (del) originalPrice = parseFloat(del.textContent.replace(/[^\d.]/g, '')) || null;
+        } else if (regular) {
+          price = parseFloat(regular.textContent.replace(/[^\d.]/g, '')) || 0;
+        }
+      }
+
+      // תמונות
+      const images = [];
+      const seen = new Set();
+      const addImg = (src) => {
+        if (!src || src.startsWith('data:') || seen.has(src)) return;
+        if (!src.includes('salinafashion.com')) return;
+        if (src.includes('-150x') || src.includes('-300x') || src.includes('-100x')) return;
+        seen.add(src); images.push(src);
+      };
+      document.querySelectorAll('.rtwpvg-gallery-image img').forEach(img => {
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
+      });
+      document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
+      });
+
+      // תיאור
+      const description = (
+        document.querySelector('.woocommerce-Tabs-panel--description .wd-scroll-content') ||
+        document.querySelector('.woocommerce-product-details__short-description')
+      )?.innerText?.trim() || '';
+
+      // צבעים — swatches של pa_color
+      const colorSwatches = [];
+      document.querySelectorAll('[data-id="pa_color"] .wd-swatch, [data-attribute_name="attribute_pa_color"] .wd-swatch').forEach(el => {
+        const title = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+        if (title) colorSwatches.push(title.trim());
+      });
+
+      // מידות כלליות — כל המידות הקיימות
+      const allSizeEls = [];
+      document.querySelectorAll('[data-id="pa_size"] .wd-swatch, [data-attribute_name="attribute_pa_size"] .wd-swatch').forEach(el => {
+        const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+        if (t) allSizeEls.push(t.trim());
+      });
+
+      // בדוק ONE SIZE בטקסט
+      const bodyText = document.body?.innerText || '';
+      const isOneSize = /ONE\s*SIZE/i.test(bodyText) && allSizeEls.length === 0;
+
+      return { title, price, originalPrice, images, description, colorSwatches, allSizeEls, isOneSize };
     });
-    if (res.ok) { console.log(`  ✅ מייל נשלח: ${toEmail}`); return true; }
-    const e = await res.json(); console.error('  ❌ Brevo:', e); return false;
-  } catch(e) { console.error('  ❌ שגיאה:', e.message); return false; }
+
+    if (!data.title) { console.log('  ✗ אין כותרת'); return null; }
+    if (shouldSkip(data.title)) { console.log(`  ⏭️ דלג: ${data.title.substring(0, 30)}`); return null; }
+
+    // שלב 2: לחץ על כל צבע ואסוף מידות זמינות
+    const colorSizesMap = {};
+    const availableSizes = new Set();
+    const allSizesSet = new Set();
+
+    // ONE SIZE — מוצר במידה אחת
+    if (data.isOneSize) {
+      allSizesSet.add('ONE SIZE');
+      console.log(`    📏 ONE SIZE`);
+      // לחץ על כל צבע ובדוק מלאי
+      for (const colorName of data.colorSwatches) {
+        try {
+          await page.evaluate((name) => {
+            const swatches = document.querySelectorAll('[data-id="pa_color"] .wd-swatch');
+            for (const el of swatches) {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              if (t.trim() === name) { el.click(); return; }
+            }
+          }, colorName);
+          await page.waitForTimeout(800);
+
+          const inStock = await page.evaluate(() => {
+            const avail = document.querySelector('.woocommerce-variation-availability');
+            if (!avail) return true;
+            return !avail.innerText.includes('אזל') && !avail.innerText.includes('אין במלאי');
+          });
+
+          const normalColor = normalizeColor(colorName) !== 'אחר' ? normalizeColor(colorName) : colorName;
+          console.log(`    🎨 ${colorName} → ${inStock ? '✓' : '✗'}`);
+          if (inStock) {
+            colorSizesMap[normalColor] = ['ONE SIZE'];
+            availableSizes.add('ONE SIZE');
+          }
+        } catch(e) {
+          console.log(`    ⚠️ ${colorName}: ${e.message.substring(0,30)}`);
+        }
+      }
+    } else if (data.colorSwatches.length > 0) {
+      for (const colorName of data.colorSwatches) {
+        try {
+          // לחץ על ה-swatch של הצבע
+          await page.evaluate((name) => {
+            const swatches = document.querySelectorAll('[data-id="pa_color"] .wd-swatch, [data-attribute_name="attribute_pa_color"] .wd-swatch');
+            for (const el of swatches) {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              if (t.trim() === name) { el.click(); return; }
+            }
+          }, colorName);
+          await page.waitForTimeout(1000);
+
+          // קרא מידות זמינות אחרי הלחיצה
+          const sizesForColor = await page.evaluate(() => {
+            const sizes = [];
+            document.querySelectorAll('[data-id="pa_size"] .wd-swatch, [data-attribute_name="attribute_pa_size"] .wd-swatch').forEach(el => {
+              const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+              const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
+              if (t) sizes.push({ name: t.trim(), disabled });
+            });
+            return sizes;
+          });
+
+          const normalColor = normalizeColor(colorName) !== 'אחר' ? normalizeColor(colorName) : colorName;
+          const avail = [];
+          const allForColor = [];
+
+          for (const s of sizesForColor) {
+            const norm = normalizeSize(s.name);
+            norm.forEach(n => allForColor.push(n));
+            allForColor.forEach(n => allSizesSet.add(n));
+            if (!s.disabled) {
+              norm.forEach(n => { avail.push(n); availableSizes.add(n); });
+            }
+          }
+
+          if (avail.length > 0) colorSizesMap[normalColor] = avail;
+          console.log(`    🎨 ${colorName} (${normalColor}): ${sizesForColor.map(s => (s.disabled?'✗':'✓')+s.name).join(' | ')}`);
+        } catch(e) {
+          console.log(`    ⚠️ שגיאה בצבע ${colorName}: ${e.message.substring(0,40)}`);
+        }
+      }
+    } else {
+      // אין צבעים — קרא מידות ישירות
+      const sizes = await page.evaluate(() => {
+        const res = [];
+        document.querySelectorAll('[data-id="pa_size"] .wd-swatch, .wd-swatches-product .wd-swatch').forEach(el => {
+          const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
+          const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
+          if (t) res.push({ name: t.trim(), disabled });
+        });
+        return res;
+      });
+      sizes.forEach(s => {
+        normalizeSize(s.name).forEach(n => {
+          allSizesSet.add(n);
+          if (!s.disabled) availableSizes.add(n);
+        });
+      });
+    }
+
+    // צבע ראשי מהכותרת
+    let mainColor = null;
+    const colors = Object.keys(colorSizesMap);
+    if (colors.length === 1) {
+      mainColor = colors[0];
+    } else if (colors.length > 1) {
+      for (const word of data.title.split(/[\s\-–,/]+/)) {
+        const c = normalizeColor(word.toLowerCase().trim());
+        if (c && c !== 'אחר') { mainColor = c; break; }
+      }
+    }
+    if (!mainColor) {
+      const c = normalizeColor(data.title);
+      if (c && c !== 'אחר') mainColor = c;
+    }
+
+    const uniqueSizes = [...availableSizes];
+    const allUniqueSizes = [...allSizesSet];
+
+    if (uniqueSizes.length === 0) {
+      console.log(`  ⏭️ דלג — אין מידות במלאי`);
+      return null;
+    }
+
+    const category    = detectCategory(data.title);
+    const style       = detectStyle(data.title, data.description);
+    const fit         = detectFit(data.title, data.description);
+    const pattern     = detectPattern(data.title, data.description);
+    const fabric      = detectFabric(data.title, data.description);
+    const designDetails = detectDesignDetails(data.title, data.description);
+
+    console.log(`  ✓ ${data.title.substring(0, 40)}`);
+    console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
+    console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
+
+    return {
+      title: data.title,
+      price: data.price,
+      originalPrice: data.originalPrice,
+      images: data.images,
+      sizes: uniqueSizes,
+      allSizes: allUniqueSizes,
+      mainColor,
+      colors: colors.length > 0 ? colors : (mainColor ? [mainColor] : []),
+      colorSizes: colorSizesMap,
+      category, style, fit, pattern, fabric, designDetails,
+      description: data.description,
+      url,
+    };
+  } catch(err) {
+    console.log(`  ✗ ${err.message.substring(0, 60)}`);
+    return null;
+  }
 }
 
-// ─── לוגיקה ────────────────────────────────────────────
+// ======================================================================
+// שמירה ל-DB
+// ======================================================================
+async function saveProduct(product) {
+  if (!product) return;
+  try {
+    await db.query(
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
+       ON CONFLICT (source_url) DO UPDATE SET
+         title          = EXCLUDED.title,
+         price          = EXCLUDED.price,
+         original_price = EXCLUDED.original_price,
+         image_url      = EXCLUDED.image_url,
+         images         = EXCLUDED.images,
+         sizes          = EXCLUDED.sizes,
+         color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
+         colors         = EXCLUDED.colors,
+         style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
+         fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
+         category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
+         description    = EXCLUDED.description,
+         color_sizes    = EXCLUDED.color_sizes,
+         pattern        = CASE WHEN products.tagged_fields @> ARRAY['pattern']        THEN products.pattern        ELSE EXCLUDED.pattern        END,
+         fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
+         design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
+         all_sizes      = EXCLUDED.all_sizes,
+         last_seen      = NOW(),
+         tagged_fields  = (
+           SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
+             COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
+             CASE WHEN EXCLUDED.style IS NOT NULL          THEN ARRAY['style']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.category IS NOT NULL       THEN ARRAY['category']       ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fit IS NOT NULL            THEN ARRAY['fit']            ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fabric IS NOT NULL         THEN ARRAY['fabric']         ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.pattern IS NOT NULL        THEN ARRAY['pattern']        ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.color IS NOT NULL          THEN ARRAY['color']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN cardinality(COALESCE(EXCLUDED.design_details, ARRAY[]::TEXT[])) > 0 THEN ARRAY['design_details'] ELSE ARRAY[]::TEXT[] END
+           ) AS f
+         ),
+         price_dropped_at = CASE
+           WHEN EXCLUDED.original_price IS NOT NULL
+            AND EXCLUDED.original_price > EXCLUDED.price * 1.10
+            AND (products.original_price IS NULL OR products.original_price <= products.price * 1.10)
+           THEN NOW()
+           ELSE products.price_dropped_at
+         END`,
+      ['SALINA', product.title, product.price || 0, product.originalPrice || null,
+       product.images[0] || '', product.images, product.sizes, product.mainColor,
+       product.colors, product.style || null, product.fit || null, product.category,
+       product.description || null, product.url, JSON.stringify(product.colorSizes),
+       product.pattern || null, product.fabric || null,
+       product.designDetails?.length ? product.designDetails : null,
+       product.allSizes || []]
+    );
+    console.log('  💾 saved');
+  } catch(err) {
+    console.log(`  ✗ DB: ${err.message.substring(0, 60)}`);
+  }
+}
+
+// ======================================================================
+// health check
+// ======================================================================
 async function runHealthCheck() {
-  if (!ADMIN_EMAIL) {
-    console.log('[HEALTH] ADMIN_EMAIL לא מוגדר — יוצא');
-    process.exit(0);
+  console.log('\n🔍 בודק תקינות נתונים...');
+  const problems = [];
+
+  if (unknownColors.size > 0) {
+    problems.push(`⚠️ צבעים לא מזוהים (${unknownColors.size}):`);
+    for (const c of unknownColors) problems.push(`   ❓ "${c}"`);
   }
 
-  console.log('\n🏥 LOOKLI Health Check', new Date().toLocaleString('he-IL'));
+  const mi = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='SALINA' AND (images IS NULL OR array_length(images,1)=0)`);
+  if (parseInt(mi.rows[0].c) > 0) problems.push(`⚠️ ללא תמונות: ${mi.rows[0].c}`);
 
-  const { rows } = await pool.query(`
-    SELECT
-      store,
-      COUNT(*)                                                         AS total,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 days')  AS fresh,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 hours') AS current_run,
-      MAX(last_seen)                                                   AS last_seen,
-      COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
-      COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,
-      COUNT(*) FILTER (WHERE sizes IS NULL
-                          OR array_length(sizes,1) IS NULL
-                          OR array_length(sizes,1) = 0)               AS no_sizes,
-      COUNT(*) FILTER (WHERE category IS NULL OR category = '')       AS no_category,
-      COUNT(*) FILTER (WHERE price = 0 OR price IS NULL)             AS zero_price,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '1 day'
-                         AND (sizes IS NULL OR array_length(sizes,1) IS NULL
-                              OR array_length(sizes,1) = 0))          AS new_no_stock
-    FROM products
-    GROUP BY store
-    ORDER BY store
-  `);
+  const ms = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='SALINA' AND (sizes IS NULL OR array_length(sizes,1)=0)`);
+  if (parseInt(ms.rows[0].c) > 0) problems.push(`⚠️ ללא מידות: ${ms.rows[0].c}`);
 
-  function pct(n, total) {
-    if (!total) return '0%';
-    return Math.round((n / total) * 100) + '%';
+  const total = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='SALINA'`);
+  console.log(`\n📊 סה"כ SALINA ב-DB: ${total.rows[0].c}`);
+
+  if (problems.length > 0) {
+    console.log(`\n${'='.repeat(50)}\n🚨 בעיות:`);
+    problems.forEach(p => console.log('   ' + p));
+    console.log('='.repeat(50));
+  } else {
+    console.log('\n✅ הכל תקין!');
   }
-
-  function cell(val, total, warnPct = 10, critPct = 30) {
-    if (!val || val == 0) return `<td style="color:#16a34a;text-align:center">✅</td>`;
-    const p = total ? (val / total) * 100 : 0;
-    const color = p >= critPct ? '#dc2626' : p >= warnPct ? '#d97706' : '#ca8a04';
-    return `<td style="color:${color};font-weight:700;text-align:center">${val} (${pct(val,total)})</td>`;
-  }
-
-  function storeStatus(r) {
-    if (r.fresh == 0 && r.total > 0) return '🔴'; // סקרייפר לא רץ 3+ ימים
-    if (r.fresh < r.total) return '🟡';            // חלק לא עודכן
-    if (r.no_image > 0 || r.zero_price > 0) return '🟡';
-    if (r.no_color > 0 || r.no_sizes > 0 || r.no_category > 0 || r.new_no_stock > 0) return '🟡';
-    return '🟢';
-  }
-
-  // ─── מוצרים ללא צבע — כותרות מלאות ────────────────────────
-  const { rows: noColorRows } = await pool.query(`
-    SELECT store, title
-    FROM products
-    WHERE (color IS NULL OR color = '' OR color = 'אחר')
-      AND last_seen >= NOW() - INTERVAL '3 days'
-    ORDER BY store, title
-    LIMIT 300
-  `);
-
-  // קבץ לפי חנות
-  const noColorByStore = {};
-  for (const r of noColorRows) {
-    if (!noColorByStore[r.store]) noColorByStore[r.store] = [];
-    noColorByStore[r.store].push(r.title);
-  }
-
-  const noColorSection = Object.keys(noColorByStore).length === 0 ? '' : `
-    <div style="padding:0 24px 24px">
-      <div style="font-size:15px;font-weight:800;color:#1f2937;margin-bottom:14px">🎨 מוצרים ללא צבע מזוהה (עדכניים)</div>
-      ${Object.entries(noColorByStore).map(([store, titles]) => `
-        <div style="margin-bottom:18px">
-          <div style="font-size:13px;font-weight:700;color:#c97cc0;margin-bottom:8px;padding:6px 12px;background:#fdf4ff;border-radius:8px;display:inline-block">
-            ${store} — ${titles.length} מוצרים
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${titles.map(t => {
-              const short = t.length > 40 ? t.substring(0, 38) + '…' : t;
-              return `<span style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:20px;padding:4px 12px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;display:inline-block" title="${t.replace(/"/g,'&quot;')}">${short}</span>`;
-            }).join('')}
-          </div>
-        </div>`).join('')}
-    </div>`;
-
-  const hasRed    = rows.some(r => storeStatus(r) === '🔴');
-  const hasYellow = rows.some(r => storeStatus(r) === '🟡');
-
-  const tableRows = rows.map(r => {
-    const lastDate = r.last_seen
-      ? new Date(r.last_seen).toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-      : '—';
-    const dateColor = r.fresh == 0 ? '#dc2626' : r.fresh < r.total ? '#d97706' : '#16a34a';
-
-    return `
-      <tr style="border-bottom:1px solid #f3f4f6">
-        <td style="padding:10px 8px;font-weight:700">${storeStatus(r)} ${r.store}</td>
-        <td style="text-align:center;font-weight:700;color:${r.current_run > 0 ? '#16a34a' : '#6b7280'}">${r.current_run > 0 ? r.current_run : '—'}</td>
-        <td style="text-align:center">${r.total}</td>
-        <td style="text-align:center;color:${dateColor};font-weight:${dateColor !== '#16a34a' ? '700' : '400'}">${lastDate}</td>
-        ${cell(r.no_image,    r.total, 5,  20)}
-        ${cell(r.no_color,    r.total, 20, 50)}
-        ${cell(r.no_sizes,    r.total, 10, 30)}
-        ${cell(r.no_category, r.total, 20, 50)}
-        ${cell(r.zero_price,  r.total, 5,  15)}
-        <td style="text-align:center;color:${r.new_no_stock > 0 ? '#d97706' : '#16a34a'}">${r.new_no_stock > 0 ? r.new_no_stock : '✅'}</td>
-      </tr>`;
-  }).join('');
-
-  const html = `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;direction:rtl">
-  <div style="max-width:780px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-    <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:22px 28px;text-align:center">
-      <div style="font-size:26px;font-weight:900;color:#fff">LOOKLI — דוח סקרייפרים</div>
-      <div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px">
-        ${new Date().toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' })}
-      </div>
-    </div>
-    <div style="padding:24px;overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px">
-        <thead>
-          <tr style="background:#f9fafb;font-size:12px;color:#6b7280">
-            <th style="padding:10px 8px;text-align:right">חנות</th>
-            <th style="text-align:center">הרצה נוכחית</th>
-            <th style="text-align:center">סה"כ</th>
-            <th style="text-align:center">עדכון אחרון</th>
-            <th style="text-align:center">🖼️ תמונה</th>
-            <th style="text-align:center">🎨 צבע</th>
-            <th style="text-align:center">📏 מידה</th>
-            <th style="text-align:center">🏷️ קטגוריה</th>
-            <th style="text-align:center">💰 מחיר 0</th>
-            <th style="text-align:center">🆕 ללא מלאי</th>
-          </tr>
-        </thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-      <div style="margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.9">
-        <strong>מקרא:</strong> 🟢 הכל תקין &nbsp;|&nbsp; 🟡 אזהרה &nbsp;|&nbsp; 🔴 קריטי — סקרייפר לא רץ 3+ ימים<br/>
-        ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מסה"כ מוצרי החנות
-      </div>
-    </div>
-    ${noColorSection}
-  </div>
-</body>
-</html>`;
-
-  const emoji  = hasRed ? '🔴' : hasYellow ? '⚠️' : '✅';
-  const status = hasRed ? 'קריטי' : hasYellow ? 'אזהרה' : 'הכל תקין';
-  const subject = `${emoji} LOOKLI Scrapers — ${status} | ${new Date().toLocaleDateString('he-IL')}`;
-
-  await sendEmail(ADMIN_EMAIL, subject, html);
-  await pool.end();
 }
 
-runHealthCheck().catch(e => { console.error('שגיאה:', e.message); process.exit(1); });
+// ======================================================================
+// הרצה ראשית
+// ======================================================================
+const browser = await chromium.launch({
+  headless: true,
+  slowMo: 30,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-infobars',
+    '--disable-dev-shm-usage',
+    '--disable-web-security',
+    '--lang=he-IL,he,en-US,en',
+  ]
+});
+const context = await browser.newContext({
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  viewport: { width: 1920, height: 1080 },
+  locale: 'he-IL',
+  timezoneId: 'Asia/Jerusalem',
+  extraHTTPHeaders: {
+    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+  }
+});
+const page = await context.newPage();
+
+try {
+  const urls = await getAllProductUrls(page);
+  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
+
+  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
+    console.log(`\n[${i + 1}/${Math.min(urls.length, MAX_PRODUCTS)}]`);
+    const p = await scrapeProduct(page, urls[i]);
+    if (p) { await saveProduct(p); ok++; } else fail++;
+    await page.waitForTimeout(500);
+  }
+
+  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+  await runHealthCheck();
+
+} finally {
+  await browser.close();
+  await db.end();
+}

@@ -1051,6 +1051,17 @@
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 let activeNetfree=false;
+function handleImgError(img){
+  img.style.display='none';
+  var w=img.closest('.img-wrap');
+  if(w&&!w.querySelector('.img-err')){
+    var d=document.createElement('div');
+    d.className='img-err';
+    d.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#d9b8d0;font-size:36px';
+    d.textContent='👗';
+    w.appendChild(d);
+  }
+}
 
 function toggleNetfree(){
   activeNetfree=!activeNetfree;
@@ -1420,11 +1431,11 @@ function renderProducts(products,append=false){
     
     let carouselHTML='';
     if(images.length>1){
-      const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="this.style.display='none';var _p=this.closest('.img-wrap');if(_p&&!_p.querySelector('.img-err')){var _e=document.createElement('div');_e.className='img-err';_e.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#d9b8d0;font-size:36px';_e.textContent='👗';_p.appendChild(_e);}"':''}>\u200B</div>`).join('');
+      const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="handleImgError(this)"':''}>\u200B</div>`).join('');
       const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
       carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
     }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="this.style.display='none';var _p=this.closest('.img-wrap');if(_p&&!_p.querySelector('.img-err')){var _e=document.createElement('div');_e.className='img-err';_e.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#d9b8d0;font-size:36px';_e.textContent='👗';_p.appendChild(_e);}">`;
+      carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this)">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
     
     let colorDotsHTML='';
@@ -2376,7 +2387,7 @@ document.addEventListener('click', e => {
       if (!recent.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:13px">עוד לא צפית במוצרים</div>'; return; }
       el.innerHTML = recent.map(p => `
         <div onclick="closeAuthModal();openProduct(${p.id})" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:1px solid #f3f4f6;transition:background .15s" onmouseenter="this.style.background='#fdf2f8'" onmouseleave="this.style.background=''">
-          <img src="${escapeHtml(p.image||'')}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+          <img src="${escapeHtml(p.image||'')}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="handleImgError(this)">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.title||'')}</div>
             <div style="font-size:12px;color:#9ca3af">${escapeHtml(p.store||'')} · ₪${p.price||''}</div>
@@ -2460,7 +2471,7 @@ document.addEventListener('click', e => {
       if (!recent.length) { el.innerHTML = '<div style="color:#9ca3af;font-size:13px;text-align:center;padding:20px">עוד לא צפית במוצרים</div>'; return; }
       el.innerHTML = recent.map(p => `
         <div onclick="closeProfilePanel();openProduct(${p.id})" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:1px solid #f3f4f6;transition:background .15s" onmouseenter="this.style.background='#fdf2f8'" onmouseleave="this.style.background=''">
-          <img src="${escapeHtml(p.image||'')}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+          <img src="${escapeHtml(p.image||'')}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="handleImgError(this)">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.title||'')}</div>
             <div style="font-size:12px;color:#9ca3af;margin-top:2px">${escapeHtml(p.store||'')} · ₪${p.price||''}</div>

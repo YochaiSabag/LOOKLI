@@ -1194,6 +1194,11 @@ function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;',
 // מצמצם URL של תמונה לגודל כרטיסייה (~400px)
 function thumbUrl(url) {
   if (!url) return url;
+  // חנויות עם hotlink protection — נתב דרך proxy
+  const PROXY_DOMAINS = ['chemise.co.il'];
+  if (PROXY_DOMAINS.some(d => url.includes(d))) {
+    return '/img?url=' + encodeURIComponent(url.replace(/-\d+x\d+(\.\w+)$/, '$1'));
+  }
   // WooCommerce — החלף גודל קיים ל-400x600
   if (url.includes('wp-content/uploads')) {
     // אם יש כבר גודל כמו -1708x2560 — החלף ל-400x600

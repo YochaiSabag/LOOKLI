@@ -286,7 +286,10 @@ app.get("/img", async (req, res) => {
     const isAllowed = allowed.some(d => url.includes(d));
     if (!isAllowed) return res.status(403).send('Not allowed');
 
-    const imgRes = await fetch(url);
+    const domain = new URL(url).origin;
+    const imgRes = await fetch(url, {
+      headers: { 'Referer': domain + '/' , 'User-Agent': 'Mozilla/5.0' }
+    });
     if (!imgRes.ok) return res.status(imgRes.status).send('Failed');
 
     const contentType = imgRes.headers.get('content-type') || 'image/jpeg';

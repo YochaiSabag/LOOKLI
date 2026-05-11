@@ -47,8 +47,8 @@ async function getAllProductUrls(page) {
       : `https://salinafashion.com/shop/page/${p}/`;
     try {
       console.log(`  → עמוד ${p}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(2000);
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      await page.waitForTimeout(3000);
 
       // גלילה לטעינה מלאה
       for (let i = 0; i < 4; i++) {
@@ -63,7 +63,16 @@ async function getAllProductUrls(page) {
           .filter((v, i, a) => a.indexOf(v) === i)
       );
 
-      if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+      if (urls.length === 0) {
+        // debug — הדפס כותרת העמוד וכמה טקסט לאבחון
+        const debugInfo = await page.evaluate(() => ({
+          title: document.title,
+          bodySnippet: document.body?.innerText?.substring(0, 200) || '',
+          productCount: document.querySelectorAll('[class*="product"]').length,
+        }));
+        console.log(`    ⏹ עמוד ריק — debug: title="${debugInfo.title}" | products=${debugInfo.productCount} | body="${debugInfo.bodySnippet.replace(/\n/g,' ')}"`);
+        break;
+      }
       const before = allUrls.size;
       urls.forEach(u => allUrls.add(u));
       console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
@@ -411,10 +420,31 @@ async function runHealthCheck() {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const browser = await chromium.launch({ headless: true, slowMo: 30 });
+const browser = await chromium.launch({
+  headless: true,
+  slowMo: 30,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-infobars',
+    '--disable-dev-shm-usage',
+    '--disable-web-security',
+    '--lang=he-IL,he,en-US,en',
+  ]
+});
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  viewport: { width: 1920, height: 1080 }
+  viewport: { width: 1920, height: 1080 },
+  locale: 'he-IL',
+  timezoneId: 'Asia/Jerusalem',
+  extraHTTPHeaders: {
+    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+  }
 });
 const page = await context.newPage();
 

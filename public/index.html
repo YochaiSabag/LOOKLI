@@ -1052,6 +1052,7 @@ let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 let activeNetfree=false;
 function handleImgError(img){
+  console.warn('[IMG FAIL]', img.src);
   img.style.display='none';
   var w=img.closest('.img-wrap');
   if(w&&!w.querySelector('.img-err')){

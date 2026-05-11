@@ -103,24 +103,37 @@ async function runHealthCheck() {
   const noColorByStore = {};
   for (const r of noColorRows) {
     if (!noColorByStore[r.store]) noColorByStore[r.store] = [];
-    noColorByStore[r.store].push(r.title);
+    const hasExplicitColor = r.color && r.color !== '' && r.color !== 'אחר' && r.color !== 'other';
+    noColorByStore[r.store].push({
+      display: hasExplicitColor ? r.color : r.title,
+      full:    hasExplicitColor ? `${r.color} | ${r.title}` : r.title,
+      isColor: hasExplicitColor,
+    });
   }
 
   const noColorSection = Object.keys(noColorByStore).length === 0 ? '' : `
     <div style="padding:0 24px 24px">
       <div style="font-size:15px;font-weight:800;color:#1f2937;margin-bottom:14px">🎨 מוצרים ללא צבע מזוהה (עדכניים)</div>
-      ${Object.entries(noColorByStore).map(([store, titles]) => `
-        <div style="margin-bottom:18px">
-          <div style="font-size:13px;font-weight:700;color:#c97cc0;margin-bottom:8px;padding:6px 12px;background:#fdf4ff;border-radius:8px;display:inline-block">
-            ${store} — ${titles.length} מוצרים
+      ${Object.entries(noColorByStore).map(([store, items]) => {
+        const pairs = [];
+        for (let i = 0; i < items.length; i += 2) pairs.push(items.slice(i, i + 2));
+        const renderCell = item => item.isColor
+          ? `<span style="display:inline-block;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:4px;font-size:11px;font-weight:600;color:#92400e">${item.display}</span><span style="color:#9ca3af;font-size:11px">${item.full.split(' | ')[1] || ''}</span>`
+          : `<span style="color:#374151">${item.display}</span>`;
+        return `
+        <div style="margin-bottom:20px;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb">
+          <div style="font-size:13px;font-weight:700;color:#fff;background:#c97cc0;padding:8px 14px">
+            ${store} — ${items.length} מוצרים
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${titles.map(t => {
-              const short = t.length > 40 ? t.substring(0, 38) + '…' : t;
-              return `<span style="font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:20px;padding:4px 12px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;display:inline-block" title="${t.replace(/"/g,'&quot;')}">${short}</span>`;
-            }).join('')}
-          </div>
-        </div>`).join('')}
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            ${pairs.map((pair, ri) => `
+            <tr style="background:${ri % 2 === 0 ? '#fff' : '#f9fafb'}">
+              <td style="padding:5px 14px;width:50%;border-bottom:1px solid #f0f0f0;line-height:1.5">${renderCell(pair[0])}</td>
+              <td style="padding:5px 14px;width:50%;border-bottom:1px solid #f0f0f0;line-height:1.5;border-right:1px solid #f0f0f0">${pair[1] ? renderCell(pair[1]) : ''}</td>
+            </tr>`).join('')}
+          </table>
+        </div>`;
+      }).join('')}
     </div>`;
 
   const hasRed    = rows.some(r => storeStatus(r) === '🔴');

@@ -275,6 +275,22 @@ app.get("/health", (req, res) => {
 });
 
 // Image Proxy — מגיש תמונות חיצוניות עם cache (מאיץ נייד)
+// GET /ic?u=URL — מגיש תמונות שנשמרו בDB על ידי הסקרייפר (עוקף hotlink protection)
+app.get('/ic', async (req, res) => {
+  const url = req.query.u;
+  if (!url) return res.status(400).end();
+  try {
+    const r = await pool.query('SELECT content_type, data FROM image_cache WHERE url_hash=$1', [url]);
+    if (!r.rows.length) return res.status(404).end();
+    res.setHeader('Content-Type', r.rows[0].content_type || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=2592000'); // 30 ימים
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.end(r.rows[0].data);
+  } catch(e) {
+    res.status(500).end();
+  }
+});
+
 app.get("/img", async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).send('Missing url');
@@ -286,10 +302,17 @@ app.get("/img", async (req, res) => {
     const isAllowed = allowed.some(d => url.includes(d));
     if (!isAllowed) return res.status(403).send('Not allowed');
 
-    const domain = new URL(url).origin;
-    const imgRes = await fetch(url, {
-      headers: { 'Referer': domain + '/' , 'User-Agent': 'Mozilla/5.0' }
+    // נסה ללא Referer תחילה (חלק מ-hotlink protection מאפשר גישה ישירה)
+    let imgRes = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'Accept': 'image/*,*/*' }
     });
+    // אם נחסם — נסה עם Referer של האתר המקורי
+    if (!imgRes.ok) {
+      const domain = new URL(url).origin;
+      imgRes = await fetch(url, {
+        headers: { 'Referer': domain + '/', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', 'Accept': 'image/*,*/*', 'Accept-Language': 'he-IL,he;q=0.9', 'sec-fetch-dest': 'image', 'sec-fetch-mode': 'no-cors', 'sec-fetch-site': 'same-origin' }
+      });
+    }
     if (!imgRes.ok) return res.status(imgRes.status).send('Failed');
 
     const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
@@ -3112,6 +3135,7 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS image_cache (url_hash TEXT PRIMARY KEY, content_type TEXT DEFAULT 'image/jpeg', data BYTEA NOT NULL, created_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,

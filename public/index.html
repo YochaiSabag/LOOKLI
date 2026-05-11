@@ -1195,8 +1195,10 @@ function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;',
 function thumbUrl(url) {
   if (!url) return url;
   // חנויות עם hotlink protection — נתב דרך proxy
-  const PROXY_DOMAINS = ['chemise.co.il'];
-  if (PROXY_DOMAINS.some(d => url.includes(d))) {
+  // תמונות שנשמרו ב-DB על ידי הסקרייפר — כבר בפורמט /ic?u=...
+  if (url.startsWith('/ic?') || url.startsWith('/img?')) return url;
+  // תמונות chemise ישנות שעדיין ב-DB — נתב דרך /img proxy
+  if (url.includes('chemise.co.il')) {
     return '/img?url=' + encodeURIComponent(url.replace(/-\d+x\d+(\.\w+)$/, '$1'));
   }
   // WooCommerce — החלף גודל קיים ל-400x600

@@ -134,10 +134,7 @@ async function scrapeProduct(page, url) {
             const aspect = parseFloat((item.aspect || '').split(':')[0]) /
                            parseFloat((item.aspect || '1:1').split(':')[1] || 1);
             if (aspect > 2) return; // תמונת טבלת מידות — דלג
-            // עדיפות: full_src → src (ללא suffix גודל)
-            // חייב להסיר -WxH suffix כי thumbUrl יממיר אותו ל-400x600 שלא קיים ב-chemise!
-            const rawUrl = item.full_src || item.src || item.large_src || '';
-            const url = rawUrl.replace(/-\d+x\d+(\.\w+)$/, '$1'); // הסר suffix כמו -1400x2508
+            const url = item.full_src || item.src || item.large_src || '';
             if (url && url.includes('uploads') && !images.includes(url)) images.push(url);
           });
         } catch(e) { /* fallback לשלבים הבאים */ }
@@ -377,12 +374,31 @@ async function scrapeProduct(page, url) {
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
-    
+
+    // הורד תמונות דרך Playwright — עוקף hotlink protection של chemise
+    const cachedImages = [];
+    for (const imgUrl of data.images.slice(0, 6)) {
+      try {
+        const resp = await page.request.get(imgUrl, { timeout: 8000 });
+        if (resp.ok()) {
+          const ct = (resp.headers()['content-type'] || 'image/jpeg').split(';')[0];
+          const buffer = await resp.body();
+          await db.query(
+            `INSERT INTO image_cache (url_hash, content_type, data) VALUES ($1,$2,$3) ON CONFLICT (url_hash) DO NOTHING`,
+            [imgUrl, ct, buffer]
+          );
+          cachedImages.push('/ic?u=' + encodeURIComponent(imgUrl));
+          console.log(`    📥 cached: ${imgUrl.split('/').pop()}`);
+        }
+      } catch(e) { console.log(`    ⚠️ img skip: ${e.message}`); }
+    }
+    const finalImages = cachedImages.length > 0 ? cachedImages : data.images;
+
     return {
       title: data.title,
       price: data.price,
       originalPrice: data.originalPrice,
-      images: data.images,
+      images: finalImages,
       colors: uniqueColors,
       sizes: uniqueSizes,
       allSizes: allUniqueSizes,

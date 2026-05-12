@@ -315,14 +315,18 @@ async function saveItem() {
   if (!name) { alert('חובה להזין שם'); return; }
 
   const body = { type: currentType, name, aliases, color_hex: document.getElementById('fieldHex').value.trim() || null };
-  const r = await authFetch('/api/admin/scraper-config', {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  // אם עורכים — PUT לפי id; אחרת — POST חדש
+  const url = editId ? `/api/admin/scraper-config/${editId}` : '/api/admin/scraper-config';
+  const method = editId ? 'PUT' : 'POST';
+  const r = await authFetch(url, {
+    method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
   });
   if (!r.ok) { alert('שגיאה בשמירה'); return; }
   closeModal();
+  // רענן רשימה ואז חזור לtype הנוכחי
+  await loadAll();
   setType(currentType);
-  // עדכן count
-  if (!editId) { counts[currentType] = (counts[currentType]||0)+1; document.getElementById(`cnt-${currentType}`).textContent = counts[currentType]; }
+  if (!editId) { counts[currentType] = (counts[currentType]||0)+1; document.getElementById(`cnt-${currentType}`)?.textContent && (document.getElementById(`cnt-${currentType}`).textContent = counts[currentType]); }
 }
 
 async function deleteItem(id, name) {

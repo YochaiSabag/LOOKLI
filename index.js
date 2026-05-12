@@ -482,16 +482,17 @@ let SEARCH_ALIASES = {}; // alias → { name, type }
 
 async function loadSearchAliases() {
   try {
+    SEARCH_ALIASES = {}; // איפוס לפני rebuild — ערכים שנמחקו לא יישארו
     const r = await pool.query(`SELECT type, name, aliases FROM scraper_config WHERE aliases IS NOT NULL`);
     r.rows.forEach(row => {
       (row.aliases || []).forEach(alias => {
         const key = alias.toLowerCase().trim();
-        if (!SEARCH_ALIASES[key]) SEARCH_ALIASES[key] = { name: row.name, type: row.type };
+        SEARCH_ALIASES[key] = { name: row.name, type: row.type }; // תמיד דרוס
       });
       // גם השם עצמו
       SEARCH_ALIASES[row.name.toLowerCase()] = { name: row.name, type: row.type };
     });
-    // הוסף גם COLOR_ALIASES
+    // COLOR_ALIASES כ-fallback בלבד (לא דורסים DB)
     Object.entries(COLOR_ALIASES).forEach(([alias, name]) => {
       if (!SEARCH_ALIASES[alias.toLowerCase()]) SEARCH_ALIASES[alias.toLowerCase()] = { name, type: 'color' };
     });
@@ -3098,6 +3099,23 @@ app.post('/api/admin/scraper-config', adminAuth, async (req, res) => {
   );
   await loadSearchAliases(); // רענון מיידי
   res.json({ ok: true, item: r.rows[0] });
+});
+
+// PUT /api/admin/scraper-config/:id — עדכון ערך קיים לפי id (כולל שינוי שם)
+app.put('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
+  const { name, aliases = [], color_hex } = req.body;
+  if (!name) return res.status(400).json({ error: 'name חובה' });
+  try {
+    const r = await pool.query(
+      `UPDATE scraper_config SET name=$1, aliases=$2, color_hex=$3, updated_at=NOW() WHERE id=$4 RETURNING *`,
+      [name, aliases, color_hex || null, req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
+    await loadSearchAliases();
+    res.json({ ok: true, item: r.rows[0] });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {

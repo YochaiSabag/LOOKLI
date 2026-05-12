@@ -2155,6 +2155,8 @@ async function _flushTaskNotifications(changes) {
 
   const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
   try {
+    const myIp = await fetch('https://api.ipify.org?format=json').then(r=>r.json()).catch(()=>({ip:'unknown'}));
+    console.log(`[tasks] שולח מייל | IP: ${myIp.ip} | sender: ${SENDER} | to: ${NOTIFY}`);
     const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },

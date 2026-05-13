@@ -47,7 +47,17 @@ async function getAllProductUrls(page) {
       : `https://salinafashion.com/shop/page/${p}/`;
     try {
       console.log(`  → עמוד ${p}`);
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      // domcontentloaded מהיר יותר מnetworkidle — מתאים ל-Railway
+      let loaded = false;
+      for (let attempt = 1; attempt <= 2 && !loaded; attempt++) {
+        try {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+          loaded = true;
+        } catch(e) {
+          if (attempt < 2) { console.log(`  ↩️ retry עמוד ${p}...`); await page.waitForTimeout(3000); }
+          else throw e;
+        }
+      }
       await page.waitForTimeout(3000);
 
       // גלילה לטעינה מלאה
@@ -96,7 +106,7 @@ async function scrapeProduct(page, url) {
   console.log(`\n🔍 ${shortUrl}...`);
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(2500);
 
     // המתן למידות/צבעים
@@ -431,6 +441,10 @@ const browser = await chromium.launch({
     '--disable-dev-shm-usage',
     '--disable-web-security',
     '--lang=he-IL,he,en-US,en',
+    '--disable-gpu',
+    '--single-process',
+    '--no-zygote',
+    '--ignore-certificate-errors',
   ]
 });
 const context = await browser.newContext({

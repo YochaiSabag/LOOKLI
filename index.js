@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
 import { GoogleAuth } from "google-auth-library";
 import rateLimit from "express-rate-limit";
+import { execSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -422,20 +423,11 @@ app.get("/api/filters", async (req, res) => {
       pool.query(`SELECT DISTINCT unnest(design_details) AS detail FROM products WHERE ${baseWhere} AND design_details IS NOT NULL`, baseParams)
     ]);
 
-    // צבעים תקפים מ-scraper_config (DB); fallback לרשימה הקשיחה
-    const cfgColorRows = await pool.query(
-      `SELECT name, color_hex FROM scraper_config WHERE type='color' ORDER BY name`
-    );
-    const validColorSet = cfgColorRows.rows.length > 0
-      ? new Set(cfgColorRows.rows.map(r => r.name))
-      : new Set(validColors);
-    const colorHexFromDB = {};
-    cfgColorRows.rows.forEach(r => { if (r.color_hex) colorHexFromDB[r.name] = r.color_hex; });
+    const validColorSet = new Set(validColors);
     res.json({
       stores: storesRes.rows.map(r => r.store).filter(Boolean),
       sizes: sizesRes.rows.map(r => r.size).filter(Boolean),
       colors: colorsRes.rows.map(r => r.color).filter(c => c && validColorSet.has(c)),
-      colorHex: colorHexFromDB,
       styles: stylesRes.rows.map(r => r.style).filter(Boolean),
       fits: fitsRes.rows.map(r => r.fit).filter(Boolean),
       categories: categoriesRes.rows.map(r => r.category).filter(Boolean),
@@ -2102,14 +2094,88 @@ let _taskChangeBuf = [];
 let _taskChangeTimer = null;
 
 async function _flushTaskNotifications(changes) {
-  if (!changes.length) return;
+  const BREVO_KEY  = process.env.BREVO_API_KEY;
+  const SENDER     = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
+  const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
+  const SITE_URL   = process.env.SITE_URL    || 'https://lookli.co.il';
+  if (!BREVO_KEY || !NOTIFY || !changes.length) return;
+
+  const TYPE_LABEL = {
+    created:     '✅ נוצרה',
+    completed:   '🎉 הושלמה',
+    deleted:     '🗑️ נמחקה',
+    reassigned:  '👤 שויכה מחדש',
+    progress:    '⚡ התקדמות עודכנה',
+    sub_added:   '➕ תת-משימה נוספה',
+    sub_toggled: '☑️ תת-משימה עודכנה',
+    sub_deleted: '🗑️ תת-משימה נמחקה',
+    log_added:   '📝 עדכון נוסף ללוג',
+    log_deleted: '🗑️ עדכון נמחק מהלוג',
+  };
+  const PRIO = { high:'🔴 גבוהה', medium:'🟡 בינונית', low:'🟢 נמוכה' };
+
+  const rows = changes.map(c => {
+    const label = TYPE_LABEL[c.type] || c.type;
+    let extra = '';
+    if (c.type === 'reassigned') extra = `<br><span style="color:#9ca3af;font-size:11px">מ-${c.from||'ללא'} ל-${c.to||'ללא'}</span>`;
+    if (c.type === 'progress')   extra = `<br><span style="color:#9ca3af;font-size:11px">${c.val}%</span>`;
+    if (c.type === 'sub_added' || c.type === 'sub_toggled' || c.type === 'sub_deleted') extra = `<br><span style="color:#9ca3af;font-size:11px">${c.subText||c.text||''}</span>`;
+    if (c.type === 'log_added')  extra = `<br><span style="color:#9ca3af;font-size:11px">${c.text||''}</span>`;
+    const person = c.person ? `<span style="color:#c084fc">${c.person}</span>` : '';
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px">${label}${extra}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px;font-weight:600">${c.taskTitle||''}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:12px">${person}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#0a0a0f;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:580px;margin:30px auto;background:#12121a;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a">
+    <div style="background:linear-gradient(135deg,#c084fc,#818cf8);padding:20px 24px;display:flex;align-items:center;gap:10px">
+      <div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.8)">עדכון משימות</div>
+    </div>
+    <div style="padding:20px 24px">
+      <p style="color:#f1f0ff;font-size:14px;margin-bottom:16px">${changes.length} שינויים בוצעו:</p>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#1a1a26">
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">פעולה</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">משימה</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">אחראי</th>
+          </tr>
+        </thead>
+        <tbody style="color:#f1f0ff">${rows}</tbody>
+      </table>
+      <a href="${SITE_URL}/admin/tasks" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>
+    </div>
+  </div>
+</body></html>`;
+
+  const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
   try {
-    await pool.query(
-      `INSERT INTO task_notifications_queue (changes, created_at) VALUES ($1, NOW())`,
-      [JSON.stringify(changes)]
-    );
-    console.log(`[tasks] ${changes.length} שינויים נשמרו לתור שליחה`);
-  } catch(e) { console.error('[tasks] שגיאת שמירה לתור:', e.message); }
+    const myIp = await fetch('https://api.ipify.org?format=json').then(r=>r.json()).catch(()=>({ip:'unknown'}));
+    console.log(`[tasks] שולח מייל | IP: ${myIp.ip} | sender: ${SENDER} | to: ${NOTIFY}`);
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI משימות', email: SENDER },
+        to,
+        subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
+        htmlContent: html,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      console.error('[tasks] Brevo error:', JSON.stringify(err));
+    } else {
+      console.log(`[tasks] מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
+    }
+  } catch(e) { console.error('[tasks] שגיאת מייל:', e.message); }
 }
 
 function _scheduleTaskNotif(change) {
@@ -2192,9 +2258,20 @@ app.get('/api/admin/tasks-test-email', adminAuth, async (req, res) => {
 app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
   clearTimeout(_taskChangeTimer);
   const batch = _taskChangeBuf.splice(0);
-  if (!batch.length) return res.json({ ok: true, sent: 0 });
-  await _flushTaskNotifications(batch);
-  res.json({ ok: true, sent: batch.length });
+  if (batch.length) await _flushTaskNotifications(batch);
+
+  // שלח מיידית דרך Gmail (child process — עוקף בעיית IP)
+  try {
+    execSync('node ./send_task_notifications.js', {
+      cwd: path.dirname(fileURLToPath(import.meta.url)),
+      stdio: 'ignore',
+      timeout: 30000,
+    });
+    res.json({ ok: true, sent: batch.length });
+  } catch(e) {
+    console.error('[tasks] שגיאת שליחה מיידית:', e.message);
+    res.json({ ok: true, sent: batch.length, note: 'ישלח בריצה הבאה' });
+  }
 });
 
 app.get('/api/admin/tasks-pending-changes', adminAuth, (req, res) => {
@@ -3077,37 +3154,8 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     }
 
     // 2. שלוף מוצרים ללא תיוג ידני לכל שדה
-    let updated = 0;
-
-    // ─── תיוג צבעים ───────────────────────────────────────────────────
-    // בנה lookup: alias → colorName מ-scraper_config
-    const colorAliasMap = {}; // alias.lower → colorName
-    cfgRows.rows.filter(r => r.type === 'color').forEach(r => {
-      colorAliasMap[r.name.toLowerCase()] = r.name;
-      (r.aliases||[]).forEach(a => { colorAliasMap[a.toLowerCase()] = r.name; });
-    });
-
-    if (Object.keys(colorAliasMap).length) {
-      // מוצרים שהצבע שלהם לא נעול — ננסה לזהות מחדש מהכותרת
-      const colorProds = await pool.query(
-        `SELECT id, title, color FROM products
-         WHERE NOT ('color' = ANY(COALESCE(tagged_fields, '{}')))`
-      );
-      for (const p of colorProds.rows) {
-        const t = (p.title || '').toLowerCase();
-        let found = null;
-        for (const [alias, name] of Object.entries(colorAliasMap)) {
-          if (alias.length >= 2 && t.includes(alias)) { found = name; break; }
-        }
-        if (found && found !== p.color) {
-          await pool.query(`UPDATE products SET color=$1 WHERE id=$2`, [found, p.id]);
-          updated++;
-        }
-      }
-    }
-
-    // ─── שאר השדות ────────────────────────────────────────────────────
     const fields = ['category','style','fit','fabric','pattern'];
+    let updated = 0;
 
     for (const field of fields) {
       if (!Object.keys(maps[field]).length) continue;
@@ -3170,7 +3218,6 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
     await pool.query(`CREATE TABLE IF NOT EXISTS image_cache (url_hash TEXT PRIMARY KEY, content_type TEXT DEFAULT 'image/jpeg', data BYTEA NOT NULL, created_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS task_notifications_queue (id SERIAL PRIMARY KEY, changes JSONB, created_at TIMESTAMP DEFAULT NOW(), sent_at TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

@@ -6,6 +6,7 @@
 
 import 'dotenv/config';
 import pkg from 'pg';
+import nodemailer from 'nodemailer';
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -13,24 +14,28 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes('rlwy.net') ? { rejectUnauthorized: false } : undefined,
 });
 
-const BREVO_KEY  = process.env.BREVO_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL  || 'alerts@lookli.co.il';
-const FROM_NAME  = 'LOOKLI משימות';
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD;
 const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
-const SITE_URL   = process.env.SITE_URL    || 'https://lookli.co.il';
+const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
 
-async function sendEmail(toEmails, subject, htmlBody) {
-  if (!BREVO_KEY) { console.log('[TASKS] BREVO_API_KEY חסר'); return false; }
-  const to = toEmails.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+});
+
+async function sendEmail(subject, htmlBody) {
+  if (!GMAIL_USER || !GMAIL_PASS) { console.log('[TASKS] GMAIL_USER/GMAIL_APP_PASSWORD חסרים'); return false; }
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender: { name: FROM_NAME, email: FROM_EMAIL }, to, subject, htmlContent: htmlBody }),
+    await transporter.sendMail({
+      from: `"LOOKLI משימות" <${GMAIL_USER}>`,
+      to: NOTIFY,
+      subject,
+      html: htmlBody,
     });
-    if (res.ok) { console.log(`  ✅ מייל משימות נשלח`); return true; }
-    const e = await res.json(); console.error('  ❌ Brevo:', e); return false;
-  } catch(e) { console.error('  ❌ שגיאה:', e.message); return false; }
+    console.log(`  ✅ מייל משימות נשלח → ${NOTIFY}`);
+    return true;
+  } catch(e) { console.error('  ❌ שגיאת Gmail:', e.message); return false; }
 }
 
 function buildHtml(changes) {
@@ -103,7 +108,7 @@ async function run() {
 
   console.log(`[TASKS] שולח מייל עם ${allChanges.length} שינויים...`);
   const html = buildHtml(allChanges);
-  const ok = await sendEmail(NOTIFY, `📋 עדכון משימות LOOKLI — ${allChanges.length} שינויים`, html);
+  const ok = await sendEmail(`📋 עדכון משימות LOOKLI — ${allChanges.length} שינויים`, html);
 
   if (ok) {
     await pool.query(`UPDATE task_notifications_queue SET sent_at=NOW() WHERE id=ANY($1)`, [ids]);

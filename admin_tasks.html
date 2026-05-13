@@ -688,7 +688,7 @@ async function sendNow(){
   try{
     const r=await fetch('/api/admin/tasks-notify-now',{method:'POST'});
     const d=await r.json();
-    showToast(d.sent?`📧 נשלח מייל — ${d.sent} שינויים`:'אין שינויים ממתינים');
+    showToast(d.sent?`📋 ${d.sent} שינויים נשמרו — יישלחו בריצה הבאה`:'אין שינויים ממתינים');
   }catch{showToast('⚠️ שגיאת שליחה');}
   btn.disabled=false;
   updateNotifyBtn(0);

@@ -3077,6 +3077,8 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     }
 
     // 2. שלוף מוצרים ללא תיוג ידני לכל שדה
+    let updated = 0;
+
     // ─── תיוג צבעים ───────────────────────────────────────────────────
     // בנה lookup: alias → colorName מ-scraper_config
     const colorAliasMap = {}; // alias.lower → colorName
@@ -3106,7 +3108,6 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
 
     // ─── שאר השדות ────────────────────────────────────────────────────
     const fields = ['category','style','fit','fabric','pattern'];
-    let updated = 0;
 
     for (const field of fields) {
       if (!Object.keys(maps[field]).length) continue;

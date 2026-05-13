@@ -120,6 +120,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div class="main-title" id="mainTitle">🎨 צבעים</div>
       <button class="btn btn-primary" onclick="openAdd()">+ הוסף חדש</button>
       <button class="btn" onclick="seedFromDefaults()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border)" title="ייבא את כל ברירות המחדל מהסקרייפרים">📥 ייבא ברירות מחדל</button>
+      <button onclick="retagProducts()" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#c97cc0,#a855f7);color:#fff;font-weight:700;font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">🔄 תייג מחדש מוצרים קיימים</button>
     </div>
 
     <div class="type-info" id="typeInfo"></div>
@@ -343,6 +344,18 @@ function esc(s) { return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;').repla
 document.getElementById('modalBg').addEventListener('click', e => { if(e.target===document.getElementById('modalBg')) closeModal(); });
 
 // טעינה ראשונית
+async function retagProducts() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ מתייג...';
+  try {
+    const r = await authFetch('/api/admin/retag-products', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) alert(`✅ עודכנו ${d.updated} שדות במוצרים קיימים`);
+    else alert('❌ שגיאה: ' + (d.error || 'לא ידוע'));
+  } catch(e) { alert('❌ שגיאת רשת'); }
+  btn.disabled = false; btn.textContent = '🔄 תייג מחדש מוצרים קיימים';
+}
+
 loadAll().then(() => setType('color'));
 </script>
 </body>

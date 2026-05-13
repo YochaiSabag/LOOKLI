@@ -3124,6 +3124,55 @@ app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/admin/retag-products — מתייג מחדש מוצרים קיימים לפי scraper_config הנוכחי
+app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
+  try {
+    // 1. טען config מה-DB
+    const cfgRows = await pool.query(`SELECT type, name, aliases FROM scraper_config WHERE aliases IS NOT NULL AND array_length(aliases,1)>0`);
+    const maps = { category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
+    cfgRows.rows.forEach(r => { if (maps[r.type]) maps[r.type][r.name] = (r.aliases||[]).map(a=>a.toLowerCase()); });
+
+    // פונקציית זיהוי לפי כותרת
+    function detect(text, map) {
+      const t = (text||'').toLowerCase();
+      for (const [name, aliases] of Object.entries(map)) {
+        if (aliases.some(a => t.includes(a))) return name;
+      }
+      return null;
+    }
+
+    // 2. שלוף מוצרים ללא תיוג ידני לכל שדה
+    const fields = ['category','style','fit','fabric','pattern'];
+    let updated = 0;
+
+    for (const field of fields) {
+      if (!Object.keys(maps[field]).length) continue;
+
+      // שלוף מוצרים שהשדה ריק ואינו נעול ידנית
+      const prods = await pool.query(
+        `SELECT id, title, description FROM products
+         WHERE (${field} IS NULL OR ${field} = '')
+           AND NOT ($1 = ANY(COALESCE(tagged_fields, '{}')))`,
+        [field]
+      );
+
+      for (const p of prods.rows) {
+        const val = detect((p.title||'') + ' ' + (p.description||''), maps[field]);
+        if (val) {
+          await pool.query(`UPDATE products SET ${field}=$1 WHERE id=$2`, [val, p.id]);
+          updated++;
+        }
+      }
+    }
+
+    res.json({ ok: true, updated });
+  } catch(e) {
+    console.error('[retag]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await ensureEmailCampaignLog();

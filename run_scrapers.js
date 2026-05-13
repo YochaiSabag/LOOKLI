@@ -78,6 +78,12 @@ for (const name of toRun) {
   }
 }
 
+// שליחת מיילים על שינויי משימות
+console.log(`\n${'='.repeat(50)}\n📋 שולח נוטיפיקציות משימות...\n${'='.repeat(50)}`);
+try {
+  execSync('node ./send_task_notifications.js', { stdio: 'inherit', cwd: __dirname });
+} catch(e) {}
+
 // בדיקת התראות בסוף
 console.log(`\n${'='.repeat(50)}\n🔔 מריץ בדיקת התראות...\n${'='.repeat(50)}`);
 try {

@@ -4,6 +4,7 @@
  * הרצה: node check_alerts.js
  */
 
+import 'dotenv/config';
 import pkg from 'pg';
 const { Pool } = pkg;
 

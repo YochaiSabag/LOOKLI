@@ -38,7 +38,9 @@
     "express-rate-limit": "^7.4.0",
     "google-auth-library": "^10.6.1",
     "pg": "^8.16.3",
-    "playwright": "^1.58.1"
+    "playwright": "^1.58.1",
+    "playwright-extra": "^0.3.3",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

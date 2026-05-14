@@ -423,11 +423,20 @@ app.get("/api/filters", async (req, res) => {
       pool.query(`SELECT DISTINCT unnest(design_details) AS detail FROM products WHERE ${baseWhere} AND design_details IS NOT NULL`, baseParams)
     ]);
 
-    const validColorSet = new Set(validColors);
+    // צבעים תקפים מ-scraper_config; fallback לרשימה הקשיחה
+    const cfgColorRows = await pool.query(
+      `SELECT name, color_hex FROM scraper_config WHERE type='color' ORDER BY name`
+    );
+    const validColorSet = cfgColorRows.rows.length > 0
+      ? new Set(cfgColorRows.rows.map(r => r.name))
+      : new Set(validColors);
+    const colorHexFromDB = {};
+    cfgColorRows.rows.forEach(r => { if (r.color_hex) colorHexFromDB[r.name] = r.color_hex; });
     res.json({
       stores: storesRes.rows.map(r => r.store).filter(Boolean),
       sizes: sizesRes.rows.map(r => r.size).filter(Boolean),
       colors: colorsRes.rows.map(r => r.color).filter(c => c && validColorSet.has(c)),
+      colorHex: colorHexFromDB,
       styles: stylesRes.rows.map(r => r.style).filter(Boolean),
       fits: fitsRes.rows.map(r => r.fit).filter(Boolean),
       categories: categoriesRes.rows.map(r => r.category).filter(Boolean),
@@ -3172,6 +3181,30 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
         const val = detect((p.title||'') + ' ' + (p.description||''), maps[field]);
         if (val) {
           await pool.query(`UPDATE products SET ${field}=$1 WHERE id=$2`, [val, p.id]);
+          updated++;
+        }
+      }
+    }
+
+    // ─── תיוג צבעים מה-config ────────────────────────────────────────
+    const colorAliasMap = {};
+    cfgRows.rows.filter(r => r.type === 'color').forEach(r => {
+      colorAliasMap[r.name.toLowerCase()] = r.name;
+      (r.aliases||[]).forEach(a => { colorAliasMap[a.toLowerCase()] = r.name; });
+    });
+    if (Object.keys(colorAliasMap).length) {
+      const colorProds = await pool.query(
+        `SELECT id, title, color FROM products
+         WHERE NOT ('color' = ANY(COALESCE(tagged_fields, '{}'::text[])))`
+      );
+      for (const p of colorProds.rows) {
+        const t = (p.title || '').toLowerCase();
+        let found = null;
+        for (const [alias, name] of Object.entries(colorAliasMap)) {
+          if (alias.length >= 2 && t.includes(alias)) { found = name; break; }
+        }
+        if (found && found !== p.color) {
+          await pool.query(`UPDATE products SET color=$1 WHERE id=$2`, [found, p.id]);
           updated++;
         }
       }

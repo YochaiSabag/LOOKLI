@@ -24,6 +24,8 @@ async function sendEmail(toEmail, subject, htmlBody) {
     return false;
   }
   try {
+    const myIp = await fetch('https://api.ipify.org?format=json').then(r=>r.json()).catch(()=>({ip:'unknown'}));
+    console.log(`[ALERTS] שולח מייל | IP: ${myIp.ip} | to: ${toEmail}`);
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
@@ -188,4 +190,4 @@ async function checkAlerts() {
   await pool.end();
 }
 
-checkAlerts().catch(e => { console.error('שגיאה:', e?.message || e?.detail || JSON.stringify(e) || e); process.exit(1); });
+checkAlerts().catch(e => { console.error('שגיאה:', e.message); process.exit(1); });

@@ -19,6 +19,7 @@ const FROM_NAME  = 'LOOKLI התראות';
 
 // ─── שלח מייל דרך Brevo ───────────────────────────────────
 async function sendEmail(toEmail, subject, htmlBody) {
+  if (process.env.SKIP_EMAIL === 'true') { console.log(`[ALERTS] SKIP_EMAIL=true — לא שולח מייל`); return true; }
   if (!BREVO_KEY) {
     console.log(`[ALERT] BREVO_API_KEY חסר — מייל לא נשלח ל-${toEmail}`);
     return false;

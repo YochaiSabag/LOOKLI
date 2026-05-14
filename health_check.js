@@ -21,6 +21,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
 // ─── שלח מייל ────────────────────────────────────────────
 async function sendEmail(toEmail, subject, htmlBody) {
+  if (process.env.SKIP_EMAIL === 'true') { console.log(`[HEALTH] SKIP_EMAIL=true — לא שולח מייל`); return true; }
   if (!BREVO_KEY) { console.log('[HEALTH] BREVO_API_KEY חסר'); return false; }
   try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {

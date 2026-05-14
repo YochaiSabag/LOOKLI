@@ -2102,11 +2102,9 @@ let _taskChangeBuf = [];
 let _taskChangeTimer = null;
 
 async function _flushTaskNotifications(changes) {
-  const BREVO_KEY  = process.env.BREVO_API_KEY;
-  const SENDER     = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
   const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
   const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
-  if (!BREVO_KEY || !NOTIFY || !changes.length) return;
+  if (!NOTIFY || !changes.length) return;
 
   const TYPE_LABEL = {
     created:     '✅ נוצרה',
@@ -2163,21 +2161,23 @@ async function _flushTaskNotifications(changes) {
   </div>
 </body></html>`;
 
-  const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
   try {
-    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        sender: { name: 'LOOKLI משימות', email: SENDER },
-        to,
+        from: 'LOOKLI משימות <onboarding@resend.dev>',
+        to: NOTIFY.split(',').map(e => e.trim()),
         subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
-        htmlContent: html,
+        html,
       }),
     });
+    const data = await resp.json();
     if (!resp.ok) {
-      const err = await resp.json();
-      console.error('[tasks] Brevo error:', JSON.stringify(err));
+      console.error('[tasks] Resend error:', JSON.stringify(data));
     } else {
       console.log(`[tasks] מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
     }

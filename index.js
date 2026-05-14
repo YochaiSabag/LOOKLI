@@ -6,7 +6,6 @@ import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
 import { GoogleAuth } from "google-auth-library";
 import rateLimit from "express-rate-limit";
-import nodemailer from "nodemailer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2103,9 +2102,11 @@ let _taskChangeBuf = [];
 let _taskChangeTimer = null;
 
 async function _flushTaskNotifications(changes) {
-  const NOTIFY   = process.env.ADMIN_NOTIFY_EMAIL;
-  const SITE_URL = process.env.SITE_URL || 'https://lookli.co.il';
-  if (!NOTIFY || !changes.length) return;
+  const BREVO_KEY  = process.env.BREVO_API_KEY;
+  const SENDER     = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
+  const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
+  const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
+  if (!BREVO_KEY || !NOTIFY || !changes.length) return;
 
   const TYPE_LABEL = {
     created:     '✅ נוצרה',
@@ -2162,18 +2163,24 @@ async function _flushTaskNotifications(changes) {
   </div>
 </body></html>`;
 
+  const to = NOTIFY.split(',').map(e => ({ email: e.trim() })).filter(e => e.email);
   try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'LOOKLI משימות', email: SENDER },
+        to,
+        subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
+        htmlContent: html,
+      }),
     });
-    await transporter.sendMail({
-      from: `"LOOKLI משימות" <${process.env.GMAIL_USER}>`,
-      to: NOTIFY,
-      subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
-      html,
-    });
-    console.log(`[tasks] מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
+    if (!resp.ok) {
+      const err = await resp.json();
+      console.error('[tasks] Brevo error:', JSON.stringify(err));
+    } else {
+      console.log(`[tasks] מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
+    }
   } catch(e) { console.error('[tasks] שגיאת מייל:', e.message); }
 }
 

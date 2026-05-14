@@ -76,10 +76,6 @@ const DEFAULT_PATTERNS = {
 const SKIP_KEYWORDS = [
   'עגיל','עגילי','שרשרת','צמיד','טבעת','תכשיט',
   'כובע','צעיף','תיק','ארנק','משקפיים','גומייה','מטפחת','קשת','שעון','שיער','גרבי',
-  // בגדי ים
-  'בגדי ים','בגד ים','ביקיני','bikini','swimwear','swimsuit','swim suit',
-  // כרטיסי מתנה
-  'כרטיס','gift card','voucher',
 ];
 
 // ============================================================
@@ -168,7 +164,9 @@ export async function loadScraperConfig(db) {
       const withoutJeans = JEANS_WORDS.reduce((s,w) => s.replace(new RegExp(w.replace(/'/g,"['’]"),'gi'),''), t).trim();
       const otherColor = normalizeWithLookup(withoutJeans, colorLookup, null);
       if (otherColor && otherColor !== 'אחר') return otherColor;
-      return 'כחול'; // ג'ינס לבד = כחול
+      // אם יש צבע מוגדר בקונפיג עבור גינס/ג'ינס — השתמש בו; אחרת כחול כברירת מחדל
+      const jeansColorName = colorLookup["גינס"] || colorLookup["ג'ינס"] || colorLookup['jeans'] || colorLookup['denim'] || 'כחול';
+      return jeansColorName;
     },
     unknownColors,
 

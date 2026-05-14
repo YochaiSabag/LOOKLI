@@ -82,6 +82,10 @@ function buildEmail({ type, title, image, store, oldVal, newVal, url }) {
 
 // ─── לוגיקה ראשית ─────────────────────────────────────────
 async function checkAlerts() {
+  if (process.env.SKIP_EMAIL === 'true') {
+    console.log('[ALERTS] SKIP_EMAIL=true — מדלג על בדיקת התראות');
+    return;
+  }
   console.log('\n🔔 LOOKLI — בדיקת התראות', new Date().toLocaleString('he-IL'));
 
   // שלוף כל ההתראות הפעילות + מידע נוכחי על המוצר + מייל משתמש

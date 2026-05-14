@@ -191,4 +191,4 @@ async function checkAlerts() {
   await pool.end();
 }
 
-checkAlerts().catch(e => { console.error('שגיאה:', e.message); process.exit(1); });
+checkAlerts().catch(e => { console.error('שגיאה:', e.message || e); console.error(e.stack || e); process.exit(1); });

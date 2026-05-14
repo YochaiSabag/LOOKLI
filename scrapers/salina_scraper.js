@@ -36,80 +36,8 @@ function normalizeSize(s) {
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
-// ── עוקף Cloudflare challenge ──────────────────────────────────────────────
-async function waitForCloudflare(page, maxWait = 20000) {
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    const title = await page.title().catch(() => '');
-    const isCF = title.includes('רק רגע') || title.includes('Just a moment') ||
-                 title.includes('Checking your browser') || title.includes('Please Wait');
-    if (!isCF) return true;
-    console.log('  ⏳ Cloudflare challenge — ממתין לפתרון...');
-    await page.waitForTimeout(3000);
-  }
-  return false;
-}
-
-// ── איסוף קישורים דרך sitemap (עוקף Cloudflare) ──────────────────────────
-async function getSitemapUrls() {
-  const sitemapCandidates = [
-    'https://salinafashion.com/wp-sitemap-posts-product-1.xml',
-    'https://salinafashion.com/wp-sitemap-posts-product-2.xml',
-    'https://salinafashion.com/sitemap.xml',
-    'https://salinafashion.com/product-sitemap.xml',
-  ];
-  const found = new Set();
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-    'Accept': 'text/xml,application/xml,*/*',
-  };
-
-  for (const url of sitemapCandidates) {
-    try {
-      const res = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
-      if (!res.ok) continue;
-      const xml = await res.text();
-      const matches = [...xml.matchAll(/<loc>(https?:\/\/salinafashion\.com\/shop\/[^<]+)<\/loc>/g)];
-      matches.forEach(m => {
-        const u = m[1].split('?')[0];
-        if (!u.endsWith('/shop/') && !u.match(/\/page\//)) found.add(u);
-      });
-      if (found.size > 0) {
-        console.log(`  ✅ sitemap ${url.split('/').pop()}: ${found.size} מוצרים`);
-        // try next page too
-        if (url.includes('-product-1.xml')) {
-          const url2 = url.replace('-product-1.xml', '-product-2.xml');
-          try {
-            const r2 = await fetch(url2, { headers, signal: AbortSignal.timeout(10000) });
-            if (r2.ok) {
-              const x2 = await r2.text();
-              const m2 = [...x2.matchAll(/<loc>(https?:\/\/salinafashion\.com\/shop\/[^<]+)<\/loc>/g)];
-              m2.forEach(m => found.add(m[1].split('?')[0]));
-              console.log(`  ✅ sitemap page 2: ${found.size} מוצרים סה"כ`);
-            }
-          } catch(_) {}
-        }
-        return [...found];
-      }
-    } catch(e) {
-      console.log(`  ⚠️ sitemap ${url.split('/').pop()}: ${e.message}`);
-    }
-  }
-  return [];
-}
-
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
-
-  // שלב 1: נסה sitemap (fetch — לא מושפע מ-Cloudflare)
-  const sitemapUrls = await getSitemapUrls();
-  if (sitemapUrls.length > 0) {
-    console.log(`  ✅ נמצאו ${sitemapUrls.length} קישורים דרך sitemap`);
-    return sitemapUrls;
-  }
-
-  // שלב 2: fallback — Playwright (אם sitemap לא עבד)
-  console.log('  ⚠️ sitemap נכשל — מנסה Playwright...');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
@@ -119,11 +47,15 @@ async function getAllProductUrls(page) {
       : `https://salinafashion.com/shop/page/${p}/`;
     try {
       console.log(`  → עמוד ${p}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      const passed = await waitForCloudflare(page);
-      if (!passed) { console.log('  ⏹ Cloudflare לא נפתר'); break; }
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      await page.waitForTimeout(3000);
 
-      await page.waitForTimeout(2000);
+      // גלילה לטעינה מלאה
+      for (let i = 0; i < 4; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(800);
+      }
+
       const urls = await page.evaluate(() =>
         [...document.querySelectorAll('h3.wd-entities-title a, a.wd-product-img-link')]
           .map(a => a.href.split('?')[0])
@@ -131,25 +63,40 @@ async function getAllProductUrls(page) {
           .filter((v, i, a) => a.indexOf(v) === i)
       );
 
-      if (urls.length === 0) break;
+      if (urls.length === 0) {
+        // debug — הדפס כותרת העמוד וכמה טקסט לאבחון
+        const debugInfo = await page.evaluate(() => ({
+          title: document.title,
+          bodySnippet: document.body?.innerText?.substring(0, 200) || '',
+          productCount: document.querySelectorAll('[class*="product"]').length,
+        }));
+        console.log(`    ⏹ עמוד ריק — debug: title="${debugInfo.title}" | products=${debugInfo.productCount} | body="${debugInfo.bodySnippet.replace(/\n/g,' ')}"`);
+        break;
+      }
+      const before = allUrls.size;
       urls.forEach(u => allUrls.add(u));
-      console.log(`  ✓ עמוד ${p}: ${urls.length} קישורים`);
+      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+      if (allUrls.size === before) break;
     } catch(e) {
-      console.log(`  ✗ עמוד ${p}: ${e.message}`);
+      console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);
       break;
     }
   }
 
-  return [...allUrls];
+  const result = [...allUrls];
+  console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
+  return result;
 }
 
-
+// ======================================================================
+// סריקת מוצר
+// ======================================================================
 async function scrapeProduct(page, url) {
   const shortUrl = url.split('/shop/')[1]?.substring(0, 40) || url.substring(0, 50);
   console.log(`\n🔍 ${shortUrl}...`);
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
     await page.waitForTimeout(2500);
 
     // המתן למידות/צבעים
@@ -484,10 +431,6 @@ const browser = await chromium.launch({
     '--disable-dev-shm-usage',
     '--disable-web-security',
     '--lang=he-IL,he,en-US,en',
-    '--disable-gpu',
-    '--single-process',
-    '--no-zygote',
-    '--ignore-certificate-errors',
   ]
 });
 const context = await browser.newContext({
@@ -502,26 +445,6 @@ const context = await browser.newContext({
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
   }
-});
-// Stealth: מחביא סימני אוטומציה מ-Cloudflare ו-bot detectors
-await context.addInitScript(() => {
-  // הסתר navigator.webdriver
-  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  // זייף רשימת plugins
-  Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
-  Object.defineProperty(navigator, 'languages', { get: () => ['he-IL','he','en-US','en'] });
-  // הסתר Headless Chrome
-  const originalQuery = window.navigator.permissions.query;
-  window.navigator.permissions.query = (parameters) =>
-    parameters.name === 'notifications'
-      ? Promise.resolve({ state: Notification.permission })
-      : originalQuery(parameters);
-  // זייף chrome runtime
-  window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
-  // הסתר Automation
-  delete window.__nightmare;
-  delete window._phantom;
-  delete window.callPhantom;
 });
 const page = await context.newPage();
 

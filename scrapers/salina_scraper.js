@@ -36,6 +36,20 @@ function normalizeSize(s) {
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
+// ── עוקף Cloudflare challenge ──────────────────────────────────────────────
+async function waitForCloudflare(page, maxWait = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    const title = await page.title().catch(() => '');
+    const isCF = title.includes('רק רגע') || title.includes('Just a moment') ||
+                 title.includes('Checking your browser') || title.includes('Please Wait');
+    if (!isCF) return true;
+    console.log('  ⏳ Cloudflare challenge — ממתין לפתרון...');
+    await page.waitForTimeout(3000);
+  }
+  return false;
+}
+
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
   const allUrls = new Set();
@@ -52,6 +66,8 @@ async function getAllProductUrls(page) {
       for (let attempt = 1; attempt <= 2 && !loaded; attempt++) {
         try {
           await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitForCloudflare(page);
+          await waitForCloudflare(page);
           loaded = true;
         } catch(e) {
           if (attempt < 2) { console.log(`  ↩️ retry עמוד ${p}...`); await page.waitForTimeout(3000); }
@@ -459,6 +475,26 @@ const context = await browser.newContext({
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
   }
+});
+// Stealth: מחביא סימני אוטומציה מ-Cloudflare ו-bot detectors
+await context.addInitScript(() => {
+  // הסתר navigator.webdriver
+  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  // זייף רשימת plugins
+  Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
+  Object.defineProperty(navigator, 'languages', { get: () => ['he-IL','he','en-US','en'] });
+  // הסתר Headless Chrome
+  const originalQuery = window.navigator.permissions.query;
+  window.navigator.permissions.query = (parameters) =>
+    parameters.name === 'notifications'
+      ? Promise.resolve({ state: Notification.permission })
+      : originalQuery(parameters);
+  // זייף chrome runtime
+  window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
+  // הסתר Automation
+  delete window.__nightmare;
+  delete window._phantom;
+  delete window.callPhantom;
 });
 const page = await context.newPage();
 

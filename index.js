@@ -6,7 +6,6 @@ import { fileURLToPath } from "url";
 import { createHmac, randomBytes } from "crypto";
 import { GoogleAuth } from "google-auth-library";
 import rateLimit from "express-rate-limit";
-import { execSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2267,20 +2266,9 @@ app.get('/api/admin/tasks-test-email', adminAuth, async (req, res) => {
 app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
   clearTimeout(_taskChangeTimer);
   const batch = _taskChangeBuf.splice(0);
-  if (batch.length) await _flushTaskNotifications(batch);
-
-  // שלח מיידית דרך Gmail (child process — עוקף בעיית IP)
-  try {
-    execSync('node ./send_task_notifications.js', {
-      cwd: path.dirname(fileURLToPath(import.meta.url)),
-      stdio: 'ignore',
-      timeout: 30000,
-    });
-    res.json({ ok: true, sent: batch.length });
-  } catch(e) {
-    console.error('[tasks] שגיאת שליחה מיידית:', e.message);
-    res.json({ ok: true, sent: batch.length, note: 'ישלח בריצה הבאה' });
-  }
+  if (!batch.length) return res.json({ ok: true, sent: 0 });
+  await _flushTaskNotifications(batch);
+  res.json({ ok: true, sent: batch.length });
 });
 
 app.get('/api/admin/tasks-pending-changes', adminAuth, (req, res) => {

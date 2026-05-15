@@ -156,6 +156,29 @@ async function getAllProductUrls(page, maxProducts = 10) {
     if (allUrls.size >= maxProducts) break;
   }
   
+  // גם עמודי 2022 עם pagination
+  const MAX_2022_PAGES = 15;
+  for (let p = 1; p <= MAX_2022_PAGES; p++) {
+    const url2022 = p === 1
+      ? 'https://www.mima-shop.co.il/2022'
+      : `https://www.mima-shop.co.il/2022?page=${p}`;
+    try {
+      console.log(`  → 2022 עמוד ${p}`);
+      await page.goto(url2022, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(2000);
+      await dismissPopups(page);
+      const links2022 = await page.evaluate(() =>
+        [...document.querySelectorAll('a[href*="/product-page/"]')]
+          .map(a => a.href.split('?')[0]).filter((v,i,a) => a.indexOf(v)===i)
+      );
+      if (links2022.length === 0) { console.log(`  ⏹ 2022 עמוד ריק - עוצר`); break; }
+      const before2022 = allUrls.size;
+      links2022.forEach(u => allUrls.add(u));
+      console.log(`  ✓ 2022/${p}: ${links2022.length} (סה"כ: ${allUrls.size})`);
+      if (allUrls.size === before2022) break;
+    } catch(e) { console.log(`  ✗ 2022/${p}: ${e.message}`); break; }
+  }
+
   const result = [...allUrls].slice(0, maxProducts);
   console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
   return result;

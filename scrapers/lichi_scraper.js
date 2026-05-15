@@ -36,66 +36,48 @@ function normalizeSize(s) {
 
 
 
-async function getAllProductUrls(page, maxProducts = 10) {
+async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-lichi-shop.com...\n');
   const allUrls = new Set();
-  
-  // כל הקטגוריות (חוץ מנעליים)
-  const categories = [
-    'https://lichi-shop.com/product-category/sets/',
-    'https://lichi-shop.com/product-category/skirts/',
-    'https://lichi-shop.com/product-category/dresses/',
-    'https://lichi-shop.com/product-category/shirts/',
-    'https://lichi-shop.com/product-category/sale-2/',
-  ];
-  
-  for (const catUrl of categories) {
-    if (allUrls.size >= maxProducts) break;
-    
-    // עבור על דפים בכל קטגוריה
-    for (let pageNum = 1; pageNum <= 5; pageNum++) {
-      if (allUrls.size >= maxProducts) break;
-      
-      const url = pageNum === 1 ? catUrl : `${catUrl}page/${pageNum}/`;
-      try {
-        console.log(`  → ${url}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
-        
-        // גלילה למטה
-        for (let i = 0; i < 3; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1000);
-        }
-        
-        const urls = await page.evaluate(() => 
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('lichi-shop.com/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        
-        const prevSize = allUrls.size;
-        urls.forEach(u => allUrls.add(u));
-        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-        
-        // אם לא נוספו חדשים, אין עוד דפים
-        if (allUrls.size === prevSize) break;
-      } catch (e) {
-        console.log(`    ✗ ${e.message.substring(0, 30)}`);
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 30;
+
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const url = p === 1
+      ? 'https://lichi-shop.com/shop/'
+      : `https://lichi-shop.com/shop/page/${p}/`;
+    try {
+      console.log(`  → עמוד ${p}`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(2000);
+
+      const urls = await page.evaluate(() =>
+        [...document.querySelectorAll(
+          'h3.wd-entities-title a, a.wd-product-img-link, .product-element-top a, a[href*="/product/"]'
+        )]
+          .map(a => a.href.split('?')[0])
+          .filter(h => h.includes('lichi-shop.com/product/'))
+          .filter((v, i, a) => a.indexOf(v) === i)
+      );
+
+      if (urls.length === 0) {
+        console.log(`  ⏹ עמוד ריק - עוצר`);
         break;
       }
+      const before = allUrls.size;
+      urls.forEach(u => allUrls.add(u));
+      console.log(`  ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+      if (allUrls.size === before) break; // no new urls
+    } catch(e) {
+      console.log(`  ✗ עמוד ${p}: ${e.message}`);
+      break;
     }
   }
-  
-  const result = [...allUrls].slice(0, maxProducts);
-  console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
-  return result;
+
+  console.log(`\n  ✓ סה"כ: ${allUrls.size} קישורים\n`);
+  return [...allUrls];
 }
 
-// ======================================================================
-// סקרייפ מוצר בודד - LICHI (WooCommerce)
-// ======================================================================
+
 async function scrapeProduct(page, url) {
   const shortUrl = url.split('/product/')[1]?.substring(0, 35) || url.substring(0, 50);
   console.log(`\n🔍 ${shortUrl}...`);

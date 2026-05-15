@@ -3068,10 +3068,11 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     cfgRows.rows.forEach(r => { if (maps[r.type]) maps[r.type][r.name] = (r.aliases||[]).map(a=>a.toLowerCase()); });
 
     // פונקציית זיהוי לפי כותרת
+    const normAposLocal = s => s.replace(/[\u0027\u2018\u2019\u05F3\u02BC]/g, "'");
     function detect(text, map) {
-      const t = (text||'').toLowerCase();
+      const t = normAposLocal((text||'').toLowerCase());
       for (const [name, aliases] of Object.entries(map)) {
-        if (aliases.some(a => t.includes(a))) return name;
+        if (aliases.some(a => t.includes(normAposLocal(a.toLowerCase())))) return name;
       }
       return null;
     }
@@ -3080,11 +3081,13 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     let updated = 0;
 
     // ─── תיוג צבעים ───────────────────────────────────────────────────
+    // נרמול apostrophe לפני השוואה (ג'ינס / ג׳ינס / גינס — אותו דבר)
+    const normApos = s => s.replace(/[\u0027\u2018\u2019\u05F3\u02BC]/g, "'");
     // בנה lookup: alias → colorName מ-scraper_config
-    const colorAliasMap = {}; // alias.lower → colorName
+    const colorAliasMap = {};
     cfgRows.rows.filter(r => r.type === 'color').forEach(r => {
-      colorAliasMap[r.name.toLowerCase()] = r.name;
-      (r.aliases||[]).forEach(a => { colorAliasMap[a.toLowerCase()] = r.name; });
+      colorAliasMap[normApos(r.name.toLowerCase())] = r.name;
+      (r.aliases||[]).forEach(a => { colorAliasMap[normApos(a.toLowerCase())] = r.name; });
     });
 
     if (Object.keys(colorAliasMap).length) {
@@ -3094,7 +3097,7 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
          WHERE NOT ('color' = ANY(COALESCE(tagged_fields, '{}')))`
       );
       for (const p of colorProds.rows) {
-        const t = (p.title || '').toLowerCase();
+        const t = normApos((p.title || '').toLowerCase());
         let found = null;
         for (const [alias, name] of Object.entries(colorAliasMap)) {
           if (alias.length >= 2 && t.includes(alias)) { found = name; break; }

@@ -6,7 +6,6 @@
 
 import 'dotenv/config';
 import pkg from 'pg';
-import nodemailer from 'nodemailer';
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -14,28 +13,27 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes('rlwy.net') ? { rejectUnauthorized: false } : undefined,
 });
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD;
-const NOTIFY     = process.env.ADMIN_NOTIFY_EMAIL;
-const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: GMAIL_USER, pass: GMAIL_PASS },
-});
+const NOTIFY   = process.env.ADMIN_NOTIFY_EMAIL;
+const SITE_URL = process.env.SITE_URL || 'https://lookli.co.il';
 
 async function sendEmail(subject, htmlBody) {
-  if (!GMAIL_USER || !GMAIL_PASS) { console.log('[TASKS] GMAIL_USER/GMAIL_APP_PASSWORD חסרים'); return false; }
+  if (!process.env.RESEND_API_KEY) { console.log('[TASKS] RESEND_API_KEY חסר'); return false; }
   try {
-    await transporter.sendMail({
-      from: `"LOOKLI משימות" <${GMAIL_USER}>`,
-      to: NOTIFY,
-      subject,
-      html: htmlBody,
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'LOOKLI משימות <noreply@lookli.co.il>',
+        to: NOTIFY.split(',').map(e => e.trim()),
+        subject,
+        html: htmlBody,
+      }),
     });
+    const data = await resp.json();
+    if (!resp.ok) { console.error('  ❌ Resend:', JSON.stringify(data)); return false; }
     console.log(`  ✅ מייל משימות נשלח → ${NOTIFY}`);
     return true;
-  } catch(e) { console.error('  ❌ שגיאת Gmail:', e.message); return false; }
+  } catch(e) { console.error('  ❌ שגיאת Resend:', e.message); return false; }
 }
 
 function buildHtml(changes) {

@@ -56,11 +56,19 @@ async function getAllProductUrls(page) {
       try {
         console.log(`  → page ${p}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(2000);
-        
+
+        // ממתין שמוצרים יופיעו (CF challenge מסתיים) — עד 30 שניות
+        try {
+          await page.waitForFunction(
+            () => document.querySelectorAll('a[href*="/product/"]').length > 0,
+            { timeout: 30000 }
+          );
+        } catch(_) { /* עמוד ריק או CF לא נפתר */ }
+
+        await page.waitForTimeout(1000);
         for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1000);
+          await page.waitForTimeout(800);
         }
         
         const urls = await page.evaluate(() => 

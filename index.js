@@ -2121,20 +2121,20 @@ async function _flushTaskNotifications(changes) {
     if (['sub_added','sub_toggled','sub_deleted'].includes(c.type)) extra=`<br><span style="color:#9ca3af;font-size:11px">${c.subText||c.text||''}</span>`;
     if (c.type==='log_added')  extra=`<br><span style="color:#9ca3af;font-size:11px">${c.text||''}</span>`;
     const person = c.person?`<span style="color:#c084fc">${c.person}</span>`:'';
-    return `<tr><td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px">${label}${extra}</td><td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px;font-weight:600">${c.taskTitle||''}</td><td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:12px">${person}</td></tr>`;
+    return `<tr><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}${extra}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;font-weight:600">${c.taskTitle||''}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">${person}</td></tr>`;
   }).join('');
 
   const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background:#0a0a0f;font-family:'Heebo',Arial,sans-serif;direction:rtl">
-  <div style="max-width:580px;margin:30px auto;background:#12121a;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a">
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:580px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e5e7eb">
     <div style="background:linear-gradient(135deg,#c084fc,#818cf8);padding:20px 24px"><div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div><div style="font-size:13px;color:rgba(255,255,255,.8)">עדכון משימות</div></div>
     <div style="padding:20px 24px">
-      <p style="color:#f1f0ff;font-size:14px;margin-bottom:16px">${changes.length} שינויים בוצעו:</p>
-      <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#1a1a26">
-        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280">פעולה</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280">משימה</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280">אחראי</th>
-      </tr></thead><tbody style="color:#f1f0ff">${rows}</tbody></table>
+      <p style="color:#1f2937;font-size:14px;margin-bottom:16px">${changes.length} שינויים בוצעו:</p>
+      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb"><thead><tr style="background:#f9fafb">
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">פעולה</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">משימה</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">אחראי</th>
+      </tr></thead><tbody style="color:#374151">${rows}</tbody></table>
       <a href="${SITE_URL}/admin/tasks" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>
     </div>
   </div>

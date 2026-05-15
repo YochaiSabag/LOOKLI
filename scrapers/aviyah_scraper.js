@@ -276,6 +276,7 @@ async function scrapeProduct(page, url, isEvening = false) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
+    if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג: ${data.title.substring(0,40)}`); return null; }
     
     // זיהוי מטא-דאטה
     const style = detectStyle(data.title, data.description, isEvening);
@@ -436,7 +437,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${totalUrls} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0, idx = 0;
-  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
+  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 50;
   for (const [url, meta] of urlMap) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     idx++;

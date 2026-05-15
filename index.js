@@ -2102,14 +2102,59 @@ let _taskChangeBuf = [];
 let _taskChangeTimer = null;
 
 async function _flushTaskNotifications(changes) {
-  if (!changes.length) return;
+  const NOTIFY   = process.env.ADMIN_NOTIFY_EMAIL;
+  const SITE_URL = process.env.SITE_URL || 'https://lookli.co.il';
+  if (!NOTIFY || !changes.length) return;
+
+  const TYPE_LABEL = {
+    created:'✅ נוצרה', completed:'🎉 הושלמה', deleted:'🗑️ נמחקה',
+    reassigned:'👤 שויכה מחדש', progress:'⚡ התקדמות',
+    sub_added:'➕ תת-משימה נוספה', sub_toggled:'☑️ תת-משימה עודכנה',
+    sub_deleted:'🗑️ תת-משימה נמחקה', log_added:'📝 לוג נוסף', log_deleted:'🗑️ לוג נמחק',
+  };
+
+  const rows = changes.map(c => {
+    const label = TYPE_LABEL[c.type] || c.type;
+    let extra = '';
+    if (c.type==='reassigned') extra=`<br><span style="color:#9ca3af;font-size:11px">מ-${c.from||'ללא'} ל-${c.to||'ללא'}</span>`;
+    if (c.type==='progress')   extra=`<br><span style="color:#9ca3af;font-size:11px">${c.val}%</span>`;
+    if (['sub_added','sub_toggled','sub_deleted'].includes(c.type)) extra=`<br><span style="color:#9ca3af;font-size:11px">${c.subText||c.text||''}</span>`;
+    if (c.type==='log_added')  extra=`<br><span style="color:#9ca3af;font-size:11px">${c.text||''}</span>`;
+    const person = c.person?`<span style="color:#c084fc">${c.person}</span>`:'';
+    return `<tr><td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px">${label}${extra}</td><td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:13px;font-weight:600">${c.taskTitle||''}</td><td style="padding:8px 10px;border-bottom:1px solid #2a2a3a;font-size:12px">${person}</td></tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#0a0a0f;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:580px;margin:30px auto;background:#12121a;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a">
+    <div style="background:linear-gradient(135deg,#c084fc,#818cf8);padding:20px 24px"><div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div><div style="font-size:13px;color:rgba(255,255,255,.8)">עדכון משימות</div></div>
+    <div style="padding:20px 24px">
+      <p style="color:#f1f0ff;font-size:14px;margin-bottom:16px">${changes.length} שינויים בוצעו:</p>
+      <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#1a1a26">
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280">פעולה</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280">משימה</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280">אחראי</th>
+      </tr></thead><tbody style="color:#f1f0ff">${rows}</tbody></table>
+      <a href="${SITE_URL}/admin/tasks" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>
+    </div>
+  </div>
+</body></html>`;
+
   try {
-    await pool.query(
-      `INSERT INTO task_notifications_queue (changes, created_at) VALUES ($1, NOW())`,
-      [JSON.stringify(changes)]
-    );
-    console.log(`[tasks] ${changes.length} שינויים נשמרו לתור שליחה`);
-  } catch(e) { console.error('[tasks] שגיאת שמירה לתור:', e.message); }
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'LOOKLI משימות <noreply@lookli.co.il>',
+        to: NOTIFY.split(',').map(e => e.trim()),
+        subject: `📋 עדכון משימות LOOKLI — ${changes.length} שינויים`,
+        html,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) console.error('[tasks] Resend error:', JSON.stringify(data));
+    else console.log(`[tasks] ✅ מייל נשלח: ${changes.length} שינויים → ${NOTIFY}`);
+  } catch(e) { console.error('[tasks] שגיאת מייל:', e.message); }
 }
 
 function _scheduleTaskNotif(change) {
@@ -3068,11 +3113,10 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     cfgRows.rows.forEach(r => { if (maps[r.type]) maps[r.type][r.name] = (r.aliases||[]).map(a=>a.toLowerCase()); });
 
     // פונקציית זיהוי לפי כותרת
-    const normAposLocal = s => s.replace(/[\u0027\u2018\u2019\u05F3\u02BC]/g, "'");
     function detect(text, map) {
-      const t = normAposLocal((text||'').toLowerCase());
+      const t = (text||'').toLowerCase();
       for (const [name, aliases] of Object.entries(map)) {
-        if (aliases.some(a => t.includes(normAposLocal(a.toLowerCase())))) return name;
+        if (aliases.some(a => t.includes(a))) return name;
       }
       return null;
     }
@@ -3081,13 +3125,11 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     let updated = 0;
 
     // ─── תיוג צבעים ───────────────────────────────────────────────────
-    // נרמול apostrophe לפני השוואה (ג'ינס / ג׳ינס / גינס — אותו דבר)
-    const normApos = s => s.replace(/[\u0027\u2018\u2019\u05F3\u02BC]/g, "'");
     // בנה lookup: alias → colorName מ-scraper_config
-    const colorAliasMap = {};
+    const colorAliasMap = {}; // alias.lower → colorName
     cfgRows.rows.filter(r => r.type === 'color').forEach(r => {
-      colorAliasMap[normApos(r.name.toLowerCase())] = r.name;
-      (r.aliases||[]).forEach(a => { colorAliasMap[normApos(a.toLowerCase())] = r.name; });
+      colorAliasMap[r.name.toLowerCase()] = r.name;
+      (r.aliases||[]).forEach(a => { colorAliasMap[a.toLowerCase()] = r.name; });
     });
 
     if (Object.keys(colorAliasMap).length) {
@@ -3097,7 +3139,7 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
          WHERE NOT ('color' = ANY(COALESCE(tagged_fields, '{}')))`
       );
       for (const p of colorProds.rows) {
-        const t = normApos((p.title || '').toLowerCase());
+        const t = (p.title || '').toLowerCase();
         let found = null;
         for (const [alias, name] of Object.entries(colorAliasMap)) {
           if (alias.length >= 2 && t.includes(alias)) { found = name; break; }

@@ -53,7 +53,7 @@ async function runHealthCheck() {
       store,
       COUNT(*)                                                         AS total,
       COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 days')  AS fresh,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 hours') AS current_run,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '8 hours') AS current_run,
       MAX(last_seen)                                                   AS last_seen,
       COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
       COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,

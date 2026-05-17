@@ -21,13 +21,9 @@ const SCRAPERS = {
   ordman:  './scrapers/ordman_scraper.js',
   'st-fashion': './scrapers/st_fashion_scraper.js',
   'salina':      './scrapers/salina_scraper.js',
+  'myme':         './scrapers/myme_scraper.js',
 };
 
-// timeout ייחודי לכל סקרייפר (ms). CHEN צריך יותר זמן — 19 דקות כדי לסיים לפני Railway
-const SCRAPER_TIMEOUTS = {
-  chen: 19 * 60 * 1000,
-};
-const DEFAULT_TIMEOUT = 15 * 60 * 1000;
 
 const args = process.argv.slice(2).map(a => a.toLowerCase());
 
@@ -69,8 +65,7 @@ for (const name of toRun) {
   console.log(`\n${'='.repeat(50)}\n▶️  מתחיל: ${name.toUpperCase()}\n${'='.repeat(50)}`);
   const start = Date.now();
   try {
-    const msTimeout = SCRAPER_TIMEOUTS[name] ?? DEFAULT_TIMEOUT;
-    execSync(`node ${file}`, { stdio: 'inherit', cwd: __dirname, timeout: msTimeout, killSignal: 'SIGTERM' });
+    execSync(`node ${file}`, { stdio: 'inherit', cwd: __dirname });
     const sec = ((Date.now() - start) / 1000).toFixed(0);
     console.log(`\n✅ ${name.toUpperCase()} הסתיים (${sec}s)`);
     ok++;

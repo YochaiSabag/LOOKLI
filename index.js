@@ -2373,7 +2373,7 @@ const SITE_BASE = process.env.SITE_URL || 'https://lookli.co.il';
 // בנה HTML email
 function buildNewProductsEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ store, storeName, products, total }) => {
-    const productCards = products.slice(0, 4).map(p => {
+    const cards = products.slice(0, 4).map(p => {
       const img   = p.images?.[0] || p.image_url || '';
       const price = p.original_price && p.original_price > p.price
         ? `<span style="color:#e0a1c0;font-weight:700">₪${p.price}</span> <s style="color:#aaa;font-size:11px">₪${p.original_price}</s>`
@@ -2395,7 +2395,11 @@ function buildNewProductsEmail(storeGroups) {
             </div>
           </a>
         </td>`;
-    }).join('');
+    });
+
+    // תמיד 4 עמודות — תאים ריקים למשבצות פנויות
+    const emptyCell = '<td style="width:25%;padding:3px;vertical-align:top"></td>';
+    const allCards = cards.join('') + emptyCell.repeat(Math.max(0, 4 - cards.length));
 
     const moreBtn = total > 4 ? `
       <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
@@ -2413,7 +2417,7 @@ function buildNewProductsEmail(storeGroups) {
       </td></tr>
       <tr><td>
         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-          <tr>${productCards}</tr>
+          <tr>${allCards}</tr>
           ${moreBtn}
         </table>
       </td></tr>`;
@@ -2609,7 +2613,7 @@ async function ensureEmailCampaignLog() {
 
 function buildPriceDropEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ storeName, store, products, total }) => {
-    const productCards = products.slice(0, 4).map(p => {
+    const cards = products.slice(0, 4).map(p => {
       const img = p.images?.[0] || p.image_url || '';
       const disc = Math.round((1 - p.price / p.original_price) * 100);
       const slug = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
@@ -2635,6 +2639,9 @@ function buildPriceDropEmail(storeGroups) {
         </td>`;
     }).join('');
 
+    const emptyCell = '<td style="width:25%;padding:3px;vertical-align:top"></td>';
+    const allCards = cards + emptyCell.repeat(Math.max(0, 4 - products.slice(0,4).length));
+
     const moreBtn = total > 4 ? `
       <tr><td colspan="4" style="padding:10px 6px 4px;text-align:center">
         <a href="${SITE_BASE}/?store=${store}&discount=10" style="display:inline-block;padding:8px 22px;background:#fdf0f7;color:#d191b0;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid #e8d0e8">
@@ -2651,7 +2658,7 @@ function buildPriceDropEmail(storeGroups) {
       </td></tr>
       <tr><td>
         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-          <tr>${productCards}</tr>
+          <tr>${allCards}</tr>
           ${moreBtn}
         </table>
       </td></tr>`;

@@ -2495,12 +2495,7 @@ async function sendNewProductsEmail(toEmails, subject, htmlContent) {
 
 // Cron endpoint — מופעל מ-Railway Cron
 // GET /api/cron/new-products-email?secret=CRON_SECRET
-app.get('/api/cron/new-products-email', async (req, res) => {
-  // הגנה בסיסית — סוד cron
-  const CRON_SECRET = process.env.CRON_SECRET || '';
-  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+app.get('/api/cron/new-products-email', adminAuth, async (req, res) => {
 
   try {
     const dryRun = req.query.dry === '1'; // ?dry=1 → לא שולח, רק מחזיר JSON
@@ -2702,11 +2697,7 @@ function buildPriceDropEmail(storeGroups) {
 }
 
 // GET /api/cron/price-drop-email
-app.get('/api/cron/price-drop-email', async (req, res) => {
-  const CRON_SECRET = process.env.CRON_SECRET || '';
-  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+app.get('/api/cron/price-drop-email', adminAuth, async (req, res) => {
 
   try {
     const dryRun = req.query.dry === '1';

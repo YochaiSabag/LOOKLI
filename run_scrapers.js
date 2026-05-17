@@ -63,11 +63,7 @@ for (const name of toRun) {
   console.log(`\n${'='.repeat(50)}\n▶️  מתחיל: ${name.toUpperCase()}\n${'='.repeat(50)}`);
   const start = Date.now();
   try {
-    execSync(`node --max-old-space-size=512 ${file}`, {
-      stdio: 'inherit',
-      cwd: __dirname,
-      timeout: 20 * 60 * 1000, // 20 דקות מקסימום לכל סקרייפר
-    });
+    execSync(`node ${file}`, { stdio: 'inherit', cwd: __dirname });
     const sec = ((Date.now() - start) / 1000).toFixed(0);
     console.log(`\n✅ ${name.toUpperCase()} הסתיים (${sec}s)`);
     ok++;
@@ -77,12 +73,6 @@ for (const name of toRun) {
     fail++;
   }
 }
-
-// שליחת מיילים על שינויי משימות
-console.log(`\n${'='.repeat(50)}\n📋 שולח נוטיפיקציות משימות...\n${'='.repeat(50)}`);
-try {
-  execSync('node ./send_task_notifications.js', { stdio: 'inherit', cwd: __dirname });
-} catch(e) {}
 
 // בדיקת התראות בסוף
 console.log(`\n${'='.repeat(50)}\n🔔 מריץ בדיקת התראות...\n${'='.repeat(50)}`);

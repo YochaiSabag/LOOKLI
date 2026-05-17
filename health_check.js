@@ -22,20 +22,20 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 // ─── שלח מייל ────────────────────────────────────────────
 async function sendEmail(toEmail, subject, htmlBody) {
   if (process.env.SKIP_EMAIL === 'true') { console.log(`[HEALTH] SKIP_EMAIL=true — לא שולח מייל`); return true; }
-  if (!BREVO_KEY) { console.log('[HEALTH] BREVO_API_KEY חסר'); return false; }
+  if (!process.env.RESEND_API_KEY) { console.log('[HEALTH] RESEND_API_KEY חסר'); return false; }
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sender: { name: FROM_NAME, email: FROM_EMAIL },
-        to: [{ email: toEmail }],
+        from: 'LOOKLI מערכת <noreply@lookli.co.il>',
+        to: [toEmail],
         subject,
-        htmlContent: htmlBody,
+        html: htmlBody,
       }),
     });
     if (res.ok) { console.log(`  ✅ מייל נשלח: ${toEmail}`); return true; }
-    const e = await res.json(); console.error('  ❌ Brevo:', e); return false;
+    const e = await res.json(); console.error('  ❌ Resend:', e); return false;
   } catch(e) { console.error('  ❌ שגיאה:', e.message); return false; }
 }
 

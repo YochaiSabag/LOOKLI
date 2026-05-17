@@ -63,11 +63,6 @@ async function getAllProductUrls(page) {
         ).catch(() => {});
         
         for (let i = 0; i < 2; i++) {
-    if (i > 0 && i % 100 === 0) {
-      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
-      await browser.close();
-      ({ browser, context, page } = await launchBrowser());
-    }
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
           await page.waitForTimeout(800);
         }
@@ -444,6 +439,11 @@ try {
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 50;
   for (let i = 0; i < urls.length; i++) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
+    if (i > 0 && i % 100 === 0) {
+      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
+      await browser.close();
+      ({ browser, context, page } = await launchBrowser());
+    }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;

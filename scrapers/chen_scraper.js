@@ -646,37 +646,33 @@ async function saveProduct(product) {
 // ======================================================================
 const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  viewport: { width: 1920, height: 1080 }
-});
-const page = await context.newPage();
+const BROWSER_RESTART_EVERY = 100; // אתחול דפדפן כל 100 מוצרים למניעת דליפת זיכרון
+
+async function launchBrowser() {
+  const br = await chromium.launch({ headless: true });
+  const ctx = await br.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 }
+  });
+  const pg = await ctx.newPage();
+  return { browser: br, context: ctx, page: pg };
+}
+
+let { browser, context, page } = await launchBrowser();
 
 try {
-  const allUrls = await getAllProductUrls(page);
-  console.log(`\n${'='.repeat(50)}\n📊 Total: ${allUrls.length} URLs נמצאו\n${'='.repeat(50)}`);
-
-  // מיין לפי last_seen — הישנים ביותר (או חדשים לגמרי) יבואו ראשונים
-  // כך שב-3 ריצות ביום כל 703 מוצרים מתעדכנים
-  const knownRows = await db.query(
-    `SELECT source_url, last_seen FROM products WHERE store='CHEN' AND source_url = ANY($1)`,
-    [allUrls]
-  );
-  const lastSeenMap = {};
-  for (const row of knownRows.rows) lastSeenMap[row.source_url] = row.last_seen;
-
-  const urls = [...allUrls].sort((a, b) => {
-    const ta = lastSeenMap[a] ? new Date(lastSeenMap[a]).getTime() : 0;
-    const tb = lastSeenMap[b] ? new Date(lastSeenMap[b]).getTime() : 0;
-    return ta - tb;
-  });
-
-  const newCount = urls.filter(u => !lastSeenMap[u]).length;
-  console.log(`  🔄 ${newCount} חדשים + ${urls.length - newCount} ממוינים לפי last_seen\n`);
+  const urls = await getAllProductUrls(page);
+  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
 
   let ok = 0, fail = 0;
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
+    // אתחול דפדפן כל BROWSER_RESTART_EVERY מוצרים
+    if (i > 0 && i % BROWSER_RESTART_EVERY === 0) {
+      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
+      await browser.close();
+      ({ browser, context, page } = await launchBrowser());
+    }
+
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; }

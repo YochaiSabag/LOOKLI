@@ -597,12 +597,17 @@ async function saveProduct(product) {
 // ======================================================================
 const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 10;
 
-const browser = await chromium.launch({ headless: true, slowMo: 30 });
-const context = await browser.newContext({
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  viewport: { width: 1920, height: 1080 }
-});
-const page = await context.newPage();
+async function launchBrowser() {
+  const browser = await chromium.launch({ headless: true, slowMo: 30 });
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 }
+  });
+  const page = await context.newPage();
+  return { browser, context, page };
+}
+
+let { browser, context, page } = await launchBrowser();
 
 try {
   const urls = await getAllProductUrls(page, MAX_PRODUCTS);
@@ -610,6 +615,11 @@ try {
   
   let ok = 0, fail = 0;
   for (let i = 0; i < urls.length; i++) {
+    if (i > 0 && i % 100 === 0) {
+      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
+      await browser.close();
+      ({ browser, context, page } = await launchBrowser());
+    }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;

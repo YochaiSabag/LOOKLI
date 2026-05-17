@@ -413,34 +413,39 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const browser = await chromium.launch({ 
-  headless: true,
-  args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
-});
-const context = await browser.newContext({
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  viewport: { width: 1440, height: 900 },
-  locale: 'he-IL',
-  extraHTTPHeaders: {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Cache-Control': 'max-age=0',
-    'Sec-Ch-Ua': '"Chromium";v="124", "Not(A:Brand";v="24", "Google Chrome";v="124"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
-  }
-});
-await context.addInitScript(() => {
-  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  window.chrome = { runtime: {} };
-});
-const page = await context.newPage();
+async function launchBrowser() {
+  const browser = await chromium.launch({ 
+    headless: true,
+    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
+  });
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    viewport: { width: 1440, height: 900 },
+    locale: 'he-IL',
+    extraHTTPHeaders: {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'max-age=0',
+      'Sec-Ch-Ua': '"Chromium";v="124", "Not(A:Brand";v="24", "Google Chrome";v="124"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+    }
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    window.chrome = { runtime: {} };
+  });
+  const page = await context.newPage();
+  return { browser, context, page };
+}
+
+let { browser, context, page } = await launchBrowser();
 
 try {
   // ביקור בדף הבית קודם — לבנות cookies ולהיראות אנושי
@@ -454,6 +459,11 @@ try {
   let ok = 0, fail = 0;
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
+    if (i > 0 && i % 100 === 0) {
+      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
+      await browser.close();
+      ({ browser, context, page } = await launchBrowser());
+    }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;

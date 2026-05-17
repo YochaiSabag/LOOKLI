@@ -16,16 +16,59 @@ await db.connect();
 
 console.log('🚀 Chen Fashion Scraper');
 
-// ============================================================
-// טוען config מ-DB דרך scraper_utils (צבעים, קטגוריות, סגנונות, גיזרות, בדים, דוגמאות)
-// ============================================================
-import { loadScraperConfig } from './scraper_utils.js';
-const {
-  normalizeColor, unknownColors,
-  detectCategory, detectStyle, detectFit,
-  detectFabric, detectPattern, detectDesignDetails
-} = await loadScraperConfig(db);
-// shouldSkip מוגדר מקומית ב-chen עם SKIP_KEYWORDS ייחודיים לחנות
+// ======================================================================
+// ======================================================================
+// מיפוי צבעים
+// ======================================================================
+const colorMap = {
+  'black': 'שחור', 'שחור': 'שחור',
+  'white': 'לבן', 'לבן': 'לבן',
+  'blue': 'כחול', 'כחול': 'כחול', 'navy': 'כחול', 'נייבי': 'כחול', 'royal': 'כחול', 'cobalt': 'כחול', 'denim': 'כחול', 'indigo': 'כחול',
+  'red': 'אדום', 'אדום': 'אדום', 'scarlet': 'אדום', 'crimson': 'אדום',
+  'green': 'ירוק', 'ירוק': 'ירוק', 'olive': 'ירוק', 'זית': 'ירוק', 'khaki': 'ירוק', 'חאקי': 'ירוק', 'snake': 'ירוק', 'emerald': 'ירוק', 'forest': 'ירוק', 'sage': 'ירוק', 'teal': 'ירוק', 'army': 'ירוק', 'hunter': 'ירוק', 'דשא': 'ירוק',
+  'brown': 'חום', 'חום': 'חום', 'tan': 'חום', 'chocolate': 'חום', 'coffee': 'חום', 'קפה': 'חום', 'mocha': 'חום', 'espresso': 'חום', 'chestnut': 'חום',
+  'camel': 'קאמל', 'קאמל': 'קאמל', 'cognac': 'קאמל',
+  'beige': "בז'", 'בז': "בז'", 'nude': "בז'", 'ניוד': "בז'", 'sand': "בז'", 'taupe': "בז'",
+  'gray': 'אפור', 'grey': 'אפור', 'אפור': 'אפור', 'charcoal': 'אפור', 'slate': 'אפור', 'ash': 'אפור',
+  'pink': 'ורוד', 'ורוד': 'ורוד', 'coral': 'ורוד', 'קורל': 'ורוד', 'blush': 'ורוד', 'rose': 'ורוד', 'fuchsia': 'ורוד', 'magenta': 'ורוד', 'salmon': 'ורוד', 'בייבי': 'ורוד',
+  'purple': 'סגול', 'סגול': 'סגול', 'lilac': 'סגול', 'לילך': 'סגול', 'lavender': 'סגול', 'violet': 'סגול', 'plum': 'סגול', 'mauve': 'סגול',
+  'yellow': 'צהוב', 'צהוב': 'צהוב', 'mustard': 'צהוב', 'חרדל': 'צהוב', 'gold': 'צהוב', 'lemon': 'צהוב', 'בננה': 'צהוב', 'banana': 'צהוב',
+  'orange': 'כתום', 'כתום': 'כתום', 'tangerine': 'כתום', 'rust': 'כתום',
+  'זהב': 'זהב', 'golden': 'זהב',
+  'silver': 'כסף', 'כסף': 'כסף', 'כסוף': 'כסף',
+  'bordo': 'בורדו', 'בורדו': 'בורדו', 'burgundy': 'בורדו', 'wine': 'בורדו', 'maroon': 'בורדו', 'cherry': 'בורדו',
+  'cream': 'שמנת', 'שמנת': 'שמנת', 'ivory': 'שמנת', 'offwhite': 'שמנת', 'off-white': 'שמנת', 'stone': 'שמנת', 'bone': 'שמנת', 'ecru': 'שמנת', 'vanilla': 'שמנת',
+  'turquoise': 'תכלת', 'תכלת': 'תכלת', 'טורקיז': 'תכלת', 'aqua': 'תכלת', 'cyan': 'תכלת', 'sky': 'תכלת',
+  'פרחוני': 'פרחוני', 'צבעוני': 'צבעוני', 'מולטי': 'צבעוני', 'multi': 'צבעוני', 'multicolor': 'צבעוני',
+  'mint': 'מנטה', 'מנטה': 'מנטה', 'menta': 'מנטה',
+  'אפרסק': 'אפרסק', 'peach': 'אפרסק', 'apricot': 'אפרסק',
+  'מוקה': 'חום', 'moka': 'חום',
+  'שזיף': 'סגול',
+  'ססגוני': 'צבעוני', 'ססגונית': 'צבעוני',
+  'פודרה': 'ורוד', 'powder': 'ורוד',
+  'אבן': 'אבן',
+  'בהיר': 'בהיר',
+  "גי'נס": 'כחול', "ג'ינס": 'כחול', 'jeans': 'כחול',
+};
+
+const unknownColors = new Set();
+
+function normalizeColor(c) {
+  if (!c) return null;
+  const lower = c.toLowerCase().trim();
+  const noSpaces = lower.replace(/[-_\s]/g, '');
+  if (colorMap[noSpaces]) return colorMap[noSpaces];
+  if (colorMap[lower]) return colorMap[lower];
+  const words = lower.split(/[\s\-]+/);
+  for (const word of words) {
+    if (colorMap[word]) return colorMap[word];
+  }
+  for (const [key, val] of Object.entries(colorMap)) {
+    if (lower.includes(key) || key.includes(lower)) return val;
+  }
+  unknownColors.add(c);
+  return 'אחר';
+}
 
 // ======================================================================
 // מיפוי מידות
@@ -75,6 +118,129 @@ function shouldSkip(title) {
   });
 }
 
+function detectCategory(title) {
+  const t = (title || '').toLowerCase();
+  if (/קרדיגן|cardigan/i.test(t)) return 'קרדיגן';
+  if (/סוודר|sweater/i.test(t)) return 'סוודר';
+  if (/טוניקה|tunic/i.test(t)) return 'טוניקה';
+  if (/סרפן|pinafore/i.test(t)) return 'סרפן';
+  if (/שמלה|שמלת|dress/i.test(t)) return 'שמלה';
+  if (/חצאית|skirt/i.test(t)) return 'חצאית';
+  if (/חולצה|חולצת|טופ|top|shirt|blouse/i.test(t)) return 'חולצה';
+  if (/בלייזר|blazer/i.test(t)) return 'בלייזר';
+  if (/ז׳קט|ג׳קט|ג'קט|jacket/i.test(t)) return 'מעיל';
+  if (/וסט|vest/i.test(t)) return 'וסט';
+  if (/עליונית/i.test(t)) return 'עליונית';
+  if (/מעיל|coat/i.test(t)) return 'מעיל';
+  if (/שכמיה|cape|poncho|פונצ׳ו/i.test(t)) return 'עליונית';
+  if (/חלוק|robe|אירוח/i.test(t)) return 'חלוק';
+  if (/אוברול|jumpsuit|overall/i.test(t)) return 'אוברול';
+  if (/סט|set/i.test(t)) return 'סט';
+  if (/בייסיק|basic/i.test(t)) return 'בייסיק';
+  if (/גולף|turtleneck/i.test(t)) return 'חולצה';
+  return null;
+}
+
+function detectStyle(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/שבת|ערב|אירוע|מיוחד|מסיבה|party|evening|formal|גאלה|נשף|חגיג|celebration|festive|אלגנט|elegant|מהודר|יוקרת/i.test(text)) return 'ערב';
+  if (/יום.?חול|casual|קז׳ואל|קזואל|יומיומי|daily|everyday|יום.?יום/i.test(text)) return 'יום חול';
+  if (/קלאסי|classic|נצחי|timeless/i.test(text)) return 'קלאסי';
+  if (/מינימליסט|minimal|נקי|clean/i.test(text)) return 'מינימליסטי';
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  if (/רטרו|retro|וינטג׳|וינטג'|vintage/i.test(text)) return 'רטרו';
+  if (/מודרני|modern|עכשווי|contemporary/i.test(text)) return 'מודרני';
+  if (/בייסיק|basic|בסיסי/i.test(text)) return 'יום חול';
+  return '';
+}
+
+function detectFit(title, description = '') {
+  const text = (title || '').toLowerCase();
+  const fullText = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/ישרה|straight/i.test(text)) return 'ישרה';
+  if (/a.?line|איי.?ליין/i.test(text)) return 'A';
+  if (/מתרחב|flare|התרחבות/i.test(text)) return 'מתרחבת';
+  if (/רפוי|רחב|loose|relaxed|wide/i.test(text)) return 'רפויה';
+  if (/אוברסייז|oversize|oversized/i.test(text)) return 'אוברסייז';
+  if (/מחויט|tailored|מותאמ/i.test(text)) return 'מחויטת';
+  if (/מעטפ|wrap/i.test(text)) return 'מעטפת';
+  if (/עפרון|pencil/i.test(text)) return 'עפרון';
+  if (/צמוד|tight|fitted|bodycon|צר|narrow/i.test(text)) return 'צמודה';
+  if (/מקסי|maxi|ארוכ/i.test(text)) return 'ארוכה';
+  if (/מידי|midi|אמצע/i.test(text)) return 'מידי';
+  if (/קצר|מיני|mini|short/i.test(text)) return 'קצרה';
+  if (/במותן|מותן גבוה|מותן נמוך|high.?waist|waisted/i.test(fullText)) return 'מותן';
+  if (/הריון|pregnancy|maternity/i.test(fullText)) return 'הריון';
+  if (/הנקה|nursing|breastfeed/i.test(fullText)) return 'הנקה';
+  return '';
+}
+
+function detectPattern(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/פסים|פס |striped?/i.test(text)) return 'פסים';
+  if (/פרחוני|פרחים|floral|flower/i.test(text)) return 'פרחוני';
+  if (/משבצות|plaid|check/i.test(text)) return 'משבצות';
+  if (/נקודות|dots|polka/i.test(text)) return 'נקודות';
+  if (/גיאומטרי|geometric/i.test(text)) return 'גיאומטרי';
+  if (/אבסטרקט|abstract/i.test(text)) return 'אבסטרקטי';
+  if (/הדפס|print/i.test(text)) return 'הדפס';
+  if (/חלקה?\b|plain|solid/i.test(text)) return 'חלק';
+  return '';
+}
+
+function detectFabric(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  if (/סריג|knit|knitted/i.test(text)) return 'סריג';
+  if (/אריג|woven/i.test(text)) return 'אריג';
+  if (/ג׳רסי|ג'רסי|גרסי|jersey/i.test(text)) return 'ג׳רסי';
+  if (/פיקה|pique/i.test(text)) return 'פיקה';
+  if (/שיפון|chiffon/i.test(text)) return 'שיפון';
+  if (/קרפ|crepe/i.test(text)) return 'קרפ';
+  if (/סאטן|satin/i.test(text)) return 'סאטן';
+  if (/קטיפה|velvet/i.test(text)) return 'קטיפה';
+  if (/פליז|fleece/i.test(text)) return 'פליז';
+  if (/תחרה|lace/i.test(text)) return 'תחרה';
+  if (/טול|tulle/i.test(text)) return 'טול';
+  if (/לייקרה|lycra|spandex/i.test(text)) return 'לייקרה';
+  if (/טריקו|tricot/i.test(text)) return 'טריקו';
+  if (/רשת|mesh|net/i.test(text)) return 'רשת';
+  if (/ג׳ינס|ג'ינס|jeans|דנים|denim/i.test(text)) return 'ג׳ינס';
+  if (/קורדרוי|corduroy/i.test(text)) return 'קורדרוי';
+  if (/כותנה|cotton/i.test(text)) return 'כותנה';
+  if (/פשתן|linen/i.test(text)) return 'פשתן';
+  if (/משי|silk/i.test(text)) return 'משי';
+  if (/צמר|wool/i.test(text)) return 'צמר';
+  if (/ריקמה|רקומה|רקום|רקמה|embroidery|embroidered/i.test(text)) return 'ריקמה';
+  if (/פרווה|fur|faux.?fur/i.test(text)) return 'פרווה';
+  return '';
+}
+
+function detectDesignDetails(title, description = '') {
+  const text = ((title || '') + ' ' + (description || '')).toLowerCase();
+  const details = [];
+  if (/צווארון\s*וי|v.?neck/i.test(text)) details.push('צווארון V');
+  if (/צווארון\s*עגול|round.?neck|crew.?neck/i.test(text)) details.push('צווארון עגול');
+  if (/גולף|turtle.?neck|mock.?neck/i.test(text)) details.push('גולף');
+  if (/סטרפלס|strapless|חשוף.?כתפ/i.test(text)) details.push('סטרפלס');
+  if (/כתפיי?ה|off.?shoulder|חשוף/i.test(text) && !/חשוף.?כתפ/.test(text)) details.push('חשוף כתפיים');
+  if (/קולר|choker|halter/i.test(text)) details.push('קולר');
+  if (/סירה|boat.?neck|bateau/i.test(text)) details.push('צווארון סירה');
+  if (/שרוול\s*ארוך|long.?sleeve/i.test(text)) details.push('שרוול ארוך');
+  if (/שרוול\s*קצר|short.?sleeve/i.test(text)) details.push('שרוול קצר');
+  if (/3\/4|שרוול\s*3|three.?quarter/i.test(text)) details.push('שרוול 3/4');
+  if (/ללא\s*שרוול|sleeveless|גופיי?ה/i.test(text)) details.push('ללא שרוולים');
+  if (/שרוול\s*פעמון|bell.?sleeve/i.test(text)) details.push('שרוול פעמון');
+  if (/שרוול\s*נפוח|puff.?sleeve|שרוול\s*בלון/i.test(text)) details.push('שרוול נפוח');
+  if (/כפתור|מכופתר|button/i.test(text)) details.push('כפתורים');
+  if (/רוכסן|zipper|zip/i.test(text)) details.push('רוכסן');
+  if (/חגורה|belt/i.test(text)) details.push('חגורה');
+  if (/קשירה|tie|bow/i.test(text)) details.push('קשירה');
+  if (/כיס|pocket/i.test(text)) details.push('כיסים');
+  if (/שסע|slit/i.test(text)) details.push('שסע');
+  if (/פפלום|peplum/i.test(text)) details.push('פפלום');
+  if (/שכבות|layer/i.test(text)) details.push('שכבות');
+  return details;
+}
 
 // ======================================================================
 // איסוף קישורים מכל הקטגוריות
@@ -287,11 +453,22 @@ async function scrapeProduct(page, url) {
     const fabric   = detectFabric(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
 
-    // === צבע מהכותרת דרך normalizeColor מה-config ===
-    const _nc = normalizeColor(data.title, data.title);
-    const titleColor = (_nc && _nc !== 'אחר') ? _nc : null;
+    // === צבע מהכותרת (כמו AVIYAH — כל עמוד = צבע אחד) ===
+    let titleColor = null;
+    const titleWords = data.title.split(/[\s\-–,/]+/);
+    for (const word of titleWords) {
+      if (word.length < 2) continue;
+      const lower = word.toLowerCase().trim();
+      if (colorMap[lower]) { titleColor = colorMap[lower]; break; }
+      // חיפוש חלקי
+      for (const [key, val] of Object.entries(colorMap)) {
+        if (lower.includes(key) || key.includes(lower)) { titleColor = val; break; }
+      }
+      if (titleColor) break;
+    }
     if (!titleColor) {
       console.log(`    ⚠️ לא נמצא צבע בכותרת: "${data.title}"`);
+      unknownColors.add(data.title);
     }
 
     // === עיבוד מלאי ===
@@ -441,46 +618,15 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
        ON CONFLICT (source_url) DO UPDATE SET
-         title          = EXCLUDED.title,
-         price          = EXCLUDED.price,
-         original_price = EXCLUDED.original_price,
-         image_url      = EXCLUDED.image_url,
-         images         = EXCLUDED.images,
-         sizes          = EXCLUDED.sizes,
-         color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
-         colors         = EXCLUDED.colors,
-         style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
-         fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
-         category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
-         description    = EXCLUDED.description,
-         color_sizes    = EXCLUDED.color_sizes,
-         pattern        = CASE WHEN products.tagged_fields @> ARRAY['pattern']        THEN products.pattern        ELSE EXCLUDED.pattern        END,
-         fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
-         design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
-         all_sizes      = EXCLUDED.all_sizes,
-         last_seen      = NOW(),
-         tagged_fields  = (
-           SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
-             COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
-             CASE WHEN EXCLUDED.style IS NOT NULL          THEN ARRAY['style']          ELSE ARRAY[]::TEXT[] END ||
-             CASE WHEN EXCLUDED.category IS NOT NULL       THEN ARRAY['category']       ELSE ARRAY[]::TEXT[] END ||
-             CASE WHEN EXCLUDED.fit IS NOT NULL            THEN ARRAY['fit']            ELSE ARRAY[]::TEXT[] END ||
-             CASE WHEN EXCLUDED.fabric IS NOT NULL         THEN ARRAY['fabric']         ELSE ARRAY[]::TEXT[] END ||
-             CASE WHEN EXCLUDED.pattern IS NOT NULL        THEN ARRAY['pattern']        ELSE ARRAY[]::TEXT[] END ||
-             CASE WHEN EXCLUDED.color IS NOT NULL          THEN ARRAY['color']          ELSE ARRAY[]::TEXT[] END ||
-             CASE WHEN cardinality(COALESCE(EXCLUDED.design_details, ARRAY[]::TEXT[])) > 0 THEN ARRAY['design_details'] ELSE ARRAY[]::TEXT[] END
-           ) AS f
-         ),
-         price_dropped_at = CASE
-           WHEN EXCLUDED.original_price IS NOT NULL
-            AND EXCLUDED.original_price > EXCLUDED.price * 1.10
-            AND (products.original_price IS NULL OR products.original_price <= products.price * 1.10)
-           THEN NOW()
-           ELSE products.price_dropped_at
-         END`,
+         title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
+         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
+         color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
+         category=EXCLUDED.category, description=EXCLUDED.description,
+         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
+         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
       ['CHEN', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
@@ -508,18 +654,33 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 try {
-  const urls = await getAllProductUrls(page);
-  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
+  const allUrls = await getAllProductUrls(page);
+  console.log(`\n${'='.repeat(50)}\n📊 Total: ${allUrls.length} URLs נמצאו\n${'='.repeat(50)}`);
 
-  let ok = 0, fail = 0, skipped = 0;
+  // מיין לפי last_seen — הישנים ביותר (או חדשים לגמרי) יבואו ראשונים
+  // כך שב-3 ריצות ביום כל 703 מוצרים מתעדכנים
+  const knownRows = await db.query(
+    `SELECT source_url, last_seen FROM products WHERE store='CHEN' AND source_url = ANY($1)`,
+    [allUrls]
+  );
+  const lastSeenMap = {};
+  for (const row of knownRows.rows) lastSeenMap[row.source_url] = row.last_seen;
+
+  const urls = [...allUrls].sort((a, b) => {
+    const ta = lastSeenMap[a] ? new Date(lastSeenMap[a]).getTime() : 0;
+    const tb = lastSeenMap[b] ? new Date(lastSeenMap[b]).getTime() : 0;
+    return ta - tb;
+  });
+
+  const newCount = urls.filter(u => !lastSeenMap[u]).length;
+  console.log(`  🔄 ${newCount} חדשים + ${urls.length - newCount} ממוינים לפי last_seen\n`);
+
+  let ok = 0, fail = 0;
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; }
-    else if (p === null) {
-      // null = כשל או דלג
-      fail++;
-    }
+    else { fail++; }
     await page.waitForTimeout(400);
   }
 
@@ -541,7 +702,7 @@ async function runHealthCheck(scraped, failed) {
   if (unknownColors.size > 0) {
     problems.push(`⚠️ צבעים לא מזוהים (${unknownColors.size}):`);
     for (const c of unknownColors) {
-      problems.push(`   ❓ "${c}" - הוסף ל-scraper_config באדמין`);
+      problems.push(`   ❓ "${c}" - הוסף ל-colorMap בסקרייפר`);
     }
   }
 

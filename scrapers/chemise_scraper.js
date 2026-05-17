@@ -55,16 +55,12 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 40000 });
-        // מחכה שיהיו קישורי מוצרים בדף (מקסימום 20 שניות)
-        await page.waitForFunction(
-          () => document.querySelectorAll('a[href*="/product/"]').length > 0,
-          { timeout: 20000 }
-        ).catch(() => {});
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
+        await page.waitForTimeout(2000);
         
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(800);
+          await page.waitForTimeout(1000);
         }
         
         const urls = await page.evaluate(() => 
@@ -128,7 +124,23 @@ async function scrapeProduct(page, url) {
       // === תמונות ===
       const images = [];
 
-      // פונקציה: מחלץ את ה-URL הכי גדול מ-srcset (אלה הקבצים שבטוח קיימים בשרת)
+      // שלב 0 (הכי אמין): data-default JSON שמוטמע ב-HTML לפני כל JS
+      const galleryWrap = document.querySelector('.iconic-woothumbs-all-images-wrap[data-default]');
+      if (galleryWrap) {
+        try {
+          const defaultImgs = JSON.parse(galleryWrap.getAttribute('data-default') || '[]');
+          // סנן תמונות סיזצ'ארט (aspect ratio מאוד רחב) ואסוף URL הכי גדול לכל תמונה
+          defaultImgs.forEach(item => {
+            const aspect = parseFloat((item.aspect || '').split(':')[0]) /
+                           parseFloat((item.aspect || '1:1').split(':')[1] || 1);
+            if (aspect > 2) return; // תמונת טבלת מידות — דלג
+            const url = item.full_src || item.src || item.large_src || '';
+            if (url && url.includes('uploads') && !images.includes(url)) images.push(url);
+          });
+        } catch(e) { /* fallback לשלבים הבאים */ }
+      }
+
+      // פונקציה: מחלץ את ה-URL הכי גדול מ-srcset
       function getBestSrcsetUrl(img) {
         const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
         if (!srcset || srcset.startsWith('data:')) return '';
@@ -141,7 +153,7 @@ async function scrapeProduct(page, url) {
         return best;
       }
 
-      // מחלץ URL מ-img: srcset > src (אם לא data URI) > data-large_image
+      // מחלץ URL מ-img: srcset > src (אם לא data URI) > data-large_image > data-lazy
       function getImgUrl(img) {
         const srcset = getBestSrcsetUrl(img);
         if (srcset && srcset.includes('uploads')) return srcset;
@@ -149,20 +161,24 @@ async function scrapeProduct(page, url) {
         if (src && !src.startsWith('data:') && src.includes('uploads')) return src;
         const large = img.getAttribute('data-large_image') || '';
         if (large && large.includes('uploads')) return large;
+        const lazy = img.getAttribute('data-lazy') || '';
+        if (lazy && lazy.includes('uploads')) return lazy;
         return '';
       }
 
-      // שלב 1: סליידים אמיתיים בלבד (ללא clones) לפי data-index ייחודי
-      const seenIndexes = new Set();
-      document.querySelectorAll('.iconic-woothumbs-images__slide').forEach(slide => {
-        const idx = slide.getAttribute('data-index');
-        if (idx === null || seenIndexes.has(idx)) return; // דלג על clones
-        seenIndexes.add(idx);
-        const img = slide.querySelector('img');
-        if (!img) return;
-        const url = getImgUrl(img);
-        if (url && !images.includes(url)) images.push(url);
-      });
+      // שלב 1: סליידים אמיתיים (ללא clones) — fallback אם data-default ריק
+      if (images.length === 0) {
+        const seenIndexes = new Set();
+        document.querySelectorAll('.iconic-woothumbs-images__slide').forEach(slide => {
+          const idx = slide.getAttribute('data-index');
+          if (idx === null || seenIndexes.has(idx)) return;
+          seenIndexes.add(idx);
+          const img = slide.querySelector('img');
+          if (!img) return;
+          const url = getImgUrl(img);
+          if (url && !images.includes(url)) images.push(url);
+        });
+      }
 
       // שלב 2: fallback — WooCommerce gallery
       if (images.length === 0) {
@@ -358,12 +374,31 @@ async function scrapeProduct(page, url) {
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
-    
+
+    // הורד תמונות דרך Playwright — עוקף hotlink protection של chemise
+    const cachedImages = [];
+    for (const imgUrl of data.images.slice(0, 6)) {
+      try {
+        const resp = await page.request.get(imgUrl, { timeout: 8000 });
+        if (resp.ok()) {
+          const ct = (resp.headers()['content-type'] || 'image/jpeg').split(';')[0];
+          const buffer = await resp.body();
+          await db.query(
+            `INSERT INTO image_cache (url_hash, content_type, data) VALUES ($1,$2,$3) ON CONFLICT (url_hash) DO NOTHING`,
+            [imgUrl, ct, buffer]
+          );
+          cachedImages.push('/ic?u=' + encodeURIComponent(imgUrl));
+          console.log(`    📥 cached: ${imgUrl.split('/').pop()}`);
+        }
+      } catch(e) { console.log(`    ⚠️ img skip: ${e.message}`); }
+    }
+    const finalImages = cachedImages.length > 0 ? cachedImages : data.images;
+
     return {
       title: data.title,
       price: data.price,
       originalPrice: data.originalPrice,
-      images: data.images,
+      images: finalImages,
       colors: uniqueColors,
       sizes: uniqueSizes,
       allSizes: allUniqueSizes,
@@ -393,15 +428,46 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
-         title=EXCLUDED.title, price=EXCLUDED.price, original_price=EXCLUDED.original_price,
-         image_url=EXCLUDED.image_url, images=EXCLUDED.images, sizes=EXCLUDED.sizes,
-         color=EXCLUDED.color, colors=EXCLUDED.colors, style=EXCLUDED.style, fit=EXCLUDED.fit,
-         category=EXCLUDED.category, description=EXCLUDED.description,
-         color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
-         design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW()`,
+         title          = EXCLUDED.title,
+         price          = EXCLUDED.price,
+         original_price = EXCLUDED.original_price,
+         image_url      = EXCLUDED.image_url,
+         images         = EXCLUDED.images,
+         sizes          = EXCLUDED.sizes,
+         color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
+         colors         = EXCLUDED.colors,
+         style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
+         fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
+         category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
+         description    = EXCLUDED.description,
+         color_sizes    = EXCLUDED.color_sizes,
+         pattern        = CASE WHEN products.tagged_fields @> ARRAY['pattern']        THEN products.pattern        ELSE EXCLUDED.pattern        END,
+         fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
+         design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
+         all_sizes      = EXCLUDED.all_sizes,
+         last_seen      = NOW(),
+         tagged_fields  = (
+           SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
+             COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
+             CASE WHEN EXCLUDED.style IS NOT NULL          THEN ARRAY['style']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.category IS NOT NULL       THEN ARRAY['category']       ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fit IS NOT NULL            THEN ARRAY['fit']            ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.fabric IS NOT NULL         THEN ARRAY['fabric']         ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.pattern IS NOT NULL        THEN ARRAY['pattern']        ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN EXCLUDED.color IS NOT NULL          THEN ARRAY['color']          ELSE ARRAY[]::TEXT[] END ||
+             CASE WHEN cardinality(COALESCE(EXCLUDED.design_details, ARRAY[]::TEXT[])) > 0 THEN ARRAY['design_details'] ELSE ARRAY[]::TEXT[] END
+           ) AS f
+         ),
+         price_dropped_at = CASE
+           WHEN EXCLUDED.original_price IS NOT NULL
+            AND EXCLUDED.original_price > EXCLUDED.price * 1.10
+            AND (products.original_price IS NULL OR products.original_price <= products.price * 1.10)
+           THEN NOW()
+           ELSE products.price_dropped_at
+         END`,
       ['CHEMISE', product.title, product.price || 0, product.originalPrice || null,
        product.images[0] || '', product.images, product.sizes, product.mainColor,
        product.colors, product.style || null, product.fit || null, product.category,
@@ -419,17 +485,12 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-async function launchBrowser() {
-  const browser = await chromium.launch({ headless: true, slowMo: 30 });
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    viewport: { width: 1920, height: 1080 }
-  });
-  const page = await context.newPage();
-  return { browser, context, page };
-}
-
-let { browser, context, page } = await launchBrowser();
+const browser = await chromium.launch({ headless: true, slowMo: 30 });
+const context = await browser.newContext({
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  viewport: { width: 1920, height: 1080 }
+});
+const page = await context.newPage();
 
 try {
   const urls = await getAllProductUrls(page);
@@ -439,11 +500,6 @@ try {
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 50;
   for (let i = 0; i < urls.length; i++) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
-    if (i > 0 && i % 100 === 0) {
-      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
-      await browser.close();
-      ({ browser, context, page } = await launchBrowser());
-    }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;

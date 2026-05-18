@@ -2467,29 +2467,28 @@ function buildNewProductsEmail(storeGroups) {
 }
 
 // שלח דרך Brevo
-async function sendNewProductsEmail(toEmails, subject, htmlContent) {
-  const BREVO_KEY = process.env.BREVO_API_KEY;
-  if (!BREVO_KEY) throw new Error('חסר BREVO_API_KEY');
+async function sendNewProductsEmail(toEmails, subject, html) {
+  const RESEND_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_KEY) throw new Error('חסר RESEND_API_KEY');
 
-  // Brevo batch — עד 50 נמענים בבקשה אחת
   const batchSize = 50;
   let sent = 0;
   for (let i = 0; i < toEmails.length; i += batchSize) {
     const batch = toEmails.slice(i, i + batchSize);
-    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sender: { name: 'LOOKLI', email: process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il' },
-        bcc: batch.map(e => ({ email: e })),
-        to: [{ email: process.env.BREVO_SENDER_EMAIL || 'info@lookli.co.il' }],
+        from: 'LOOKLI <noreply@lookli.co.il>',
+        bcc: batch,
+        to: ['noreply@lookli.co.il'],
         subject,
-        htmlContent
+        html
       })
     });
     if (!resp.ok) {
       const err = await resp.json();
-      console.error('Brevo send error:', err);
+      console.error('Resend send error:', err);
     } else {
       sent += batch.length;
     }
@@ -2500,10 +2499,6 @@ async function sendNewProductsEmail(toEmails, subject, htmlContent) {
 // Cron endpoint — מופעל מ-Railway Cron
 // GET /api/cron/new-products-email?secret=CRON_SECRET
 app.get('/api/cron/new-products-email', async (req, res) => {
-  const CRON_SECRET = (process.env.CRON_SECRET || '').trim();
-  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
 
   try {
     const dryRun = req.query.dry === '1'; // ?dry=1 → לא שולח, רק מחזיר JSON
@@ -2572,7 +2567,7 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
 
     // 6. שלח
-    const sent = await sendNewProductsEmail(emails, subject, htmlContent);
+    const sent = await sendNewProductsEmail(emails, subject, html);
 
     // 7. תיעד בlog
     await pool.query(
@@ -2709,10 +2704,6 @@ function buildPriceDropEmail(storeGroups) {
 
 // GET /api/cron/price-drop-email
 app.get('/api/cron/price-drop-email', async (req, res) => {
-  const CRON_SECRET = (process.env.CRON_SECRET || '').trim();
-  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
 
   try {
     const dryRun = req.query.dry === '1';
@@ -2771,9 +2762,9 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
 
     const storeNamesList = storeGroups.map(s => s.storeName).join(', ');
     const subject = `ירידות מחיר השבוע ב${storeNamesList} 🏷️`;
-    const htmlContent = buildPriceDropEmail(storeGroups);
+    const html = buildPriceDropEmail(storeGroups);
 
-    if (dryRun) return res.send(htmlContent);
+    if (dryRun) return res.send(html);
 
     // שלוף מנויים
     const subscribersRes = await pool.query(
@@ -2782,7 +2773,7 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
     const emails = subscribersRes.rows.map(r => r.email);
     if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
 
-    const sent = await sendNewProductsEmail(emails, subject, htmlContent);
+    const sent = await sendNewProductsEmail(emails, subject, html);
 
     await pool.query(
       `INSERT INTO email_campaign_log (campaign_type, stores, recipients, subject, sent_at)

@@ -140,6 +140,9 @@ async function runHealthCheck() {
   const hasRed    = rows.some(r => storeStatus(r) === '🔴');
   const hasYellow = rows.some(r => storeStatus(r) === '🟡');
 
+  const totalCurrent = rows.reduce((s,r) => s + Number(r.current_run||0), 0);
+  const totalAll     = rows.reduce((s,r) => s + Number(r.total||0), 0);
+
   const tableRows = rows.map(r => {
     const lastDate = r.last_seen
       ? new Date(r.last_seen).toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
@@ -149,7 +152,7 @@ async function runHealthCheck() {
     return `
       <tr style="border-bottom:1px solid #f3f4f6">
         <td style="padding:10px 8px;font-weight:700">${storeStatus(r)} ${r.store}</td>
-        <td style="text-align:center;font-weight:700;color:${r.current_run > 0 ? '#16a34a' : '#6b7280'}">${r.current_run > 0 ? r.current_run : '—'}</td>
+        <td style="text-align:center;font-weight:700;color:${r.current_run > 0 ? '#16a34a' : '#6b7280'}">${r.current_run > 0 ? `${r.current_run} / ${r.total}` : '—'}</td>
         <td style="text-align:center">${r.total}</td>
         <td style="text-align:center;color:${dateColor};font-weight:${dateColor !== '#16a34a' ? '700' : '400'}">${lastDate}</td>
         ${cell(r.no_image,    r.total, 5,  20)}
@@ -188,11 +191,21 @@ async function runHealthCheck() {
             <th style="text-align:center">🆕 ללא מלאי</th>
           </tr>
         </thead>
-        <tbody>${tableRows}</tbody>
+        <tbody>${tableRows}
+          <tr style="border-top:2px solid #e5e7eb;background:#f9fafb;font-weight:700">
+            <td style="padding:10px 8px">סה"כ</td>
+            <td style="text-align:center;color:${totalCurrent > 0 ? '#16a34a' : '#6b7280'}">${totalCurrent}</td>
+            <td style="text-align:center">${totalAll}</td>
+            <td colspan="7"></td>
+          </tr>
+        </tbody>
       </table>
       <div style="margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.9">
         <strong>מקרא:</strong> 🟢 הכל תקין &nbsp;|&nbsp; 🟡 אזהרה &nbsp;|&nbsp; 🔴 קריטי — סקרייפר לא רץ 3+ ימים<br/>
         ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מסה"כ מוצרי החנות
+      </div>
+      <div style="margin-top:12px;background:#f0fdf4;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d;font-weight:600;display:inline-block">
+        🏃 הרצה נוכחית: ${totalCurrent} / ${totalAll} מוצרים עודכנו
       </div>
     </div>
     ${noColorSection}

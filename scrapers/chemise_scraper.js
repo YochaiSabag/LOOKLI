@@ -55,12 +55,12 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
-        await page.waitForTimeout(2000);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(300);
         
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 2; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1000);
+          await page.waitForTimeout(400);
         }
         
         const urls = await page.evaluate(() => 
@@ -96,7 +96,7 @@ async function scrapeProduct(page, url) {
   
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(1200);
     
     const data = await page.evaluate(() => {
       // === כותרת ===
@@ -485,7 +485,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({ headless: true, slowMo: 30 });
+const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   viewport: { width: 1920, height: 1080 }
@@ -503,7 +503,7 @@ try {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);

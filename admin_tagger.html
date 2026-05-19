@@ -180,6 +180,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   background:var(--selected-bg);
   box-shadow:0 0 0 1px var(--selected-border), 0 8px 24px rgba(201,124,192,.2);
 }
+    .prod-card.hidden-product{opacity:.38;}
+    .prod-card.hidden-product .card-img{filter:grayscale(80%);}
+    .hidden-badge{position:absolute;top:4px;left:4px;background:#374151;color:#9ca3af;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;}
+    .hide-btn{position:absolute;top:4px;right:30px;background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;opacity:.5;line-height:1;}
+    .hide-btn:hover{opacity:1;background:rgba(248,113,113,.15);}
 .prod-card.tagged{border-color:rgba(74,222,128,.35)}
 .card-check{
   position:absolute;top:8px;right:8px;width:22px;height:22px;
@@ -309,6 +314,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
       <button class="clear-btn" id="clearDesignBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearDesign()">נקה עיצוב לנבחרים</button>
+      <button class="clear-btn" id="hideSelectedBtn" style="display:none;border-color:#6b7280;color:#9ca3af" onclick="hideSelected(true)">🙈 הסתר נבחרים</button>
     </div>
 
   </aside>
@@ -327,6 +333,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       </select>
       <span class="count-badge" id="countBadge">0 מוצרים</span>
       <button class="select-all-btn" onclick="selectAllVisible()">בחר הכל</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-right:8px">
+        <input type="checkbox" id="showHiddenChk" onchange="applyFilter()" style="accent-color:#a89ef7">
+        הצג מוסתרים
+      </label>
     </div>
 
     <div class="products-grid" id="productsGrid">
@@ -424,7 +434,9 @@ function applyFilter() {
   const store = document.getElementById('storeFilter').value;
   const fieldF = document.getElementById('fieldFilter').value;
 
+  const showHidden = document.getElementById('showHiddenChk')?.checked || false;
   filtered = allProducts.filter(p => {
+    if (!showHidden && p.hidden) return false;
     if (q && !p.title?.toLowerCase().includes(q)) return false;
     if (store && p.store !== store) return false;
     const fieldVal = currentField === 'design_details'
@@ -465,9 +477,11 @@ function renderGrid() {
     const store = p.store || '';
     const price = p.price ? `₪${Math.round(p.price)}` : '';
 
-    return `<div class="prod-card${isSel ? ' selected' : ''}${fieldVal ? ' tagged' : ''}"
+    return `<div class="prod-card${isSel ? ' selected' : ''}${fieldVal ? ' tagged' : ''}${p.hidden ? ' hidden-product' : ''}"
       data-id="${p.id}" onclick="toggleCard(${p.id}, this)">
       <div class="card-check">${isSel ? '✓' : ''}</div>
+      ${p.hidden ? '<span class="hidden-badge">מוסתר</span>' : ''}
+      <button class="hide-btn" onclick="event.stopPropagation();toggleHide(${p.id})" title="${p.hidden ? 'הצג מוצר' : 'הסתר מוצר'}">${p.hidden ? '👁' : '🙈'}</button>
       ${fieldVal ? `<div class="tag-badge">${escHtml(fieldVal)}</div>` : ''}
       ${img
         ? `<img class="card-img" src="${escHtml(img)}" loading="lazy" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="card-img-placeholder" style="display:none">👗</div>`
@@ -607,6 +621,7 @@ function selectField(field, btn) {
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
   document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
+  document.getElementById('hideSelectedBtn').style.display = selected.size > 0 ? '' : 'none';
   applyFilter();
   updateSelectionUI();
 }
@@ -614,7 +629,7 @@ function selectField(field, btn) {
 function renderPresets() {
   const presets = PRESETS[currentField] || [];
   document.getElementById('presetValues').innerHTML = presets.map(v =>
-    `<button class="preset-val" onclick="selectPreset('${escHtml(v)}',this)">${escHtml(v)}</button>`
+    `<button class="preset-val" data-value="${escHtml(v)}" onclick="selectPreset(this.dataset.value,this)">${escHtml(v)}</button>`
   ).join('');
 }
 
@@ -702,6 +717,38 @@ function showToast(msg, type = 'success') {
   void t.offsetWidth;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ─── הסתרת מוצרים ───────────────────────────────────────────
+async function hideSelected(hidden) {
+  if (selected.size === 0) return;
+  const ids = [...selected];
+  const r = await fetch('/api/admin/tag-products/hide', {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids, hidden })
+  });
+  if (r.ok) {
+    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) p.hidden = hidden; });
+    showToast(`${hidden ? '🙈 הוסתרו' : '👁 הוצגו'} ${ids.length} מוצרים`, 'success');
+    clearSelection(); applyFilter();
+  } else showToast('שגיאה', 'error');
+}
+
+async function toggleHide(id) {
+  const p = allProducts.find(x => x.id === id);
+  if (!p) return;
+  const hidden = !p.hidden;
+  const r = await fetch('/api/admin/tag-products/hide', {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: [id], hidden })
+  });
+  if (r.ok) {
+    p.hidden = hidden;
+    showToast(hidden ? '🙈 מוצר הוסתר' : '👁 מוצר מוצג', 'success');
+    applyFilter();
+  } else showToast('שגיאה', 'error');
 }
 </script>
 </body>

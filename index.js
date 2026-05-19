@@ -1,4 +1,12 @@
-console.log("BOOT DEBUG ROUTE VERSION 1");
+consol
+// PATCH /api/admin/tag-products/hide — הסתרת/הצגת מוצרים
+app.patch('/api/admin/tag-products/hide', adminAuth, async (req, res) => {
+  const { ids, hidden } = req.body;
+  if (!ids?.length) return res.status(400).json({ error: 'no ids' });
+  await pool.query(`UPDATE products SET hidden=$1 WHERE id = ANY($2)`, [!!hidden, ids]);
+  res.json({ updated: ids.length });
+});
+e.log("BOOT DEBUG ROUTE VERSION 1");
 import express from "express";
 import pkg from "pg";
 import path from "path";
@@ -346,7 +354,7 @@ function calculateShipping(store, price) {
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
-    let baseWhere = '1=1';
+    let baseWhere = 'hidden IS NOT TRUE';
     const baseParams = [];
     let paramIndex = 1;
     
@@ -515,7 +523,7 @@ async function loadSearchAliases() {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE hidden IS NOT TRUE`;
     const params = [];
     let i = 1;
 
@@ -3216,6 +3224,7 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE`);
     await pool.query(`CREATE TABLE IF NOT EXISTS image_cache (url_hash TEXT PRIMARY KEY, content_type TEXT DEFAULT 'image/jpeg', data BYTEA NOT NULL, created_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS task_notifications_queue (id SERIAL PRIMARY KEY, changes JSONB, created_at TIMESTAMP DEFAULT NOW(), sent_at TIMESTAMP)`);

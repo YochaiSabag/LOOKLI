@@ -314,6 +314,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
       <button class="clear-btn" id="clearDesignBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearDesign()">נקה עיצוב לנבחרים</button>
+      <button class="clear-btn" id="clearColorsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearColors()">נקה צבעים לנבחרים</button>
       <button class="clear-btn" id="hideSelectedBtn" style="display:none;border-color:#6b7280;color:#9ca3af" onclick="hideSelected(true)">🙈 הסתר נבחרים</button>
     </div>
 
@@ -491,7 +492,9 @@ function renderGrid() {
         <div class="card-title"><a href="${escHtml(p.source_url||p.url||'#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none;border-bottom:1px dashed rgba(240,238,250,.25);">${escHtml(p.title || '')}</a></div>
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
-          ${p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : (!p.color || p.color === 'אחר' ? '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>' : '')}
+          ${(Array.isArray(p.colors) && p.colors.length > 1)
+              ? p.colors.map(c => `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(c)}20;color:${getColorBg(c)}">${escHtml(c)}</span>`).join('')
+              : p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>'}
           ${currentField === 'fit' && (p.fits || p.fit) && (Array.isArray(p.fits) ? p.fits.length > 0 : (p.fits || p.fit))
             ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits : (p.fit ? [p.fit] : [])).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('')
             : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)
@@ -621,6 +624,7 @@ function selectField(field, btn) {
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
   document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
+  document.getElementById('clearColorsBtn').style.display = field === 'color' && selected.size > 0 ? '' : 'none';
   document.getElementById('hideSelectedBtn').style.display = selected.size > 0 ? '' : 'none';
   applyFilter();
   updateSelectionUI();
@@ -686,6 +690,10 @@ async function applyTag() {
       } else if (currentField === 'design_details') {
         const dd = Array.isArray(p.design_details) ? p.design_details : (p.design_details ? [p.design_details] : []);
         p.design_details = [...new Set([...dd, currentValue.trim()])];
+      } else if (currentField === 'color') {
+        const cols = Array.isArray(p.colors) ? p.colors : (p.color ? [p.color] : []);
+        p.colors = [...new Set([...cols, currentValue.trim()])];
+        if (!p.color || p.color === 'אחר' || p.color === '') p.color = currentValue.trim();
       } else {
         p[currentField] = currentValue.trim();
       }
@@ -748,6 +756,21 @@ async function toggleHide(id) {
     p.hidden = hidden;
     showToast(hidden ? '🙈 מוצר הוסתר' : '👁 מוצר מוצג', 'success');
     applyFilter();
+  } else showToast('שגיאה', 'error');
+}
+
+async function clearColors() {
+  if (selected.size === 0) return;
+  const ids = [...selected];
+  const r = await fetch('/api/admin/tag-products/clear-colors', {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  });
+  if (r.ok) {
+    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) { p.color = null; p.colors = []; } });
+    showToast(`ניקוי צבעים ל-${ids.length} מוצרים`, 'success');
+    clearSelection(); applyFilter();
   } else showToast('שגיאה', 'error');
 }
 </script>

@@ -1,12 +1,4 @@
-consol
-// PATCH /api/admin/tag-products/hide — הסתרת/הצגת מוצרים
-app.patch('/api/admin/tag-products/hide', adminAuth, async (req, res) => {
-  const { ids, hidden } = req.body;
-  if (!ids?.length) return res.status(400).json({ error: 'no ids' });
-  await pool.query(`UPDATE products SET hidden=$1 WHERE id = ANY($2)`, [!!hidden, ids]);
-  res.json({ updated: ids.length });
-});
-e.log("BOOT DEBUG ROUTE VERSION 1");
+console.log("BOOT DEBUG ROUTE VERSION 1");
 import express from "express";
 import pkg from "pg";
 import path from "path";
@@ -2260,7 +2252,17 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
     const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
     if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
 
-    if (field === 'design_details') {
+    if (field === 'color') {
+      await pool.query(
+        `UPDATE products
+         SET colors        = array_append(COALESCE(colors,'{}'), $1),
+             color         = CASE WHEN color IS NULL OR color = '' OR color = 'אחר' THEN $1 ELSE color END,
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
+             updated_at    = NOW()
+         WHERE id = ANY($2::int[]) AND NOT (COALESCE(colors,'{}') @> ARRAY[$1])`,
+        [value, ids]
+      );
+    } else if (field === 'design_details') {
       await pool.query(
         `UPDATE products
          SET design_details = array_append(COALESCE(design_details,'{}'), $1),
@@ -2293,6 +2295,24 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// PATCH /api/admin/tag-products/hide
+app.patch('/api/admin/tag-products/hide', adminAuth, async (req, res) => {
+  const { ids, hidden } = req.body;
+  if (!ids?.length) return res.status(400).json({ error: 'no ids' });
+  await pool.query(`UPDATE products SET hidden=$1 WHERE id = ANY($2)`, [!!hidden, ids]);
+  res.json({ updated: ids.length });
+});
+
+// PATCH /api/admin/tag-products/clear-colors
+app.patch('/api/admin/tag-products/clear-colors', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
+    await pool.query(`UPDATE products SET color=NULL, colors='{}', tagged_fields=array_remove(COALESCE(tagged_fields,'{}'),'color'), updated_at=NOW() WHERE id=ANY($1::int[])`, [ids]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {

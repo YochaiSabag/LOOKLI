@@ -346,7 +346,7 @@ function calculateShipping(store, price) {
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
-    let baseWhere = 'hidden IS NOT TRUE';
+    let baseWhere = '1=1';
     const baseParams = [];
     let paramIndex = 1;
     
@@ -515,7 +515,7 @@ async function loadSearchAliases() {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE hidden IS NOT TRUE`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
     const params = [];
     let i = 1;
 
@@ -2252,17 +2252,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
     const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
     if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
 
-    if (field === 'color') {
-      await pool.query(
-        `UPDATE products
-         SET colors        = array_append(COALESCE(colors,'{}'), $1),
-             color         = CASE WHEN color IS NULL OR color = '' OR color = 'אחר' THEN $1 ELSE color END,
-             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
-             updated_at    = NOW()
-         WHERE id = ANY($2::int[]) AND NOT (COALESCE(colors,'{}') @> ARRAY[$1])`,
-        [value, ids]
-      );
-    } else if (field === 'design_details') {
+    if (field === 'design_details') {
       await pool.query(
         `UPDATE products
          SET design_details = array_append(COALESCE(design_details,'{}'), $1),
@@ -2295,24 +2285,6 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
-});
-
-// PATCH /api/admin/tag-products/hide
-app.patch('/api/admin/tag-products/hide', adminAuth, async (req, res) => {
-  const { ids, hidden } = req.body;
-  if (!ids?.length) return res.status(400).json({ error: 'no ids' });
-  await pool.query(`UPDATE products SET hidden=$1 WHERE id = ANY($2)`, [!!hidden, ids]);
-  res.json({ updated: ids.length });
-});
-
-// PATCH /api/admin/tag-products/clear-colors
-app.patch('/api/admin/tag-products/clear-colors', adminAuth, async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
-    await pool.query(`UPDATE products SET color=NULL, colors='{}', tagged_fields=array_remove(COALESCE(tagged_fields,'{}'),'color'), updated_at=NOW() WHERE id=ANY($1::int[])`, [ids]);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {
@@ -3244,10 +3216,12 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
-    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE`);
     await pool.query(`CREATE TABLE IF NOT EXISTS image_cache (url_hash TEXT PRIMARY KEY, content_type TEXT DEFAULT 'image/jpeg', data BYTEA NOT NULL, created_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS task_notifications_queue (id SERIAL PRIMARY KEY, changes JSONB, created_at TIMESTAMP DEFAULT NOW(), sent_at TIMESTAMP)`);
+    // הוסף created_at ל-image_cache אם חסר + נקה ישן
+    await pool.query(`ALTER TABLE image_cache ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`).catch(()=>{});
+    await pool.query(`DELETE FROM image_cache WHERE created_at < NOW() - INTERVAL '14 days'`).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

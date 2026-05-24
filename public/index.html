@@ -1997,8 +1997,10 @@ function renderHeroStep(){
   } else if(heroStep==='size'){
     labelDiv.textContent='\u05DE\u05D4 \u05D4\u05DE\u05D9\u05D3\u05D4 \u05E9\u05DC\u05DA?';
     var popS=['S','M','L','XL','XS','XXL','XXXL','ONE SIZE'];
-    var sizes=dbSizes.length>0?dbSizes:popS;
-    if(dbSizes.length>0){var o3=[];popS.forEach(function(s){if(sizes.indexOf(s)!==-1)o3.push(s)});sizes.forEach(function(s){if(o3.indexOf(s)===-1)o3.push(s)});sizes=o3}
+    var validSizeRe=/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|ONE SIZE|OS|FREE SIZE)$/i;
+    var filteredDb=dbSizes.filter(function(s){return validSizeRe.test((s||'').trim())});
+    var sizes=filteredDb.length>0?filteredDb:popS;
+    if(filteredDb.length>0){var o3=[];popS.forEach(function(s){if(sizes.indexOf(s)!==-1)o3.push(s)});sizes.forEach(function(s){if(o3.indexOf(s)===-1)o3.push(s)});sizes=o3}
     cubesDiv.innerHTML=sizes.map(function(s){var nums=sizeToNumbers[s]||'';var is=sel.indexOf(s)!==-1;return '<div class="hero-cube'+(is?' selected':'')+'" onclick="heroToggle(\'size\',\''+escapeHtml(s)+'\',this)"><span class="hero-big-text">'+formatSize(s)+'</span><span class="hero-cube-label">\u05DE\u05D9\u05D3\u05D4 '+formatSize(s)+'</span>'+(nums?'<span class="hero-cube-sublabel">'+nums+'</span>':'')+'</div>'}).join('');
     
   } else if(heroStep==='style'){

@@ -354,7 +354,9 @@ async function scrapeProduct(page, url) {
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} (${uniqueColors.join(',')}) | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📊 סגנון: ${style || '-'} | קטגוריה: ${category || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'} | דוגמא: ${pattern || '-'}`);
 
+    const baseTitle = computeBaseTitle(data.title, mainColor);
     return {
+      baseTitle,
       title: data.title,
       price: data.price,
       originalPrice: data.originalPrice,
@@ -383,6 +385,16 @@ async function scrapeProduct(page, url) {
 // ======================================================================
 // שמירה ל-DB
 // ======================================================================
+// מחשב כותרת בסיס ללא מילת הצבע (לאיחוד ווריאנטים)
+function computeBaseTitle(title, mainColor) {
+  if (!mainColor || mainColor === 'אחר') return title;
+  const variants = [mainColor, mainColor + 'ה', mainColor + 'ות', mainColor + 'ים',
+                    mainColor + 'ת', mainColor.replace(/ה$/, '')].filter(v => v.length > 1);
+  const words = title.split(/\s+/);
+  const filtered = words.filter(w => !variants.some(v => w.toLowerCase() === v.toLowerCase()));
+  return (filtered.join(' ').trim()) || title;
+}
+
 async function saveProduct(product) {
   if (!product) return;
   try {
@@ -458,6 +470,9 @@ try {
 
   let ok = 0, fail = 0;
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
+
+  // שלב א: סרוק הכל לזיכרון
+  const rawProducts = [];
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     if (i > 0 && i % 100 === 0) {
       console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
@@ -466,8 +481,35 @@ try {
     }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
-    if (p) { await saveProduct(p); ok++; } else fail++;
+    if (p) rawProducts.push(p); else fail++;
     await page.waitForTimeout(400);
+  }
+
+  // שלב ב: מזג לפי base_title — ווריאנטים של אותו מוצר → שורה אחת
+  console.log(`\n🔀 מאחד ווריאנטים (${rawProducts.length} מוצרים)...`);
+  const grouped = new Map();
+  for (const p of rawProducts) {
+    const key = p.baseTitle || p.title;
+    if (!grouped.has(key)) {
+      grouped.set(key, { ...p, colors: [...(p.colors || [])], colorSizes: { ...(p.colorSizes || {}) } });
+    } else {
+      const ex = grouped.get(key);
+      // מזג צבעים
+      ex.colors = [...new Set([...ex.colors, ...(p.colors || [])])];
+      // מזג color_sizes
+      Object.assign(ex.colorSizes, p.colorSizes || {});
+      // מזג מידות
+      ex.sizes = [...new Set([...(ex.sizes || []), ...(p.sizes || [])])];
+      // שמור תמונות של הווריאנט הראשון
+    }
+  }
+  const uniqueCount = grouped.size;
+  console.log(`  ✓ ${rawProducts.length} ווריאנטים → ${uniqueCount} מוצרים ייחודיים`);
+
+  // שלב ג: שמור מוצרים מאוחדים
+  for (const product of grouped.values()) {
+    await saveProduct(product);
+    ok++;
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);

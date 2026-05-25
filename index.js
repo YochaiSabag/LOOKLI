@@ -275,20 +275,24 @@ app.get("/health", (req, res) => {
 });
 
 // Image Proxy — מגיש תמונות חיצוניות עם cache (מאיץ נייד)
-// GET /ic?u=URL — מגיש תמונות שנשמרו בDB על ידי הסקרייפר (עוקף hotlink protection)
+// GET /ic?u=URL — proxy בזמן אמת לchemise.co.il (ללא אחסון בDB)
 app.get('/ic', async (req, res) => {
   const url = req.query.u;
   if (!url) return res.status(400).end();
   try {
-    const r = await pool.query('SELECT content_type, data FROM image_cache WHERE url_hash=$1', [url]);
-    if (!r.rows.length) return res.status(404).end();
-    res.setHeader('Content-Type', r.rows[0].content_type || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=2592000'); // 30 ימים
-    res.setHeader('Vary', 'Accept-Encoding');
-    res.end(r.rows[0].data);
-  } catch(e) {
-    res.status(500).end();
-  }
+    const response = await fetch(url, {
+      headers: {
+        'Referer': 'https://chemise.co.il/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/*,*/*;q=0.8',
+      }
+    });
+    if (!response.ok) return res.status(404).end();
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    const buffer = await response.arrayBuffer();
+    res.end(Buffer.from(buffer));
+  } catch(e) { res.status(500).end(); }
 });
 
 app.get("/img", async (req, res) => {
@@ -3216,12 +3220,8 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS image_cache (url_hash TEXT PRIMARY KEY, content_type TEXT DEFAULT 'image/jpeg', data BYTEA NOT NULL, created_at TIMESTAMP DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS admin_store (key VARCHAR(100) PRIMARY KEY, value JSONB, updated_at TIMESTAMP DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS task_notifications_queue (id SERIAL PRIMARY KEY, changes JSONB, created_at TIMESTAMP DEFAULT NOW(), sent_at TIMESTAMP)`);
-    // הוסף created_at ל-image_cache אם חסר + נקה ישן
-    await pool.query(`ALTER TABLE image_cache ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`).catch(()=>{});
-    await pool.query(`DELETE FROM image_cache WHERE created_at < NOW() - INTERVAL '14 days'`).catch(()=>{});
+    await pool.query(`DROP TABLE IF EXISTS image_cache`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE`).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

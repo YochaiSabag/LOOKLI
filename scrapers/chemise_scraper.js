@@ -55,12 +55,12 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(300);
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
+        await page.waitForTimeout(2000);
         
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(1000);
         }
         
         const urls = await page.evaluate(() => 
@@ -96,7 +96,7 @@ async function scrapeProduct(page, url) {
   
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(2500);
     
     const data = await page.evaluate(() => {
       // === כותרת ===
@@ -375,24 +375,8 @@ async function scrapeProduct(page, url) {
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
 
-    // הורד תמונות דרך Playwright — עוקף hotlink protection של chemise
-    const cachedImages = [];
-    for (const imgUrl of data.images.slice(0, 6)) {
-      try {
-        const resp = await page.request.get(imgUrl, { timeout: 8000 });
-        if (resp.ok()) {
-          const ct = (resp.headers()['content-type'] || 'image/jpeg').split(';')[0];
-          const buffer = await resp.body();
-          await db.query(
-            `INSERT INTO image_cache (url_hash, content_type, data) VALUES ($1,$2,$3) ON CONFLICT (url_hash) DO NOTHING`,
-            [imgUrl, ct, buffer]
-          );
-          cachedImages.push('/ic?u=' + encodeURIComponent(imgUrl));
-          console.log(`    📥 cached: ${imgUrl.split('/').pop()}`);
-        }
-      } catch(e) { console.log(`    ⚠️ img skip: ${e.message}`); }
-    }
-    const finalImages = cachedImages.length > 0 ? cachedImages : data.images;
+    // תמונות — נשמרות עם prefix /ic?u= לproxy בזמן אמת (ללא אחסון בDB)
+    const finalImages = data.images.slice(0, 6).map(u => '/ic?u=' + encodeURIComponent(u));
 
     return {
       title: data.title,
@@ -485,7 +469,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, slowMo: 30 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   viewport: { width: 1920, height: 1080 }
@@ -503,7 +487,7 @@ try {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(500);
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);

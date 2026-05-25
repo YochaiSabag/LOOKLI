@@ -173,6 +173,7 @@
     .store-opt:hover{border-color:var(--accent-light)}
     .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
     .store-opt img{width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:7px}
+    .store-opt[data-store="MYME"] img{width:100%;height:100%;padding:2px}
     .store-opt span{font-size:12px;font-weight:800}
     .store-opt::after{content:attr(data-store);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
     .store-opt:hover::after{opacity:1}
@@ -1431,7 +1432,7 @@ function renderProducts(products,append=false){
     const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
     const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
     const thumbImages = images.map(thumbUrl); // גודל מצומצם לכרטיסיות
-    const colors=p.colors||(p.color?[p.color]:[]);
+    const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
     const sizes=(p.sizes||[]).map(formatSize);
     const originalPrice=parseFloat(p.original_price)||0;
     const currentPrice=parseFloat(p.price)||0;
@@ -1450,7 +1451,7 @@ function renderProducts(products,append=false){
     let colorDotsHTML='';
     if(colors.length>0){
       colorDotsHTML='<div class="card-colors">';
-      colors.slice(0,3).forEach(c=>{colorDotsHTML+=`<span class="card-color" style="background:${getColorHex(c)}" title="${escapeHtml(c)}"></span>`});
+      colors.slice(0,3).forEach(c=>{const hex=getColorHex(c);const isDark=c==='שחור'||['#000000','#0a0a0a','#111111'].includes(hex.toLowerCase());colorDotsHTML+=`<span class="card-color" style="background:${hex};${isDark?'box-shadow:0 0 0 1.5px #aaa inset;':''}" title="${escapeHtml(c)}"></span>`});
       if(colors.length>3)colorDotsHTML+=`<span class="card-color-more">+${colors.length-3}</span>`;
       colorDotsHTML+='</div>';
     }
@@ -1731,7 +1732,7 @@ async function openProduct(id){
     if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
     document.getElementById("modalKpi").innerHTML=kpis.join("");
 
-    const colors=p.colors||(p.color?[p.color]:[]);
+    const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
     const colorSizes=p.color_sizes||{};
     const colorsDiv=document.getElementById("modalColors");
     const colorSizesDiv=document.getElementById("modalColorSizes");

@@ -2291,6 +2291,26 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/admin/tag-products/remove-value
+app.patch('/api/admin/tag-products/remove-value', adminAuth, async (req, res) => {
+  try {
+    const { id, field, value } = req.body;
+    if (!id || !field) return res.status(400).json({ error: 'חסרים פרמטרים' });
+    if (field === 'color') {
+      await pool.query(
+        `UPDATE products SET colors=array_remove(COALESCE(colors,'{}'),$1),
+         color=CASE WHEN color=$1 THEN (SELECT c FROM unnest(array_remove(COALESCE(colors,'{}'),$1)) c LIMIT 1) ELSE color END,
+         updated_at=NOW() WHERE id=$2`, [value, id]
+      );
+    } else if (field === 'design_details') {
+      await pool.query(`UPDATE products SET design_details=array_remove(COALESCE(design_details,'{}'),$1),updated_at=NOW() WHERE id=$2`, [value, id]);
+    } else {
+      await pool.query(`UPDATE products SET ${field}=NULL,updated_at=NOW() WHERE id=$1`, [id]);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.patch('/api/admin/tag-products/clear-design', adminAuth, async (req, res) => {
   try {
     const { ids } = req.body;

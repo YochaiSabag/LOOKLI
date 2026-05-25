@@ -180,11 +180,6 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
   background:var(--selected-bg);
   box-shadow:0 0 0 1px var(--selected-border), 0 8px 24px rgba(201,124,192,.2);
 }
-    .prod-card.hidden-product{opacity:.38;}
-    .prod-card.hidden-product .card-img{filter:grayscale(80%);}
-    .hidden-badge{position:absolute;top:4px;left:4px;background:#374151;color:#9ca3af;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;}
-    .hide-btn{position:absolute;top:4px;right:30px;background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;opacity:.5;line-height:1;}
-    .hide-btn:hover{opacity:1;background:rgba(248,113,113,.15);}
 .prod-card.tagged{border-color:rgba(74,222,128,.35)}
 .card-check{
   position:absolute;top:8px;right:8px;width:22px;height:22px;
@@ -314,8 +309,6 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
       <button class="clear-btn" id="clearDesignBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearDesign()">נקה עיצוב לנבחרים</button>
-      <button class="clear-btn" id="clearColorsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearColors()">נקה צבעים לנבחרים</button>
-      <button class="clear-btn" id="hideSelectedBtn" style="display:none;border-color:#6b7280;color:#9ca3af" onclick="hideSelected(true)">🙈 הסתר נבחרים</button>
     </div>
 
   </aside>
@@ -334,10 +327,6 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       </select>
       <span class="count-badge" id="countBadge">0 מוצרים</span>
       <button class="select-all-btn" onclick="selectAllVisible()">בחר הכל</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-right:8px">
-        <input type="checkbox" id="showHiddenChk" onchange="applyFilter()" style="accent-color:#a89ef7">
-        הצג מוסתרים
-      </label>
     </div>
 
     <div class="products-grid" id="productsGrid">
@@ -435,9 +424,7 @@ function applyFilter() {
   const store = document.getElementById('storeFilter').value;
   const fieldF = document.getElementById('fieldFilter').value;
 
-  const showHidden = document.getElementById('showHiddenChk')?.checked || false;
   filtered = allProducts.filter(p => {
-    if (!showHidden && p.hidden) return false;
     if (q && !p.title?.toLowerCase().includes(q)) return false;
     if (store && p.store !== store) return false;
     const fieldVal = currentField === 'design_details'
@@ -478,11 +465,9 @@ function renderGrid() {
     const store = p.store || '';
     const price = p.price ? `₪${Math.round(p.price)}` : '';
 
-    return `<div class="prod-card${isSel ? ' selected' : ''}${fieldVal ? ' tagged' : ''}${p.hidden ? ' hidden-product' : ''}"
+    return `<div class="prod-card${isSel ? ' selected' : ''}${fieldVal ? ' tagged' : ''}"
       data-id="${p.id}" onclick="toggleCard(${p.id}, this)">
       <div class="card-check">${isSel ? '✓' : ''}</div>
-      ${p.hidden ? '<span class="hidden-badge">מוסתר</span>' : ''}
-      <button class="hide-btn" onclick="event.stopPropagation();toggleHide(${p.id})" title="${p.hidden ? 'הצג מוצר' : 'הסתר מוצר'}">${p.hidden ? '👁' : '🙈'}</button>
       ${fieldVal ? `<div class="tag-badge">${escHtml(fieldVal)}</div>` : ''}
       ${img
         ? `<img class="card-img" src="${escHtml(img)}" loading="lazy" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="card-img-placeholder" style="display:none">👗</div>`
@@ -492,9 +477,18 @@ function renderGrid() {
         <div class="card-title"><a href="${escHtml(p.source_url||p.url||'#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none;border-bottom:1px dashed rgba(240,238,250,.25);">${escHtml(p.title || '')}</a></div>
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
-          ${(Array.isArray(p.colors) && p.colors.length > 1)
-              ? p.colors.map(c => `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(c)}20;color:${getColorBg(c)}">${escHtml(c)}</span>`).join('')
-              : p.color && p.color !== 'אחר' ? `<span class="meta-tag has-val" style="border-color:transparent;background:${getColorBg(p.color)}20;color:${getColorBg(p.color)}">${escHtml(p.color)}</span>` : '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>'}
+          ${(() => {
+            const allColors = [...new Set(Array.isArray(p.colors) && p.colors.length ? p.colors : (p.color && p.color !== 'אחר' ? [p.color] : []))];
+            if (!allColors.length) return '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>';
+            return allColors.map(c => {
+              const bg = getColorBg(c);
+              const isDark = c === 'שחור' || ['#000000','#0a0a0a','#111111'].includes(bg);
+              return `<span class="meta-tag has-val" style="border-color:transparent;background:${bg}20;color:${isDark?'#aaa':bg};display:inline-flex;align-items:center;gap:3px">`
+                + `<span style="width:8px;height:8px;border-radius:50%;background:${bg};border:1px solid ${isDark?'#555':'transparent'};display:inline-block"></span> `
+                + escHtml(c)
+                + `<button data-id="${p.id}" data-color="${escHtml(c)}" onclick="event.stopPropagation();removeColorTag(+this.dataset.id,this.dataset.color)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`;
+            }).join('');
+          })()}
           ${currentField === 'fit' && (p.fits || p.fit) && (Array.isArray(p.fits) ? p.fits.length > 0 : (p.fits || p.fit))
             ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits : (p.fit ? [p.fit] : [])).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('')
             : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)
@@ -624,8 +618,6 @@ function selectField(field, btn) {
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
   document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
-  document.getElementById('clearColorsBtn').style.display = field === 'color' && selected.size > 0 ? '' : 'none';
-  document.getElementById('hideSelectedBtn').style.display = selected.size > 0 ? '' : 'none';
   applyFilter();
   updateSelectionUI();
 }
@@ -633,7 +625,7 @@ function selectField(field, btn) {
 function renderPresets() {
   const presets = PRESETS[currentField] || [];
   document.getElementById('presetValues').innerHTML = presets.map(v =>
-    `<button class="preset-val" data-value="${escHtml(v)}" onclick="selectPreset(this.dataset.value,this)">${escHtml(v)}</button>`
+    `<button class="preset-val" onclick="selectPreset('${escHtml(v)}',this)">${escHtml(v)}</button>`
   ).join('');
 }
 
@@ -690,10 +682,6 @@ async function applyTag() {
       } else if (currentField === 'design_details') {
         const dd = Array.isArray(p.design_details) ? p.design_details : (p.design_details ? [p.design_details] : []);
         p.design_details = [...new Set([...dd, currentValue.trim()])];
-      } else if (currentField === 'color') {
-        const cols = Array.isArray(p.colors) ? p.colors : (p.color ? [p.color] : []);
-        p.colors = [...new Set([...cols, currentValue.trim()])];
-        if (!p.color || p.color === 'אחר' || p.color === '') p.color = currentValue.trim();
       } else {
         p[currentField] = currentValue.trim();
       }
@@ -727,50 +715,20 @@ function showToast(msg, type = 'success') {
   setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-// ─── הסתרת מוצרים ───────────────────────────────────────────
-async function hideSelected(hidden) {
-  if (selected.size === 0) return;
-  const ids = [...selected];
-  const r = await fetch('/api/admin/tag-products/hide', {
+async function removeColorTag(id, color) {
+  const r = await fetch('/api/admin/tag-products/remove-value', {
     method: 'PATCH', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids, hidden })
+    body: JSON.stringify({ id, field: 'color', value: color })
   });
   if (r.ok) {
-    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) p.hidden = hidden; });
-    showToast(`${hidden ? '🙈 הוסתרו' : '👁 הוצגו'} ${ids.length} מוצרים`, 'success');
-    clearSelection(); applyFilter();
-  } else showToast('שגיאה', 'error');
-}
-
-async function toggleHide(id) {
-  const p = allProducts.find(x => x.id === id);
-  if (!p) return;
-  const hidden = !p.hidden;
-  const r = await fetch('/api/admin/tag-products/hide', {
-    method: 'PATCH', credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: [id], hidden })
-  });
-  if (r.ok) {
-    p.hidden = hidden;
-    showToast(hidden ? '🙈 מוצר הוסתר' : '👁 מוצר מוצג', 'success');
+    const p = allProducts.find(x => x.id === id);
+    if (p) {
+      p.colors = (p.colors || []).filter(c => c !== color);
+      if (p.color === color) p.color = p.colors[0] || null;
+    }
+    showToast('הוסר צבע: ' + color, 'success');
     applyFilter();
-  } else showToast('שגיאה', 'error');
-}
-
-async function clearColors() {
-  if (selected.size === 0) return;
-  const ids = [...selected];
-  const r = await fetch('/api/admin/tag-products/clear-colors', {
-    method: 'PATCH', credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids })
-  });
-  if (r.ok) {
-    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) { p.color = null; p.colors = []; } });
-    showToast(`ניקוי צבעים ל-${ids.length} מוצרים`, 'success');
-    clearSelection(); applyFilter();
   } else showToast('שגיאה', 'error');
 }
 </script>

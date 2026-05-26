@@ -22,6 +22,9 @@ const SCRAPERS = {
   'st-fashion': './scrapers/st_fashion_scraper.js',
   'salina':      './scrapers/salina_scraper.js',
   'myme':         './scrapers/myme_scraper.js',
+  'shebello': './scrapers/shebello_scraper.js',
+  'europisrael': './scrapers/europisrael_scraper.js',
+  'moda': './scrapers/moda_scraper.js',
 };
 
 

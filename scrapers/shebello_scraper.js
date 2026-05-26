@@ -42,10 +42,10 @@ async function getAllProductUrls(page) {
     }
 
     const urls = await page.evaluate((base) =>
-      [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="/product/"]')]
-        .map(a => a.href.split('?')[0])
-        .filter(h => h.includes(base + '/product') || h.includes(base + '/shop/'))
-        .filter(h => !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
+      [...document.querySelectorAll('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url]')]
+        .map(el => el.getAttribute('href') || el.getAttribute('data-url'))
+        .map(h => (h || '').split('?')[0])
+        .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/') && h !== base + '/')
         .filter((v, i, a) => a.indexOf(v) === i)
     , BASE);
 

@@ -93,25 +93,26 @@ async function scrapeProduct(page, url) {
         .join(' ')
     );
 
-    // מידות — סנן option עם "אזל" בטקסט
-    const sizes = await page.evaluate(() => {
+    // מידות — סנן option עם "אזל" בטקסט, שמור טקסט מלא נקי
+    const VALID_SIZES = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|ONE SIZE|OS|FREE SIZE|\d{2,3})$/i;
+    const sizes = await page.evaluate((validRe) => {
       const sel = document.querySelector('select#pa_size, select[name="attribute_pa_size"]');
       if (!sel) return [];
       return [...sel.options]
         .filter(o => o.value && o.className.includes('enabled') && !o.textContent.includes('אזל'))
-        .map(o => o.textContent.trim().split(/[\s-–]/)[0].toUpperCase()) // XS, S, M... לפני כל סיומת טקסט
-        .filter(Boolean);
-    });
+        .map(o => o.textContent.replace(/\s*[-–|].*$/, '').trim().toUpperCase())
+        .filter(s => new RegExp(validRe).test(s));
+    }, VALID_SIZES.source);
 
     // כל המידות (כולל אזל — נקי ללא טקסט נוסף)
-    const allSizes = await page.evaluate(() => {
+    const allSizes = await page.evaluate((validRe) => {
       const sel = document.querySelector('select#pa_size, select[name="attribute_pa_size"]');
       if (!sel) return [];
       return [...sel.options]
         .filter(o => o.value && o.className.includes('enabled'))
-        .map(o => o.textContent.trim().split(/[\s-–]/)[0].toUpperCase())
-        .filter(Boolean);
-    });
+        .map(o => o.textContent.replace(/\s*[-–|].*$/, '').trim().toUpperCase())
+        .filter(s => new RegExp(validRe).test(s));
+    }, VALID_SIZES.source);
 
     // תמונות — מ-flickity gallery ו-woocommerce gallery
     const images = await page.evaluate(() => {

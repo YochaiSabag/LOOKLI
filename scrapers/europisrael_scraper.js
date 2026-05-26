@@ -125,8 +125,14 @@ async function scrapeProduct(page, url) {
         .filter((v, i, a) => a.indexOf(v) === i);
     });
 
-    // צבע, קטגוריה, סגנון
-    const mainColor     = normalizeColor(title + ' ' + description);
+    // צבע — חפש כל הצבעים בכותרת
+    const titleWords = title.split(/[\s\-–]+/);
+    const allColors  = [...new Set(
+      titleWords.map(w => normalizeColor(w)).filter(c => c && c !== 'אחר')
+    )];
+    const mainColor  = allColors[allColors.length - 1]  // הצבע האחרון = ראשי
+      || normalizeColor(description)
+      || 'אחר';
     const category      = detectCategory(title, description);
     const style         = detectStyle(title, description);
     const fit           = detectFit(title, description);
@@ -143,7 +149,7 @@ async function scrapeProduct(page, url) {
     return {
       title, price: priceData.price, originalPrice: priceData.original || null,
       images, sizes: uniqueSizes, allSizes: allUniqueSizes,
-      mainColor, colors: mainColor ? [mainColor] : [],
+      mainColor, colors: allColors.length > 0 ? allColors : (mainColor !== 'אחר' ? [mainColor] : []),
       colorSizes: {}, category, style, fit, pattern, fabric, designDetails,
       description, url,
     };

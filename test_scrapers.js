@@ -37,6 +37,7 @@ const SCRAPERS = {
   'shebello':    './scrapers/shebello_scraper.js',
   'moda':        './scrapers/moda_scraper.js',
   'europisrael': './scrapers/europisrael_scraper.js',
+  'leaa':        './scrapers/leaa_scraper.js',
 };
 
 const args = process.argv.slice(2).map(a => a.toLowerCase());

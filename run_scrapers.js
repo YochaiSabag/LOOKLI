@@ -25,6 +25,7 @@ const SCRAPERS = {
   'shebello': './scrapers/shebello_scraper.js',
   'europisrael': './scrapers/europisrael_scraper.js',
   'moda': './scrapers/moda_scraper.js',
+  'leaa': './scrapers/leaa_scraper.js',
 };
 
 

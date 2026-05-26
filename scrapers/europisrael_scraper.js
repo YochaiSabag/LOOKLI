@@ -37,7 +37,7 @@ async function getAllProductUrls(page) {
     await page.waitForTimeout(2000);
 
     for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.evaluate(() => document.body && window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(700);
     }
 

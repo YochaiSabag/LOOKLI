@@ -91,26 +91,44 @@ async function scrapeProduct(page, url) {
         .filter(Boolean)
     );
 
+    const firstParagraph = allParagraphs[0] || '';
     const description = allParagraphs.join(' ');
 
-    // צבע — מהפסקה הראשונה בלבד!
-    const firstParagraph = allParagraphs[0] || '';
-    const mainColor = normalizeColor(firstParagraph) || normalizeColor(title);
-
-    // מידות זמינות — li.variable-item ללא class="disabled"
-    const sizes = await page.evaluate(() =>
-      [...document.querySelectorAll('li.variable-item')]
+    // מידות זמינות — רק button items (לא color items)
+    const sizes = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('li.button-variable-item')]
         .filter(li => !li.classList.contains('disabled'))
         .map(li => (li.getAttribute('data-title') || li.textContent.trim()).toUpperCase())
+        .filter(Boolean);
+      // אם אין מידות אבל יש וריאציית צבע → ONE SIZE
+      const hasColors = document.querySelectorAll('li.color-variable-item').length > 0;
+      return btns.length === 0 && hasColors ? ['ONE SIZE'] : btns;
+    });
+
+    // כל המידות
+    const allSizes = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('li.button-variable-item')]
+        .map(li => (li.getAttribute('data-title') || li.textContent.trim()).toUpperCase())
+        .filter(Boolean);
+      const hasColors = document.querySelectorAll('li.color-variable-item').length > 0;
+      return btns.length === 0 && hasColors ? ['ONE SIZE'] : btns;
+    });
+
+    // צבעים מוריאציית הצבע
+    const colorOptions = await page.evaluate(() =>
+      [...document.querySelectorAll('li.color-variable-item')]
+        .filter(li => !li.classList.contains('disabled'))
+        .map(li => li.getAttribute('data-title') || li.getAttribute('data-wvstooltip') || '')
         .filter(Boolean)
     );
 
-    // כל המידות
-    const allSizes = await page.evaluate(() =>
-      [...document.querySelectorAll('li.variable-item')]
-        .map(li => (li.getAttribute('data-title') || li.textContent.trim()).toUpperCase())
-        .filter(Boolean)
-    );
+    // צבע — מוריאציית הצבע קודם, אחר כך מהפסקה הראשונה
+    const mainColor = colorOptions.length > 0
+      ? normalizeColor(colorOptions[0])
+      : normalizeColor(firstParagraph) || normalizeColor(title);
+    const colors = colorOptions.length > 0
+      ? [...new Set(colorOptions.map(c => normalizeColor(c)).filter(Boolean))]
+      : (mainColor ? [mainColor] : []);
 
     // תמונות
     const images = await page.evaluate(() =>
@@ -137,7 +155,7 @@ async function scrapeProduct(page, url) {
     return {
       title, price: priceData.price, originalPrice: priceData.original || null,
       images, sizes: uniqueSizes, allSizes: allUniqueSizes,
-      mainColor, colors: mainColor ? [mainColor] : [],
+      mainColor, colors,
       colorSizes: {}, category, style, fit, pattern, fabric, designDetails,
       description, url,
     };

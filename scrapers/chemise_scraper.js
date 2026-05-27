@@ -58,13 +58,13 @@ async function getAllProductUrls(page) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForFunction(
           () => document.querySelectorAll('a[href*="/product/"]').length > 0,
-          { timeout: 15000 }
+          { timeout: 20000 }
         ).catch(() => {});
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(1000);
         
         for (let i = 0; i < 2; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(500);
         }
         
         const urls = await page.evaluate(() => 
@@ -100,7 +100,7 @@ async function scrapeProduct(page, url) {
   
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(1500);
     
     const data = await page.evaluate(() => {
       // === כותרת ===
@@ -379,8 +379,7 @@ async function scrapeProduct(page, url) {
     console.log(`    💰 ₪${data.price}${data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${data.images.length}`);
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
 
-    // הורד תמונות דרך Playwright — עוקף hotlink protection של chemise
-    // proxy בזמן אמת — ללא אחסון בDB
+    // תמונות — נשמרות עם prefix /ic?u= לproxy בזמן אמת (ללא אחסון בDB)
     const finalImages = data.images.slice(0, 6).map(u => '/ic?u=' + encodeURIComponent(u));
 
     return {
@@ -474,7 +473,16 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-blink-features=AutomationControlled',
+  ]
+});
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   viewport: { width: 1920, height: 1080 }

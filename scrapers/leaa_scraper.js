@@ -21,6 +21,19 @@ const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, 
 const STORE = 'LEAA';
 const BASE  = 'https://leaa.co.il';
 
+// ממיר מידות מספריות לאותיות
+const sizeMapping = {
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'],
+  '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL|ONE SIZE)$/i.test(val)) return [val];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [val]; // שמור כמו שהוא אם לא מזוהה
+}
+
 // פסקאות שיש לסנן מהתיאור
 const SKIP_PARAGRAPHS = ['מרכך','כביסה','לכבס','לשמור על צבע','תשארנה','פרטים לגבי משלוח','&nbsp;'];
 
@@ -136,8 +149,8 @@ async function scrapeProduct(page, url) {
     const fabric        = detectFabric(title, description);
     const designDetails = detectDesignDetails(title, description);
 
-    const uniqueSizes    = fullyOos ? [] : [...new Set(sizes)];
-    const allUniqueSizes = [...new Set(sizes)];
+    const uniqueSizes    = fullyOos ? [] : [...new Set(sizes.flatMap(s => normalizeSize(s)))];
+    const allUniqueSizes = [...new Set(sizes.flatMap(s => normalizeSize(s)))];
 
     console.log(`  ✓ ${title.substring(0, 40)}`);
     console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);

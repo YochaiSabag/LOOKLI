@@ -55,16 +55,12 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForFunction(
-          () => document.querySelectorAll('a[href*="/product/"]').length > 0,
-          { timeout: 20000 }
-        ).catch(() => {});
-        await page.waitForTimeout(1000);
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
+        await page.waitForTimeout(2000);
         
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(500);
+          await page.waitForTimeout(1000);
         }
         
         const urls = await page.evaluate(() => 
@@ -100,7 +96,8 @@ async function scrapeProduct(page, url) {
   
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2500);
+    await page.waitForSelector('.variable-items-wrapper li', { timeout: 5000 }).catch(() => {});
     
     const data = await page.evaluate(() => {
       // === כותרת ===
@@ -217,32 +214,43 @@ async function scrapeProduct(page, url) {
       const rawColors = [];
       const rawSizes = [];
       
-      // שיטה 1: swatches buttons + select
-      document.querySelectorAll('.variable-items-wrapper li').forEach(el => {
-        const attrName = el.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') || 
-                        el.getAttribute('data-attribute_name') || '';
-        const title = el.getAttribute('data-title') || el.getAttribute('title') || '';
-        const isDisabled = el.classList.contains('disabled');
+      // שיטה 1: swatches — data-title / title / aria-label / data-value (לפי סדר עדיפות)
+      document.querySelectorAll('.variable-items-wrapper li, ul.variable-items-wrapper li').forEach(el => {
+        const wrapper = el.closest('[data-attribute_name], [data-attribute-name]');
+        const attrName = wrapper?.getAttribute('data-attribute_name') ||
+                         wrapper?.getAttribute('data-attribute-name') ||
+                         el.getAttribute('data-attribute_name') || '';
+        // שם הצבע/מידה: נסה כמה מקורות
+        const title = el.getAttribute('data-title')
+                   || el.getAttribute('title')
+                   || el.getAttribute('aria-label')
+                   || el.getAttribute('data-value')
+                   || el.querySelector('[title]')?.getAttribute('title')
+                   || '';
+        const isDisabled = el.classList.contains('disabled') || el.classList.contains('out-of-stock');
         
         if (!title) return;
         
-        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color')) {
-          rawColors.push({ name: title, disabled: isDisabled });
-        } else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('pa_size')) {
-          rawSizes.push({ name: title, disabled: isDisabled });
-        }
+        const isColor = attrName.includes('color') || attrName.includes('צבע') ||
+                        attrName.includes('pa_color') || attrName.includes('גוון') ||
+                        el.querySelector('.variable-item-span-color') !== null;
+        const isSize  = !isColor && (attrName.includes('size') || attrName.includes('מידה') ||
+                        attrName.includes('pa_size'));
+        
+        if (isColor) rawColors.push({ name: decodeURIComponent(title), disabled: isDisabled });
+        else if (isSize) rawSizes.push({ name: decodeURIComponent(title), disabled: isDisabled });
       });
-      
-      // שיטה 2: select fallback (select עם class out-of-stock)
+
+      // שיטה 2: select fallback
       if (rawColors.length === 0) {
-        document.querySelectorAll('select[name*="color"] option, select[name*="pa_color"] option').forEach(opt => {
+        document.querySelectorAll('select[name*="color"] option, select[name*="pa_color"] option, select[name*="צבע"] option').forEach(opt => {
           const val = opt.textContent?.trim();
           if (!val || val.includes('בחירת')) return;
           rawColors.push({ name: val, disabled: opt.classList.contains('out-of-stock') || opt.disabled });
         });
       }
       if (rawSizes.length === 0) {
-        document.querySelectorAll('select[name*="size"] option, select[name*="pa_size"] option').forEach(opt => {
+        document.querySelectorAll('select[name*="size"] option, select[name*="pa_size"] option, select[name*="מידה"] option').forEach(opt => {
           const val = opt.textContent?.trim();
           if (!val || val.includes('בחירת')) return;
           rawSizes.push({ name: val, disabled: opt.classList.contains('out-of-stock') || opt.disabled });
@@ -277,6 +285,7 @@ async function scrapeProduct(page, url) {
     const allSizesSet = new Set();
     const availableColors = new Set();
     
+    console.log(`    🎨 rawColors: ${data.rawColors.length}, rawSizes: ${data.rawSizes.length}`);
     if (data.variationsData && data.variationsData.length > 0) {
       // שיטה 1: JSON מדויק
       console.log(`    📋 ${data.variationsData.length} וריאציות ב-JSON`);
@@ -473,16 +482,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({
-  headless: true,
-  args: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--disable-blink-features=AutomationControlled',
-  ]
-});
+const browser = await chromium.launch({ headless: true, slowMo: 30 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   viewport: { width: 1920, height: 1080 }
@@ -500,7 +500,7 @@ try {
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(500);
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);

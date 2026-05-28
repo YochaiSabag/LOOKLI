@@ -99,6 +99,9 @@ async function scrapeProduct(page, url) {
     await page.waitForTimeout(2500);
     await page.waitForSelector('.variable-items-wrapper li', { timeout: 5000 }).catch(() => {});
     
+    // לחץ על הסווץ' הראשון — WooCommerce מציג מחיר רק אחרי בחירת וריאציה
+    await page.click('.variable-items-wrapper li:not(.disabled)').catch(() =>{});
+    await page.waitForTimeout(800);
     const data = await page.evaluate(() => {
       // === כותרת ===
       let title = document.querySelector('h1.product_title, h1.elementor-heading-title')?.innerText?.trim() || '';
@@ -107,18 +110,20 @@ async function scrapeProduct(page, url) {
       let price = 0;
       let originalPrice = null;
       
-      const priceContainer = document.querySelector('p.price');
-      if (priceContainer) {
-        const hasDel = priceContainer.querySelector('del');
-        const hasIns = priceContainer.querySelector('ins');
-        if (hasDel && hasIns) {
-          const delBdi = hasDel.querySelector('bdi');
-          const insBdi = hasIns.querySelector('bdi');
-          if (delBdi) { const t = delBdi.textContent.replace(/[^\d.]/g, ''); if (t) originalPrice = parseFloat(t); }
-          if (insBdi) { const t = insBdi.textContent.replace(/[^\d.]/g, ''); if (t) price = parseFloat(t); }
+      // מחיר — WooCommerce: בדוק del/ins לזיהוי מבצע אמיתי
+      const priceEl = document.querySelector('.entry-summary p.price, p.price');
+      if (priceEl) {
+        const delEl = priceEl.querySelector('del bdi, del .amount');
+        const insEl = priceEl.querySelector('ins bdi, ins .amount');
+        if (delEl && insEl) {
+          // מבצע אמיתי: del=מקורי, ins=מבצע
+          originalPrice = parseFloat(delEl.textContent.replace(/[^\d.]/g, '')) || null;
+          price = parseFloat(insEl.textContent.replace(/[^\d.]/g, '')) || 0;
         } else {
-          const regularBdi = priceContainer.querySelector('.woocommerce-Price-amount bdi');
-          if (regularBdi) { const t = regularBdi.textContent.replace(/[^\d.]/g, ''); if (t) price = parseFloat(t); }
+          // מחיר רגיל — קח את הערך הגדול ביותר (מע"מ כלול)
+          const allBdis = [...priceEl.querySelectorAll('bdi, .amount')];
+          const vals = allBdis.map(b => parseFloat(b.textContent.replace(/[^\d.]/g, '')) || 0).filter(v => v > 0);
+          price = vals.length ? Math.max(...vals) : 0;
         }
       }
       
@@ -271,6 +276,7 @@ async function scrapeProduct(page, url) {
     });
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
+    if (!data.price) console.log(`    ⚠️ מחיר 0 — בדוק HTML מחיר`);
     
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);
@@ -341,10 +347,13 @@ async function scrapeProduct(page, url) {
       // שיטה 2: מ-swatches (disabled class)
       console.log(`    ⚠️ אין JSON - משתמש ב-swatches`);
       
+      console.log(`    🔍 rawColors names: ${data.rawColors.map(c=>c.name+'('+(c.disabled?'dis':'ok')+')').join(', ')}`);
       for (const color of data.rawColors) {
-        if (color.disabled) continue;
-        const normColor = normalizeColor(color.name);
-        if (!normColor) { console.log(`      ⚠️ צבע לא מזוהה: ${color.name}`); continue; }
+        // שמור גם disabled — chemise מסמן לפעמים בטעות
+        // נסה נרמול עם הסרת punctuation (לטיפול בשמות כמו "Line yello'")
+        const cleanName = color.name.replace(/[',\.\-]/g, ' ').replace(/\s+/g,' ').trim();
+        const _norm = normalizeColor(cleanName, cleanName) || normalizeColor(color.name, color.name);
+        const normColor = (_norm && _norm !== 'אחר') ? _norm : color.name;
         availableColors.add(normColor);
         if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
         
@@ -375,6 +384,7 @@ async function scrapeProduct(page, url) {
     });
 
     const uniqueColors = [...availableColors];
+    console.log(`    🎨 uniqueColors (${uniqueColors.length}): ${uniqueColors.join(', ')}`);
     const uniqueSizes = [...availableSizes];
     const allUniqueSizes = [...allSizesSet];
     const mainColor = uniqueColors[0] || null;

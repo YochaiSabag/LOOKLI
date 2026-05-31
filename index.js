@@ -2532,7 +2532,8 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       `SELECT sent_at FROM email_campaign_log WHERE campaign_type='new_products' ORDER BY sent_at DESC LIMIT 1`
     ).catch(() => ({ rows: [] }));
 
-    if (!dryRun && lastSentRow.rows.length) {
+    const forceRun = req.query.force === '1';
+    if (!dryRun && !forceRun && lastSentRow.rows.length) {
       const lastSent = new Date(lastSentRow.rows[0].sent_at);
       const daysSince = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60 * 24);
       if (daysSince < 7) {
@@ -2737,7 +2738,8 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
       `SELECT sent_at FROM email_campaign_log WHERE campaign_type='price_drop' ORDER BY sent_at DESC LIMIT 1`
     ).catch(() => ({ rows: [] }));
 
-    if (!dryRun && lastSentRow.rows.length) {
+    const forceRun = req.query.force === '1';
+    if (!dryRun && !forceRun && lastSentRow.rows.length) {
       const daysSince = (Date.now() - new Date(lastSentRow.rows[0].sent_at).getTime()) / (1000 * 60 * 60 * 24);
       if (daysSince < 7) {
         return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });

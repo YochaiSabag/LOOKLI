@@ -101,7 +101,7 @@ async function scrapeProduct(page, url) {
     
     // לחץ על הסווץ' הראשון — WooCommerce מציג מחיר רק אחרי בחירת וריאציה
     await page.click('.variable-items-wrapper li:not(.disabled)').catch(() =>{});
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(1500); // המתן לAJAX מחיר
     const data = await page.evaluate(() => {
       // === כותרת ===
       let title = document.querySelector('h1.product_title, h1.elementor-heading-title')?.innerText?.trim() || '';
@@ -110,21 +110,17 @@ async function scrapeProduct(page, url) {
       let price = 0;
       let originalPrice = null;
       
-      // מחיר — WooCommerce: בדוק del/ins לזיהוי מבצע אמיתי
-      const priceEl = document.querySelector('.entry-summary p.price, p.price');
-      if (priceEl) {
-        const delEl = priceEl.querySelector('del bdi, del .amount');
-        const insEl = priceEl.querySelector('ins bdi, ins .amount');
-        if (delEl && insEl) {
-          // מבצע אמיתי: del=מקורי, ins=מבצע
-          originalPrice = parseFloat(delEl.textContent.replace(/[^\d.]/g, '')) || null;
-          price = parseFloat(insEl.textContent.replace(/[^\d.]/g, '')) || 0;
-        } else {
-          // מחיר רגיל — קח את הערך הגדול ביותר (מע"מ כלול)
-          const allBdis = [...priceEl.querySelectorAll('bdi, .amount')];
-          const vals = allBdis.map(b => parseFloat(b.textContent.replace(/[^\d.]/g, '')) || 0).filter(v => v > 0);
-          price = vals.length ? Math.max(...vals) : 0;
-        }
+      // מחיר — JetWoo/WooCommerce: בדוק del/ins ברמה גלובלית, fallback לכל bdi
+      const delEl = document.querySelector('del .woocommerce-Price-amount bdi, p.price del bdi, del bdi');
+      const insEl = document.querySelector('ins .woocommerce-Price-amount bdi, p.price ins bdi, ins bdi');
+      if (delEl && insEl) {
+        originalPrice = parseFloat(delEl.textContent.replace(/[^\d.]/g, '')) || null;
+        price = parseFloat(insEl.textContent.replace(/[^\d.]/g, '')) || 0;
+      } else {
+        // כל bdi שמכיל מחיר, הגדול ביותר הוא המחיר
+        const allBdis = [...document.querySelectorAll('.woocommerce-Price-amount bdi, p.price bdi, .price bdi, [class*="price"] bdi')];
+        const vals = allBdis.map(b => parseFloat(b.textContent.replace(/[^\d.]/g, '')) || 0).filter(v => v > 0);
+        price = vals.length ? Math.max(...vals) : 0;
       }
       
       // === תמונות ===
@@ -344,45 +340,32 @@ async function scrapeProduct(page, url) {
         }
       }
     } else {
-      // שיטה 2: מ-swatches (disabled class)
+      // שיטה 2: לחץ כל צבע ב-Playwright וקרא מידות זמינות
       console.log(`    ⚠️ אין JSON - משתמש ב-swatches`);
-      
       console.log(`    🔍 rawColors names: ${data.rawColors.map(c=>c.name+'('+(c.disabled?'dis':'ok')+')').join(', ')}`);
-      for (const color of data.rawColors) {
-        // שמור גם disabled — chemise מסמן לפעמים בטעות
-        // נסה נרמול עם הסרת punctuation (לטיפול בשמות כמו "Line yello'")
-        const cleanName = color.name.replace(/[',\.\-]/g, ' ').replace(/\s+/g,' ').trim();
-        const _norm = normalizeColor(cleanName, cleanName) || normalizeColor(color.name, color.name);
-        const normColor = (_norm && _norm !== 'אחר') ? _norm : color.name;
+      const colorSelQ = '.color-variable-items-wrapper li, [data-attribute_name*="color"] li, [data-attribute_name*="צבע"] li';
+      const sizeSelQ  = '.size-variable-items-wrapper li, [data-attribute_name*="size"] li, [data-attribute_name*="מידה"] li';
+      const colorEls = await page.$$(colorSelQ);
+      for (const el of colorEls) {
+        const colorName = await el.evaluate(e =>
+          e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || ''
+        );
+        if (!colorName) continue;
+        await el.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(500);
+        const sizeNames = await page.evaluate((sel) =>
+          [...document.querySelectorAll(sel)]
+            .filter(s => !s.classList.contains('disabled') && !s.classList.contains('out-of-stock'))
+            .map(s => s.getAttribute('data-title') || s.getAttribute('title') || s.getAttribute('data-value') || ''),
+          sizeSelQ
+        );
+        const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
+        const _n = normalizeColor(clean, clean);
+        const normColor = (_n && _n !== 'אחר') ? _n : colorName;
         availableColors.add(normColor);
-        if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
-        
-        // כל מידה שלא disabled
-        for (const size of data.rawSizes) {
-          if (size.disabled) continue;
-          const normSizes = normalizeSize(size.name);
-          for (const ns of normSizes) {
-            availableSizes.add(ns);
-            if (!colorSizesMap[normColor].includes(ns)) colorSizesMap[normColor].push(ns);
-          }
-        }
+        colorSizesMap[normColor] = [...new Set(sizeNames.map(s => normalizeSize(s)).filter(Boolean))];
       }
-      
-      // אם אין צבעים, רק מידות
-      if (data.rawColors.length === 0) {
-        for (const size of data.rawSizes) {
-          if (size.disabled) continue;
-          const normSizes = normalizeSize(size.name);
-          normSizes.forEach(s => availableSizes.add(s));
-        }
-      }
-    }
-    
-    // collect all sizes regardless of disabled status
-    (data.rawSizes || []).forEach(size => {
-      normalizeSize(size.name).forEach(s => allSizesSet.add(s));
-    });
-
+    } // סוף else swatches
     const uniqueColors = [...availableColors];
     console.log(`    🎨 uniqueColors (${uniqueColors.length}): ${uniqueColors.join(', ')}`);
     const uniqueSizes = [...availableSizes];

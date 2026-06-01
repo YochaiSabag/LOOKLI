@@ -29,7 +29,9 @@ const sizeMapping = {
 function normalizeSize(s) {
   if (!s) return [];
   const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
+  if (/^2XL$/i.test(val)) return ['XXL'];
+  if (/^3XL$/i.test(val)) return ['XXXL'];
+  if (/^(XS|S|M|L|XL|2?XXL|XXXL)$/i.test(val)) return [val.toUpperCase().replace('2XXL','XXL')];
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
   if (sizeMapping[val]) return sizeMapping[val];
   return [];
@@ -55,12 +57,14 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
-        await page.waitForTimeout(2000);
-        
-        for (let i = 0; i < 3; i++) {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForFunction(
+          () => document.querySelectorAll('a[href*="/product/"]').length > 0,
+          { timeout: 20000 }
+        ).catch(() => {});
+        for (let i = 0; i < 2; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1000);
+          await page.waitForTimeout(400);
         }
         
         const urls = await page.evaluate(() => 

@@ -40,6 +40,55 @@ const SKIP_PARAGRAPHS = ['מרכך','כביסה','לכבס','לשמור על צ�
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
+async function getPageUrls(page, url) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+    } catch {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForTimeout(3000);
+    }
+
+    // גלילה הדרגתית לטעינת lazy content
+    const height = await page.evaluate(() => document.body?.scrollHeight || 0);
+    for (let y = 0; y <= height; y += 300) {
+      await page.evaluate(y => window.scrollTo(0, y), y);
+      await page.waitForTimeout(150);
+    }
+    await page.waitForTimeout(1500);
+
+    const urls = await page.evaluate((base) => {
+      const selectors = [
+        'a.woocommerce-LoopProduct-link',
+        '.products .product a[href]',
+        'li.product a[href]',
+        '.product-item a[href]',
+        'a[href*="/product/"]',
+      ];
+      const found = new Set();
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach(a => {
+          const h = (a.href || '').split('?')[0];
+          if (h.includes(base) && h.includes('/product') &&
+              !h.endsWith('/shop/') && !h.includes('/page/') &&
+              !h.includes('/product-category/') && h !== base + '/') {
+            found.add(h);
+          }
+        });
+      }
+      return [...found];
+    }, BASE);
+
+    if (urls.length > 0) return urls;
+
+    if (attempt < 3) {
+      console.log(`    ⚠️ ניסיון ${attempt} — 0 קישורים, מנסה שוב...`);
+      await page.waitForTimeout(3000 * attempt);
+    }
+  }
+  return [];
+}
+
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-leaa.co.il...\n');
   const allUrls = new Set();
@@ -49,26 +98,13 @@ async function getAllProductUrls(page) {
     const url = p === 1 ? `${BASE}/shop/` : `${BASE}/shop/page/${p}/`;
     console.log(`  → עמוד ${p}`);
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
-
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => document.body && window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(700);
-    }
-
-    const urls = await page.evaluate((base) =>
-      [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href]')]
-        .map(a => a.href.split('?')[0])
-        .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/') && h !== base + '/')
-        .filter((v, i, a) => a.indexOf(v) === i)
-    , BASE);
+    const urls = await getPageUrls(page, url);
 
     if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
 
     urls.forEach(u => allUrls.add(u));
     console.log(`    ✓ ${urls.length} קישורים`);
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
   }
 
   const result = [...allUrls];
@@ -80,9 +116,14 @@ async function getAllProductUrls(page) {
 // גירוד מוצר
 // ======================================================================
 async function scrapeProduct(page, url) {
-  try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      try {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      } catch {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForTimeout(2000);
+      }
 
     // כותרת — הסר "חדש:" בתחילה
     const rawTitle = await page.$eval(
@@ -162,10 +203,17 @@ async function scrapeProduct(page, url) {
       colorSizes: {}, category, style, fit, pattern, fabric, designDetails,
       description, url,
     };
-  } catch(err) {
-    console.log(`  ✗ ${err.message.substring(0, 60)}`);
-    return null;
+    } catch(err) {
+      if (attempt < 2) {
+        console.log(`    ⚠️ ניסיון ${attempt} נכשל: ${err.message.substring(0,40)}, מנסה שוב...`);
+        await page.waitForTimeout(3000);
+        continue;
+      }
+      console.log(`  ✗ ${err.message.substring(0, 60)}`);
+      return null;
+    }
   }
+  return null;
 }
 
 // ======================================================================
@@ -240,14 +288,29 @@ async function runHealthCheck() {
 // ======================================================================
 const browser = await chromium.launch({
   headless: true,
-  slowMo: 30,
-  args: ['--no-sandbox', '--disable-setuid-sandbox', '--lang=he-IL,he,en-US,en'],
+  slowMo: 0,
+  args: [
+    '--no-sandbox', '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run', '--no-zygote',
+    '--lang=he-IL,he,en-US,en',
+  ],
 });
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  viewport: { width: 1920, height: 1080 },
+  viewport: { width: 1440, height: 900 },
   locale: 'he-IL',
   timezoneId: 'Asia/Jerusalem',
+  extraHTTPHeaders: {
+    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  },
+});
+// הסתר navigator.webdriver
+await context.addInitScript(() => {
+  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
 });
 const page = await context.newPage();
 

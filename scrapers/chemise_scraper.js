@@ -348,7 +348,7 @@ async function scrapeProduct(page, url) {
       console.log(`    ⚠️ אין JSON - משתמש ב-swatches`);
       console.log(`    🔍 rawColors names: ${data.rawColors.map(c=>c.name+'('+(c.disabled?'dis':'ok')+')').join(', ')}`);
       const colorSelQ = '.color-variable-items-wrapper li, [data-attribute_name*="color"] li, [data-attribute_name*="צבע"] li';
-      const sizeSelQ  = '.size-variable-items-wrapper li, [data-attribute_name*="size"] li, [data-attribute_name*="מידה"] li';
+      const sizeSelQ  = '.size-variable-items-wrapper li, [data-attribute_name*="size"] li, [data-attribute_name*="מידה"] li, [data-attribute_name*="מידות"] li';
       const colorEls = await page.$$(colorSelQ);
       for (const el of colorEls) {
         const colorName = await el.evaluate(e =>
@@ -368,6 +368,7 @@ async function scrapeProduct(page, url) {
         const normColor = (_n && _n !== 'אחר') ? _n : colorName;
         availableColors.add(normColor);
         colorSizesMap[normColor] = [...new Set(sizeNames.map(s => normalizeSize(s)).filter(Boolean))];
+        colorSizesMap[normColor].forEach(s => availableSizes.add(s));
       }
     } // סוף else swatches
     const uniqueColors = [...availableColors];

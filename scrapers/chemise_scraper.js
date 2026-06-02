@@ -57,9 +57,8 @@ async function getAllProductUrls(page) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
         console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(3000); // Railway צריך זמן לJS
-        for (let i = 0; i < 3; i++) {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+        for (let i = 0; i < 2; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
           await page.waitForTimeout(800);
         }

@@ -58,13 +58,10 @@ async function getAllProductUrls(page) {
       try {
         console.log(`  → page ${p}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForFunction(
-          () => document.querySelectorAll('a[href*="/product/"]').length > 0,
-          { timeout: 20000 }
-        ).catch(() => {});
-        for (let i = 0; i < 2; i++) {
+        await page.waitForTimeout(3000); // Railway צריך זמן לJS
+        for (let i = 0; i < 3; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(800);
         }
         
         const urls = await page.evaluate(() => 
@@ -367,13 +364,17 @@ async function scrapeProduct(page, url) {
         const _n = normalizeColor(clean, clean);
         const normColor = (_n && _n !== 'אחר') ? _n : colorName;
         availableColors.add(normColor);
-        colorSizesMap[normColor] = [...new Set(sizeNames.map(s => normalizeSize(s)).filter(Boolean))];
-        colorSizesMap[normColor].forEach(s => availableSizes.add(s));
+        const flatSizes = [...new Set(sizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
+        colorSizesMap[normColor] = flatSizes;
+        flatSizes.forEach(s => availableSizes.add(s));
       }
     } // סוף else swatches
     const uniqueColors = [...availableColors];
     console.log(`    🎨 uniqueColors (${uniqueColors.length}): ${uniqueColors.join(', ')}`);
-    const uniqueSizes = [...availableSizes];
+    // חשב uniqueSizes מ-colorSizesMap (מדויק יותר מavailableSizes)
+    const uniqueSizes = [...new Set(Object.values(colorSizesMap).flat())];
+    // גם עדכן availableSizes לאחידות
+    uniqueSizes.forEach(s => availableSizes.add(s));
     const allUniqueSizes = [...allSizesSet];
     const mainColor = uniqueColors[0] || null;
 

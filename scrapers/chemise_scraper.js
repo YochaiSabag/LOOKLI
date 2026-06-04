@@ -95,8 +95,8 @@ async function scrapeProduct(page, url) {
   console.log(`\n🔍 ${shortUrl}...`);
   
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2500);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(1500);
     await page.waitForSelector('.variable-items-wrapper li', { timeout: 5000 }).catch(() => {});
     
     // לחץ על הסווץ' הראשון — WooCommerce מציג מחיר רק אחרי בחירת וריאציה
@@ -480,12 +480,27 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({ headless: true, slowMo: 30 });
+const browser = await chromium.launch({ headless: true, slowMo: 0 });
 const context = await browser.newContext({
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  viewport: { width: 1920, height: 1080 }
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  viewport: { width: 1280, height: 800 },
+  extraHTTPHeaders: {
+    'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  }
 });
 const page = await context.newPage();
+
+// חסום resources כבדים — מאיץ טעינה משמעותית
+await page.route('**/*', (route) => {
+  const type = route.request().resourceType();
+  const url = route.request().url();
+  // חסום: פונטים, מדיה, טראקרים, analytics
+  if (['font', 'media'].includes(type)) return route.abort();
+  if (type === 'image' && !url.includes('chemise.co.il/wp-content/uploads')) return route.abort();
+  if (['google-analytics', 'googletagmanager', 'facebook', 'hotjar', 'clarity'].some(t => url.includes(t))) return route.abort();
+  route.continue();
+});
 
 try {
   const urls = await getAllProductUrls(page);

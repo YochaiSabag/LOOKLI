@@ -2804,6 +2804,12 @@ document.addEventListener('click', e => {
     const card = imgEl.closest('.card');
     if (!card) return;
 
+    // תמונות proxy שלנו (/ic?u=) — תמיד אמיתיות, אין צורך לבדוק
+    if (imgEl.src.includes('/ic?')) {
+      card.dataset.imgOk = '1';
+      return;
+    }
+
     // שיטה 1: naturalWidth קטן = חסום
     if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) {
       if (activeNetfree) card.style.display = 'none';

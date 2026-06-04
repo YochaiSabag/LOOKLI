@@ -288,10 +288,11 @@ app.get('/ic', async (req, res) => {
       }
     });
     if (!response.ok) return res.status(404).end();
+    const buffer = Buffer.from(await response.arrayBuffer());
     res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    const buffer = await response.arrayBuffer();
-    res.end(Buffer.from(buffer));
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   } catch(e) { res.status(500).end(); }
 });
 

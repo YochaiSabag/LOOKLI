@@ -34,67 +34,62 @@ const sizeMapping = {
 function normalizeSize(s) {
   if (!s) return [];
   const val = s.toString().toUpperCase().trim();
-  if (/^(XS|S|M|L|XL|2?XXL|XXXL)$/i.test(val)) return [val.replace('2XL','XXL')];
+  if (/^(XS|S|M|L|XL|2?XXL|XXXL|3XL|4XL|ONE SIZE)$/i.test(val))
+    return [val.replace('2XL','XXL').replace('3XL','XXXL').replace('4XL','XXXL')];
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
   if (sizeMapping[val]) return sizeMapping[val];
+  // פורמט "S-36", "L-40", "XS-34", "3XL-46" — מוצא חלק אות וחלק מספר
+  if (val.includes('-')) {
+    const [letterPart, numPart] = val.split('-');
+    if (/^(XS|S|M|L|XL|XXL|XXXL|3XL|4XL)$/i.test(letterPart))
+      return [letterPart.replace('3XL','XXXL').replace('4XL','XXXL')];
+    if (sizeMapping[numPart]) return sizeMapping[numPart];
+  }
   return [];
 }
 
 
 async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-chen-fashion.com...\n');
+  console.log('\n📂 איסוף קישורים מ-chen-fashion.com/shop...\n');
   const allUrls = new Set();
-  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+  const BASE_SHOP = 'https://www.chen-fashion.com/shop/';
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 100;
 
-  const categories = [
-    { base: 'https://www.chen-fashion.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa/',        label: 'שמלות',           maxPages: MAX_PAGES },
-    { base: 'https://www.chen-fashion.com/product-category/new-collection-2/',                       label: 'new-collection-2', maxPages: MAX_PAGES },
-    { base: 'https://www.chen-fashion.com/product-category/new-collection/',                         label: 'new-collection',   maxPages: MAX_PAGES },
-    { base: 'https://www.chen-fashion.com/product-category/sale-%d7%a7%d7%99%d7%a5/',               label: 'sale-קיץ',         maxPages: MAX_PAGES },
-    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', label: 'חצאיות',           maxPages: MAX_PAGES },
-    { base: 'https://www.chen-fashion.com/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', label: 'חולצות',           maxPages: MAX_PAGES },
-  ];
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const url = p === 1 ? BASE_SHOP : `${BASE_SHOP}page/${p}/`;
+    console.log(`  → עמוד ${p}`);
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(3000);
 
-  for (const cat of categories) {
-    console.log(`  📁 [${cat.label}]`);
-
-    for (let p = 1; p <= cat.maxPages; p++) {
-      const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
-      try {
-        console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(4000);
-
-        // גלילה למטה לטעינת כל המוצרים
-        for (let i = 0; i < 3; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1000);
-        }
-
-        const urls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('chen-fashion.com/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-
-        if (urls.length === 0) {
-          console.log(`    ⏹ עמוד ריק - עוצר`);
-          break;
-        }
-
-        const before = allUrls.size;
-        urls.forEach(u => allUrls.add(u));
-        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-
-        // אם לא נוספו קישורים חדשים - סוף הקטגוריה
-        if (allUrls.size === before && p > 1) break;
-
-      } catch (e) {
-        console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
-        break;
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+        await page.waitForTimeout(800);
       }
+
+      const urls = await page.evaluate(() =>
+        [...document.querySelectorAll('a[href*="/product/"]')]
+          .map(a => a.href.split('?')[0])
+          .filter(h => h.includes('chen-fashion.com/product/'))
+          .filter((v, i, a) => a.indexOf(v) === i)
+      ).catch(() => []);
+
+      if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+
+      urls.forEach(u => allUrls.add(u));
+      console.log(`    ✓ ${urls.length} קישורים (סה"כ: ${allUrls.size})`);
+      await page.waitForTimeout(500);
+
+    } catch(e) {
+      console.log(`    ⏹ שגיאה — עוצר (${e.message.substring(0, 30)})`);
+      break;
     }
+  }
+
+  const result = [...allUrls];
+  console.log(`  ✓ סה"כ: ${result.length} קישורים\n`);
+  return result;
+}
   }
 
   const result = [...allUrls];

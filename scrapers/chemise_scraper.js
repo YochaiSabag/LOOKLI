@@ -319,7 +319,15 @@ async function scrapeProduct(page, url) {
     const availableSizes = new Set();
     const allSizesSet = new Set();
     const availableColors = new Set();
-    
+
+    // מקצה שם ייחודי לצבע לא מוכר: אחר / אחר2 / אחר3 ...
+    function getOtherColor() {
+      if (!availableColors.has('אחר') && !colorSizesMap['אחר']) return 'אחר';
+      let i = 2;
+      while (availableColors.has(`אחר${i}`) || colorSizesMap[`אחר${i}`]) i++;
+      return `אחר${i}`;
+    }
+
     console.log(`    🎨 rawColors: ${data.rawColors.length}, rawSizes: ${data.rawSizes.length}`);
     if (data.variationsData && data.variationsData.length > 0) {
       // שיטה 1: JSON מדויק
@@ -351,6 +359,7 @@ async function scrapeProduct(page, url) {
             }
           }
           normColor = normalizeColor(displayColor);
+          if (!normColor || normColor === 'אחר') normColor = getOtherColor();
         }
         
         let normSizes = [];
@@ -394,7 +403,7 @@ async function scrapeProduct(page, url) {
         );
         const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
         const _n = normalizeColor(clean, clean);
-        const normColor = (_n && _n !== 'אחר') ? _n : colorName;
+        const normColor = (_n && _n !== 'אחר') ? _n : getOtherColor();
         availableColors.add(normColor);
         const flatSizes = [...new Set(sizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
         colorSizesMap[normColor] = flatSizes;

@@ -182,25 +182,31 @@ async function scrapeProduct(page, url) {
         });
       }
 
-      // שלב 1.5: thumbnails — מחלץ URL גדול מ-data-srcset (כל התמונות הנוספות)
+      // שלב 1.5: thumbnails — מחלץ URL מ-data-srcset (כל התמונות הנוספות)
       {
         const seenThumb = new Set(images);
         document.querySelectorAll('.iconic-woothumbs-thumbnails__image').forEach(img => {
-          // מחלץ URL ללא suffix גודל (-300x300 וכד') ישירות מה-data-srcset
           const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset') || '';
           let best = '';
           if (srcset && !srcset.startsWith('data:')) {
-            const parts = srcset.split(',').map(s => s.trim());
-            let bestW = 0;
-            parts.forEach(p => {
-              const m = p.match(/(\S+)\s+(\d+)w/);
-              if (m && parseInt(m[2]) > bestW) { bestW = parseInt(m[2]); best = m[1]; }
-            });
+            // חפש 1400w קודם (קיים תמיד בchemise), אחר כך הכי גדול שיש
+            const match1400 = srcset.match(/(\S+)\s+1400w/);
+            const match1024 = srcset.match(/(\S+)\s+1024w/);
+            if (match1400) best = match1400[1];
+            else if (match1024) best = match1024[1];
+            else {
+              const parts = srcset.split(',').map(s => s.trim());
+              let bestW = 0;
+              parts.forEach(p => {
+                const m = p.match(/(\S+)\s+(\d+)w/);
+                if (m && parseInt(m[2]) > bestW) { bestW = parseInt(m[2]); best = m[1]; }
+              });
+            }
           }
-          // fallback: src עם החלפת suffix גודל
+          // fallback: src עם החלפה ל-460x460 (קיים תמיד בchemise)
           if (!best) {
             const src = img.getAttribute('src') || '';
-            best = src.replace(/-\d+x\d+(\.\w+)$/, '$1');
+            best = src.replace(/-\d+x\d+(\.\w+)$/, '-460x460$1');
           }
           if (best && best.includes('uploads') && !seenThumb.has(best)) {
             seenThumb.add(best);

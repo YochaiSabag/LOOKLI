@@ -182,6 +182,33 @@ async function scrapeProduct(page, url) {
         });
       }
 
+      // שלב 1.5: thumbnails — מחלץ URL גדול מ-data-srcset (כל התמונות הנוספות)
+      {
+        const seenThumb = new Set(images);
+        document.querySelectorAll('.iconic-woothumbs-thumbnails__image').forEach(img => {
+          // מחלץ URL ללא suffix גודל (-300x300 וכד') ישירות מה-data-srcset
+          const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset') || '';
+          let best = '';
+          if (srcset && !srcset.startsWith('data:')) {
+            const parts = srcset.split(',').map(s => s.trim());
+            let bestW = 0;
+            parts.forEach(p => {
+              const m = p.match(/(\S+)\s+(\d+)w/);
+              if (m && parseInt(m[2]) > bestW) { bestW = parseInt(m[2]); best = m[1]; }
+            });
+          }
+          // fallback: src עם החלפת suffix גודל
+          if (!best) {
+            const src = img.getAttribute('src') || '';
+            best = src.replace(/-\d+x\d+(\.\w+)$/, '$1');
+          }
+          if (best && best.includes('uploads') && !seenThumb.has(best)) {
+            seenThumb.add(best);
+            images.push(best);
+          }
+        });
+      }
+
       // שלב 2: fallback — WooCommerce gallery
       if (images.length === 0) {
         document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {

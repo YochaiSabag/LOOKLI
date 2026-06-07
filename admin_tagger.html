@@ -490,10 +490,10 @@ function renderGrid() {
             }).join('');
           })()}
           ${currentField === 'fit' && (p.fits || p.fit) && (Array.isArray(p.fits) ? p.fits.length > 0 : (p.fits || p.fit))
-            ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits : (p.fit ? [p.fit] : [])).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7">${escHtml(f)}</span>`).join('')
+            ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits : (p.fit ? [p.fit] : [])).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7;display:inline-flex;align-items:center;gap:3px">${escHtml(f)}<button data-id="${p.id}" data-field="fit" data-val="${escHtml(f)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
             : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)
-              ? (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4">${escHtml(d)}</span>`).join('')
-              : (fieldVal ? `<span class="meta-tag has-val">${escHtml(fieldVal)}</span>` : '')}
+              ? (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4;display:inline-flex;align-items:center;gap:3px">${escHtml(d)}<button data-id="${p.id}" data-field="design_details" data-val="${escHtml(d)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
+              : (fieldVal ? `<span class="meta-tag has-val" style="display:inline-flex;align-items:center;gap:3px">${escHtml(fieldVal)}<button data-id="${p.id}" data-field="${escHtml(currentField)}" data-val="${escHtml(fieldVal)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>` : '')}
         </div>
         <div class="card-store">${escHtml(store)}</div>
       </div>
@@ -713,6 +713,29 @@ function showToast(msg, type = 'success') {
   void t.offsetWidth;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function removeFieldTag(id, field, value) {
+  const r = await fetch('/api/admin/tag-products/remove-value', {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, field, value })
+  });
+  if (r.ok) {
+    const p = allProducts.find(x => x.id === id);
+    if (p) {
+      if (field === 'fit') {
+        p.fits = (p.fits || []).filter(v => v !== value);
+        if (p.fit === value) p.fit = p.fits[0] || null;
+      } else if (field === 'design_details') {
+        p.design_details = (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).filter(v => v !== value);
+      } else {
+        p[field] = null;
+      }
+    }
+    showToast('הוסר: ' + value, 'success');
+    applyFilter();
+  } else showToast('שגיאה', 'error');
 }
 
 async function removeColorTag(id, color) {

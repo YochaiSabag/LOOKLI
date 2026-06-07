@@ -90,12 +90,6 @@ async function getAllProductUrls(page) {
   console.log(`  ✓ סה"כ: ${result.length} קישורים\n`);
   return result;
 }
-  }
-
-  const result = [...allUrls];
-  console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
-  return result;
-}
 
 // ======================================================================
 // סריקת מוצר בודד

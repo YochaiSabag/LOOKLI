@@ -165,40 +165,6 @@ async function getAllProductUrls(page) {
   return [...allUrls];
 }
 
-    for (let p = 1; p <= cat.maxPages; p++) {
-      const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
-      try {
-        console.log(`  → page ${p}`);
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-        for (let i = 0; i < 2; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(800);
-        }
-        
-        const urls = await page.evaluate(() => 
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href)
-            .filter(h => h.includes('chemise.co.il/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        
-        if (urls.length === 0) {
-          console.log(`    ⏹ עמוד ריק - עוצר`);
-          break;
-        }
-        
-        urls.forEach(u => allUrls.add(u));
-        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-      } catch (e) {
-        console.log(`    ⏹ שגיאה - עוצר`);
-        break;
-      }
-    }
-  }
-  
-  return [...allUrls];
-}
-
 // ======================================================================
 // סריקת מוצר
 // ======================================================================

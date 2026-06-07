@@ -1,6 +1,17 @@
 import 'dotenv/config';
 import { chromium } from 'playwright';
 import pkg from 'pg';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
+// fetch דרך proxy אם מוגדר SCRAPER_PROXY_URL
+function proxyFetch(url, options = {}) {
+  const proxyUrl = process.env.SCRAPER_PROXY_URL;
+  if (proxyUrl) {
+    options.agent = new HttpsProxyAgent(proxyUrl);
+  }
+  return fetch(url, options);
+}
+
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Client } = pkg;
 
@@ -42,17 +53,118 @@ function normalizeSize(s) {
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
-  
-  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
-  const categories = [
-    { base: 'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: MAX_PAGES },
-    { base: 'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: MAX_PAGES },
-    { base: 'https://chemise.co.il/product-category/%d7%94%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%a9%d7%9c%d7%a0%d7%95/%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%a0%d7%a9%d7%99%d7%9d/', maxPages: MAX_PAGES },
+
+  // ── שיטה 1: sitemap.xml (סטטי, לא ניתן לחסימה) ──────────────────────
+  const sitemapSources = [
+    'https://chemise.co.il/product-sitemap.xml',
+    'https://chemise.co.il/sitemap_index.xml',
+    'https://chemise.co.il/sitemap.xml',
   ];
-  
-  for (const cat of categories) {
-    console.log(`  📁 ${cat.base.split('category/')[1]?.substring(0, 30)}...`);
-    
+  for (const sitemapUrl of sitemapSources) {
+    try {
+      console.log(`  🗺 sitemap: ${sitemapUrl}`);
+      const res = await proxyFetch(sitemapUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)',
+          'Accept': 'text/xml,application/xml,*/*',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) { console.log(`    ✗ ${res.status}`); continue; }
+      const xml = await res.text();
+
+      // sitemap index — מחפש sitemap URLs של מוצרים ומוריד אותם
+      if (xml.includes('<sitemapindex')) {
+        const subUrls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
+          .map(m => m[1].trim())
+          .filter(u => u.includes('product'));
+        console.log(`    📦 sitemap index — ${subUrls.length} product sitemaps`);
+        for (const sub of subUrls) {
+          try {
+            const r2 = await proxyFetch(sub, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+              signal: AbortSignal.timeout(15000),
+            });
+            if (!r2.ok) continue;
+            const xml2 = await r2.text();
+            [...xml2.matchAll(/<loc>([^<]+)<\/loc>/g)]
+              .map(m => m[1].trim())
+              .filter(u => u.includes('chemise.co.il/product/') && !u.includes('/product-category/'))
+              .forEach(u => allUrls.add(u));
+          } catch(e) { console.log(`    ✗ sub-sitemap: ${e.message}`); }
+        }
+      } else {
+        // sitemap ישיר
+        [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
+          .map(m => m[1].trim())
+          .filter(u => u.includes('chemise.co.il/product/') && !u.includes('/product-category/'))
+          .forEach(u => allUrls.add(u));
+      }
+
+      if (allUrls.size > 0) {
+        console.log(`  ✅ sitemap: ${allUrls.size} מוצרים`);
+        break;
+      }
+    } catch(e) { console.log(`    ✗ ${e.message}`); }
+  }
+
+  // ── שיטה 2: WooCommerce REST API (אם sitemap נכשל) ───────────────────
+  if (allUrls.size === 0) {
+    console.log(`  🔌 REST API...`);
+    const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
+    let page_num = 1, total = 0;
+    while (total < MAX_PRODUCTS) {
+      try {
+        const apiUrl = `https://chemise.co.il/wp-json/wc/store/v1/products?per_page=100&page=${page_num}&status=publish`;
+        const r = await proxyFetch(apiUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!r.ok) { console.log(`    ✗ API ${r.status}`); break; }
+        const items = await r.json();
+        if (!items?.length) break;
+        items.forEach(p => p.permalink && allUrls.add(p.permalink));
+        total += items.length;
+        console.log(`    page ${page_num}: ${items.length} (סה"כ: ${allUrls.size})`);
+        if (items.length < 100) break;
+        page_num++;
+      } catch(e) { console.log(`    ✗ API: ${e.message}`); break; }
+    }
+    if (allUrls.size > 0) console.log(`  ✅ API: ${allUrls.size} מוצרים`);
+  }
+
+  // ── שיטה 3: Browser (fallback אחרון) ─────────────────────────────────
+  if (allUrls.size === 0) {
+    console.log(`  🌐 Browser fallback...`);
+    const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+    const categories = [
+      'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/',
+      'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/',
+    ];
+    for (const base of categories) {
+      for (let p = 1; p <= MAX_PAGES; p++) {
+        const url = p === 1 ? base : `${base}page/${p}/`;
+        try {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+          await page.waitForTimeout(1500);
+          const urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href)
+              .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
+          urls.forEach(u => allUrls.add(u));
+          console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
+        } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
+      }
+    }
+  }
+
+  console.log(`\n${'─'.repeat(40)}\n📊 סה"כ: ${allUrls.size} URLs\n${'─'.repeat(40)}`);
+  return [...allUrls];
+}
+
     for (let p = 1; p <= cat.maxPages; p++) {
       const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
       try {
@@ -522,7 +634,15 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const browser = await chromium.launch({ headless: true, slowMo: 0 });
+// Proxy — אם מוגדר SCRAPER_PROXY_URL, משתמש בו (מאפשר הרצה מ-Railway)
+// פורמט: http://user:pass@host:port  או  http://host:port
+const proxyUrl = process.env.SCRAPER_PROXY_URL;
+const launchOptions = { headless: true, slowMo: 0 };
+if (proxyUrl) {
+  launchOptions.proxy = { server: proxyUrl };
+  console.log(`🔀 proxy: ${proxyUrl.replace(/:[^:@]+@/, ':***@')}`);
+}
+const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   viewport: { width: 1280, height: 800 },

@@ -625,7 +625,7 @@ function selectField(field, btn) {
 function renderPresets() {
   const presets = PRESETS[currentField] || [];
   document.getElementById('presetValues').innerHTML = presets.map(v =>
-    `<button class="preset-val" onclick="selectPreset('${escHtml(v)}',this)">${escHtml(v)}</button>`
+    `<button class="preset-val" data-v="${escHtml(v)}" onclick="selectPreset(this.dataset.v,this)">${escHtml(v)}</button>`
   ).join('');
 }
 

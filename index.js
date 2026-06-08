@@ -118,6 +118,7 @@ const pool = new Pool({
 });
 
 app.use(express.json());
+app.use('/api/search-by-image', express.json({ limit: '10mb' }));
 
 // ===== נעילת אתר — רק דרך קישור זמני =====
 const SITE_LOCKED = process.env.SITE_LOCKED === 'true';

@@ -1299,21 +1299,34 @@ function handleSearchInput(){
 async function searchByImage(event){
   const file=event.target.files[0];
   if(!file)return;
-  event.target.value=''; // reset so same file can be selected again
+  event.target.value='';
   setLoading();
   window.scrollTo({top:0,behavior:'smooth'});
   try{
+    // דחוס ושנה גודל לפני שליחה
     const base64=await new Promise((res,rej)=>{
-      const r=new FileReader();
-      r.onload=()=>res(r.result.split(',')[1]);
-      r.onerror=rej;
-      r.readAsDataURL(file);
+      const img=new Image();
+      const url=URL.createObjectURL(file);
+      img.onload=()=>{
+        const MAX=800;
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        const c=document.createElement('canvas');
+        c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg',0.8).split(',')[1]);
+      };
+      img.onerror=rej;
+      img.src=url;
     });
     const resp=await fetch('/api/search-by-image',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({imageBase64:base64,mimeType:file.type})
+      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
     });
-    const data=await resp.json();
+    const text=await resp.text();
+    let data;
+    try{data=JSON.parse(text);}catch{alert('שגיאה בשרת');runRegularSearch();return;}
     if(!resp.ok){alert(data.error||'שגיאה');runRegularSearch();return;}
     lastSearchKeywords=data.analysis.keywords||[];
     resetAllFiltersQuietly();

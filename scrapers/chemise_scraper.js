@@ -54,62 +54,8 @@ async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
 
-  // ── שיטה 1: sitemap.xml (סטטי, לא ניתן לחסימה) ──────────────────────
-  const sitemapSources = [
-    'https://chemise.co.il/product-sitemap.xml',
-    'https://chemise.co.il/sitemap_index.xml',
-    'https://chemise.co.il/sitemap.xml',
-  ];
-  for (const sitemapUrl of sitemapSources) {
-    try {
-      console.log(`  🗺 sitemap: ${sitemapUrl}`);
-      const res = await proxyFetch(sitemapUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)',
-          'Accept': 'text/xml,application/xml,*/*',
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) { console.log(`    ✗ ${res.status}`); continue; }
-      const xml = await res.text();
-
-      // sitemap index — מחפש sitemap URLs של מוצרים ומוריד אותם
-      if (xml.includes('<sitemapindex')) {
-        const subUrls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
-          .map(m => m[1].trim())
-          .filter(u => u.includes('product'));
-        console.log(`    📦 sitemap index — ${subUrls.length} product sitemaps`);
-        for (const sub of subUrls) {
-          try {
-            const r2 = await proxyFetch(sub, {
-              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
-              signal: AbortSignal.timeout(15000),
-            });
-            if (!r2.ok) continue;
-            const xml2 = await r2.text();
-            [...xml2.matchAll(/<loc>([^<]+)<\/loc>/g)]
-              .map(m => m[1].trim())
-              .filter(u => u.includes('chemise.co.il/product/') && !u.includes('/product-category/'))
-              .forEach(u => allUrls.add(u));
-          } catch(e) { console.log(`    ✗ sub-sitemap: ${e.message}`); }
-        }
-      } else {
-        // sitemap ישיר
-        [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
-          .map(m => m[1].trim())
-          .filter(u => u.includes('chemise.co.il/product/') && !u.includes('/product-category/'))
-          .forEach(u => allUrls.add(u));
-      }
-
-      if (allUrls.size > 0) {
-        console.log(`  ✅ sitemap: ${allUrls.size} מוצרים`);
-        break;
-      }
-    } catch(e) { console.log(`    ✗ ${e.message}`); }
-  }
-
-  // ── שיטה 2: WooCommerce REST API (אם sitemap נכשל) ───────────────────
-  if (allUrls.size === 0) {
+  // ── שיטה 1: WooCommerce REST API ─────────────────────────────────────
+  {
     console.log(`  🔌 REST API...`);
     const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
     let page_num = 1, total = 0;

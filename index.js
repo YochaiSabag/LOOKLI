@@ -118,7 +118,6 @@ const pool = new Pool({
 });
 
 app.use(express.json());
-app.use('/api/search-by-image', express.json({ limit: '10mb' }));
 
 // ===== נעילת אתר — רק דרך קישור זמני =====
 const SITE_LOCKED = process.env.SITE_LOCKED === 'true';
@@ -913,81 +912,6 @@ app.post("/api/ai-search", async (req, res) => {
   } catch (err) {
     console.error("ai-search error:", err.message);
     res.status(500).json({ error: "Search error" });
-  }
-});
-
-// ── חיפוש לפי תמונה ──────────────────────────────────────────
-app.post("/api/search-by-image", async (req, res) => {
-  try {
-    const { imageBase64, mimeType } = req.body;
-    if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
-
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
-
-    // שלח ל-Claude לניתוח פריט הלבוש
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 500,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
-            { type: "text", text: `נתח את פריט הלבוש בתמונה והחזר JSON בלבד (ללא טקסט נוסף):
-{
-  "keywords": ["מילת חיפוש עברית עיקרית, כגון שמלה/חצאית/חולצה"],
-  "color": "שם צבע עברי אחד (שחור/לבן/אדום/כחול/ירוק/צהוב/ורוד/סגול/כתום/חום/בז/אפור/זהב/כסף/חרדל/תכלת/נייבי/בורדו/זית/חאקי/ניוד/קאמל) או null",
-  "category": "שמלה או חצאית או חולצה או מכנסיים או קרדיגן או ג'קט או אחר",
-  "style": "סגנון אם ברור (שבת/ערב/יום חול/קלאסי/מודרני) או null",
-  "fit": "גיזרה אם ברורה (נפוח/ישר/הדוק) או null",
-  "fabric": "בד אם ברור (משי/ג'ינס/כותנה/פוליאסטר/קשמיר) או null",
-  "pattern": "תבנית אם ברורה (פסים/פרחוני/מנוקד) או null",
-  "size": null,
-  "designDetails": [],
-  "maxPrice": null,
-  "store": null
-}` }
-          ]
-        }]
-      })
-    });
-
-    if (!claudeRes.ok) return res.status(502).json({ error: "שגיאה בניתוח תמונה" });
-    const claudeData = await claudeRes.json();
-    const text = claudeData.content?.[0]?.text || "{}";
-
-    let analysis;
-    try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
-    catch { analysis = { keywords: [], color: null, category: null, style: null, fit: null, fabric: null, pattern: null, size: null, designDetails: [], maxPrice: null, store: null }; }
-
-    // הרץ חיפוש רגיל עם הניתוח
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE 1=1`;
-    const params = [];
-    let idx = 1;
-
-    if (analysis.keywords?.length) { sql += ` AND title ILIKE $${idx++}`; params.push(`%${analysis.keywords.join(" ")}%`); }
-    if (analysis.color) { sql += ` AND (color = $${idx} OR $${idx} = ANY(colors))`; params.push(analysis.color); idx++; }
-    if (analysis.category) { sql += ` AND (category = $${idx} OR title ILIKE $${idx+1})`; params.push(analysis.category, `%${analysis.category}%`); idx += 2; }
-    if (analysis.style) { sql += ` AND style = $${idx++}`; params.push(analysis.style); }
-    if (analysis.fit) { sql += ` AND fit = $${idx++}`; params.push(analysis.fit); }
-    if (analysis.fabric) { sql += ` AND (fabric = $${idx} OR description ILIKE $${idx+1})`; params.push(analysis.fabric, `%${analysis.fabric}%`); idx += 2; }
-    if (analysis.pattern) { sql += ` AND (pattern = $${idx} OR title ILIKE $${idx+1})`; params.push(analysis.pattern, `%${analysis.pattern}%`); idx += 2; }
-    sql += ` AND array_length(sizes, 1) > 0 ORDER BY id DESC LIMIT 100`;
-
-    const result = await pool.query(sql, params);
-    const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
-    res.json({ analysis, results: rows, count: rows.length });
-
-  } catch (err) {
-    console.error("search-by-image error:", err.message);
-    res.status(500).json({ error: "שגיאה בחיפוש" });
   }
 });
 

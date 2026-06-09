@@ -1936,7 +1936,7 @@ document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")
 // ===== Typewriter placeholder =====
 (function(){
   const input = document.getElementById('q');
-  const phrases = [
+  const DEFAULT_PHRASES = [
     'שמלה שחורה מידה M',
     'חולצה לבנה עד 150 ש"ח',
     'חצאית מקסי ירוקה',
@@ -1948,6 +1948,7 @@ document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")
     'מעיל חום קלאסי',
     'חצאית פרחונית מידי',
   ];
+  let phrases = DEFAULT_PHRASES;
   const TYPE_SPEED=60, DELETE_SPEED=30, PAUSE_AFTER=1800, PAUSE_BEFORE=400, PAUSE_ON_BLUR=20000;
   let pi=0, ci=0, deleting=false, timer=null, pausedUntil=0;
 
@@ -1973,7 +1974,13 @@ document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")
     pausedUntil = Date.now() + PAUSE_ON_BLUR;
   });
 
-  setTimeout(tick, 1200);
+  // טען מה-API, fallback לברירת מחדל
+  fetch('/api/search-phrases').then(r=>r.json()).then(d=>{
+    if(d.phrases && d.phrases.length) phrases=d.phrases;
+  }).catch(()=>{}).finally(()=>{
+    setTimeout(tick, 1200);
+  });
+
 })();
 
 // === Hero Discovery Flow ===

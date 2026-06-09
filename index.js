@@ -915,6 +915,52 @@ app.post("/api/ai-search", async (req, res) => {
   }
 });
 
+// ── חיפוש לפי תמונה ──────────────────────────────────────────
+app.post("/api/search-by-image", async (req, res) => {
+  try {
+    const { imageBase64, mimeType } = req.body;
+    if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
+
+    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 500,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+          { type: "text", text: `נתח את פריט הלבוש בתמונה והחזר JSON בלבד:\n{"keywords":["מילה עברית כגון שמלה/חצאית/חולצה"],"color":"צבע עברי (שחור/לבן/אדום/כחול/ירוק/צהוב/ורוד/סגול/כתום/חום/בז/אפור/זהב/תכלת/נייבי/בורדו/קאמל/ניוד) או null","category":"שמלה/חצאית/חולצה/מכנסיים/קרדיגן/ג'קט או null","style":null,"fit":null,"fabric":null,"pattern":null,"size":null,"designDetails":[],"maxPrice":null,"store":null}` }
+        ]}]
+      })
+    });
+    if (!claudeRes.ok) return res.status(502).json({ error: "שגיאה בניתוח תמונה" });
+    const claudeData = await claudeRes.json();
+    const text = claudeData.content?.[0]?.text || "{}";
+    let analysis;
+    try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
+    catch { analysis = { keywords: [], color: null, category: null, style: null, fit: null, fabric: null, pattern: null, size: null, designDetails: [], maxPrice: null, store: null }; }
+
+    let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes FROM products WHERE array_length(sizes,1)>0`;
+    const params = [];
+    let idx = 1;
+    if (analysis.keywords?.length) { sql += ` AND title ILIKE $${idx++}`; params.push(`%${analysis.keywords.join(" ")}%`); }
+    if (analysis.color) { sql += ` AND (color=$${idx} OR $${idx}=ANY(colors))`; params.push(analysis.color); idx++; }
+    if (analysis.category) { sql += ` AND (category=$${idx} OR title ILIKE $${idx+1})`; params.push(analysis.category, `%${analysis.category}%`); idx += 2; }
+    if (analysis.style) { sql += ` AND style=$${idx++}`; params.push(analysis.style); }
+    if (analysis.fabric) { sql += ` AND (fabric=$${idx} OR description ILIKE $${idx+1})`; params.push(analysis.fabric, `%${analysis.fabric}%`); idx += 2; }
+    if (analysis.pattern) { sql += ` AND (pattern=$${idx} OR title ILIKE $${idx+1})`; params.push(analysis.pattern, `%${analysis.pattern}%`); idx += 2; }
+    sql += ` ORDER BY id DESC LIMIT 100`;
+    const result = await pool.query(sql, params);
+    const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
+    res.json({ analysis, results: rows, count: rows.length });
+  } catch (err) {
+    console.error("search-by-image error:", err.message);
+    res.status(500).json({ error: "שגיאה בחיפוש" });
+  }
+});
+
 function analyzeQuery(query) {
   const analysis = { keywords: [], color: null, size: null, style: null, fit: null, category: null, maxPrice: null, minDiscount: null, pattern: null, fabric: null, designDetails: [], store: null };
   

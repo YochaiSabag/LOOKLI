@@ -18,7 +18,7 @@ console.log('🚀 Avivit Weizman Scraper');
 
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, normalizeColorFromTitle, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
@@ -321,9 +321,21 @@ async function scrapeProduct(page, url) {
         }
       }
       if (data.rawColors.length === 0) {
+        // fallback — חפש צבע בכותרת המוצר
+        const colorFromTitle = normalizeColorFromTitle(data.title);
+        if (colorFromTitle) {
+          availableColors.add(colorFromTitle);
+          if (!colorSizesMap[colorFromTitle]) colorSizesMap[colorFromTitle] = [];
+        }
         for (const size of data.rawSizes) {
           if (size.disabled) continue;
-          normalizeSize(size.name).forEach(s => availableSizes.add(s));
+          const normSizes = normalizeSize(size.name);
+          for (const ns of normSizes) {
+            availableSizes.add(ns);
+            if (colorFromTitle && !colorSizesMap[colorFromTitle].includes(ns)) {
+              colorSizesMap[colorFromTitle].push(ns);
+            }
+          }
         }
       }
     }

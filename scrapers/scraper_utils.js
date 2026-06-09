@@ -4,9 +4,6 @@
  * עם fallback ל-hardcoded אם הטבלה ריקה
  */
 
-// ============================================================
-// ברירות מחדל (fallback אם אין נתונים ב-DB)
-// ============================================================
 const DEFAULT_COLORS = {
   'שחור':['שחור','שחורה','black'],'לבן':['לבן','לבנה','white'],
   'כחול':['כחול','כחולה','נייבי','navy','blue','indigo','denim'],
@@ -76,13 +73,10 @@ const DEFAULT_PATTERNS = {
 const SKIP_KEYWORDS = [
   'עגיל','עגילי','שרשרת','צמיד','טבעת','תכשיט',
   'כובע','צעיף','תיק','ארנק','משקפיים','גומייה','מטפחת','קשת','שעון','שיער','גרבי',
-  'בגד ים','בגדי ים','ביקיני','bikini','swimwear','swimsuit',
+  'בגד ים','בגדי ים','xxxxxx','xxxxxx','swimwear','swimsuit',
   'כרטיס','gift card','voucher',
 ];
 
-// ============================================================
-// טעינה מ-DB
-// ============================================================
 export async function loadScraperConfig(db) {
   let colorMap = {...DEFAULT_COLORS};
   let categoryMap = {...DEFAULT_CATEGORIES};
@@ -94,14 +88,12 @@ export async function loadScraperConfig(db) {
   try {
     const r = await db.query(`SELECT type, name, aliases FROM scraper_config ORDER BY type, name`);
     if (r.rows.length > 0) {
-      // בנה מה-DB ומזג עם ברירות המחדל (DB מנצח באותו מפתח)
       const maps = { color:{}, category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
       r.rows.forEach(row => {
         if (maps[row.type] !== undefined) {
           maps[row.type][row.name] = row.aliases || [];
         }
       });
-      // מיזוג: ברירות המחדל תמיד קיימות, DB מוסיף/דורס מעליהן
       colorMap    = { ...DEFAULT_COLORS,    ...maps.color    };
       categoryMap = { ...DEFAULT_CATEGORIES,...maps.category };
       styleMap    = { ...DEFAULT_STYLES,    ...maps.style    };
@@ -116,13 +108,12 @@ export async function loadScraperConfig(db) {
     console.log(`⚠️ לא הצלחתי לטעון scraper_config: ${e.message} — משתמש בברירות מחדל`);
   }
 
-  // בנה lookups הפוכים (alias → name) לחיפוש מהיר
-  const colorLookup = buildLookup(colorMap);
+  const colorLookup    = buildLookup(colorMap);
   const categoryLookup = buildLookup(categoryMap);
-  const styleLookup = buildLookup(styleMap);
-  const fitLookup = buildLookup(fitMap);
-  const fabricLookup = buildLookup(fabricMap);
-  const patternLookup = buildLookup(patternMap);
+  const styleLookup    = buildLookup(styleMap);
+  const fitLookup      = buildLookup(fitMap);
+  const fabricLookup   = buildLookup(fabricMap);
+  const patternLookup  = buildLookup(patternMap);
 
   const unknownColors = new Set();
 
@@ -154,8 +145,6 @@ export async function loadScraperConfig(db) {
   }
 
   return {
-    // normalizeColor(colorValue, title?)
-    // title אופציונלי — אם מועבר, מפעיל לוגיקת ג'ינס חכמה
     normalizeColor(c, title) {
       const JEANS_WORDS = ["ג'ינס","ג׻ינס",'גינס','denim','jeans'];
       const result = normalizeWithLookup(c, colorLookup, unknownColors);
@@ -163,13 +152,35 @@ export async function loadScraperConfig(db) {
       const t = (title || c || '').toLowerCase();
       const hasJeans = JEANS_WORDS.some(w => t.includes(w.toLowerCase()));
       if (!hasJeans) { unknownColors.add(c); return 'אחר'; }
-      const withoutJeans = JEANS_WORDS.reduce((s,w) => s.replace(new RegExp(w.replace(/'/g,"['’]"),'gi'),''), t).trim();
+      const withoutJeans = JEANS_WORDS.reduce((s,w) => s.replace(new RegExp(w.replace(/'/g,"['']"),'gi'),''), t).trim();
       const otherColor = normalizeWithLookup(withoutJeans, colorLookup, null);
       if (otherColor && otherColor !== 'אחר') return otherColor;
-      // אם יש צבע מוגדר בקונפיג עבור גינס/ג'ינס — השתמש בו; אחרת כחול כברירת מחדל
       const jeansColorName = colorLookup["גינס"] || colorLookup["ג'ינס"] || colorLookup['jeans'] || colorLookup['denim'] || 'כחול';
       return jeansColorName;
     },
+
+    // חדש: מחפש צבע בתוך כותרת מוצר (fallback כשאין swatches)
+    normalizeColorFromTitle(title) {
+      if (!title) return null;
+      const words = title.toLowerCase().split(/[\s\-,\/]+/);
+
+      // ניסיון ראשון — מילה בודדת
+      for (const word of words) {
+        if (!word || word.length < 2) continue;
+        const result = normalizeWithLookup(word, colorLookup, null);
+        if (result) return result;
+      }
+
+      // ניסיון שני — זוגות מילים (למקרים כמו "ירוק זית", "כחול רויאל")
+      for (let i = 0; i < words.length - 1; i++) {
+        const pair = words[i] + ' ' + words[i+1];
+        const result = normalizeWithLookup(pair, colorLookup, null);
+        if (result) return result;
+      }
+
+      return null;
+    },
+
     unknownColors,
 
     shouldSkip(title) {

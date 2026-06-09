@@ -175,7 +175,7 @@
     .store-opt img{width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:7px}
     .store-opt[data-store="MYME"] img{width:100%;height:100%;padding:2px}
     .store-opt span{font-size:12px;font-weight:800}
-    .store-opt::after{content:attr(data-store);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
+    .store-opt::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
     .store-opt:hover::after{opacity:1}
     
     /* Color options */
@@ -388,7 +388,7 @@
     /* Card elements */
     .card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-logo img{width:100%;height:100%;object-fit:contain}
-    .card-logo::after{content:attr(data-store);position:absolute;top:calc(100% + 5px);right:0;background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:99}
+    .card-logo::after{content:attr(data-tooltip);position:absolute;top:calc(100% + 5px);right:0;background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:99}
     .card-logo:hover::after{opacity:1}
     .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
@@ -743,7 +743,7 @@
     <div class="search-section">
       <div class="search-inner">
         <div class="searchbar">
-          <input id="q" placeholder='חפשי: "שמלה שחורה מידה M עד 200 ש"ח"'/>
+          <input id="q" placeholder=''/>
           <button class="btn" onclick="runAISearch()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </button>
@@ -905,9 +905,6 @@
         </div>
       </div>
       <div style="padding:14px 20px">
-        <button id="netfreeBtn" onclick="toggleNetfree()" style="width:100%;padding:12px;margin-top:10px;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:13px;color:var(--muted);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px">
-          <span>🌐</span> <span id="netfreeBtnText">הצג רק תמונות פתוחות</span>
-        </button>
         <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
       </div>
       
@@ -1055,7 +1052,7 @@
 <script>
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
-let activeNetfree=false;
+const activeNetfree=false;
 function handleImgError(img){
   console.warn('[IMG FAIL]', img.src);
   img.style.display='none';
@@ -1069,23 +1066,6 @@ function handleImgError(img){
   }
 }
 
-function toggleNetfree(){
-  activeNetfree=!activeNetfree;
-  const btn=document.getElementById('netfreeBtn');
-  const txt=document.getElementById('netfreeBtnText');
-  if(activeNetfree){
-    btn.style.borderColor='var(--accent)';
-    btn.style.color='var(--accent)';
-    btn.style.background='rgba(224,161,192,.08)';
-    txt.textContent='מציג רק תמונות פתוחות ✓';
-  } else {
-    btn.style.borderColor='var(--border)';
-    btn.style.color='var(--muted)';
-    btn.style.background='#fff';
-    txt.textContent='הצג רק תמונות פתוחות';
-  }
-  runRegularSearch();
-}
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
 let currentPage=1,itemsPerPage=isMobile?8:20,allProducts=[],isLoading=false;
@@ -1540,7 +1520,8 @@ function renderProducts(products,append=false){
     const localLogo = localLogoStores.has(store) ? `/${store.toLowerCase()}-logo.png` : null;
     const fallbackLogo = storeLogos[store] || '';
     const logoSrc = localLogo || fallbackLogo;
-    const logoHTML = logoSrc ? `<div class="card-logo" data-store="${store}" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
+    const storeDisplayNames={'LEAA':'Ladies'};
+    const logoHTML = logoSrc ? `<div class="card-logo" data-store="${store}" data-tooltip="${storeDisplayNames[store]||store}" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
     const isSaved = savedUrls.has(p.source_url||'');
     const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
     grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
@@ -1578,7 +1559,8 @@ async function initFilters(){
   
   const storeDiv=document.getElementById("storeLogos");
   storeDiv.innerHTML=`<div class="store-opt active" data-store="הכל" onclick="selectStore('')"><span>הכל</span></div>`;
-  (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const localOnly=new Set(['CHEN','ORDMAN']);const src=localOnly.has(s)?`/${s.toLowerCase()}-logo.png`:fallback;storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" onclick="selectStore('${s}')" ${bgStyle}>${src?`<img src="${src}" alt="${s}"${localOnly.has(s)?` onerror="this.src='${fallback}'"`:''}`:`<span>${s.substring(0,3)}</span>`}</div>`});
+  const storeDisplayNames={'LEAA':'Ladies'};
+  (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const localOnly=new Set(['CHEN','ORDMAN']);const src=localOnly.has(s)?`/${s.toLowerCase()}-logo.png`:fallback;const displayName=storeDisplayNames[s]||s;storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" data-tooltip="${displayName}" onclick="selectStore('${s}')" ${bgStyle}>${src?`<img src="${src}" alt="${s}"${localOnly.has(s)?` onerror="this.src='${fallback}'"`:''}`:`<span>${s.substring(0,3)}</span>`}</div>`});
   
   renderCategoryBoxes();renderColorGrid();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
   
@@ -1714,8 +1696,6 @@ function resetAllFiltersQuietly(){
 function resetAll(){
   document.getElementById("q").value="";previousSearchQuery="";lastSearchKeywords=[];
   resetAllFiltersQuietly();
-  // איפוס נטפרי
-  if(activeNetfree){activeNetfree=false;const btn=document.getElementById('netfreeBtn');btn.style.borderColor='var(--border)';btn.style.color='var(--muted)';btn.style.background='#fff';document.getElementById('netfreeBtnText').textContent='הצג רק תמונות פתוחות';}
   document.getElementById("aiAnalysis").classList.remove("active");
   runRegularSearch();
 }
@@ -1952,6 +1932,49 @@ window.addEventListener('popstate',e=>{
 
 document.getElementById("q").addEventListener("input",handleSearchInput);
 document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});
+
+// ===== Typewriter placeholder =====
+(function(){
+  const input = document.getElementById('q');
+  const phrases = [
+    'שמלה שחורה מידה M',
+    'חולצה לבנה עד 150 ש"ח',
+    'חצאית מקסי ירוקה',
+    'קרדיגן בז׳ מידה L',
+    'שמלת ערב בורדו',
+    'חולצת שיפון ורודה',
+    'סט צנוע לשבת',
+    'שמלת מידי כחולה XL',
+    'מעיל חום קלאסי',
+    'חצאית פרחונית מידי',
+  ];
+  const TYPE_SPEED=60, DELETE_SPEED=30, PAUSE_AFTER=1800, PAUSE_BEFORE=400, PAUSE_ON_BLUR=20000;
+  let pi=0, ci=0, deleting=false, timer=null, pausedUntil=0;
+
+  function tick(){
+    if(Date.now() < pausedUntil){ timer=setTimeout(tick, pausedUntil-Date.now()); return; }
+    if(document.activeElement===input){ timer=setTimeout(tick,500); return; }
+    const phrase=phrases[pi];
+    if(!deleting){
+      ci++;
+      input.placeholder=phrase.substring(0,ci);
+      if(ci===phrase.length){ deleting=true; timer=setTimeout(tick,PAUSE_AFTER); return; }
+      timer=setTimeout(tick,TYPE_SPEED);
+    } else {
+      ci--;
+      input.placeholder=phrase.substring(0,ci);
+      if(ci===0){ deleting=false; pi=(pi+1)%phrases.length; timer=setTimeout(tick,PAUSE_BEFORE); return; }
+      timer=setTimeout(tick,DELETE_SPEED);
+    }
+  }
+
+  // עצור 20 שניות כשעוזבים את השדה
+  input.addEventListener('blur', ()=>{
+    pausedUntil = Date.now() + PAUSE_ON_BLUR;
+  });
+
+  setTimeout(tick, 1200);
+})();
 
 // === Hero Discovery Flow ===
 var heroStep='category';

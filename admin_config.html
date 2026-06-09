@@ -357,6 +357,92 @@ async function retagProducts() {
 }
 
 loadAll().then(() => setType('color'));
+
+// ===== מלל חיפוש אנימציה =====
+let searchPhrases = [];
+
+async function loadSearchPhrases() {
+  try {
+    const r = await authFetch('/api/admin/search-phrases');
+    const d = await r.json();
+    searchPhrases = d.phrases || [];
+    renderSearchPhrases();
+  } catch(e) {}
+}
+
+function renderSearchPhrases() {
+  const list = document.getElementById('phrasesList');
+  list.innerHTML = searchPhrases.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
+      <span style="color:var(--muted);font-size:12px;width:20px;text-align:center">${i+1}</span>
+      <input value="${esc(p)}" oninput="searchPhrases[${i}]=this.value"
+        style="flex:1;background:transparent;border:none;outline:none;font-family:inherit;font-size:14px;color:var(--text);direction:rtl"/>
+      <button onclick="movePhrase(${i},-1)" title="למעלה" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" ${i===0?'disabled':''}>↑</button>
+      <button onclick="movePhrase(${i},1)" title="למטה" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" ${i===searchPhrases.length-1?'disabled':''}>↓</button>
+      <button onclick="removePhrase(${i})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;padding:2px 4px">×</button>
+    </div>`).join('');
+}
+
+function addPhrase() {
+  const inp = document.getElementById('newPhraseInp');
+  const val = inp.value.trim();
+  if (!val) return;
+  searchPhrases.push(val);
+  inp.value = '';
+  renderSearchPhrases();
+}
+
+function removePhrase(i) {
+  searchPhrases.splice(i, 1);
+  renderSearchPhrases();
+}
+
+function movePhrase(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= searchPhrases.length) return;
+  [searchPhrases[i], searchPhrases[j]] = [searchPhrases[j], searchPhrases[i]];
+  renderSearchPhrases();
+}
+
+async function saveSearchPhrases() {
+  const btn = document.getElementById('savePhrasesBtn');
+  btn.disabled = true; btn.textContent = '⏳ שומר...';
+  try {
+    const r = await authFetch('/api/admin/search-phrases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phrases: searchPhrases })
+    });
+    const d = await r.json();
+    btn.textContent = d.ok ? '✅ נשמר!' : '❌ שגיאה';
+    setTimeout(() => { btn.disabled = false; btn.textContent = '💾 שמור'; }, 2000);
+  } catch(e) {
+    btn.textContent = '❌ שגיאה';
+    setTimeout(() => { btn.disabled = false; btn.textContent = '💾 שמור'; }, 2000);
+  }
+}
+
+loadSearchPhrases();
 </script>
+
+<!-- סקשן מלל חיפוש -->
+<div style="max-width:860px;margin:32px auto 0;padding:0 16px 48px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-weight:700;font-size:16px">✍️ מלל חיפוש — אנימציית Typewriter</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">המשפטים שמופיעים בשדה החיפוש בדף הבית בסדר הרשום</div>
+      </div>
+      <button id="savePhrasesBtn" onclick="saveSearchPhrases()" style="padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer">💾 שמור</button>
+    </div>
+    <div id="phrasesList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <input id="newPhraseInp" placeholder="הוסף משפט חדש..." onkeydown="if(event.key==='Enter')addPhrase()"
+        style="flex:1;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;color:var(--text);outline:none;direction:rtl"/>
+      <button onclick="addPhrase()" style="padding:10px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;cursor:pointer;color:var(--text)">+ הוסף</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

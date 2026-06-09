@@ -916,32 +916,56 @@ app.post("/api/ai-search", async (req, res) => {
 });
 
 // ── חיפוש לפי תמונה ──────────────────────────────────────────
-app.post("/api/search-by-image", async (req, res) => {
+// ── ניתוח תמונה בלבד (Claude) ─────────────────────────────────
+app.post("/api/analyze-image", async (req, res) => {
+  res.setTimeout(55000); // 55 שניות — לפני timeout של Railway
   try {
     const { imageBase64, mimeType } = req.body;
     if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 500,
-        messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
-          { type: "text", text: `נתח את פריט הלבוש בתמונה והחזר JSON בלבד:\n{"keywords":["מילה עברית כגון שמלה/חצאית/חולצה"],"color":"צבע עברי (שחור/לבן/אדום/כחול/ירוק/צהוב/ורוד/סגול/כתום/חום/בז/אפור/זהב/תכלת/נייבי/בורדו/קאמל/ניוד) או null","category":"שמלה/חצאית/חולצה/מכנסיים/קרדיגן/ג'קט או null","style":null,"fit":null,"fabric":null,"pattern":null,"size":null,"designDetails":[],"maxPrice":null,"store":null}` }
-        ]}]
-      })
-    });
-    if (!claudeRes.ok) return res.status(502).json({ error: "שגיאה בניתוח תמונה" });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 50000);
+    let claudeRes;
+    try {
+      claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 300,
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+            { type: "text", text: `נתח את פריט הלבוש בתמונה והחזר JSON בלבד (ללא טקסט אחר):\n{"keywords":["מילה עברית אחת: שמלה/חצאית/חולצה/מכנסיים/קרדיגן"],"color":"צבע עברי אחד: שחור/לבן/אדום/כחול/ירוק/צהוב/ורוד/סגול/כתום/חום/בז/אפור/זהב/תכלת/בורדו/קאמל/ניוד — או null","category":"שמלה/חצאית/חולצה/מכנסיים/קרדיגן/ג'קט — או null","style":null,"fit":null,"fabric":null,"pattern":null,"size":null,"designDetails":[],"maxPrice":null,"store":null}` }
+          ]}]
+        })
+      });
+    } finally { clearTimeout(timer); }
+
+    if (!claudeRes.ok) {
+      const errText = await claudeRes.text();
+      console.error("Claude error:", claudeRes.status, errText.substring(0, 100));
+      return res.status(502).json({ error: "שגיאה בניתוח תמונה" });
+    }
     const claudeData = await claudeRes.json();
     const text = claudeData.content?.[0]?.text || "{}";
     let analysis;
     try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
     catch { analysis = { keywords: [], color: null, category: null, style: null, fit: null, fabric: null, pattern: null, size: null, designDetails: [], maxPrice: null, store: null }; }
+    res.json({ analysis });
+  } catch (err) {
+    if (err.name === "AbortError") return res.status(504).json({ error: "timeout — נסה שוב" });
+    console.error("analyze-image error:", err.message);
+    res.status(500).json({ error: "שגיאה בניתוח" });
+  }
+});
 
+// ── חיפוש לפי פרמטרים (DB בלבד — מהיר) ───────────────────────
+app.post("/api/search-by-params", async (req, res) => {
+  try {
+    const analysis = req.body;
     let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes FROM products WHERE array_length(sizes,1)>0`;
     const params = [];
     let idx = 1;
@@ -954,11 +978,16 @@ app.post("/api/search-by-image", async (req, res) => {
     sql += ` ORDER BY id DESC LIMIT 100`;
     const result = await pool.query(sql, params);
     const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
-    res.json({ analysis, results: rows, count: rows.length });
+    res.json({ results: rows, count: rows.length });
   } catch (err) {
-    console.error("search-by-image error:", err.message);
+    console.error("search-by-params error:", err.message);
     res.status(500).json({ error: "שגיאה בחיפוש" });
   }
+});
+
+// ── נשאר לתאימות אחורה (redirect פנימי) ───────────────────────
+app.post("/api/search-by-image", async (req, res) => {
+  res.status(410).json({ error: "endpoint הועבר — עדכן את הלקוח" });
 });
 
 function analyzeQuery(query) {

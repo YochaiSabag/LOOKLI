@@ -1414,7 +1414,7 @@ async function runRegularSearch(){
     if (keys.length > 10) delete window._productCache[keys[0]];
   }
   
-  allProducts = (window._sortVal === 'new' || !window._sortVal) ? interleaveByStore(data) : data;
+  allProducts = (window._sortVal === 'price_asc' || window._sortVal === 'price_desc' || window._sortVal === 'discount') ? data : interleaveByStore(data);
   currentPage=1;renderPage();
   document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
     updateSeoMeta(document.getElementById("q").value.trim());

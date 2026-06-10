@@ -1929,6 +1929,16 @@ app.post("/api/auth/google", async (req, res) => {
         [emailLower, name || emailLower.split('@')[0], 'google_oauth_' + googleId, true]
       );
       user = result.rows[0];
+      // הוסף לניוזלטר ול-Brevo (הרשמה חדשה דרך גוגל)
+      try {
+        await pool.query(
+          `INSERT INTO newsletter_subscribers (email, source)
+           VALUES ($1, 'google_oauth')
+           ON CONFLICT (email) DO UPDATE SET active=true`,
+          [emailLower]
+        );
+        addToBrevo(emailLower).catch(()=>{});
+      } catch(_) {}
     }
 
     const token = createToken(user.id, user.email);

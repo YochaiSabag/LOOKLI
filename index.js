@@ -2668,7 +2668,7 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
 
     // 6. שלח
-    const sent = await sendNewProductsEmail(emails, subject, html);
+    const sent = await sendNewProductsEmail(emails, subject, htmlContent);
 
     // 7. תיעד בlog
     await pool.query(

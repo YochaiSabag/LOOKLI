@@ -1324,10 +1324,10 @@ async function searchByImage(event){
     lastSearchKeywords=analysis.keywords||[];
     resetAllFiltersQuietly();
     if(analysis.color)activeColors=[analysis.color];
-    if(analysis.category)activeCategories=[analysis.category];
+    if(analysis.category||analysis.categories?.length)activeCategories=analysis.categories?.length?analysis.categories:[analysis.category];
     if(analysis.size)activeSizes=[analysis.size];
     if(analysis.style)activeStyles=[analysis.style];
-    if(analysis.fit)activeFits=[analysis.fit];
+    if(analysis.fit||analysis.fits?.length)activeFits=analysis.fits?.length?analysis.fits:[analysis.fit];
     if(analysis.fabric)activeFabrics=[analysis.fabric];
     if(analysis.pattern)activePattern=analysis.pattern;
     renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
@@ -1351,10 +1351,10 @@ async function runAISearch(){
     // סנכרון הסיידבר עם תוצאות AI
     if(data.analysis.store){activeStore=data.analysis.store;document.querySelectorAll('.store-opt').forEach(el=>el.classList.toggle('active',el.dataset.store===activeStore))}
     if(data.analysis.color){activeColors=[data.analysis.color]}
-    if(data.analysis.category){activeCategories=[data.analysis.category]}
+    if(data.analysis.category||data.analysis.categories?.length){activeCategories=data.analysis.categories?.length?data.analysis.categories:[data.analysis.category]}
     if(data.analysis.size){activeSizes=[data.analysis.size]}
     if(data.analysis.style){activeStyles=[data.analysis.style]}
-    if(data.analysis.fit){activeFits=[data.analysis.fit]}
+    if(data.analysis.fit||data.analysis.fits?.length){activeFits=data.analysis.fits?.length?data.analysis.fits:[data.analysis.fit]}
     if(data.analysis.fabric){activeFabrics=[data.analysis.fabric]}
     if(data.analysis.pattern){activePattern=data.analysis.pattern}
     if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}

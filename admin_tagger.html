@@ -468,6 +468,7 @@ function renderGrid() {
     return `<div class="prod-card${isSel ? ' selected' : ''}${fieldVal ? ' tagged' : ''}"
       data-id="${p.id}" onclick="toggleCard(${p.id}, this)">
       <div class="card-check">${isSel ? '✓' : ''}</div>
+      <button onclick="event.stopPropagation();banProduct(${p.id},this)" title="הסר לתמיד" style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,.55);border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;z-index:10;line-height:1">🗑</button>
       ${fieldVal ? `<div class="tag-badge">${escHtml(fieldVal)}</div>` : ''}
       ${img
         ? `<img class="card-img" src="${escHtml(img)}" loading="lazy" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="card-img-placeholder" style="display:none">👗</div>`
@@ -713,6 +714,26 @@ function showToast(msg, type = 'success') {
   void t.offsetWidth;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function banProduct(id, btn) {
+  if (!confirm('להסיר מוצר זה לתמיד? הוא לא יופיע יותר באתר.')) return;
+  btn.textContent = '⏳';
+  try {
+    const r = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+    const data = await r.json();
+    if (data.ok) {
+      const card = btn.closest('.card');
+      if (card) { card.style.opacity = '0'; card.style.transition = 'opacity .3s'; setTimeout(() => card.remove(), 300); }
+      showToast('✅ מוצר הוסר לתמיד');
+    } else {
+      btn.textContent = '🗑';
+      showToast('❌ שגיאה: ' + (data.error || ''), 'error');
+    }
+  } catch(e) {
+    btn.textContent = '🗑';
+    showToast('❌ ' + e.message, 'error');
+  }
 }
 
 async function removeFieldTag(id, field, value) {

@@ -135,6 +135,13 @@ export async function loadScraperConfig(db) {
     const noSpaces = lower.replace(/[-_\s]/g, '');
     if (lookup[noSpaces]) return lookup[noSpaces];
     if (lookup[lower]) return lookup[lower];
+    // הסר אות יחס (ל/ב/מ/ש/כ) מהתחלה ונסה שוב
+    if (/^[לבמשכ][\u05d0-\u05ea]/.test(lower) && lower.length > 2) {
+      const stripped = lower.slice(1);
+      const strippedNoSpaces = stripped.replace(/[-_\s]/g, '');
+      if (lookup[strippedNoSpaces]) return lookup[strippedNoSpaces];
+      if (lookup[stripped]) return lookup[stripped];
+    }
     const words = lower.split(/[\s\-]+/);
     for (const w of words) { if (lookup[w]) return lookup[w]; }
     for (const key of Object.keys(lookup)) {

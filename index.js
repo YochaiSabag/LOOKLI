@@ -351,7 +351,7 @@ function calculateShipping(store, price) {
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
-    let baseWhere = '1=1';
+    let baseWhere = '(banned IS NULL OR banned = false)';
     const baseParams = [];
     let paramIndex = 1;
     
@@ -872,9 +872,25 @@ app.post("/api/ai-search", async (req, res) => {
         params.push(expandedSizes); i++;
       }
     }
-    if (analysis.category) { sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(analysis.category, `%${analysis.category}%`); i += 2; }
+    if (analysis.category || analysis.categories?.length) {
+      const cats = analysis.categories?.length > 1 ? analysis.categories : (analysis.category ? [analysis.category] : []);
+      if (cats.length === 1) {
+        sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(cats[0], `%${cats[0]}%`); i += 2;
+      } else if (cats.length > 1) {
+        sql += ` AND (category = ANY($${i}::text[]) OR ${cats.map((_,j) => `title ILIKE $${i+1+j}`).join(' OR ')})`; 
+        params.push(cats); cats.forEach(c => params.push(`%${c}%`)); i += 1 + cats.length;
+      }
+    }
     if (analysis.style) { sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(analysis.style, `%${analysis.style}%`); i += 2; }
-    if (analysis.fit) { sql += ` AND (fit = $${i} OR title ILIKE $${i+1})`; params.push(analysis.fit, `%${analysis.fit}%`); i += 2; }
+    if (analysis.fit || analysis.fits?.length) {
+      const fits = analysis.fits?.length > 1 ? analysis.fits : (analysis.fit ? [analysis.fit] : []);
+      if (fits.length === 1) {
+        sql += ` AND (fit = $${i} OR title ILIKE $${i+1})`; params.push(fits[0], `%${fits[0]}%`); i += 2;
+      } else if (fits.length > 1) {
+        sql += ` AND (fit = ANY($${i}::text[]) OR ${fits.map((_,j) => `title ILIKE $${i+1+j}`).join(' OR ')})`;
+        params.push(fits); fits.forEach(f => params.push(`%${f}%`)); i += 1 + fits.length;
+      }
+    }
     if (analysis.fabric) { sql += ` AND (fabric = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(analysis.fabric, `%${analysis.fabric}%`); i += 2; }
     if (analysis.pattern) { sql += ` AND (pattern = $${i} OR title ILIKE $${i+1} OR description ILIKE $${i+1})`; params.push(analysis.pattern, `%${analysis.pattern}%`); i += 2; }
     if (analysis.designDetails.length > 0) { sql += ` AND $${i++} = ANY(design_details)`; params.push(analysis.designDetails[0]); }
@@ -962,7 +978,7 @@ app.post("/api/search-by-image", async (req, res) => {
 });
 
 function analyzeQuery(query) {
-  const analysis = { keywords: [], color: null, size: null, style: null, fit: null, category: null, maxPrice: null, minDiscount: null, pattern: null, fabric: null, designDetails: [], store: null };
+  const analysis = { keywords: [], color: null, size: null, style: null, fit: null, fits: [], category: null, categories: [], maxPrice: null, minDiscount: null, pattern: null, fabric: null, designDetails: [], store: null };
   
   const priceMatch = query.match(/\u05e2\u05d3\s*\u20aa?\s*(\d+)|(\d+)\s*\u20aa|(\d+)\s*\u05e9"?\u05d7/i);
   if (priceMatch) analysis.maxPrice = parseInt(priceMatch[1] || priceMatch[2] || priceMatch[3]);
@@ -1142,6 +1158,12 @@ function analyzeQuery(query) {
     }
   }
 
+  // הסר אות יחס (ל/ב/מ/ש/כ) מהתחלת מילה עברית לפני חיפוש
+  function stripPrefix(w) {
+    if (/^[לבמשכ][\u05d0-\u05ea]/.test(w) && w.length > 2) return w.slice(1);
+    return w;
+  }
+
   const text = processedQuery.replace(/\u05e2\u05d3\s*\u20aa?\s*\d+/gi, '').replace(/\d+\s*\u20aa/gi, '').replace(/\d+\s*%/gi, '').trim();
   const words = text.split(/\s+/).filter(w => w.length >= 1);
 
@@ -1167,16 +1189,23 @@ function analyzeQuery(query) {
     if (sizeMatched) continue;
     
     let matched = false;
+    const stripped = stripPrefix(lower); // "להריון" → "הריון"
+    const wordVariants = lower === stripped ? [lower] : [lower, stripped];
     
     // בדוק SEARCH_ALIASES קודם — כולל ווריאנטים מה-DB
-    if (!matched && SEARCH_ALIASES[lower]) {
-      const a = SEARCH_ALIASES[lower];
-      if (a.type === 'color' && !analysis.color) { analysis.color = a.name; matched = true; }
-      else if (a.type === 'category' && !analysis.category) { analysis.category = a.name; matched = true; }
-      else if (a.type === 'style' && !analysis.style) { analysis.style = a.name; matched = true; }
-      else if (a.type === 'fit' && !analysis.fit) { analysis.fit = a.name; matched = true; }
-      else if (a.type === 'fabric' && !analysis.fabric) { analysis.fabric = a.name; matched = true; }
-      else if (a.type === 'pattern' && !analysis.pattern) { analysis.pattern = a.name; matched = true; }
+    if (!matched) {
+      for (const wv of wordVariants) {
+        if (SEARCH_ALIASES[wv]) {
+          const a = SEARCH_ALIASES[wv];
+          if (a.type === 'color' && !analysis.color) { analysis.color = a.name; matched = true; }
+          else if (a.type === 'category') { if (!analysis.categories.includes(a.name)) analysis.categories.push(a.name); if (!analysis.category) analysis.category = a.name; matched = true; }
+          else if (a.type === 'style' && !analysis.style) { analysis.style = a.name; matched = true; }
+          else if (a.type === 'fit') { if (!analysis.fits.includes(a.name)) analysis.fits.push(a.name); if (!analysis.fit) analysis.fit = a.name; matched = true; }
+          else if (a.type === 'fabric' && !analysis.fabric) { analysis.fabric = a.name; matched = true; }
+          else if (a.type === 'pattern' && !analysis.pattern) { analysis.pattern = a.name; matched = true; }
+          if (matched) break;
+        }
+      }
     }
 
     // חנות
@@ -1186,33 +1215,33 @@ function analyzeQuery(query) {
       }
     }
     if (!matched) {
-    for (const [name, variants] of Object.entries(colorMap)) {
-      if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.color) analysis.color = name; matched = true; break; }
-    }
+      for (const [name, variants] of Object.entries(colorMap)) {
+        if (variants.some(v => wordVariants.includes(v.toLowerCase()))) { if (!analysis.color) analysis.color = name; matched = true; break; }
+      }
     }
     if (!matched) {
       for (const [name, variants] of Object.entries(categoryMap)) {
-        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.category) analysis.category = name; matched = true; break; }
+        if (variants.some(v => wordVariants.includes(v.toLowerCase()))) { if (!analysis.categories.includes(name)) analysis.categories.push(name); if (!analysis.category) analysis.category = name; matched = true; break; }
       }
     }
     if (!matched) {
       for (const [name, variants] of Object.entries(styleMap)) {
-        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.style) analysis.style = name; matched = true; break; }
+        if (variants.some(v => wordVariants.includes(v.toLowerCase()))) { if (!analysis.style) analysis.style = name; matched = true; break; }
       }
     }
     if (!matched) {
       for (const [name, variants] of Object.entries(fitMap)) {
-        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.fit) analysis.fit = name; matched = true; break; }
+        if (variants.some(v => wordVariants.includes(v.toLowerCase()))) { if (!analysis.fits.includes(name)) analysis.fits.push(name); if (!analysis.fit) analysis.fit = name; matched = true; break; }
       }
     }
     if (!matched) {
       for (const [name, variants] of Object.entries(fabricMap)) {
-        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.fabric) analysis.fabric = name; matched = true; break; }
+        if (variants.some(v => wordVariants.includes(v.toLowerCase()))) { if (!analysis.fabric) analysis.fabric = name; matched = true; break; }
       }
     }
     if (!matched) {
       for (const [name, variants] of Object.entries(patternMap)) {
-        if (variants.some(v => word.toLowerCase() === v.toLowerCase())) { if (!analysis.pattern) analysis.pattern = name; matched = true; break; }
+        if (variants.some(v => wordVariants.includes(v.toLowerCase()))) { if (!analysis.pattern) analysis.pattern = name; matched = true; break; }
       }
     }
     if (!matched) {
@@ -3164,6 +3193,21 @@ app.put('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
     await loadSearchAliases();
     res.json({ ok: true, item: r.rows[0] });
   } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/admin/products/:id — בן מוצר לתמיד (banned=true)
+app.delete('/api/admin/products/:id', adminAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id חסר' });
+    // יוצרים עמודה אם לא קיימת (idempotent)
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT false`);
+    await pool.query(`UPDATE products SET banned=true WHERE id=$1`, [id]);
+    res.json({ ok: true, id });
+  } catch(e) {
+    console.error('ban-product error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

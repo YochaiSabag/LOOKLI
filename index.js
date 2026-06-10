@@ -1935,8 +1935,8 @@ app.post("/api/auth/google", async (req, res) => {
 
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
-    console.error('google auth error:', err.message);
-    res.status(500).json({ error: "שגיאת שרת" });
+    console.error('google auth error:', err.message, err.stack?.split('\n')[1]);
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -226,6 +226,32 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
         </div>
 
         <div class="field">
+          <label>תמונת מובייל — אופציונלי <span style="font-weight:400;color:var(--muted)">(אם שונה מהדסקטופ)</span></label>
+          <input type="url" id="fMobileImageUrl" placeholder="https://... (ריק = אותה תמונה)"/>
+          <div class="field-hint">מומלץ יחס 4:1 למובייל (לדוגמא 800×200px)</div>
+        </div>
+
+        <div class="field">
+          <label>פרסומת מובייל — banner בין שורות גריד</label>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
+              <input type="checkbox" id="fMobileBanner" style="width:16px;height:16px;accent-color:var(--accent)" onchange="toggleMobileBannerFields()"/>
+              הצג כ-banner במובייל
+            </label>
+          </div>
+          <div id="mobileBannerFields" style="display:none;margin-top:10px">
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">הכנס אחרי כמה כרטיסיות</label>
+            <select id="fEveryN" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;outline:none;direction:rtl;width:100%;margin-top:4px">
+              <option value="6">6 כרטיסיות (3 שורות)</option>
+              <option value="8">8 כרטיסיות (4 שורות)</option>
+              <option value="10">10 כרטיסיות (5 שורות)</option>
+              <option value="12">12 כרטיסיות (6 שורות)</option>
+            </select>
+            <div class="field-hint" style="margin-top:4px">בדסקטופ — הלוח יופיע בסידבר כרגיל</div>
+          </div>
+        </div>
+
+        <div class="field">
           <label>קישור יעד (לחיצה)</label>
           <input type="url" id="fLinkUrl" placeholder="https://..."/>
         </div>
@@ -442,7 +468,12 @@ function updateStats(t,a,c,i) {
 }
 
 // ─── Submit ───────────────────────────────────────────────
-async function submitAd() {
+function toggleMobileBannerFields() {
+  const checked = document.getElementById('fMobileBanner').checked;
+  document.getElementById('mobileBannerFields').style.display = checked ? 'block' : 'none';
+}
+
+
   const title = document.getElementById('fTitle').value.trim();
   if (!title) { showToast('נדרשת כותרת', 'error'); return; }
   const btn = document.getElementById('submitBtn');
@@ -451,6 +482,7 @@ async function submitAd() {
   const body = {
     title,
     image_url: document.getElementById('fImageUrl').value.trim() || null,
+    mobile_image_url: document.getElementById('fMobileImageUrl').value.trim() || null,
     link_url: document.getElementById('fLinkUrl').value.trim() || null,
     caption: document.getElementById('fCaption').value.trim() || null,
     size: selectedSize,
@@ -458,6 +490,8 @@ async function submitAd() {
     show_rate: parseInt(document.getElementById('fShowRate').value),
     days: parseInt(document.getElementById('fDays').value) || 0,
     price_paid: parseFloat(document.getElementById('fPaid').value) || null,
+    mobile_banner: document.getElementById('fMobileBanner').checked,
+    every_n: parseInt(document.getElementById('fEveryN').value) || 6,
   };
 
   const editId = document.getElementById('editId').value;
@@ -469,8 +503,12 @@ async function submitAd() {
     if (!res.ok) throw new Error();
     showToast(editId ? '✅ עודכן' : '✅ נוסף!', 'success');
     cancelEdit(); loadAds();
-  } catch(e) { showToast('שגיאה', 'error'); }
-  finally { btn.disabled=false; btn.textContent = editMode?'שמור':'הוסף לוח'; }
+  } catch(e) { 
+    showToast('שגיאה', 'error'); 
+  } finally { 
+    btn.disabled=false; 
+    btn.textContent = editMode?'שמור':'הוסף לוח'; 
+  }
 }
 
 // ─── Edit ─────────────────────────────────────────────────
@@ -497,6 +535,11 @@ function editAd(a) {
     document.getElementById('fDays').value = 0; // 0 = ללא פגיעה
   }
   selectSize(a.size||1);
+  document.getElementById('fMobileImageUrl').value = a.mobile_image_url||'';
+  const isMobileBanner = !!a.mobile_banner;
+  document.getElementById('fMobileBanner').checked = isMobileBanner;
+  document.getElementById('mobileBannerFields').style.display = isMobileBanner ? 'block' : 'none';
+  if (a.every_n) document.getElementById('fEveryN').value = a.every_n;
   updateWeight(); onImageInput(); onCaptionInput();
   window.scrollTo({top:0,behavior:'smooth'});
 }

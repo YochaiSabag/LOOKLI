@@ -81,7 +81,7 @@ app.use('/api/', (req, res, next) => {
 });
 
 // ===== SEO helpers (robots.txt + sitemap.xml) =====
-const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
+const SITE_URL = (process.env.SITE_URL || "https://www.lookli.co.il").replace('://lookli.co.il', '://www.lookli.co.il');
 
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
@@ -2544,7 +2544,7 @@ const STORE_NAMES = {
   'AVIVIT':  'אביבית וייצמן',
 };
 
-const SITE_BASE = process.env.SITE_URL || 'https://lookli.co.il';
+const SITE_BASE = (process.env.SITE_URL || 'https://www.lookli.co.il').replace('://lookli.co.il', '://www.lookli.co.il');
 
 // בנה HTML email
 function buildNewProductsEmail(storeGroups) {
@@ -2678,6 +2678,8 @@ async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
           headers: {
             'List-Unsubscribe': `<${unsubUrl}>, <mailto:unsubscribe@lookli.co.il?subject=unsubscribe>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            'Precedence': 'bulk',
+            'X-Mailer': 'LOOKLI Newsletter',
           }
         })
       });
@@ -2719,11 +2721,9 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     if (!dryRun && !forceRun && lastSentRow.rows.length) {
       const lastSent = new Date(lastSentRow.rows[0].sent_at);
       const daysSince = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60 * 24);
-      /* TODO: להחזיר אחרי הבדיקה
       if (daysSince < 7) {
         return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
       }
-      */
     }
 
     // 2. מצא חנויות עם מוצרים חדשים ב-7 ימים האחרונים
@@ -2774,6 +2774,7 @@ app.get('/api/cron/new-products-email', async (req, res) => {
       `SELECT email FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC`
     );
     const emails = subscribersRes.rows.map(r => r.email);
+    console.log(`[new-products] מנויים פעילים: ${emails.length}`);
     if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
 
     // 6. שלח
@@ -2926,11 +2927,9 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
     const forceRun = req.query.force === '1';
     if (!dryRun && !forceRun && lastSentRow.rows.length) {
       const daysSince = (Date.now() - new Date(lastSentRow.rows[0].sent_at).getTime()) / (1000 * 60 * 60 * 24);
-      /* TODO: להחזיר אחרי הבדיקה
       if (daysSince < 7) {
         return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
       }
-      */
     }
 
     // מצא מוצרים שקיבלו הנחה 10%+ ב-7 ימים האחרונים
@@ -2984,6 +2983,7 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
       `SELECT email FROM newsletter_subscribers WHERE active=true`
     );
     const emails = subscribersRes.rows.map(r => r.email);
+    console.log(`[price-drop] מנויים פעילים: ${emails.length}`);
     if (!emails.length) return res.json({ skipped: true, reason: 'אין מנויים פעילים' });
 
     const sent = await sendNewProductsEmail(emails, subject, html);

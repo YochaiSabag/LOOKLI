@@ -1835,6 +1835,26 @@ app.post("/api/newsletter/subscribe", async (req, res) => {
   }
 });
 
+// GET /unsubscribe?token=... — הסרה מאובטחת עם token
+app.get('/unsubscribe', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send('קישור לא תקין');
+  try {
+    // token = base64(email)
+    const email = Buffer.from(token, 'base64').toString('utf8');
+    if (!email || !email.includes('@')) return res.status(400).send('קישור לא תקין');
+    await pool.query('UPDATE newsletter_subscribers SET active=false WHERE email=$1', [email]);
+    res.send(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>הוסרת מהרשימה</title>
+      <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fdf0f7}
+      .box{background:#fff;border-radius:16px;padding:40px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.08);max-width:400px}
+      h2{color:#c48cb3;margin-bottom:12px}p{color:#666;margin-bottom:24px}
+      a{display:inline-block;padding:12px 28px;background:#c48cb3;color:#fff;border-radius:24px;text-decoration:none;font-weight:700}</style>
+      </head><body><div class="box"><h2>✓ הוסרת בהצלחה</h2>
+      <p>כתובת המייל <strong>${email}</strong> הוסרה מרשימת התפוצה של LOOKLI.</p>
+      <a href="https://www.lookli.co.il">חזרה לאתר</a></div></body></html>`);
+  } catch(e) { res.status(500).send('שגיאה — נסה שוב'); }
+});
+
 // POST /api/newsletter/unsubscribe
 app.post("/api/newsletter/unsubscribe", async (req, res) => {
   try {
@@ -2566,7 +2586,7 @@ function buildNewProductsEmail(storeGroups) {
   <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
     <p style="margin:0;font-size:11px;color:#bbb">
       קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
-      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#c48cb3">הסרה מרשימת תפוצה</a>
+      <a href="{{unsubscribe_url}}" style="color:#c48cb3">הסרה מרשימת תפוצה</a>
     </p>
   </td></tr>
 
@@ -2577,32 +2597,63 @@ function buildNewProductsEmail(storeGroups) {
 }
 
 // שלח דרך Brevo
-async function sendNewProductsEmail(toEmails, subject, html) {
+// יצירת unsubscribe token מאובטח
+function unsubscribeToken(email) {
+  return Buffer.from(email).toString('base64');
+}
+
+async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
   const RESEND_KEY = process.env.RESEND_API_KEY;
+  const SITE = process.env.SITE_URL || 'https://www.lookli.co.il';
   if (!RESEND_KEY) throw new Error('חסר RESEND_API_KEY');
 
-  const batchSize = 50;
-  let sent = 0;
-  for (let i = 0; i < toEmails.length; i += batchSize) {
-    const batch = toEmails.slice(i, i + batchSize);
-    const resp = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'LOOKLI <noreply@lookli.co.il>',
-        bcc: batch,
-        to: ['noreply@lookli.co.il'],
-        subject,
-        html
-      })
-    });
-    if (!resp.ok) {
-      const err = await resp.json();
-      console.error('Resend send error:', err);
-    } else {
-      sent += batch.length;
+  const FROM = 'LOOKLI <noreply@lookli.co.il>';
+  let sent = 0, failed = 0;
+
+  // שלח לכל נמען בנפרד עם token ייחודי
+  for (const email of toEmails) {
+    const token = unsubscribeToken(email);
+    const unsubUrl = `${SITE}/unsubscribe?token=${encodeURIComponent(token)}`;
+
+    // החלף placeholder בHTML
+    const html = htmlTemplate
+      .replace(/\{\{email\}\}/g, email)
+      .replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
+
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: FROM,
+          to: [email],
+          subject,
+          html,
+          headers: {
+            'List-Unsubscribe': `<${unsubUrl}>, <mailto:unsubscribe@lookli.co.il?subject=unsubscribe>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          }
+        })
+      });
+
+      if (resp.ok) {
+        sent++;
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        console.error(`Resend failed [${email}]:`, err.message || JSON.stringify(err));
+        failed++;
+      }
+
+      // המתן 30ms בין שליחות — מניעת rate limit
+      await new Promise(r => setTimeout(r, 30));
+
+    } catch(e) {
+      console.error(`Resend exception [${email}]:`, e.message);
+      failed++;
     }
   }
+
+  console.log(`sendNewProductsEmail: sent=${sent}, failed=${failed}, total=${toEmails.length}`);
   return sent;
 }
 
@@ -2803,7 +2854,7 @@ function buildPriceDropEmail(storeGroups) {
   <tr><td style="background:#f9f3f9;padding:18px 28px;text-align:center;border-top:1px solid #f0e6f0">
     <p style="margin:0;font-size:11px;color:#bbb">
       קיבלת מייל זה כי נרשמת לעדכונים מ-LOOKLI.<br>
-      <a href="${SITE_BASE}/unsubscribe?email={{email}}" style="color:#d191b0">הסרה מרשימת תפוצה</a>
+      <a href="{{unsubscribe_url}}" style="color:#d191b0">הסרה מרשימת תפוצה</a>
     </p>
   </td></tr>
 

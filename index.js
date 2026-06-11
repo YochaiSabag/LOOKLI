@@ -2793,7 +2793,7 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     res.json({
       ok: true,
       sent,
-      failed: toEmails.length - sent,
+      failed: emails.length - sent,
       total: emails.length,
       stores: storeGroups.map(s => ({ store: s.store, newProducts: s.total })),
       subject

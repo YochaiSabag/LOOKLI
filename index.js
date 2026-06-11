@@ -2655,6 +2655,7 @@ async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
 
   const FROM = 'LOOKLI <info@lookli.co.il>';
   let sent = 0, failed = 0;
+  const failedEmails = [];
 
   // שלח לכל נמען בנפרד עם token ייחודי
   for (const email of toEmails) {
@@ -2689,11 +2690,12 @@ async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
       } else {
         const err = await resp.json().catch(() => ({}));
         console.error(`Resend failed [${email}]:`, err.message || JSON.stringify(err));
+        failedEmails.push({ email, error: err.message || err.name || 'unknown' });
         failed++;
       }
 
-      // המתן 30ms בין שליחות — מניעת rate limit
-      await new Promise(r => setTimeout(r, 30));
+      // המתן 600ms בין שליחות — Resend מגביל ל-2 בקשות/שנייה
+      await new Promise(r => setTimeout(r, 600));
 
     } catch(e) {
       console.error(`Resend exception [${email}]:`, e.message);
@@ -2702,6 +2704,7 @@ async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
   }
 
   console.log(`sendNewProductsEmail: sent=${sent}, failed=${failed}, total=${toEmails.length}`);
+  if (failedEmails.length) console.error('נכשלו:', JSON.stringify(failedEmails));
   return sent;
 }
 
@@ -2790,6 +2793,8 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     res.json({
       ok: true,
       sent,
+      failed: toEmails.length - sent,
+      total: emails.length,
       stores: storeGroups.map(s => ({ store: s.store, newProducts: s.total })),
       subject
     });
@@ -2994,7 +2999,7 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
       [storeGroups.map(s=>s.store).join(','), sent, subject]
     ).catch(() => {});
 
-    res.json({ ok: true, sent, stores: storeGroups.map(s=>({ store:s.store, products:s.total })), subject });
+    res.json({ ok: true, sent, failed: emails.length - sent, total: emails.length, stores: storeGroups.map(s=>({ store:s.store, products:s.total })), subject });
 
   } catch(e) {
     console.error('price-drop-email error:', e.message);

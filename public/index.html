@@ -2672,10 +2672,87 @@ document.addEventListener('click', e => {
   async function handleGoogleCredential(response) {
     try {
       showAuthError('');
-      const res = await fetch('/api/auth/google', {
+      // בדוק אם המשתמש חדש או קיים
+      const checkRes = await fetch('/api/auth/google-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: response.credential })
+      });
+      const checkData = await checkRes.json();
+      if (!checkRes.ok) return showAuthError(checkData.error || 'שגיאה בהתחברות עם Google');
+
+      if (checkData.isNew) {
+        // משתמש חדש — הצג אישור ניוזלטר
+        _pendingGoogleCredential = response.credential;
+        showGoogleNewsletterConsent(checkData.name || checkData.email);
+        return;
+      }
+
+      // משתמש קיים — התחבר ישירות
+      await completeGoogleAuth(response.credential, false);
+    } catch(e) {
+      showAuthError('שגיאה בהתחברות עם Google');
+    }
+  }
+
+  let _pendingGoogleCredential = null;
+
+  function showGoogleNewsletterConsent(name) {
+    const firstName = (name || '').split(' ')[0] || 'שלום';
+    document.getElementById('authModalTitle').textContent = `ברוכה הבאה, ${firstName}! 👋`;
+    document.getElementById('authModalSub').textContent = 'רגע לפני שנסיים...';
+    document.getElementById('authTabsRow').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('registerForm').style.display = 'none';
+    document.getElementById('profileForm').style.display = 'none';
+    let consentDiv = document.getElementById('googleConsentForm');
+    if (!consentDiv) {
+      consentDiv = document.createElement('div');
+      consentDiv.id = 'googleConsentForm';
+      document.querySelector('.auth-modal-body').appendChild(consentDiv);
+    }
+    consentDiv.style.display = 'block';
+    consentDiv.innerHTML = `
+      <div style="margin-bottom:20px">
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#4b5563;cursor:pointer;line-height:1.6;user-select:none">
+          <input type="checkbox" id="googleNewsletterChk"
+            style="width:17px;height:17px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"
+            onchange="document.getElementById('googleConsentBtn').disabled=!this.checked;document.getElementById('googleConsentBtn').style.opacity=this.checked?'1':'.45';document.getElementById('googleConsentBtn').style.cursor=this.checked?'pointer':'not-allowed'"/>
+          <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
+        </label>
+      </div>
+      <button id="googleConsentBtn" onclick="finishGoogleAuth()" disabled
+        style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:not-allowed;transition:all .2s;opacity:.45;font-family:inherit">
+        סיום הרשמה ←
+      </button>
+      <div style="text-align:center;margin-top:12px">
+        <span style="font-size:12px;color:#9ca3af;cursor:pointer;text-decoration:underline" onclick="cancelGoogleAuth()">ביטול</span>
+      </div>`;
+  }
+
+  async function finishGoogleAuth() {
+    const chk = document.getElementById('googleNewsletterChk');
+    if (!chk?.checked) return;
+    const btn = document.getElementById('googleConsentBtn');
+    btn.disabled = true; btn.textContent = '⏳ יוצר חשבון...';
+    await completeGoogleAuth(_pendingGoogleCredential, true);
+    const consentDiv = document.getElementById('googleConsentForm');
+    if (consentDiv) consentDiv.style.display = 'none';
+  }
+
+  function cancelGoogleAuth() {
+    _pendingGoogleCredential = null;
+    const consentDiv = document.getElementById('googleConsentForm');
+    if (consentDiv) consentDiv.style.display = 'none';
+    switchAuthTab('login');
+  }
+
+  async function completeGoogleAuth(credential, newsletter) {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential, newsletter })
       });
       const data = await res.json();
       if (!res.ok) return showAuthError(data.error || 'שגיאה בהתחברות עם Google');

@@ -1942,10 +1942,30 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+// POST /api/auth/google-check — בדוק אם משתמש גוגל חדש או קיים (ללא יצירה)
+app.post("/api/auth/google-check", async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "חסר credential" });
+    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+    const payload = await googleRes.json();
+    if (payload.error) return res.status(401).json({ error: "Token לא תקין" });
+    if (payload.aud !== '1037279869077-935i5v7lva8q7t0gff3fa4m6rjtf5mn5.apps.googleusercontent.com') {
+      return res.status(401).json({ error: "Client ID לא תואם" });
+    }
+    const emailLower = payload.email?.toLowerCase().trim();
+    if (!emailLower) return res.status(400).json({ error: "לא נמצא אימייל" });
+    const existing = (await pool.query('SELECT id FROM users WHERE email=$1', [emailLower])).rows[0];
+    res.json({ isNew: !existing, email: emailLower, name: payload.name || '' });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/auth/google — התחברות עם Google
 app.post("/api/auth/google", async (req, res) => {
   try {
-    const { credential } = req.body;
+    const { credential, newsletter } = req.body;
     if (!credential) return res.status(400).json({ error: "חסר credential" });
 
     // אמת את ה-token מול Google
@@ -1966,22 +1986,25 @@ app.post("/api/auth/google", async (req, res) => {
     let user = (await pool.query('SELECT * FROM users WHERE email=$1', [emailLower])).rows[0];
 
     if (!user) {
-      // הרשמה אוטומטית
+      // הרשמה חדשה — newsletter לפי בחירת המשתמש
+      const wantsNewsletter = newsletter === true;
       const result = await pool.query(
         'INSERT INTO users (email, name, password_hash, newsletter, created_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *',
-        [emailLower, name || emailLower.split('@')[0], 'google_oauth_' + googleId, true]
+        [emailLower, name || emailLower.split('@')[0], 'google_oauth_' + googleId, wantsNewsletter]
       );
       user = result.rows[0];
-      // הוסף לניוזלטר ול-Brevo (הרשמה חדשה דרך גוגל)
-      try {
-        await pool.query(
-          `INSERT INTO newsletter_subscribers (email, source)
-           VALUES ($1, 'google_oauth')
-           ON CONFLICT (email) DO UPDATE SET active=true`,
-          [emailLower]
-        );
-        addToBrevo(emailLower).catch(()=>{});
-      } catch(_) {}
+      // הוסף לניוזלטר רק אם אישר
+      if (wantsNewsletter) {
+        try {
+          await pool.query(
+            `INSERT INTO newsletter_subscribers (email, source)
+             VALUES ($1, 'google_oauth')
+             ON CONFLICT (email) DO UPDATE SET active=true`,
+            [emailLower]
+          );
+          addToBrevo(emailLower).catch(()=>{});
+        } catch(_) {}
+      }
     }
 
     const token = createToken(user.id, user.email);
@@ -2696,9 +2719,11 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     if (!dryRun && !forceRun && lastSentRow.rows.length) {
       const lastSent = new Date(lastSentRow.rows[0].sent_at);
       const daysSince = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60 * 24);
+      /* TODO: להחזיר אחרי הבדיקה
       if (daysSince < 7) {
         return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
       }
+      */
     }
 
     // 2. מצא חנויות עם מוצרים חדשים ב-7 ימים האחרונים
@@ -2901,9 +2926,11 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
     const forceRun = req.query.force === '1';
     if (!dryRun && !forceRun && lastSentRow.rows.length) {
       const daysSince = (Date.now() - new Date(lastSentRow.rows[0].sent_at).getTime()) / (1000 * 60 * 60 * 24);
+      /* TODO: להחזיר אחרי הבדיקה
       if (daysSince < 7) {
         return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
       }
+      */
     }
 
     // מצא מוצרים שקיבלו הנחה 10%+ ב-7 ימים האחרונים

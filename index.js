@@ -2653,7 +2653,7 @@ async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
   const SITE = process.env.SITE_URL || 'https://www.lookli.co.il';
   if (!RESEND_KEY) throw new Error('חסר RESEND_API_KEY');
 
-  const FROM = 'LOOKLI <noreply@lookli.co.il>';
+  const FROM = 'LOOKLI <info@lookli.co.il>';
   let sent = 0, failed = 0;
 
   // שלח לכל נמען בנפרד עם token ייחודי

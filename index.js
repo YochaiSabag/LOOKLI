@@ -983,8 +983,15 @@ function analyzeQuery(query) {
   const priceMatch = query.match(/\u05e2\u05d3\s*\u20aa?\s*(\d+)|(\d+)\s*\u20aa|(\d+)\s*\u05e9"?\u05d7/i);
   if (priceMatch) analysis.maxPrice = parseInt(priceMatch[1] || priceMatch[2] || priceMatch[3]);
   
-  const discountMatch = query.match(/(\d+)\s*%/i);
-  if (discountMatch) analysis.minDiscount = parseInt(discountMatch[1]);
+  // הנחה — רק עם % מפורש, או מילת הנחה/מבצע/סייל
+  // לא מספר סתם (למניעת בלבול עם מידה 40, 42 וכו')
+  const discountMatch = query.match(/(\d+)\s*(?:%|אחוז)/i);
+  if (discountMatch) {
+    const val = parseInt(discountMatch[1]);
+    analysis.minDiscount = val >= 50 ? 60 : val >= 30 ? 40 : 20;
+  } else if (/הנחה|מבצע|סייל|sale/i.test(query)) {
+    analysis.minDiscount = 20;
+  }
 
   // חנויות
   const storeMap = {

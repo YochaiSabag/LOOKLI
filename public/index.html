@@ -1066,7 +1066,7 @@ function handleImgError(img){
 
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
-let currentPage=1,itemsPerPage=isMobile?8:20,allProducts=[],isLoading=false;
+let currentPage=1,itemsPerPage=isMobile?8:28,allProducts=[],isLoading=false;
 
 // show_rate: session-based counter (10% = פעם מכל 10 כניסות)
 const _sessionCounter = (() => {
@@ -1356,6 +1356,7 @@ async function runAISearch(){
     if(data.analysis.style){activeStyles=[data.analysis.style]}
     if(data.analysis.fit||data.analysis.fits?.length){activeFits=data.analysis.fits?.length?data.analysis.fits:[data.analysis.fit]}
     if(data.analysis.fabric){activeFabrics=[data.analysis.fabric]}
+    if(data.analysis.minDiscount){activeDiscount=String(data.analysis.minDiscount);document.querySelectorAll('#discountBoxes .filter-opt').forEach(el=>el.classList.toggle('active',el.dataset.discount===activeDiscount))}
     if(data.analysis.pattern){activePattern=data.analysis.pattern}
     if(data.analysis.designDetails&&data.analysis.designDetails.length>0){activeDesign=data.analysis.designDetails[0]}
     if(data.analysis.maxPrice){document.getElementById("priceRange").value=Math.min(data.analysis.maxPrice,500);document.getElementById("priceValue").textContent=Math.min(data.analysis.maxPrice,500)}

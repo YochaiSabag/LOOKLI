@@ -473,7 +473,7 @@ function toggleMobileBannerFields() {
   document.getElementById('mobileBannerFields').style.display = checked ? 'block' : 'none';
 }
 
-
+async function submitAd() {
   const title = document.getElementById('fTitle').value.trim();
   if (!title) { showToast('נדרשת כותרת', 'error'); return; }
   const btn = document.getElementById('submitBtn');

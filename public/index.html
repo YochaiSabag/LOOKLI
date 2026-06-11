@@ -3149,7 +3149,7 @@ document.addEventListener('click', e => {
       sidebar.innerHTML = '';
       if (!ads || !ads.length) return;
 
-      const isMobileView = window.innerWidth < 1000;
+      const isMobileView = window.innerWidth < 1300;
 
       // ── מובייל: banner בין שורות הגריד ──────────────────
       if (isMobileView) {
@@ -3167,8 +3167,6 @@ document.addEventListener('click', e => {
 
       for (const ad of ads) {
         if (!shouldShowByRate(ad.show_rate ?? 100)) continue;
-        const requiredRows = ad.size || 1;
-        if (availableRows < requiredRows) continue;
         const sizeClass = ad.size === 3 ? 'adunit-triple' : ad.size === 2 ? 'adunit-double' : 'adunit-single';
         const div = document.createElement('a');
         div.className = 'adunit ' + sizeClass;

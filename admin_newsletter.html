@@ -183,6 +183,9 @@ code{background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:12px
             <button class="tab active" data-filter="all" onclick="setFilter('all',this)">הכל</button>
             <button class="tab" data-filter="footer" onclick="setFilter('footer',this)">טופס תחתית</button>
             <button class="tab" data-filter="register" onclick="setFilter('register',this)">הרשמה לאתר</button>
+            <button class="tab" data-filter="google_oauth" onclick="setFilter('google_oauth',this)">גוגל</button>
+            <button class="tab" data-filter="migration" onclick="setFilter('migration',this)">מיגרציה</button>
+            <button class="tab" data-filter="inactive" onclick="setFilter('inactive',this)">הוסרו</button>
           </div>
         </div>
         <div class="table-wrap" id="tableWrap">
@@ -194,6 +197,44 @@ code{background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:12px
 
     <!-- LEFT: כלים -->
     <div>
+
+      <!-- שליחה ידנית -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">📤 שליחת קמפיין</span></div>
+        <div class="panel-body">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" id="sendNewBtn" onclick="sendCampaign('new-products')">
+            🛍️ שלח — מוצרים חדשים
+          </button>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;background:linear-gradient(135deg,#ef4444,#dc2626)" id="sendPriceBtn" onclick="sendCampaign('price-drop')">
+            💸 שלח — ירידת מחיר
+          </button>
+          <div id="sendResult" style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5"></div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted)">שליחה חוזרת נחסמת אוטומטית אם עברו פחות מ-7 ימים מהשליחה הקודמת.</div>
+        </div>
+      </div>
+
+      <!-- היסטוריית שליחות -->
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">📋 היסטוריית שליחות</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadCampaignLog()">🔄</button>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <div id="campaignLog" style="padding:14px 20px;font-size:12px;color:var(--muted)">טוען...</div>
+        </div>
+      </div>
+
+      <!-- מיגרציה -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">🔧 כלי תחזוקה</span></div>
+        <div class="panel-body">
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:8px" onclick="migrateUsers()">
+            👥 הוסף כל users לרשימה
+          </button>
+          <div id="migrateResult" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">מיגרציה חד-פעמית — מוסיף משתמשים קיימים שלא ברשימת התפוצה.</div>
+        </div>
+      </div>
 
       <!-- CSV Export -->
       <div class="panel">
@@ -366,7 +407,9 @@ function setFilter(f, btn) {
 function filterList() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   filtered = allSubs.filter(s => {
-    const matchFilter = currentFilter === 'all' || s.source === currentFilter;
+    const matchFilter = currentFilter === 'all' ? s.active !== false
+      : currentFilter === 'inactive' ? s.active === false
+      : s.source === currentFilter;
     const matchSearch = !q || s.email.toLowerCase().includes(q);
     return matchFilter && matchSearch;
   });
@@ -500,6 +543,64 @@ function showToast(msg, type='') {
 
 // ─── Init ─────────────────────────────────────────────────
 loadList();
+loadCampaignLog();
+
+// ─── Campaign Log ─────────────────────────────────────────
+async function loadCampaignLog() {
+  const el = document.getElementById('campaignLog');
+  try {
+    const r = await fetch('/api/newsletter/campaign-log');
+    const d = await r.json();
+    if (!d.logs?.length) { el.innerHTML = '<div style="padding:4px 0">אין שליחות עדיין</div>'; return; }
+    el.innerHTML = d.logs.map(l => {
+      const date = new Date(l.sent_at).toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const type = l.campaign_type === 'new_products' ? '🛍️ מוצרים חדשים' : '💸 ירידת מחיר';
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-weight:700;color:var(--text)">${type}</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:2px">${date}</div></div>
+        <div style="text-align:left"><div style="font-weight:700;color:var(--text)">נשלח ל-${l.recipients}</div>
+        <div style="color:var(--muted);font-size:11px">${(l.stores||'').split(',').slice(0,2).join(', ')}${(l.stores||'').split(',').length>2?' +עוד':''}</div></div>
+      </div>`;
+    }).join('') + `<div style="padding:8px 0;text-align:center;color:var(--muted);font-size:11px">${d.logs.length} שליחות אחרונות</div>`;
+  } catch(e) { el.textContent = 'שגיאה בטעינה'; }
+}
+
+// ─── Send Campaign ────────────────────────────────────────
+async function sendCampaign(type) {
+  const btnId = type === 'new-products' ? 'sendNewBtn' : 'sendPriceBtn';
+  const btn = document.getElementById(btnId);
+  const result = document.getElementById('sendResult');
+  btn.disabled = true; btn.textContent = '⏳ שולח...';
+  result.textContent = '';
+  try {
+    const endpoint = type === 'new-products' ? '/api/cron/new-products-email?force=1' : '/api/cron/price-drop-email?force=1';
+    const r = await fetch(endpoint);
+    const d = await r.json();
+    if (d.skipped) {
+      result.innerHTML = `<span style="color:#f59e0b">⏭️ ${d.reason}</span>`;
+    } else if (d.ok) {
+      result.innerHTML = `<span style="color:var(--green)">✅ נשלח ל-${d.sent} נמענים</span>`;
+      showToast(`✅ נשלח ל-${d.sent} נמענים`, 'success');
+      loadCampaignLog();
+    } else {
+      result.innerHTML = `<span style="color:var(--red)">❌ ${d.error || 'שגיאה'}</span>`;
+    }
+  } catch(e) { result.innerHTML = `<span style="color:var(--red)">❌ שגיאת רשת</span>`; }
+  btn.disabled = false;
+  btn.textContent = type === 'new-products' ? '🛍️ שלח — מוצרים חדשים' : '💸 שלח — ירידת מחיר';
+}
+
+// ─── Migration ────────────────────────────────────────────
+async function migrateUsers() {
+  const el = document.getElementById('migrateResult');
+  el.textContent = '⏳ מריץ...';
+  try {
+    const r = await fetch('/api/newsletter/migrate-users', { method: 'POST' });
+    const d = await r.json();
+    el.innerHTML = d.ok ? `<span style="color:var(--green)">✅ נוספו ${d.added} משתמשים</span>` : `<span style="color:var(--red)">❌ ${d.error}</span>`;
+    if (d.ok) loadList();
+  } catch(e) { el.innerHTML = `<span style="color:var(--red)">❌ שגיאת רשת</span>`; }
+}
 </script>
 </body>
 </html>

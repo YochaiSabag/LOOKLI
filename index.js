@@ -1864,13 +1864,36 @@ app.post("/api/newsletter/unsubscribe", async (req, res) => {
   } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });
 
+// GET /api/newsletter/campaign-log
+app.get('/api/newsletter/campaign-log', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT campaign_type, stores, recipients, subject, sent_at
+       FROM email_campaign_log ORDER BY sent_at DESC LIMIT 20`
+    ).catch(() => ({ rows: [] }));
+    res.json({ logs: r.rows });
+  } catch(e) { res.json({ logs: [] }); }
+});
+
+// POST /api/newsletter/migrate-users
+app.post('/api/newsletter/migrate-users', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      INSERT INTO newsletter_subscribers (email, source)
+      SELECT email, 'migration' FROM users
+      ON CONFLICT (email) DO NOTHING
+    `);
+    res.json({ ok: true, added: r.rowCount });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/newsletter/list  (מוגן — רק לשימוש פנימי)
 app.get("/api/newsletter/list", adminAuth, async (req, res) => {
   try {
     const r = await pool.query(
-      "SELECT email, source, created_at FROM newsletter_subscribers WHERE active=true ORDER BY created_at DESC"
+      "SELECT email, source, active, created_at FROM newsletter_subscribers ORDER BY created_at DESC"
     );
-    res.json({ count: r.rowCount, subscribers: r.rows });
+    res.json({ count: r.rows.filter(s=>s.active).length, subscribers: r.rows });
   } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });
 

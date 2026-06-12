@@ -47,41 +47,57 @@ async function getAllProductUrls(page) {
       : `https://salinafashion.com/shop/page/${p}/`;
     try {
       console.log(`  → עמוד ${p}`);
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(3000);
 
-      // גלילה לטעינה מלאה
+      // גלילה
       for (let i = 0; i < 4; i++) {
-    if (i > 0 && i % 100 === 0) {
-      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
-      await browser.close();
-      ({ browser, context, page } = await launchBrowser());
-    }
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await page.waitForTimeout(800);
       }
+      await page.waitForTimeout(1500);
 
-      const urls = await page.evaluate(() =>
-        [...document.querySelectorAll('h3.wd-entities-title a, a.wd-product-img-link')]
-          .map(a => a.href.split('?')[0])
-          .filter(h => h.includes('salinafashion.com/shop/') && !h.endsWith('/shop/'))
-          .filter((v, i, a) => a.indexOf(v) === i)
-      );
+      // חלץ post IDs מ-Elementor loop-item classes
+      const postIds = await page.evaluate(() => {
+        const ids = [];
+        document.querySelectorAll('.e-loop-item').forEach(el => {
+          const m = el.className.match(/e-loop-item-(\d+)/);
+          if (m) ids.push(m[1]);
+        });
+        return [...new Set(ids)];
+      });
 
-      if (urls.length === 0) {
-        // debug — הדפס כותרת העמוד וכמה טקסט לאבחון
-        const debugInfo = await page.evaluate(() => ({
-          title: document.title,
-          bodySnippet: document.body?.innerText?.substring(0, 200) || '',
-          productCount: document.querySelectorAll('[class*="product"]').length,
-        }));
-        console.log(`    ⏹ עמוד ריק — debug: title="${debugInfo.title}" | products=${debugInfo.productCount} | body="${debugInfo.bodySnippet.replace(/\n/g,' ')}"`);
+      if (postIds.length === 0) {
+        console.log(`    ⏹ אין מוצרים — עוצר`);
         break;
       }
-      const before = allUrls.size;
-      urls.forEach(u => allUrls.add(u));
-      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-      if (allUrls.size === before) break;
+
+      console.log(`    📦 נמצאו ${postIds.length} post IDs — שולף URLs...`);
+
+      // שלוף URL לכל post ID דרך WP REST API
+      for (const id of postIds) {
+        try {
+          const apiUrl = `https://salinafashion.com/wp-json/wp/v2/product/${id}?_fields=link`;
+          const resp = await page.evaluate(async (u) => {
+            const r = await fetch(u);
+            if (!r.ok) return null;
+            const d = await r.json();
+            return d.link || null;
+          }, apiUrl);
+          if (resp && resp.includes('salinafashion.com')) {
+            allUrls.add(resp.split('?')[0]);
+          }
+        } catch(_) {}
+      }
+
+      console.log(`    ✓ סה"כ: ${allUrls.size}`);
+
+      // אם אין עמוד הבא — עצור
+      const hasNext = await page.evaluate((p) => {
+        return !!document.querySelector(`.page-numbers a[href*="/page/${p+1}/"], .next.page-numbers`);
+      }, p);
+      if (!hasNext) break;
+
     } catch(e) {
       console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);
       break;

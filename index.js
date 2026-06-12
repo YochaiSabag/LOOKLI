@@ -901,10 +901,10 @@ app.post("/api/ai-search", async (req, res) => {
     const originalQuery = query.trim();
     const hasAlias = SEARCH_ALIASES[originalQuery.toLowerCase()];
     if (hasAlias) {
-      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 100`;
+      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 5000`;
       params.push(`%${originalQuery}%`); i++;
     } else {
-      sql += ` ORDER BY id DESC LIMIT 100`;
+      sql += ` ORDER BY id DESC LIMIT 5000`;
     }
     const result = await pool.query(sql, params);
     let rows = result.rows;
@@ -967,7 +967,7 @@ app.post("/api/search-by-image", async (req, res) => {
     if (analysis.style) { sql += ` AND style=$${idx++}`; params.push(analysis.style); }
     if (analysis.fabric) { sql += ` AND (fabric=$${idx} OR description ILIKE $${idx+1})`; params.push(analysis.fabric, `%${analysis.fabric}%`); idx += 2; }
     if (analysis.pattern) { sql += ` AND (pattern=$${idx} OR title ILIKE $${idx+1})`; params.push(analysis.pattern, `%${analysis.pattern}%`); idx += 2; }
-    sql += ` ORDER BY id DESC LIMIT 100`;
+    sql += ` ORDER BY id DESC LIMIT 5000`;
     const result = await pool.query(sql, params);
     const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
     res.json({ analysis, results: rows, count: rows.length });

@@ -93,33 +93,37 @@ async function scrapeProduct(page, url) {
         .find(el => el.textContent.includes('אזל מהמלאי'))
     );
 
-    // מידות זמינות (in stock)
+    // מידות זמינות (in stock) — תומך בכל attributes (pa_size, pa_skirt, pa_shirt וכו')
     const sizes = fullyOos ? [] : await page.evaluate(() => {
-      const sel = document.querySelector('select#pa_size, select[name="attribute_pa_size"]');
-      if (!sel) {
-        // נסה לקרוא מ-li elements
-        return [...document.querySelectorAll('li.variable-item')]
-          .filter(li => !li.classList.contains('disabled') && !li.hasAttribute('data-wvstooltip-out-of-stock') || li.getAttribute('data-wvstooltip-out-of-stock') === null)
-          .map(li => li.getAttribute('data-title') || li.textContent.trim())
+      // נסה select קודם
+      const sel = document.querySelector('select[name^="attribute_pa_"]');
+      if (sel) {
+        return [...sel.options]
+          .filter(o => o.value && !o.textContent.includes('אזל'))
+          .map(o => o.textContent.trim())
           .filter(Boolean);
       }
-      return [...sel.options]
-        .filter(o => o.value && o.className.includes('enabled'))
-        .map(o => o.textContent.trim())
+      // li.variable-item — כולל חצאית, חולצה וכו' — in stock = אין data-wvstooltip-out-of-stock עם ערך
+      return [...document.querySelectorAll('li.variable-item[data-title]')]
+        .filter(li => {
+          const oos = li.getAttribute('data-wvstooltip-out-of-stock');
+          return oos === null || oos === '';
+        })
+        .map(li => li.getAttribute('data-title') || li.textContent.trim())
         .filter(Boolean);
     });
 
     // כל המידות (כולל אזל)
     const allSizes = await page.evaluate(() => {
-      const sel = document.querySelector('select#pa_size, select[name="attribute_pa_size"]');
-      if (!sel) {
-        return [...document.querySelectorAll('li.variable-item')]
-          .map(li => li.getAttribute('data-title') || li.textContent.trim())
+      const sel = document.querySelector('select[name^="attribute_pa_"]');
+      if (sel) {
+        return [...sel.options]
+          .filter(o => o.value)
+          .map(o => o.textContent.trim())
           .filter(Boolean);
       }
-      return [...sel.options]
-        .filter(o => o.value)
-        .map(o => o.textContent.trim())
+      return [...document.querySelectorAll('li.variable-item[data-title]')]
+        .map(li => li.getAttribute('data-title') || li.textContent.trim())
         .filter(Boolean);
     });
 

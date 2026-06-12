@@ -21,6 +21,21 @@ const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, 
 const STORE = 'MODA';
 const BASE  = 'https://moda723.com';
 
+const sizeMapping = {
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'],
+  '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(val)) return [val];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (/^L-?XL$/i.test(val)) return ['L','XL'];
+  if (/^S-?M$/i.test(val)) return ['S','M'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [];
+}
+
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
@@ -95,24 +110,24 @@ async function scrapeProduct(page, url) {
     const description = allParagraphs.join(' ');
 
     // מידות זמינות — רק button items (לא color items)
-    const sizes = await page.evaluate(() => {
+    const rawSizes = await page.evaluate(() => {
       const btns = [...document.querySelectorAll('li.button-variable-item')]
         .filter(li => !li.classList.contains('disabled'))
         .map(li => (li.getAttribute('data-title') || li.textContent.trim()).toUpperCase())
         .filter(Boolean);
-      // אם אין מידות אבל יש וריאציית צבע → ONE SIZE
       const hasColors = document.querySelectorAll('li.color-variable-item').length > 0;
       return btns.length === 0 && hasColors ? ['ONE SIZE'] : btns;
     });
+    const sizes = [...new Set(rawSizes.flatMap(s => normalizeSize(s)))];
 
-    // כל המידות
-    const allSizes = await page.evaluate(() => {
+    const rawAllSizes = await page.evaluate(() => {
       const btns = [...document.querySelectorAll('li.button-variable-item')]
         .map(li => (li.getAttribute('data-title') || li.textContent.trim()).toUpperCase())
         .filter(Boolean);
       const hasColors = document.querySelectorAll('li.color-variable-item').length > 0;
       return btns.length === 0 && hasColors ? ['ONE SIZE'] : btns;
     });
+    const allSizes = [...new Set(rawAllSizes.flatMap(s => normalizeSize(s)))];
 
     // צבעים מוריאציית הצבע
     const colorOptions = await page.evaluate(() =>
@@ -146,8 +161,10 @@ async function scrapeProduct(page, url) {
     const fabric       = detectFabric(title, description);
     const designDetails = detectDesignDetails(title, description);
 
-    const uniqueSizes    = [...new Set(sizes)];
-    const allUniqueSizes = [...new Set(allSizes)];
+    if (!sizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+
+    const uniqueSizes    = sizes;
+    const allUniqueSizes = allSizes;
 
     console.log(`  ✓ ${title.substring(0, 40)}`);
     console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);

@@ -162,6 +162,8 @@ async function scrapeProduct(page, url) {
     const uniqueSizes    = [...new Set(sizes)];
     const allUniqueSizes = [...new Set(allSizes)];
 
+    if (!uniqueSizes.length && !allUniqueSizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+
     console.log(`  ✓ ${title.substring(0, 40)}`);
     console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);
 

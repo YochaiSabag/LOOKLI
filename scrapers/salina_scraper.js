@@ -258,10 +258,16 @@ async function scrapeProduct(page, url) {
         }
       }
     } else {
-      // אין צבעים — קרא מידות ישירות
+      // אין צבעים — קרא מידות ישירות (רק מ-pa_size, לא מ-pa_color)
       const sizes = await page.evaluate(() => {
         const res = [];
-        document.querySelectorAll('[data-id="pa_size"] .wd-swatch, .wd-swatches-product .wd-swatch').forEach(el => {
+        // נסה קודם pa_size ספציפי
+        let sizeEls = document.querySelectorAll('[data-id="pa_size"] .wd-swatch, [data-attribute_name="attribute_pa_size"] .wd-swatch');
+        // fallback — כל .wd-swatches-product שאינו צבע
+        if (!sizeEls.length) {
+          sizeEls = document.querySelectorAll('.wd-swatches-product:not([data-id="pa_color"]):not([data-attribute_name="attribute_pa_color"]) .wd-swatch');
+        }
+        sizeEls.forEach(el => {
           const t = el.getAttribute('title') || el.querySelector('.wd-swatch-text')?.innerText?.trim() || '';
           const disabled = el.classList.contains('wd-out-of-stock') || el.classList.contains('wd-disabled');
           if (t) res.push({ name: t.trim(), disabled });

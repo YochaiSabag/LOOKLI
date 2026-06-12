@@ -23,6 +23,24 @@ import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
 // ======================================================================
+// המרת מידות EU
+// ======================================================================
+const sizeMapping = {
+  '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'],
+  '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
+};
+function normalizeSize(s) {
+  if (!s) return [];
+  const val = s.toString().toUpperCase().trim();
+  if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|ONE SIZE)$/i.test(val)) return [val];
+  if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
+  if (/^L-?XL$/i.test(val)) return ['L','XL'];
+  if (/^S-?M$/i.test(val)) return ['S','M'];
+  if (sizeMapping[val]) return sizeMapping[val];
+  return [];
+}
+
+// ======================================================================
 // איסוף קישורי מוצרים
 // ======================================================================
 async function getAllProductUrls(page) {
@@ -114,6 +132,11 @@ async function scrapeProduct(page, url) {
     if (!data.title) { console.log('  ✗ אין כותרת'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג: ${data.title.substring(0, 40)}`); return null; }
 
+    // המרת מידות EU
+    const sizes    = [...new Set(data.sizes.flatMap(s => normalizeSize(s)))];
+    const allSizes = [...new Set(data.allSizes.flatMap(s => normalizeSize(s)))];
+    if (!sizes.length && !allSizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+
     // צבע — מתוך הכותרת
     const color = normalizeColor(data.title, data.title);
     const mainColor = color || 'אחר';
@@ -126,15 +149,12 @@ async function scrapeProduct(page, url) {
     const pattern     = detectPattern(data.title, data.description);
     const designDetails = detectDesignDetails(data.title, data.description);
 
-    // colorSizes — כל המידות תחת הצבע
     const colorSizes = {};
-    if (mainColor) {
-      colorSizes[mainColor] = data.sizes;
-    }
+    if (mainColor) colorSizes[mainColor] = sizes;
 
     const saleStr = data.originalPrice ? ` (מקור: ₪${data.originalPrice}) SALE!` : '';
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
-    console.log(`    💰 ₪${data.price}${saleStr} | 🎨 ${mainColor} | 📏 ${data.sizes.join(',') || 'אין'} | 🖼️ ${data.images.length}`);
+    console.log(`    💰 ₪${data.price}${saleStr} | 🎨 ${mainColor} | 📏 ${sizes.join(',') || 'אין'} | 🖼️ ${data.images.length}`);
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
 
     return {
@@ -142,18 +162,13 @@ async function scrapeProduct(page, url) {
       price: data.price,
       originalPrice: data.originalPrice,
       images: data.images,
-      sizes: data.sizes,
-      allSizes: data.allSizes,
+      sizes,
+      allSizes,
       mainColor,
       colors: [mainColor],
       colorSizes,
       description: data.description,
-      category,
-      style,
-      fit,
-      fabric,
-      pattern,
-      designDetails,
+      category, style, fit, fabric, pattern, designDetails,
       url,
     };
 

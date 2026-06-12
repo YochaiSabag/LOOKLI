@@ -3149,18 +3149,19 @@ document.addEventListener('click', e => {
       sidebar.innerHTML = '';
       if (!ads || !ads.length) return;
 
-      const isMobileView = window.innerWidth < 1300;
+      const hasSidebar = window.innerWidth >= 1300;
 
-      // ── מובייל: banner בין שורות הגריד ──────────────────
-      if (isMobileView) {
+      // ── מובייל: banner בין שורות הגריד (מתחת ל-1000px) ──
+      if (window.innerWidth < 1000) {
         const mobileBanners = ads.filter(a => a.mobile_banner && shouldShowByRate(a.show_rate ?? 100));
-        if (mobileBanners.length) {
-          injectMobileBanners(mobileBanners);
-        }
-        return; // במובייל — לא מציגים סידבר
+        if (mobileBanners.length) injectMobileBanners(mobileBanners);
+        return;
       }
 
-      // ── דסקטופ: סידבר ────────────────────────────────────
+      // ── בין 1000-1300: לא סידבר ולא mobile banner ────────
+      if (!hasSidebar) return;
+
+      // ── דסקטופ (1300px+): סידבר ──────────────────────────
       const visibleCards = document.querySelectorAll('#grid .card:not(.sponsored-card)').length;
       const cols = window.innerWidth >= 1200 ? 4 : window.innerWidth >= 900 ? 3 : window.innerWidth >= 640 ? 2 : 1;
       const availableRows = Math.floor(visibleCards / cols);

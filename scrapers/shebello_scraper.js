@@ -33,27 +33,31 @@ async function getAllProductUrls(page) {
     const url = p === 1 ? `${BASE}/shop/` : `${BASE}/shop/page/${p}/`;
     console.log(`  → עמוד ${p}`);
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(2500);
 
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(700);
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+        await page.waitForTimeout(700);
+      }
+      await page.waitForTimeout(500);
+
+      const urls = await page.evaluate((base) =>
+        [...document.querySelectorAll('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url], a[href*="/product/"]')]
+          .map(el => el.getAttribute('href') || el.getAttribute('data-url'))
+          .map(h => (h || '').split('?')[0])
+          .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/') && h !== base + '/')
+          .filter((v, i, a) => a.indexOf(v) === i)
+      , BASE).catch(() => []);
+
+      if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+      urls.forEach(u => allUrls.add(u));
+      console.log(`    ✓ ${urls.length} קישורים`);
+      await page.waitForTimeout(800);
+    } catch(e) {
+      console.log(`    ⚠ שגיאה בעמוד ${p}: ${e.message.substring(0,60)} — ממשיך`);
     }
-
-    const urls = await page.evaluate((base) =>
-      [...document.querySelectorAll('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url]')]
-        .map(el => el.getAttribute('href') || el.getAttribute('data-url'))
-        .map(h => (h || '').split('?')[0])
-        .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/') && h !== base + '/')
-        .filter((v, i, a) => a.indexOf(v) === i)
-    , BASE);
-
-    if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
-
-    urls.forEach(u => allUrls.add(u));
-    console.log(`    ✓ ${urls.length} קישורים`);
-    await page.waitForTimeout(800);
   }
 
   const result = [...allUrls];

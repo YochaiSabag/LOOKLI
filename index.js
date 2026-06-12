@@ -436,9 +436,17 @@ app.get("/api/filters", async (req, res) => {
       : new Set(validColors);
     const colorHexFromDB = {};
     cfgColorRows.rows.forEach(r => { if (r.color_hex) colorHexFromDB[r.name] = r.color_hex; });
+    const VALID_SIZES = new Set(['XS','S','M','L','XL','XXL','XXXL','2XL','3XL','4XL','ONE SIZE','OS','FREE SIZE']);
+    const sizeOrder = ['XS','S','M','L','XL','XXL','XXXL','2XL','3XL','4XL','ONE SIZE','OS','FREE SIZE'];
+    const filteredSizes = sizesRes.rows.map(r => r.size).filter(s => s && VALID_SIZES.has(s.toUpperCase().trim()));
+    const uniqueSizes = [...new Set(filteredSizes)].sort((a,b) => {
+      const ai = sizeOrder.indexOf(a.toUpperCase());
+      const bi = sizeOrder.indexOf(b.toUpperCase());
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
     res.json({
       stores: storesRes.rows.map(r => r.store).filter(Boolean),
-      sizes: sizesRes.rows.map(r => r.size).filter(Boolean),
+      sizes: uniqueSizes,
       colors: colorsRes.rows.map(r => r.color).filter(c => c && validColorSet.has(c)),
       colorHex: colorHexFromDB,
       styles: stylesRes.rows.map(r => r.style).filter(Boolean),

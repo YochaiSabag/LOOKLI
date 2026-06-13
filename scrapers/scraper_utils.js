@@ -145,6 +145,12 @@ export async function loadScraperConfig(db) {
     const words = lower.split(/[\s\-]+/);
     for (const w of words) { if (lookup[w]) return lookup[w]; }
     for (const key of Object.keys(lookup)) {
+      // "סט" — התאמה מדויקת בלבד (מניעת "פסטל" → "סט")
+      if (key === 'סט' || key === 'set') {
+        const keyRegex = new RegExp(`(^|[\\s\\-,\\/])${key}($|[\\s\\-,\\/])`, 'i');
+        if (keyRegex.test(lower)) return lookup[key];
+        continue;
+      }
       if (lower.includes(key) || key.includes(lower)) return lookup[key];
     }
     if (unknowns) unknowns.add(val);

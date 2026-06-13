@@ -460,7 +460,9 @@ function renderGrid() {
 
   grid.innerHTML = slice.map(p => {
     const isSel = selected.has(p.id);
-    const fieldVal = p[currentField];
+    const fieldVal = currentField === 'category'
+      ? (Array.isArray(p.categories) && p.categories.length ? p.categories.join(' + ') : p.category)
+      : p[currentField];
     const img = p.image_url || (p.images && p.images[0]) || '';
     const store = p.store || '';
     const price = p.price ? `₪${Math.round(p.price)}` : '';
@@ -478,7 +480,7 @@ function renderGrid() {
         <div class="card-title"><a href="${escHtml(p.source_url||p.url||'#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none;border-bottom:1px dashed rgba(240,238,250,.25);">${escHtml(p.title || '')}</a></div>
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
-          ${(() => {
+          ${currentField === 'color' ? (() => {
             const allColors = [...new Set(Array.isArray(p.colors) && p.colors.length ? p.colors : (p.color && p.color !== 'אחר' ? [p.color] : []))];
             if (!allColors.length) return '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>';
             return allColors.map(c => {
@@ -489,7 +491,12 @@ function renderGrid() {
                 + escHtml(c)
                 + `<button data-id="${p.id}" data-color="${escHtml(c)}" onclick="event.stopPropagation();removeColorTag(+this.dataset.id,this.dataset.color)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`;
             }).join('');
-          })()}
+          })() : ''}
+          ${currentField === 'category' ? (() => {
+            const cats = Array.isArray(p.categories) && p.categories.length ? p.categories : (p.category ? [p.category] : []);
+            if (!cats.length) return '';
+            return cats.map(c => `<span class="meta-tag has-val" style="display:inline-flex;align-items:center;gap:3px">${escHtml(c)}<button data-id="${p.id}" data-field="category" data-val="${escHtml(c)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('');
+          })() : ''}
           ${currentField === 'fit' && (p.fits || p.fit) && (Array.isArray(p.fits) ? p.fits.length > 0 : (p.fits || p.fit))
             ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits : (p.fit ? [p.fit] : [])).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7;display:inline-flex;align-items:center;gap:3px">${escHtml(f)}<button data-id="${p.id}" data-field="fit" data-val="${escHtml(f)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
             : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)

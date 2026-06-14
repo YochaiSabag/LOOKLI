@@ -44,6 +44,10 @@ function normalizeSize(s) {
 // איסוף קישורי מוצרים
 // ======================================================================
 async function getAllProductUrls(page) {
+  // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
+  //console.log('\n🧪 TEST MODE — מוצר בודד\n');
+  //return ['https://myme.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a2%d7%a8%d7%91-%d7%9e%d7%a7%d7%a1%d7%99-%d7%a1%d7%90%d7%98%d7%9f-%d7%a4%d7%9c%d7%99%d7%a1%d7%94-%d7%a6%d7%91%d7%a2-%d7%9b%d7%97%d7%95%d7%9c/'];
+  // ===== END TEST MODE =====
   console.log('\n📂 איסוף קישורים מ-myme.co.il...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 30;
@@ -108,8 +112,27 @@ async function scrapeProduct(page, url) {
         ?.innerText?.trim() || '';
 
       // מידות + מלאי
-      // cfvsw-swatches-disabled = אזל מהמלאי
-      const sizeEls = document.querySelectorAll('.cfvsw-swatches-option[data-slug]');
+      const cfvsw = document.querySelectorAll('.cfvsw-swatches-option[data-slug]');
+      let sizeEls = cfvsw.length ? cfvsw : document.querySelectorAll('[data-slug].wvs-term');
+
+      // תמונות מהגלריה — מוגדר לפני fallback
+      const images = [...new Set(
+        [...document.querySelectorAll('.jet-woo-product-gallery__image-link')]
+          .map(a => a.href)
+          .filter(h => h.match(/\.(jpg|jpeg|png|webp)/i))
+      )].slice(0, 6);
+
+      if (!sizeEls.length) {
+        const sel = document.querySelector('select[name^="attribute_"]');
+        if (sel) {
+          return {
+            title, price, originalPrice, description,
+            sizes: [...sel.options].filter(o=>o.value && !o.className.includes('disabled')).map(o=>o.value.toUpperCase()),
+            allSizes: [...sel.options].filter(o=>o.value).map(o=>o.value.toUpperCase()),
+            images
+          };
+        }
+      }
       const sizes = [];
       const allSizesArr = [];
       sizeEls.forEach(el => {
@@ -118,13 +141,6 @@ async function scrapeProduct(page, url) {
         allSizesArr.push(slug);
         if (!el.classList.contains('cfvsw-swatches-disabled')) sizes.push(slug);
       });
-
-      // תמונות מהגלריה
-      const images = [...new Set(
-        [...document.querySelectorAll('.jet-woo-product-gallery__image-link')]
-          .map(a => a.href)
-          .filter(h => h.match(/\.(jpg|jpeg|png|webp)/i))
-      )].slice(0, 6);
 
       return { title, price, originalPrice, description, sizes, allSizes: allSizesArr, images };
     });
@@ -135,7 +151,8 @@ async function scrapeProduct(page, url) {
     // המרת מידות EU
     const sizes    = [...new Set(data.sizes.flatMap(s => normalizeSize(s)))];
     const allSizes = [...new Set(data.allSizes.flatMap(s => normalizeSize(s)))];
-    if (!sizes.length && !allSizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+    if (!allSizes.length) { console.log(`  ⏭ מדלג — אין מידות כלל`); return null; }
+    if (!sizes.length) { console.log(`  ⏭ מדלג — כל המידות אזלו`); return null; }
 
     // צבע — מתוך הכותרת
     const color = normalizeColor(data.title, data.title);

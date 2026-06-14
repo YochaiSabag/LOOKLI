@@ -61,7 +61,7 @@ const DEFAULT_FABRICS = {
   'לייקרה':['לייקרה','lycra'],'כותנה':['כותנה','cotton'],
   'פשתן':['פשתן','linen'],'משי':['משי','silk'],'צמר':['צמר','wool'],
   'ריקמה':['ריקמה','רקומה','embroidery'],
-  "ג'ינס":["ג'ינס","ג׳ינס",'גינס','denim','jeans'],
+  "ג'ינס":["ג'ינס","ג׳ינס","ג\u05F3ינס",'גינס','denim','jeans'],
 };
 
 const DEFAULT_PATTERNS = {
@@ -159,7 +159,7 @@ export async function loadScraperConfig(db) {
 
   return {
     normalizeColor(c, title) {
-      const JEANS_WORDS = ["ג'ינס","ג׻ינס",'גינס','denim','jeans'];
+      const JEANS_WORDS = ["ג'ינס","ג׳ינס","ג\u05F3ינס",'גינס','denim','jeans'];
       const result = normalizeWithLookup(c, colorLookup, unknownColors);
       if (result) return result;
       const t = (title || c || '').toLowerCase();
@@ -172,25 +172,25 @@ export async function loadScraperConfig(db) {
       return jeansColorName;
     },
 
-    // חדש: מחפש צבע בתוך כותרת מוצר (fallback כשאין swatches)
     normalizeColorFromTitle(title) {
       if (!title) return null;
-      const words = title.toLowerCase().split(/[\s\-,\/]+/);
+      const JEANS_WORDS = ["ג'ינס","ג׳ינס","ג\u05F3ינס",'גינס','denim','jeans'];
+      const lower = title.toLowerCase();
 
-      // ניסיון ראשון — מילה בודדת
+      // בדוק ג׳ינס קודם — הוא בד שמצביע על צבע כחול
+      if (JEANS_WORDS.some(w => lower.includes(w.toLowerCase()))) return 'כחול';
+
+      const words = lower.split(/[\s\-,\/]+/);
       for (const word of words) {
         if (!word || word.length < 2) continue;
         const result = normalizeWithLookup(word, colorLookup, null);
         if (result) return result;
       }
-
-      // ניסיון שני — זוגות מילים (למקרים כמו "ירוק זית", "כחול רויאל")
       for (let i = 0; i < words.length - 1; i++) {
         const pair = words[i] + ' ' + words[i+1];
         const result = normalizeWithLookup(pair, colorLookup, null);
         if (result) return result;
       }
-
       return null;
     },
 

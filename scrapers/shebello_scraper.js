@@ -25,6 +25,10 @@ const BASE  = 'https://shebello.co.il';
 // איסוף קישורים
 // ======================================================================
 async function getAllProductUrls(page) {
+  // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
+  //console.log('\n🧪 TEST MODE — מוצר בודד\n');
+  //return ['https://shebello.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%99%d7%a8%d7%95%d7%a7-%d7%91%d7%a7%d7%91%d7%95%d7%a7/'];
+  // ===== END TEST MODE =====
   console.log('\n📂 איסוף קישורים מ-shebello.co.il...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
@@ -91,45 +95,66 @@ async function scrapeProduct(page, url) {
 
     if (!priceData.price) return null;
 
-    // בדיקת אזל מלאי כולל
+    // בדיקת אזל מלאי כולל — רק מטקסט מפורש
     const fullyOos = await page.evaluate(() =>
       !![...document.querySelectorAll('.elementor-heading-title')]
         .find(el => el.textContent.includes('אזל מהמלאי'))
     );
 
-    // מידות זמינות (in stock) — תומך בכל attributes (pa_size, pa_skirt, pa_shirt וכו')
+    // מידות זמינות — מ-WooCommerce variation JSON (המקור האמין ביותר)
     const sizes = fullyOos ? [] : await page.evaluate(() => {
-      // נסה select קודם
+      // נסה לקרוא מ-variation JSON
+      try {
+        const form = document.querySelector('form.variations_form');
+        if (form) {
+          const json = JSON.parse(form.getAttribute('data-product_variations') || '[]');
+          if (json.length > 0) {
+            const inStock = new Set();
+            for (const v of json) {
+              if (!v.is_in_stock) continue;
+              for (const [key, val] of Object.entries(v.attributes || {})) {
+                if (!key.includes('size') && !key.includes('skirt') && !key.includes('shirt') && !key.includes('pa_')) continue;
+                // val הוא slug — חפש את ה-data-title המתאים
+                const li = document.querySelector(`li.variable-item[data-value="${val}"]`);
+                const title = li?.getAttribute('data-title') || val;
+                if (title) inStock.add(title);
+              }
+            }
+            if (inStock.size > 0) return [...inStock];
+          }
+        }
+      } catch(e) {}
+      // fallback — select
       const sel = document.querySelector('select[name^="attribute_pa_"]');
       if (sel) {
         return [...sel.options]
-          .filter(o => o.value && !o.textContent.includes('אזל'))
-          .map(o => o.textContent.trim())
+          .filter(o => o.value && o.className.includes('enabled'))
+          .map(o => o.getAttribute('data-title') || o.textContent.trim())
           .filter(Boolean);
       }
-      // li.variable-item — כולל חצאית, חולצה וכו' — in stock = אין data-wvstooltip-out-of-stock עם ערך
-      return [...document.querySelectorAll('li.variable-item[data-title]')]
-        .filter(li => {
-          const oos = li.getAttribute('data-wvstooltip-out-of-stock');
-          return oos === null || oos === '';
-        })
-        .map(li => li.getAttribute('data-title') || li.textContent.trim())
-        .filter(Boolean);
+      return [];
     });
 
-    // כל המידות (כולל אזל)
+    // כל המידות (כולל אזל) — מ-li elements
     const allSizes = await page.evaluate(() => {
       const sel = document.querySelector('select[name^="attribute_pa_"]');
       if (sel) {
         return [...sel.options]
           .filter(o => o.value)
-          .map(o => o.textContent.trim())
+          .map(o => {
+            const li = document.querySelector(`li.variable-item[data-value="${o.value}"]`);
+            return li?.getAttribute('data-title') || o.textContent.trim();
+          })
           .filter(Boolean);
       }
       return [...document.querySelectorAll('li.variable-item[data-title]')]
         .map(li => li.getAttribute('data-title') || li.textContent.trim())
         .filter(Boolean);
     });
+
+    if (!allSizes.length && !sizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+
+    console.log(`    🔍 DEBUG sizes: [${sizes.join(',')}] allSizes: [${allSizes.join(',')}]`);
 
     // תמונות
     const images = await page.evaluate(() =>

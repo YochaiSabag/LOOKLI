@@ -34,6 +34,10 @@ function normalizeSize(s) {
 }
 
 async function getAllProductUrls(page) {
+  // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
+  //console.log('\n🧪 TEST MODE — מוצר בודד\n');
+  //return ['https://avivit-weizman.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%90%d7%9c%d7%94-%d7%a0%d7%a7%d7%95%d7%93%d7%95%d7%aa-%d7%a9%d7%9e%d7%a0%d7%aa/'];
+  // ===== END TEST MODE =====
   console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il...\n');
   const allUrls = new Set();
 
@@ -283,6 +287,10 @@ async function scrapeProduct(page, url) {
           }
           normColor = normalizeColor(displayColor);
         }
+        // אם אין צבע בווריאציה — נסה מהכותרת
+        if (!normColor) {
+          normColor = normalizeColorFromTitle(data.title);
+        }
 
         let normSizes = [];
         if (sizeVal) {
@@ -320,9 +328,11 @@ async function scrapeProduct(page, url) {
           }
         }
       }
+      console.log(`    🔍 rawColors.length=${data.rawColors.length} rawColors=${JSON.stringify(data.rawColors.map(c=>c.name))}`);
       if (data.rawColors.length === 0) {
         // fallback — חפש צבע בכותרת המוצר
         const colorFromTitle = normalizeColorFromTitle(data.title);
+        console.log(`    🔍 colorFromTitle("${data.title}") = ${colorFromTitle}`);
         if (colorFromTitle) {
           availableColors.add(colorFromTitle);
           if (!colorSizesMap[colorFromTitle]) colorSizesMap[colorFromTitle] = [];

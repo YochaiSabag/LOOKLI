@@ -101,6 +101,13 @@ async function scrapeProduct(page, url) {
         .find(el => el.textContent.includes('אזל מהמלאי'))
     );
 
+    // דלג על סטים עם select "פריט" (חולצה/חצאית) — מלאי לא ניתן לבדיקה אמינה
+    const isSetWithItems = await page.evaluate(() =>
+      [...document.querySelectorAll('select[name^="attribute_"] option')]
+        .some(o => ['חולצה','חצאית','מכנסיים'].includes(o.textContent.trim()))
+    );
+    if (isSetWithItems) { console.log(`  ⏭ מדלג — סט עם בחירת פריט`); return null; }
+
     // מידות זמינות — מ-WooCommerce variation JSON (המקור האמין ביותר)
     const sizes = fullyOos ? [] : await page.evaluate(() => {
       // נסה לקרוא מ-variation JSON

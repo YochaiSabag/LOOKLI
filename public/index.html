@@ -106,7 +106,7 @@
       --sale-color:#ef4444
     }
     *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
-    body{margin:0;background:var(--bg);color:var(--text)}
+    body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden}
     a{color:inherit;text-decoration:none}
     
     /* ===== HEADER ===== */
@@ -209,6 +209,9 @@
       .header-top{padding:10px 16px}
       .logo img{height:36px}
       .header-nav{display:none}
+      .auth-name{display:none}
+      .auth-btn{padding:8px;min-width:unset}
+      .header-auth{gap:4px}
       .search-inner{padding:10px 16px}
       .searchbar{padding:4px;border-radius:10px}
       .searchbar input{font-size:14px;padding:10px 12px}
@@ -740,7 +743,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span id="savedNavCount"></span>
         </button>
-      </nav>
+      </div>
       <button class="mobile-menu-btn" onclick="toggleMobileNav()">☰</button>
     </div>
     <div class="search-section">
@@ -2728,13 +2731,12 @@ document.addEventListener('click', e => {
       <div style="margin-bottom:20px">
         <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#4b5563;cursor:pointer;line-height:1.6;user-select:none">
           <input type="checkbox" id="googleNewsletterChk"
-            style="width:17px;height:17px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"
-            onchange="document.getElementById('googleConsentBtn').disabled=!this.checked;document.getElementById('googleConsentBtn').style.opacity=this.checked?'1':'.45';document.getElementById('googleConsentBtn').style.cursor=this.checked?'pointer':'not-allowed'"/>
-          <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
+            style="width:17px;height:17px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"/>
+          <span>אני רוצה לקבל עדכונים, מבצעים וחדשות אופנה מ-LOOKLI. ניתן לבטל בכל עת.</span>
         </label>
       </div>
-      <button id="googleConsentBtn" onclick="finishGoogleAuth()" disabled
-        style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:not-allowed;transition:all .2s;opacity:.45;font-family:inherit">
+      <button id="googleConsentBtn" onclick="finishGoogleAuth()"
+        style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit">
         סיום הרשמה ←
       </button>
       <div style="text-align:center;margin-top:12px">
@@ -2744,10 +2746,10 @@ document.addEventListener('click', e => {
 
   async function finishGoogleAuth() {
     const chk = document.getElementById('googleNewsletterChk');
-    if (!chk?.checked) return;
+    const newsletter = chk?.checked || false;
     const btn = document.getElementById('googleConsentBtn');
     btn.disabled = true; btn.textContent = '⏳ יוצר חשבון...';
-    await completeGoogleAuth(_pendingGoogleCredential, true);
+    await completeGoogleAuth(_pendingGoogleCredential, newsletter);
     const consentDiv = document.getElementById('googleConsentForm');
     if (consentDiv) consentDiv.style.display = 'none';
   }

@@ -112,6 +112,7 @@
     /* ===== HEADER ===== */
     .header{background:var(--header-gradient);padding:0;position:sticky;top:0;z-index:100;box-shadow:0 4px 30px rgba(102,126,234,.3)}
     .header-top{max-width:var(--container);margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .header-auth{display:flex;align-items:center;gap:8px}
     .logo{display:flex;align-items:center;gap:14px;text-decoration:none}
     .logo img{height:48px;width:auto}
     .header-nav{display:flex;gap:20px}
@@ -729,6 +730,8 @@
         <a href="/">דף הבית</a>
         <a href="/about.html">אודות</a>
         <a href="/contact.html">צור קשר</a>
+      </nav>
+      <div class="header-auth">
         <button class="auth-btn" id="authNavBtn" onclick="openAuthModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <span class="auth-name" id="authNavLabel">התחברות</span>
@@ -1066,7 +1069,7 @@ function handleImgError(img){
 
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
-let currentPage=1,itemsPerPage=isMobile?8:28,allProducts=[],isLoading=false;
+let currentPage=1,itemsPerPage=isMobile?12:28,allProducts=[],isLoading=false;
 
 // show_rate: session-based counter (10% = פעם מכל 10 כניסות)
 const _sessionCounter = (() => {
@@ -1219,27 +1222,35 @@ function debouncedSearch(){clearTimeout(debounceTimer);debounceTimer=setTimeout(
 function setLoading(){document.getElementById("grid").innerHTML='<div class="card"><div class="img-wrap"></div><div class="card-body"><div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div></div></div>'.repeat(8)}
 
 function toggleMobileNav(){
-  // פתח/סגור תפריט ניווט עמודים
-  const nav = document.getElementById('mobileNavMenu');
-  if(nav){ nav.classList.toggle('open'); return; }
+  let menu = document.getElementById('mobileNavMenu');
+  // אם פתוח — סגור
+  if(menu && menu.classList.contains('open')){
+    menu.style.transform='translateY(-110%)';
+    menu.classList.remove('open');
+    const ov = document.getElementById('mobileNavOverlay');
+    if(ov) ov.remove();
+    return;
+  }
   // צור בפעם הראשונה
-  const menu = document.createElement('div');
-  menu.id = 'mobileNavMenu';
-  menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
-  menu.innerHTML = `
-    <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🏠 דף הבית</a>
-    <a href="/about.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">📖 אודות</a>
-    <a href="/contact.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">✉️ צור קשר</a>
-  `;
-  document.body.appendChild(menu);
-  setTimeout(() => { menu.style.transform = 'translateY(0)'; menu.classList.add('open'); }, 10);
-  // סגור בלחיצה מחוץ
-  setTimeout(()=> document.addEventListener('click', function h(e){
-    if(!menu.contains(e.target) && !e.target.classList.contains('mobile-menu-btn')){
-      menu.style.transform='translateY(-110%)';
-      document.removeEventListener('click',h);
-    }
-  }), 100);
+  if(!menu){
+    menu = document.createElement('div');
+    menu.id = 'mobileNavMenu';
+    menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
+    menu.innerHTML = `
+      <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🏠 דף הבית</a>
+      <a href="/about.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">📖 אודות</a>
+      <a href="/contact.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">✉️ צור קשר</a>
+    `;
+    document.body.appendChild(menu);
+  }
+  // overlay לסגירה בלחיצה על שאר המסך
+  const overlay = document.createElement('div');
+  overlay.id = 'mobileNavOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:199';
+  overlay.onclick = () => toggleMobileNav();
+  document.body.appendChild(overlay);
+  // פתח
+  setTimeout(() => { menu.style.transform='translateY(0)'; menu.classList.add('open'); }, 10);
 }
 
 function toggleMobileFilters(){

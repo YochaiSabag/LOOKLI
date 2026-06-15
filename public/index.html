@@ -265,8 +265,8 @@
       
       .ads-sidebar{display:none !important}
       
-      .whatsapp-btn{bottom:16px;right:16px;width:50px;height:50px}
-      .whatsapp-btn svg{width:20px;height:20px}
+      .whatsapp-btn{bottom:16px!important;right:16px!important;width:50px!important;height:50px!important}
+      .whatsapp-btn svg{width:24px;height:24px}
       
       .modal{width:100%;max-height:100vh;border-radius:0}
       .modal-body{grid-template-columns:1fr;padding:12px 16px}
@@ -1235,10 +1235,10 @@ function toggleMobileNav(){
   // אם פתוח — סגור
   if(menu && menu.classList.contains('open')){
     menu.style.transform='translateY(-110%)';
-    menu.style.visibility='hidden';
     menu.classList.remove('open');
     const ov = document.getElementById('mobileNavOverlay');
     if(ov) ov.remove();
+    setTimeout(() => { if(menu) menu.style.visibility='hidden'; }, 280);
     return;
   }
   // צור בפעם הראשונה

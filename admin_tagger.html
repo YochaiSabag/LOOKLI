@@ -481,8 +481,9 @@ function renderGrid() {
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
           ${currentField === 'color' ? (() => {
-            const rawColors = Array.isArray(p.colors) && p.colors.length ? p.colors : (p.color ? [p.color] : []);
-            const allColors = [...new Set(rawColors.filter(Boolean))];
+            const colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : [];
+            const rawColors = p.color ? [...new Set([p.color, ...colorsArr])].filter(Boolean) : colorsArr.filter(Boolean);
+            const allColors = [...new Set(rawColors)];
             if (!allColors.length) return '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>';
             return allColors.map(c => {
               const bg = getColorBg(c);

@@ -3652,4 +3652,129 @@ app.listen(PORT, async () => {
     // טען aliases לחיפוש אחרי שהטבלה קיימת
     await loadSearchAliases();
   } catch(e) { console.error('clicks table init:', e.message); }
+
+  // ── תזכורת due-date — בדיקה כל 30 דקות ──────────────────────────
+  startDueReminderLoop();
 });
+
+// ── לולאת תזכורת יומיים לפני due date ────────────────────────────────
+// בודקת כל 30 דקות. שומרת ב-admin_store (key='tasks_due_reminder_sent')
+// את תאריך השליחה — כך reboot/deploy לא גורם לשליחה כפולה.
+// שולחת רק בין 07:00-21:00 שעון ישראל.
+
+async function runDueReminderCheck() {
+  try {
+    const NOTIFY    = process.env.ADMIN_NOTIFY_EMAIL;
+    const SITE_URL_ = process.env.SITE_URL || 'https://lookli.co.il';
+    if (!NOTIFY || !process.env.RESEND_API_KEY) return;
+
+    // שעון ישראל
+    const nowIL  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+    const hour   = nowIL.getHours();
+    if (hour < 7 || hour >= 21) return; // לא שולחים בלילה
+
+    const todayStr = nowIL.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // שלוף סטייט שליחות ונתוני משימות פעם אחת
+    const [sentRows, taskRows] = await Promise.all([
+      pool.query(`SELECT key, value FROM admin_store WHERE key IN ('tasks_due_reminder_2day','tasks_due_reminder_1day')`),
+      pool.query(`SELECT value FROM admin_store WHERE key='tasks_data'`),
+    ]);
+    const sentMap = Object.fromEntries(sentRows.rows.map(r => [r.key, r.value]));
+    const tasks   = taskRows.rows[0]?.value?.tasks || [];
+
+    // בנה תאריכי יעד לשתי התזכורות
+    const d2 = new Date(nowIL); d2.setDate(nowIL.getDate() + 2);
+    const d1 = new Date(nowIL); d1.setDate(nowIL.getDate() + 1);
+    const str2 = d2.toISOString().slice(0, 10);
+    const str1 = d1.toISOString().slice(0, 10);
+
+    // שלח כל תזכורת שעדיין לא נשלחה היום
+    await sendDueReminder({ tasks, todayStr, targetStr: str2, daysLabel: 'יומיים', storeKey: 'tasks_due_reminder_2day', sentMap, NOTIFY, SITE_URL_, headerColor: 'linear-gradient(135deg,#f59e0b,#ef4444)' });
+    await sendDueReminder({ tasks, todayStr, targetStr: str1, daysLabel: 'יום', storeKey: 'tasks_due_reminder_1day', sentMap, NOTIFY, SITE_URL_, headerColor: 'linear-gradient(135deg,#ef4444,#dc2626)' });
+
+  } catch(e) {
+    console.error('[tasks-due] שגיאה:', e.message);
+  }
+}
+
+async function sendDueReminder({ tasks, todayStr, targetStr, daysLabel, storeKey, sentMap, NOTIFY, SITE_URL_, headerColor }) {
+  // אם כבר שלחנו היום — דלג
+  if (sentMap[storeKey]?.date === todayStr) return;
+
+  const due = tasks.filter(t => !t.done && t.due === targetStr);
+
+  // סמן שבדקנו היום בכל מקרה — למנוע בדיקות חוזרות
+  await pool.query(
+    `INSERT INTO admin_store (key, value, updated_at) VALUES ('${storeKey}', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()`,
+    [JSON.stringify({ date: todayStr, sent: due.length })]
+  );
+
+  if (!due.length) {
+    console.log(`[tasks-due] אין משימות ל-${targetStr} (בעוד ${daysLabel}) — לא נשלח`);
+    return;
+  }
+
+  const dateLabel = targetStr.split('-').reverse().join('/');
+
+  const tableRows = due.map(t => {
+    const pr = t.priority === 'high' ? '🔴 גבוהה' : t.priority === 'low' ? '🟢 נמוכה' : '🟡 בינונית';
+    const td = (v, extra='') => `<td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px${extra}">${v}</td>`;
+    return '<tr>' +
+      td(t.title || '', ';font-weight:600') +
+      td(t.person || '—', ';color:#6b7280;font-size:12px') +
+      td(pr, ';font-size:12px') +
+      td((t.progress || 0) + '%', ';color:#6b7280;font-size:12px') +
+      '</tr>';
+  }).join('');
+
+  const html =
+    '<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>' +
+    '<body style="margin:0;padding:0;background:#f9f9f9;font-family:Heebo,Arial,sans-serif;direction:rtl">' +
+    '<div style="max-width:580px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;' +
+      'box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e5e7eb">' +
+      '<div style="background:' + headerColor + ';padding:20px 24px">' +
+        '<div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div>' +
+        '<div style="font-size:13px;color:rgba(255,255,255,.85)">⏰ תזכורת — משימות שמסתיימות בעוד ' + daysLabel + ' (' + dateLabel + ')</div>' +
+      '</div>' +
+      '<div style="padding:20px 24px">' +
+        '<p style="color:#1f2937;font-size:14px;margin-bottom:16px">' + due.length + ' משימות פתוחות מסתיימות ב-' + dateLabel + ':</p>' +
+        '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">' +
+          '<thead><tr style="background:#fef3c7">' +
+            '<th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">משימה</th>' +
+            '<th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">אחראי</th>' +
+            '<th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">עדיפות</th>' +
+            '<th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">התקדמות</th>' +
+          '</tr></thead>' +
+          '<tbody style="color:#374151">' + tableRows + '</tbody>' +
+        '</table>' +
+        '<a href="' + SITE_URL_ + '/admin/tasks" style="display:inline-block;margin-top:18px;' +
+          'background:' + headerColor + ';color:#fff;padding:10px 20px;' +
+          'border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>' +
+      '</div>' +
+    '</div></body></html>';
+
+  const resp = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'LOOKLI משימות <noreply@lookli.co.il>',
+      to: NOTIFY.split(',').map(e => e.trim()),
+      subject: `⏰ תזכורת: ${due.length} משימות מסתיימות בעוד ${daysLabel} (${dateLabel})`,
+      html,
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { console.error(`[tasks-due] Resend error (${storeKey}):`, JSON.stringify(data)); return; }
+  console.log(`[tasks-due] ✅ ${daysLabel} לפני — נשלח: ${due.length} משימות → ${NOTIFY}`);
+}
+
+function startDueReminderLoop() {
+  // הרצה ראשונה אחרי 2 דקות (לתת לשרת לעלות)
+  setTimeout(() => {
+    runDueReminderCheck();
+    setInterval(runDueReminderCheck, 30 * 60 * 1000); // כל 30 דקות
+  }, 2 * 60 * 1000);
+  console.log('[tasks-due] לולאת תזכורות הופעלה (כל 30 דקות, 07:00–21:00)');
+}

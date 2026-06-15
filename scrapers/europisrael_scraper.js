@@ -60,6 +60,10 @@ async function getPageUrls(page, url) {
 }
 
 async function getAllProductUrls(page) {
+  // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
+  //console.log('\n🧪 TEST MODE — מוצר בודד\n');
+  //return ['https://europisrael.com/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a4%d7%9c%d7%99%d7%a1%d7%94-%d7%91%d7%92%d7%99%d7%96%d7%a8%d7%94-%d7%99%d7%a9%d7%a8%d7%94-%d7%a2%d7%9d-%d7%9b%d7%a8%d7%99%d7%95%d7%aa-%d7%9b%d7%aa%d7%a4%d7%99%d7%99%d7%9d-2/'];
+  // ===== END TEST MODE =====
   console.log('\n📂 איסוף קישורים מ-europisrael.com...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
@@ -162,7 +166,8 @@ async function scrapeProduct(page, url) {
     const uniqueSizes    = [...new Set(sizes)];
     const allUniqueSizes = [...new Set(allSizes)];
 
-    if (!uniqueSizes.length && !allUniqueSizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+    if (!uniqueSizes.length) { console.log(`  ⏭ מדלג — כל המידות אזלו`); return null; }
+    if (!allUniqueSizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
 
     console.log(`  ✓ ${title.substring(0, 40)}`);
     console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);
@@ -170,7 +175,7 @@ async function scrapeProduct(page, url) {
     return {
       title, price: priceData.price, originalPrice: priceData.original || null,
       images, sizes: uniqueSizes, allSizes: allUniqueSizes,
-      mainColor, colors: allColors.length > 0 ? allColors : (mainColor !== 'אחר' ? [mainColor] : []),
+      mainColor, colors: mainColor && mainColor !== 'אחר' ? [mainColor] : [],
       colorSizes: {}, category, style, fit, pattern, fabric, designDetails,
       description, url,
     };

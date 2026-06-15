@@ -2471,8 +2471,8 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         // הוסף צבע חדש ל-colors + עדכן color ראשי + הסר כפילויות
         await pool.query(
           `UPDATE products
-           SET color         = $1,
-               colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1)))),
+           SET color         = $1::text,
+               colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1::text)))),
                tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                updated_at    = NOW()
            WHERE id = ANY($2::int[])`,

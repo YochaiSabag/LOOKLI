@@ -481,7 +481,8 @@ function renderGrid() {
         <div class="card-meta">
           ${price ? `<span class="meta-tag">${price}</span>` : ''}
           ${currentField === 'color' ? (() => {
-            const allColors = [...new Set(Array.isArray(p.colors) && p.colors.length ? p.colors : (p.color && p.color !== 'אחר' ? [p.color] : []))];
+            const rawColors = Array.isArray(p.colors) && p.colors.length ? p.colors : (p.color ? [p.color] : []);
+            const allColors = [...new Set(rawColors.filter(Boolean))];
             if (!allColors.length) return '<span class="meta-tag" style="color:#f87171;border-color:#f8717140">ללא צבע</span>';
             return allColors.map(c => {
               const bg = getColorBg(c);
@@ -668,11 +669,15 @@ async function applyTag() {
 
   try {
     const ids = [...selected];
+    const replaceOther = currentField === 'color' && ids.some(id => {
+      const p = allProducts.find(x => x.id === id);
+      return Array.isArray(p?.colors) ? p.colors.includes('אחר') : p?.color === 'אחר';
+    });
     const r = await fetch('/api/admin/tag-products', {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, field: currentField, value: currentValue.trim() })
+      body: JSON.stringify({ ids, field: currentField, value: currentValue.trim(), replaceOther })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'שגיאה');
@@ -682,7 +687,16 @@ async function applyTag() {
     ids.forEach(id => {
       const p = allProducts.find(x => x.id === id);
       if (!p) return;
-      if (currentField === 'fit') {
+      if (currentField === 'color') {
+        const existingColors = Array.isArray(p.colors) ? p.colors : (p.color ? [p.color] : []);
+        // החלף "אחר" אם קיים, אחרת הוסף
+        const hasOther = existingColors.includes('אחר');
+        const newColors = hasOther
+          ? [...new Set(existingColors.map(c => c === 'אחר' ? currentValue.trim() : c))]
+          : [...new Set([...existingColors, currentValue.trim()])];
+        p.color = newColors[0];
+        p.colors = newColors;
+      } else if (currentField === 'fit') {
         const existingFits = Array.isArray(p.fits) ? p.fits
           : (p.fits ? [p.fits] : (p.fit ? [p.fit] : []));
         p.fit = currentValue.trim();

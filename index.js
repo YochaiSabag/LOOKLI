@@ -2305,7 +2305,8 @@ async function _flushTaskNotifications(changes) {
     if (['sub_added','sub_toggled','sub_deleted'].includes(c.type)) extra=`<br><span style="color:#9ca3af;font-size:11px">${c.subText||c.text||''}</span>`;
     if (c.type==='log_added')  extra=`<br><span style="color:#9ca3af;font-size:11px">${c.text||''}</span>`;
     const person = c.person?`<span style="color:#c084fc">${c.person}</span>`:'';
-    return `<tr><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}${extra}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;font-weight:600">${c.taskTitle||''}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">${person}</td></tr>`;
+    const due = c.due ? `<span style="color:#f59e0b;font-size:11px">📅 ${c.due.split('-').reverse().join('/')}</span>` : '';
+    return `<tr><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}${extra}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;font-weight:600">${c.taskTitle||''}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">${person}</td><td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">${due}</td></tr>`;
   }).join('');
 
   const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
@@ -2318,6 +2319,7 @@ async function _flushTaskNotifications(changes) {
         <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">פעולה</th>
         <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">משימה</th>
         <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">אחראי</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#6b7280;font-weight:600">תאריך יעד</th>
       </tr></thead><tbody style="color:#374151">${rows}</tbody></table>
       <a href="${SITE_URL}/admin/tasks" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>
     </div>
@@ -2362,21 +2364,25 @@ app.post('/api/admin/tasks-data', adminAuth, async (req, res) => {
 
     // זהה שינויים
     if (changeHint) {
-      // שינוי ספציפי נשלח מה-frontend
+      // שינוי ספציפי נשלח מה-frontend — הוסף due אם חסר
+      if (!changeHint.due) {
+        const t = (tasks||[]).find(x => x.id === changeHint.taskId);
+        if (t?.due) changeHint.due = t.due;
+      }
       _scheduleTaskNotif(changeHint);
     } else {
       // diff מלא — לשמירות מה-modal
       for (const t of (tasks||[])) {
         if (!oldMap[t.id]) {
-          _scheduleTaskNotif({ type: 'created', taskId: t.id, taskTitle: t.title, person: t.person, priority: t.priority });
+          _scheduleTaskNotif({ type: 'created', taskId: t.id, taskTitle: t.title, person: t.person, priority: t.priority, due: t.due||'' });
         } else {
           const o = oldMap[t.id];
-          if (!o.done && t.done)       _scheduleTaskNotif({ type: 'completed',  taskId: t.id, taskTitle: t.title, person: t.person });
-          if (o.person !== t.person)   _scheduleTaskNotif({ type: 'reassigned', taskId: t.id, taskTitle: t.title, from: o.person, to: t.person });
+          if (!o.done && t.done)       _scheduleTaskNotif({ type: 'completed',  taskId: t.id, taskTitle: t.title, person: t.person, due: t.due||'' });
+          if (o.person !== t.person)   _scheduleTaskNotif({ type: 'reassigned', taskId: t.id, taskTitle: t.title, from: o.person, to: t.person, due: t.due||'' });
         }
       }
       for (const t of oldTasks) {
-        if (!newMap[t.id])             _scheduleTaskNotif({ type: 'deleted',    taskId: t.id, taskTitle: t.title, person: t.person });
+        if (!newMap[t.id])             _scheduleTaskNotif({ type: 'deleted',    taskId: t.id, taskTitle: t.title, person: t.person, due: t.due||'' });
       }
     }
 
@@ -2429,9 +2435,93 @@ app.post('/api/admin/tasks-notify-now', adminAuth, async (req, res) => {
 app.get('/api/admin/tasks-pending-changes', adminAuth, (req, res) => {
   res.json({ count: _taskChangeBuf.length });
 });
+
+// GET /api/cron/tasks-due-reminders?secret=CRON_SECRET
+// שולח תזכורת למשימות שתאריך היעד שלהן בעוד יומיים — מופעל מ-Railway Cron
+app.get('/api/cron/tasks-due-reminders', async (req, res) => {
+  const CRON_SECRET = process.env.CRON_SECRET || '';
+  if (CRON_SECRET && req.query.secret !== CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const NOTIFY    = process.env.ADMIN_NOTIFY_EMAIL;
+  const SITE_URL_ = process.env.SITE_URL || 'https://lookli.co.il';
+  if (!NOTIFY || !process.env.RESEND_API_KEY) {
+    return res.json({ ok: false, reason: 'missing env vars' });
+  }
+  try {
+    const { rows } = await pool.query(`SELECT value FROM admin_store WHERE key='tasks_data'`);
+    const tasks = rows[0]?.value?.tasks || [];
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const target = new Date(today);
+    target.setDate(today.getDate() + 2);
+    const targetStr = target.toISOString().slice(0, 10);
+
+    const due = tasks.filter(t => !t.done && t.due === targetStr);
+    if (!due.length) return res.json({ ok: true, sent: 0, reason: 'no tasks due in 2 days' });
+
+    const tableRows = due.map(t => {
+      const priority = t.priority === 'high' ? '🔴 גבוהה' : t.priority === 'low' ? '🟢 נמוכה' : '🟡 בינונית';
+      const pct = t.progress || 0;
+      return `<tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;font-weight:600">${t.title||''}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6b7280">${t.person||'—'}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:12px">${priority}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6b7280">${pct}%</td>
+      </tr>`;
+    }).join('');
+
+    const dateLabel = targetStr.split('-').reverse().join('/');
+    const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:580px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e5e7eb">
+    <div style="background:linear-gradient(135deg,#f59e0b,#ef4444);padding:20px 24px">
+      <div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.85)">⏰ תזכורת — משימות שמסתיימות בעוד יומיים (${dateLabel})</div>
+    </div>
+    <div style="padding:20px 24px">
+      <p style="color:#1f2937;font-size:14px;margin-bottom:16px">${due.length} משימות פתוחות מסתיימות ב-${dateLabel}:</p>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+        <thead><tr style="background:#fef3c7">
+          <th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">משימה</th>
+          <th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">אחראי</th>
+          <th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">עדיפות</th>
+          <th style="padding:8px 12px;text-align:right;font-size:11px;color:#92400e">התקדמות</th>
+        </tr></thead>
+        <tbody style="color:#374151">${tableRows}</tbody>
+      </table>
+      <a href="${SITE_URL_}/admin/tasks" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">פתח לוח משימות</a>
+    </div>
+  </div>
+</body></html>`;
+
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'LOOKLI משימות <noreply@lookli.co.il>',
+        to: NOTIFY.split(',').map(e => e.trim()),
+        subject: `⏰ תזכורת: ${due.length} משימות מסתיימות בעוד יומיים (${dateLabel})`,
+        html,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error('[tasks-due] Resend error:', JSON.stringify(data));
+      return res.json({ ok: false, error: data });
+    }
+    console.log(`[tasks-due] ✅ תזכורת נשלחה: ${due.length} משימות → ${NOTIFY}`);
+    res.json({ ok: true, sent: due.length, date: targetStr, tasks: due.map(t => t.title) });
+  } catch(e) {
+    console.error('[tasks-due] שגיאה:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
   try {
-    const { ids, field, value } = req.body;
+    const { ids, field, value, replaceOther } = req.body;
     if (!ids?.length || !field || value === undefined) return res.status(400).json({ error: 'חסרים פרמטרים' });
     const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
     if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
@@ -2455,6 +2545,30 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
          WHERE id = ANY($2::int[])`,
         [value, ids]
       );
+    } else if (field === 'color') {
+      if (replaceOther) {
+        // החלף "אחר" בצבע החדש + הסר כפילויות
+        await pool.query(
+          `UPDATE products
+           SET color         = CASE WHEN color = 'אחר' THEN $1 ELSE color END,
+               colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1), NULL),
+               tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
+               updated_at    = NOW()
+           WHERE id = ANY($2::int[])`,
+          [value, ids]
+        );
+      } else {
+        // הוסף צבע חדש ל-colors + עדכן color ראשי + הסר כפילויות
+        await pool.query(
+          `UPDATE products
+           SET color         = $1,
+               colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1)))),
+               tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
+               updated_at    = NOW()
+           WHERE id = ANY($2::int[])`,
+          [value, ids]
+        );
+      }
     } else {
       await pool.query(
         `UPDATE products

@@ -539,7 +539,8 @@
     .hero-nav-btn.primary:hover{background:var(--accent-dark)}
     .hero-nav-btn.primary.pulse{animation:heroPulse 1.5s ease-in-out infinite}
     @keyframes heroPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-    @media(max-width:640px){#similarGrid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:640px){#similarGrid{grid-template-columns:repeat(2,1fr)}
+      .grid{grid-template-columns:repeat(2,1fr)!important}}
     @keyframes spin{to{transform:rotate(360deg)}}
     .hero-nav-btn.disabled{opacity:.35;pointer-events:none}
     .hero-no-results{color:#e74c3c;font-size:15px;font-weight:600;margin-top:14px;padding:14px 24px;background:#fff5f5;border-radius:12px;display:inline-block}

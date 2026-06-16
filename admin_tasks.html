@@ -15,21 +15,18 @@ body::before{content:'';position:fixed;inset:0;background:
   radial-gradient(ellipse 60% 40% at 20% 10%,rgba(192,132,252,0.07) 0%,transparent 60%),
   radial-gradient(ellipse 50% 30% at 80% 80%,rgba(129,140,248,0.05) 0%,transparent 60%);
   pointer-events:none;z-index:0}
-.wrap{position:relative;z-index:1;display:grid;grid-template-columns:1fr 220px;gap:20px;max-width:1340px;margin:0 auto;padding:32px 20px}
+.wrap{position:relative;z-index:1;display:grid;grid-template-columns:1fr 210px;gap:18px;max-width:1340px;margin:0 auto;padding:32px 20px;align-items:start}
 .main-col{min-width:0}
-/* Future panel */
-.future-panel{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px;height:fit-content;position:sticky;top:24px}
-.future-panel h4{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.future-item{padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color .2s}
-.future-item:hover{border-color:rgba(192,132,252,.35)}
-.future-item-title{font-size:12px;font-weight:600;line-height:1.3;margin-bottom:4px;word-break:break-word}
+.future-panel{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px;position:sticky;top:24px}
+.future-panel h4{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.future-item{padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer;transition:border-color .2s}
+.future-item:hover{border-color:rgba(192,132,252,.4)}
+.future-item-title{font-size:12px;font-weight:600;line-height:1.3;margin-bottom:3px;word-break:break-word}
 .future-item-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.future-empty{color:var(--muted);font-size:12px;text-align:center;padding:12px 0}
-/* Progress dropdown */
+.future-empty{color:var(--muted);font-size:12px;text-align:center;padding:10px 0}
 .prog-sel{width:100%;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;cursor:pointer;transition:border-color .2s}
 .prog-sel:focus{border-color:var(--accent)}
-/* Bulk select */
-.bulk-bar{display:none;align-items:center;gap:8px;padding:8px 12px;background:rgba(192,132,252,.08);border:1px solid rgba(192,132,252,.25);border-radius:9px;margin-bottom:10px;font-size:13px}
+.bulk-bar{display:none;align-items:center;gap:8px;padding:8px 12px;background:rgba(192,132,252,.06);border:1px solid rgba(192,132,252,.2);border-radius:9px;margin-bottom:10px;font-size:13px}
 .bulk-bar.on{display:flex}
 @media(max-width:800px){.wrap{grid-template-columns:1fr}.future-panel{display:none}}
 /* Header */
@@ -181,6 +178,7 @@ body::before{content:'';position:fixed;inset:0;background:
 </head>
 <body>
 <div class="wrap">
+<div class="main-col">
   <div class="header">
     <div class="logo">LOOKLI</div>
     <div class="header-nav">
@@ -220,8 +218,18 @@ body::before{content:'';position:fixed;inset:0;background:
     <button class="ghost-btn" id="bulkBtn" onclick="toggleBulkMode()">☑️ בחירה</button>
   </div>
 
+  <div class="bulk-bar" id="bulkBar">
+    <span id="bulkCount">0 נבחרו</span>
+    <button onclick="bulkDelete()" style="padding:5px 12px;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.3);border-radius:7px;color:var(--red);font-size:12px;font-family:inherit;cursor:pointer;font-weight:700">🗑️ מחק נבחרות</button>
+    <button onclick="clearBulk()" style="padding:5px 10px;background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:12px;font-family:inherit;cursor:pointer">ביטול</button>
+  </div>
   <div class="stats" id="statsBar"></div>
   <div id="tasksContainer"></div>
+</div>
+<div class="future-panel" id="futurePanel">
+  <h4>🔮 עתידיות</h4>
+  <div id="futureList"><div class="future-empty">טוען...</div></div>
+</div>
 </div>
 
 <!-- Task Modal -->
@@ -255,7 +263,7 @@ body::before{content:'';position:fixed;inset:0;background:
       <div class="field"><label>תאריך יעד ראשון</label><input id="fDue" type="date"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>תאריך יעד שני <span style="color:var(--muted);font-weight:400">(אופציונלי)</span></label><input id="fDue2" type="date"/></div>
+      <div class="field"><label>תאריך יעד שני <span style="color:var(--muted);font-size:10px;font-weight:400">(אופציונלי)</span></label><input id="fDue2" type="date"/></div>
       <div class="field"></div>
     </div>
     <div class="field">
@@ -313,7 +321,7 @@ const CAT={dev:'💻 פיתוח',design:'🎨 עיצוב',content:'✍️ תוכ
 const PRIO_SORT={high:0,medium:1,low:2};
 
 let tasks=[],persons=[],filter='all',editId=null,viewMode='list',mSubs=[];
-let _saving=false;
+let _saving=false,bulkMode=false,selectedIds=new Set();
 
 async function load(){
   try{
@@ -405,32 +413,31 @@ function renderStats(){
 }
 
 function render(){
-  renderStats();fillPersonFilter();
+  renderStats();fillPersonFilter();renderFuture();
   const ft=getFT(),c=document.getElementById('tasksContainer');
   if(!ft.length){c.innerHTML='<div class="empty"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><p>אין משימות</p></div>';return;}
   viewMode==='kanban'?renderKanban(ft):renderList(ft);
 }
 
 function renderFuture(){
-  const FUTURE_DAYS=14; // משימות עד 14 יום קדימה שטרם התחלו
-  const t2=new Date();t2.setDate(t2.getDate()+FUTURE_DAYS);
-  const lim=t2.toISOString().slice(0,10);
   const tod=today();
-  const list=tasks.filter(t=>!t.done&&!inProg(t)&&t.due&&t.due>tod&&t.due<=lim)
-    .sort((a,b)=>a.due.localeCompare(b.due)).slice(0,10);
+  const lim=new Date();lim.setDate(lim.getDate()+14);
+  const limStr=lim.toISOString().slice(0,10);
+  const list=tasks.filter(t=>!t.done&&!inProg(t)&&t.due&&t.due>tod&&t.due<=limStr)
+    .sort((a,b)=>a.due.localeCompare(b.due)).slice(0,12);
   const c=document.getElementById('futureList');if(!c)return;
   if(!list.length){c.innerHTML='<div class="future-empty">אין משימות עתידיות ב-14 הימים הקרובים</div>';return;}
+  const PR={high:'🔴',medium:'🟡',low:'🟢'};
   c.innerHTML=list.map(t=>{
     const color=t.person?pColor(t.person):'#6b7280';
-    const daysLeft=Math.round((new Date(t.due)-new Date(tod))/(86400000));
-    const urgency=daysLeft<=3?'color:var(--yellow)':daysLeft<=7?'color:var(--accent)':'color:var(--muted)';
-    const pr={high:'🔴',medium:'🟡',low:'🟢'}[t.priority||'medium'];
+    const days=Math.round((new Date(t.due)-new Date(tod))/86400000);
+    const urg=days<=3?'color:var(--red)':days<=7?'color:var(--yellow)':'color:var(--muted)';
     return`<div class="future-item" onclick="openModal('${t.id}')">
       <div class="future-item-title">${esc(t.title)}</div>
       <div class="future-item-meta">
         ${t.person?`<span style="font-size:10px;color:${color};font-weight:700">${pInit(t.person)}</span>`:''}
-        <span style="font-size:10px;${urgency}">${daysLeft}י'</span>
-        <span style="font-size:10px">${pr}</span>
+        <span style="font-size:10px;${urg}">עוד ${days}י׳</span>
+        <span style="font-size:10px">${PR[t.priority||'medium']}</span>
       </div>
     </div>`;
   }).join('');
@@ -466,16 +473,17 @@ function toggleSec(id){
 
 function cardHTML(t){
   const pct=t.progress||0,subT=(t.subtasks||[]).length,subD=(t.subtasks||[]).filter(s=>s.done).length,logN=(t.progressLog||[]).length;
-  const dueTxt=t.due?(isOver(t.due)&&!t.done?`<span class="task-due overdue">⚠️ ${fmtD(t.due)}</span>`:isTdy(t.due)&&!t.done?`<span class="task-due today">📅 היום</span>`:`<span class="task-due">📅 ${fmtD(t.due)}</span>`):''
-    +(t.due2?(`<span class="task-due" style="opacity:.65">→ ${fmtD(t.due2)}</span>`):'');
+  const dueTxt=(t.due?(isOver(t.due)&&!t.done?`<span class="task-due overdue">⚠️ ${fmtD(t.due)}</span>`:isTdy(t.due)&&!t.done?`<span class="task-due today">📅 היום</span>`:`<span class="task-due">📅 ${fmtD(t.due)}</span>`):'')+(t.due2?`<span class="task-due" style="opacity:.6">→ ${fmtD(t.due2)}</span>`:'');
   const catTxt=t.category?`<span class="task-tag" style="background:rgba(192,132,252,.1);color:var(--accent)">${CAT[t.category]||t.category}</span>`:'';
   const prioTxt=`<span class="task-tag tag-priority-${t.priority||'medium'}">${{high:'🔴 גבוהה',medium:'🟡 בינונית',low:'🟢 נמוכה'}[t.priority||'medium']}</span>`;
   const subBadge=subT?`<span class="badge-mini${subD?' lit':''}">☑️ ${subD}/${subT}</span>`:'';
   const pctBadge=pct>0&&pct<100?`<span class="badge-mini lit">⚡ ${pct}%</span>`:'';
   const logBadge=logN?`<span class="badge-mini lit">📝 ${logN}</span>`:'';
-  return`<div class="task-card ${t.done?'done':''} p-${t.priority||'medium'}" id="tc-${t.id}">
-    <div class="task-main" onclick="toggleExp('${t.id}')">
-      <div class="task-check" onclick="event.stopPropagation();toggleDone('${t.id}')">
+  const isSel=selectedIds.has(t.id);
+  return`<div class="task-card ${t.done?'done':''} p-${t.priority||'medium'}" id="tc-${t.id}" style="${isSel?'border-color:rgba(192,132,252,.5);background:rgba(192,132,252,.04)':''}">
+    <div class="task-main" onclick="${bulkMode?'':'toggleExp(\'' +t.id+ (bulkMode?'':'\')')}">
+      ${bulkMode?`<input type="checkbox" ${isSel?'checked':''} onclick="event.stopPropagation();toggleSelect('${t.id}',this)" style="width:16px;height:16px;margin-top:3px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">`:''}
+      <div class="task-check" onclick="event.stopPropagation();toggleDone('${t.id}')" style="${bulkMode?'display:none':''}">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div class="task-body">
@@ -515,13 +523,14 @@ function expandHTML(t){
     </div>`).join('');
   return`
     <div class="exp-section">
-      <div class="exp-label">התקדמות — ${pct}%</div>
-      <div class="prow">
-        <input type="range" class="pslider" min="0" max="100" value="${pct}"
-          style="background:linear-gradient(to left,var(--accent) ${pct}%,var(--surface3) ${pct}%)"
-          oninput="updateProg('${t.id}',this.value,this)" onclick="event.stopPropagation()"/>
-        <span class="ppct" id="pct-${t.id}">${pct}%</span>
-      </div>
+      <div class="exp-label">התקדמות</div>
+      <select class="prog-sel" onchange="updateProg('${t.id}',this.value)" onclick="event.stopPropagation()">
+        <option value="0" ${pct===0?'selected':''}>⬜ טרם התחלתי</option>
+        <option value="20" ${pct>0&&pct<=30?'selected':''}>🟦 התחלתי</option>
+        <option value="50" ${pct>30&&pct<70?'selected':''}>🔵 באמצע הדרך</option>
+        <option value="75" ${pct>=70&&pct<100?'selected':''}>🟣 לקראת סיום</option>
+        <option value="100" ${pct===100?'selected':''}>✅ הושלם</option>
+      </select>
     </div>
     <div class="exp-section">
       <div class="exp-label">תת-משימות ${(t.subtasks||[]).length?'('+( t.subtasks||[]).filter(s=>s.done).length+'/'+(t.subtasks||[]).length+')':''}</div>
@@ -569,15 +578,12 @@ function renderKanban(ft){
 
 function toggleExp(id){document.getElementById('exp-'+id)?.classList.toggle('open');}
 
-function updateProg(id,val,sl){
+function updateProg(id,val){
   val=parseInt(val);
   const t=tasks.find(x=>x.id===id);if(!t)return;
   t.progress=val;
   if(val===100&&!t.done){t.done=true;t.doneAt=new Date().toISOString();}
   if(val<100&&t.done){t.done=false;t.doneAt=null;}
-  const pct=document.getElementById('pct-'+id);if(pct)pct.textContent=val+'%';
-  if(pct&&pct.closest('.exp-section'))pct.closest('.exp-section').querySelector('.exp-label').textContent=`התקדמות — ${val}%`;
-  sl.style.background=`linear-gradient(to left,var(--accent) ${val}%,var(--surface3) ${val}%)`;
   const card=document.getElementById('tc-'+id);
   if(card){
     let bar=card.querySelector('.task-pfill');
@@ -586,6 +592,9 @@ function updateProg(id,val,sl){
     if(val===100)card.classList.add('done');else card.classList.remove('done');
   }
   save({type:'progress',taskId:id,taskTitle:t.title,val,person:t.person});refreshBadges(id);
+}
+function closestProgStep(v){
+  if(v===0)return 0;if(v<=30)return 20;if(v<70)return 50;if(v<100)return 75;return 100;
 }
 
 function addSub(tid){
@@ -652,22 +661,25 @@ function deleteTask(id){
 function toggleBulkMode(){
   bulkMode=!bulkMode;selectedIds.clear();
   document.getElementById('bulkBtn').classList.toggle('on',bulkMode);
-  const bar=document.getElementById('bulkBar');bar.classList.toggle('on',bulkMode);
+  document.getElementById('bulkBar').classList.toggle('on',bulkMode);
   render();
 }
 function toggleSelect(id,el){
   if(el.checked)selectedIds.add(id);else selectedIds.delete(id);
-  document.getElementById('bulkCount').textContent=selectedIds.size+' ෕בחרו';
-  const card=document.getElementById('tc-'+id);
-  if(card){card.style.borderColor=el.checked?'rgba(192,132,252,.5)':'';card.style.background=el.checked?'rgba(192,132,252,.05)':'';}
+  document.getElementById('bulkCount').textContent=selectedIds.size+' נבחרו';
 }
-function clearBulk(){bulkMode=false;selectedIds.clear();document.getElementById('bulkBtn').classList.remove('on');document.getElementById('bulkBar').classList.remove('on');render();}
+function clearBulk(){
+  bulkMode=false;selectedIds.clear();
+  document.getElementById('bulkBtn').classList.remove('on');
+  document.getElementById('bulkBar').classList.remove('on');
+  render();
+}
 function bulkDelete(){
   if(!selectedIds.size)return;
   if(!confirm(selectedIds.size+' משימות יימחקו. להמשיך?'))return;
-  tasks=tasks.filter(t=>!selectedIds.has(t.id));selectedIds.clear();save();clearBulk();showToast('🗑️ נמחקו');
+  tasks=tasks.filter(t=>!selectedIds.has(t.id));
+  selectedIds.clear();save();clearBulk();showToast('🗑️ נמחקו');
 }
-
 
 function fillPersonSelect(){
   const s=document.getElementById('fPerson');if(!s)return;
@@ -698,6 +710,8 @@ function openModal(id){
     document.getElementById('fPriority').value=t.priority||'medium';
     document.getElementById('fCategory').value=t.category||'';
     document.getElementById('fDue').value=t.due||'';
+    document.getElementById('fDue2').value=t.due2||'';
+    document.getElementById('fProgress').value=closestProgStep(t.progress||0);
     document.getElementById('fNotes').value=t.notes||'';
     mSubs=JSON.parse(JSON.stringify(t.subtasks||[]));
   }else{
@@ -706,6 +720,8 @@ function openModal(id){
     document.getElementById('fPriority').value='medium';
     document.getElementById('fCategory').value='';
     document.getElementById('fDue').value='';
+    document.getElementById('fDue2').value='';
+    document.getElementById('fProgress').value='0';
     mSubs=[];
   }
   renderMSubs();
@@ -718,9 +734,22 @@ function saveTask(){
   if(!title){document.getElementById('fTitle').focus();return;}
   if(editId){
     const t=tasks.find(x=>x.id===editId);
-    if(t){t.title=title;t.person=document.getElementById('fPerson').value||'';t.priority=document.getElementById('fPriority').value;t.category=document.getElementById('fCategory').value;t.due=document.getElementById('fDue').value;t.notes=document.getElementById('fNotes').value.trim();t.subtasks=mSubs;t.updatedAt=new Date().toISOString();}
+    const np=parseInt(document.getElementById('fProgress').value)||0;
+    if(t){
+      t.title=title;t.person=document.getElementById('fPerson').value||'';
+      t.priority=document.getElementById('fPriority').value;
+      t.category=document.getElementById('fCategory').value;
+      t.due=document.getElementById('fDue').value;
+      t.due2=document.getElementById('fDue2').value||'';
+      t.notes=document.getElementById('fNotes').value.trim();
+      t.subtasks=mSubs;t.updatedAt=new Date().toISOString();
+      t.progress=np;
+      if(np===100&&!t.done){t.done=true;t.doneAt=new Date().toISOString();}
+      else if(np<100&&t.done){t.done=false;t.doneAt=null;}
+    }
   }else{
-    tasks.unshift({id:uid(),title,person:document.getElementById('fPerson').value||'',priority:document.getElementById('fPriority').value,category:document.getElementById('fCategory').value,due:document.getElementById('fDue').value,notes:document.getElementById('fNotes').value.trim(),subtasks:mSubs,progressLog:[],progress:0,done:false,createdAt:new Date().toISOString()});
+    const np0=parseInt(document.getElementById('fProgress').value)||0;
+    tasks.unshift({id:uid(),title,person:document.getElementById('fPerson').value||'',priority:document.getElementById('fPriority').value,category:document.getElementById('fCategory').value,due:document.getElementById('fDue').value,due2:document.getElementById('fDue2').value||'',notes:document.getElementById('fNotes').value.trim(),subtasks:mSubs,progressLog:[],progress:np0,done:np0===100,createdAt:new Date().toISOString()});
   }
   save();closeModal();render();showToast(editId?'✏️ עודכנה':'✅ נוספה');
 }

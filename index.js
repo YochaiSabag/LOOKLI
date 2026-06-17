@@ -3649,6 +3649,45 @@ app.listen(PORT, async () => {
       updated_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(type, name)
     )`);
+    // ── Trigger: הגנה על שדות שתויגו ידנית מפני דריסה של סקרייפרים ──────
+    // כל שדה שמופיע ב-tagged_fields לא ישתנה אם ה-UPDATE לא מגיע מהטאגר
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION protect_tagged_fields()
+      RETURNS TRIGGER AS $$
+      DECLARE
+        f TEXT;
+      BEGIN
+        IF OLD.tagged_fields IS NOT NULL AND array_length(OLD.tagged_fields, 1) > 0 THEN
+          -- אם tagged_fields לא השתנה — זה סקרייפר (לא טאגר), שמור ערכים נעולים
+          IF OLD.tagged_fields IS NOT DISTINCT FROM NEW.tagged_fields THEN
+            FOREACH f IN ARRAY OLD.tagged_fields
+            LOOP
+              IF f = 'color' THEN
+                NEW.color   := OLD.color;
+                NEW.colors  := OLD.colors;
+              ELSIF f = 'style'          THEN NEW.style          := OLD.style;
+              ELSIF f = 'fit'            THEN NEW.fit            := OLD.fit; NEW.fits := OLD.fits;
+              ELSIF f = 'fabric'         THEN NEW.fabric         := OLD.fabric;
+              ELSIF f = 'pattern'        THEN NEW.pattern        := OLD.pattern;
+              ELSIF f = 'category'       THEN NEW.category       := OLD.category;
+              ELSIF f = 'design_details' THEN NEW.design_details := OLD.design_details;
+              END IF;
+            END LOOP;
+          END IF;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await pool.query(`DROP TRIGGER IF EXISTS trg_protect_tagged_fields ON products`);
+    await pool.query(`
+      CREATE TRIGGER trg_protect_tagged_fields
+      BEFORE UPDATE ON products
+      FOR EACH ROW
+      EXECUTE FUNCTION protect_tagged_fields();
+    `);
+    console.log('[init] ✅ trigger protect_tagged_fields פעיל');
+
     // טען aliases לחיפוש אחרי שהטבלה קיימת
     await loadSearchAliases();
   } catch(e) { console.error('clicks table init:', e.message); }

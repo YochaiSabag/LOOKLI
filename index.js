@@ -2202,16 +2202,15 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
     const dateRange = [{ startDate: `${days}daysAgo`, endDate: 'today' }];
     const token = await getGA4Token();
 
-    // סשנים, משתמשים, צפיות
-    const [overview, daily, outbound] = await Promise.all([
+    const [overview, daily, outbound, deviceData] = await Promise.all([
       ga4Query(token, {
         dateRanges: dateRange,
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'screenPageViews' }]
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'screenPageViews' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }]
       }),
       ga4Query(token, {
         dateRanges: dateRange,
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }]
       }),
       ga4Query(token, {
@@ -2219,50 +2218,95 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
         dimensions: [{ name: 'eventName' }, { name: 'linkUrl' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'outbound_click' } } }
+      }),
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'deviceCategory' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }]
       })
     ]);
 
     const totals = {
-      sessions: overview.rows?.[0]?.metricValues?.[0]?.value || 0,
-      users: overview.rows?.[0]?.metricValues?.[1]?.value || 0,
-      pageViews: overview.rows?.[0]?.metricValues?.[2]?.value || 0,
+      sessions:    parseInt(overview.rows?.[0]?.metricValues?.[0]?.value || 0),
+      users:       parseInt(overview.rows?.[0]?.metricValues?.[1]?.value || 0),
+      pageViews:   parseInt(overview.rows?.[0]?.metricValues?.[2]?.value || 0),
+      bounceRate:  parseFloat(overview.rows?.[0]?.metricValues?.[3]?.value || 0),
+      avgDuration: parseFloat(overview.rows?.[0]?.metricValues?.[4]?.value || 0),
       outboundClicks: 0
     };
 
     const dailyData = (daily.rows || []).map(r => ({
-      date: r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
-      sessions: parseInt(r.metricValues[0].value)
+      date:     r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+      sessions: parseInt(r.metricValues[0].value),
+      users:    parseInt(r.metricValues[1].value)
     }));
 
-    // קליקים לפי חנות מה-URL
-    const storeMap = {};
-    const STORES = { 'mima.co.il':'MIMA', 'mekimi.co.il':'MEKIMI', 'lichi.com':'LICHI', 'aviyah.co.il':'AVIYAH', 'chemise.co.il':'CHEMISE' };
+    // מכשירים (מובייל/דסקטופ/טאבלט)
+    const deviceMap = { mobile: 0, desktop: 0, tablet: 0 };
+    (deviceData.rows || []).forEach(r => {
+      const cat = (r.dimensionValues[0]?.value || '').toLowerCase();
+      const sessions = parseInt(r.metricValues[0].value || 0);
+      if (cat in deviceMap) deviceMap[cat] = sessions;
+    });
+
+    // קליקים לפי חנות — מ-source_url ב-GA4 + מה-DB (מדויק יותר)
+    const DOMAIN_TO_STORE = {
+      'mima.co.il': 'MIMA', 'mekimi.co.il': 'MEKIMI',
+      'lichi.com': 'LICHI', 'lichi-shop.com': 'LICHI',
+      'aviyah.co.il': 'AVIYAH', 'aviyahyosef.com': 'AVIYAH',
+      'chemise.co.il': 'CHEMISE', 'chen.co.il': 'CHEN',
+      'avivit-weizman.co.il': 'AVIVIT', 'avivit.co.il': 'AVIVIT',
+      'rare.co.il': 'RARE', 'ordman.co.il': 'ORDMAN',
+      'salina.co.il': 'SALINA', 'shebello.co.il': 'SHEBELLO',
+      'myme.co.il': 'MYME', 'moda.co.il': 'MODA',
+      'europisrael.co.il': 'EUROPISRAEL', 'leaa.co.il': 'LEAA',
+      'st-fashion.co.il': 'ST-FASHION'
+    };
+
+    // GA4 outbound clicks (לא תמיד מדויק, תלוי בהגדרת GA)
+    const ga4StoreMap = {};
     (outbound.rows || []).forEach(r => {
       const url = r.dimensionValues[1]?.value || '';
       const count = parseInt(r.metricValues[0].value);
       totals.outboundClicks += count;
-      for (const [domain, name] of Object.entries(STORES)) {
+      for (const [domain, name] of Object.entries(DOMAIN_TO_STORE)) {
         if (url.includes(domain)) {
-          storeMap[name] = (storeMap[name] || 0) + count;
+          ga4StoreMap[name] = (ga4StoreMap[name] || 0) + count;
+          break;
         }
       }
     });
 
-    const stores = Object.entries(storeMap)
-      .map(([name, clicks]) => ({ name, clicks }))
-      .sort((a,b) => b.clicks - a.clicks);
-
-    // מוצרים מה-DB
-    const topProducts = [];
+    // DB clicks — המקור האמין (מה שנרשם אצלנו)
+    let dbStoreClicks = [], dbTopProducts = [], dbDailyClicks = [];
     try {
-      const dbClicks = await pool.query(
-        `SELECT product_title, store, COUNT(*) as clicks FROM clicks GROUP BY product_title, store ORDER BY clicks DESC LIMIT 20`
-      );
-      dbClicks.rows.forEach(r => topProducts.push({ title: r.product_title, store: r.store, clicks: parseInt(r.clicks) }));
-    } catch(e) {}
+      const [storeRes, prodRes, dailyClicksRes] = await Promise.all([
+        pool.query(`SELECT store, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY store ORDER BY clicks DESC`),
+        pool.query(`SELECT c.product_id, c.product_title, c.store, c.source_url, COUNT(*) as clicks, p.image_url FROM clicks c LEFT JOIN products p ON p.id=c.product_id WHERE c.clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY c.product_id, c.product_title, c.store, c.source_url, p.image_url ORDER BY clicks DESC LIMIT 50`),
+        pool.query(`SELECT DATE(clicked_at) as day, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY DATE(clicked_at) ORDER BY day`)
+      ]);
+      dbStoreClicks = storeRes.rows.map(r => ({ name: r.store, clicks: parseInt(r.clicks) }));
+      dbTopProducts = prodRes.rows.map(r => ({ id: r.product_id, title: r.product_title, store: r.store, url: r.source_url, image: r.image_url, clicks: parseInt(r.clicks) }));
+      dbDailyClicks = dailyClicksRes.rows.map(r => ({ date: r.day?.toISOString?.()?.slice(0,10) || '', clicks: parseInt(r.clicks) }));
+    } catch(e) { console.error('[analytics] DB error:', e.message); }
 
-    res.json({ totals, daily: dailyData, stores, topProducts });
+    // מיזוג קליקי GA4 + DB לפי חנות (DB הוא המקור הראשי)
+    const allStoreNames = new Set([...dbStoreClicks.map(s=>s.name), ...Object.keys(ga4StoreMap)]);
+    const stores = [...allStoreNames].map(name => {
+      const dbVal  = dbStoreClicks.find(s => s.name === name)?.clicks || 0;
+      const ga4Val = ga4StoreMap[name] || 0;
+      return { name, clicks: dbVal || ga4Val, dbClicks: dbVal, ga4Clicks: ga4Val };
+    }).sort((a,b) => b.clicks - a.clicks);
+
+    // מיזוג daily: GA4 sessions + DB clicks
+    const dailyMerged = dailyData.map(d => {
+      const dbDay = dbDailyClicks.find(x => x.date === d.date);
+      return { ...d, clicks: dbDay?.clicks || 0 };
+    });
+
+    res.json({ totals, daily: dailyMerged, stores, topProducts: dbTopProducts, devices: deviceMap });
   } catch(e) {
+    console.error('[analytics]', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -2526,69 +2570,58 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
     const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
     if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
 
-    // עטוף ב-transaction כדי ש-SET LOCAL יהיה בתוקף לכל ה-UPDATE
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(`SET LOCAL app.is_tagger_update = 'true'`);
-
-      if (field === 'design_details') {
-        await client.query(
+    if (field === 'design_details') {
+      await pool.query(
+        `UPDATE products
+         SET design_details = array_append(COALESCE(design_details,'{}'), $1),
+             tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
+             updated_at     = NOW()
+         WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
+        [value, ids]
+      );
+    } else if (field === 'fit') {
+      await pool.query(
+        `UPDATE products
+         SET fit           = $1,
+             fits          = array_append(COALESCE(fits,'{}'), $1),
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'fit'), 'fit'),
+             updated_at    = NOW()
+         WHERE id = ANY($2::int[])`,
+        [value, ids]
+      );
+    } else if (field === 'color') {
+      if (replaceOther) {
+        // החלף "אחר" בצבע החדש + הסר כפילויות
+        await pool.query(
           `UPDATE products
-           SET design_details = array_append(COALESCE(design_details,'{}'), $1),
-               tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
-               updated_at     = NOW()
-           WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
-          [value, ids]
-        );
-      } else if (field === 'fit') {
-        await client.query(
-          `UPDATE products
-           SET fit           = $1,
-               fits          = array_append(COALESCE(fits,'{}'), $1),
-               tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'fit'), 'fit'),
+           SET color         = CASE WHEN color = 'אחר' THEN $1 ELSE color END,
+               colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1), NULL),
+               tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                updated_at    = NOW()
            WHERE id = ANY($2::int[])`,
           [value, ids]
         );
-      } else if (field === 'color') {
-        if (replaceOther) {
-          await client.query(
-            `UPDATE products
-             SET color         = CASE WHEN color = 'אחר' THEN $1 ELSE color END,
-                 colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1), NULL),
-                 tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
-                 updated_at    = NOW()
-             WHERE id = ANY($2::int[])`,
-            [value, ids]
-          );
-        } else {
-          await client.query(
-            `UPDATE products
-             SET color         = $1,
-                 colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1)))),
-                 tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
-                 updated_at    = NOW()
-             WHERE id = ANY($2::int[])`,
-            [value, ids]
-          );
-        }
       } else {
-        await client.query(
+        // הוסף צבע חדש ל-colors + עדכן color ראשי + הסר כפילויות
+        await pool.query(
           `UPDATE products
-           SET ${field}      = $1,
-               tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2), $2),
+           SET color         = $1,
+               colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1)))),
+               tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                updated_at    = NOW()
-           WHERE id = ANY($3::int[])`,
-          [value, field, ids]
+           WHERE id = ANY($2::int[])`,
+          [value, ids]
         );
       }
-      await client.query('COMMIT');
-    } catch(txErr) {
-      await client.query('ROLLBACK');
-      throw txErr;
-    } finally {
-      client.release();
+    } else {
+      await pool.query(
+        `UPDATE products
+         SET ${field}      = $1,
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2), $2),
+             updated_at    = NOW()
+         WHERE id = ANY($3::int[])`,
+        [value, field, ids]
+      );
     }
     res.json({ ok: true, updated: ids.length });
   } catch(e) {
@@ -3660,75 +3693,6 @@ app.listen(PORT, async () => {
       updated_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(type, name)
     )`);
-    // ── Trigger: הגנה על שדות שתויגו ידנית מפני דריסה של סקרייפרים ──────
-    // כל שדה שמופיע ב-tagged_fields לא ישתנה אם ה-UPDATE לא מגיע מהטאגר
-    await pool.query(`
-      CREATE OR REPLACE FUNCTION protect_tagged_fields()
-      RETURNS TRIGGER AS $$
-      DECLARE
-        f TEXT;
-        is_tagger BOOLEAN;
-      BEGIN
-        -- בדוק אם ה-UPDATE מגיע מהטאגר (session variable שמוגדר לפני כל שמירת טאגר)
-        BEGIN
-          is_tagger := current_setting('app.is_tagger_update', true) = 'true';
-        EXCEPTION WHEN OTHERS THEN
-          is_tagger := false;
-        END;
-
-        -- אם זה עדכון מהטאגר — תן לו לעבור ללא הגבלה
-        IF is_tagger THEN
-          RETURN NEW;
-        END IF;
-
-        -- אחרת (סקרייפר) — שמור שדות נעולים
-        IF OLD.tagged_fields IS NOT NULL AND array_length(OLD.tagged_fields, 1) > 0 THEN
-          FOREACH f IN ARRAY OLD.tagged_fields
-          LOOP
-            IF f = 'color' THEN
-              NEW.color   := OLD.color;
-              NEW.colors  := OLD.colors;
-            ELSIF f = 'style'          THEN NEW.style          := OLD.style;
-            ELSIF f = 'fit'            THEN NEW.fit            := OLD.fit; NEW.fits := OLD.fits;
-            ELSIF f = 'fabric'         THEN NEW.fabric         := OLD.fabric;
-            ELSIF f = 'pattern'        THEN NEW.pattern        := OLD.pattern;
-            ELSIF f = 'category'       THEN NEW.category       := OLD.category;
-            ELSIF f = 'design_details' THEN NEW.design_details := OLD.design_details;
-            END IF;
-          END LOOP;
-        END IF;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-    await pool.query(`DROP TRIGGER IF EXISTS trg_protect_tagged_fields ON products`);
-    await pool.query(`DROP TRIGGER IF EXISTS trg_protect_tagged_fields_insert ON products`);
-    await pool.query(`
-      CREATE TRIGGER trg_protect_tagged_fields
-      BEFORE UPDATE ON products
-      FOR EACH ROW
-      EXECUTE FUNCTION protect_tagged_fields();
-    `);
-
-    // ── פונקציה + טריגר על INSERT: אם קיים מוצר עם tagged_fields ונמחק ונוצר מחדש
-    // משחזר את הנתונים הנעולים מה-row הקיים לפי source_url
-    await pool.query(`
-      CREATE OR REPLACE FUNCTION restore_tagged_on_insert()
-      RETURNS TRIGGER AS $$
-      DECLARE
-        existing RECORD;
-        f TEXT;
-      BEGIN
-        -- חפש שורה קיימת עם אותו source_url שנמחקה זה עתה (temp table trick לא זמין)
-        -- אם מגיעים לכאן — זה INSERT חדש, לא ON CONFLICT
-        -- הפונקציה הזו מטפלת בON CONFLICT DO UPDATE דרך הטריגר הראשון
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-
-    console.log('[init] ✅ trigger protect_tagged_fields פעיל');
-
     // טען aliases לחיפוש אחרי שהטבלה קיימת
     await loadSearchAliases();
   } catch(e) { console.error('clicks table init:', e.message); }

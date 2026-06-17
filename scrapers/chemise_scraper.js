@@ -11,14 +11,29 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET || '2RjAAOdEbywF6B3gZT0QbCh-8Q8',
 });
 
-// העלאת תמונה ל-Cloudinary עם Referer של chemise
+// העלאת תמונה ל-Cloudinary — fetch ידני עם Referer, אחר כך upload כ-buffer
 async function uploadToCloudinary(imageUrl) {
   try {
-    const result = await cloudinary.uploader.upload(imageUrl, {
+    // שלב 1: קחת את התמונה עם headers מתאימים
+    const resp = await fetch(imageUrl, {
+      headers: {
+        'Referer': 'https://chemise.co.il/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+    });
+    if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // שלב 2: העלה ל-Cloudinary כ-data URI (base64)
+    const base64 = buffer.toString('base64');
+    const contentType = resp.headers.get('content-type') || 'image/jpeg';
+    const dataUri = `data:${contentType};base64,${base64}`;
+
+    const result = await cloudinary.uploader.upload(dataUri, {
       folder: 'lookli/chemise',
       fetch_format: 'auto',
       quality: 'auto',
-      headers: `Referer: https://chemise.co.il/\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36`,
     });
     return result.secure_url;
   } catch(e) {

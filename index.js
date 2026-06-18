@@ -2575,26 +2575,30 @@ app.get('/api/cron/tasks-due-reminders', async (req, res) => {
 });
 
 app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
     const { ids, field, value, replaceOther } = req.body;
     if (!ids?.length || !field || value === undefined) return res.status(400).json({ error: 'חסרים פרמטרים' });
     const ALLOWED = ['style','category','fit','fabric','pattern','color','design_details'];
     if (!ALLOWED.includes(field)) return res.status(400).json({ error: 'שדה לא מורשה' });
 
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL app.is_tagger_update = 'true'`);
+
     if (field === 'design_details') {
-      await pool.query(
+      await client.query(
         `UPDATE products
-         SET design_details = array_append(COALESCE(design_details,'{}'), $1),
+         SET design_details = array_append(COALESCE(design_details,'{}'), $1::text),
              tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
              updated_at     = NOW()
-         WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
+         WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1::text])`,
         [value, ids]
       );
     } else if (field === 'fit') {
-      await pool.query(
+      await client.query(
         `UPDATE products
-         SET fit           = $1,
-             fits          = array_append(COALESCE(fits,'{}'), $1),
+         SET fit           = $1::text,
+             fits          = array_append(COALESCE(fits,'{}'), $1::text),
              tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'fit'), 'fit'),
              updated_at    = NOW()
          WHERE id = ANY($2::int[])`,
@@ -2602,22 +2606,20 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       );
     } else if (field === 'color') {
       if (replaceOther) {
-        // החלף "אחר" בצבע החדש + הסר כפילויות
-        await pool.query(
+        await client.query(
           `UPDATE products
-           SET color         = CASE WHEN color = 'אחר' THEN $1 ELSE color END,
-               colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1), NULL),
+           SET color         = CASE WHEN color = 'אחר' THEN $1::text ELSE color END,
+               colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1::text), NULL),
                tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                updated_at    = NOW()
            WHERE id = ANY($2::int[])`,
           [value, ids]
         );
       } else {
-        // הוסף צבע חדש ל-colors + עדכן color ראשי + הסר כפילויות
-        await pool.query(
+        await client.query(
           `UPDATE products
-           SET color         = $1,
-               colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1)))),
+           SET color         = $1::text,
+               colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1::text)))),
                tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                updated_at    = NOW()
            WHERE id = ANY($2::int[])`,
@@ -2625,18 +2627,22 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         );
       }
     } else {
-      await pool.query(
+      await client.query(
         `UPDATE products
-         SET ${field}      = $1,
-             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2), $2),
+         SET ${field}      = $1::text,
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2::text), $2::text),
              updated_at    = NOW()
          WHERE id = ANY($3::int[])`,
         [value, field, ids]
       );
     }
+    await client.query('COMMIT');
     res.json({ ok: true, updated: ids.length });
   } catch(e) {
+    await client.query('ROLLBACK').catch(()=>{});
     res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -3733,6 +3739,44 @@ app.listen(PORT, async () => {
     )`);
     // טען aliases לחיפוש אחרי שהטבלה קיימת
     await loadSearchAliases();
+
+    // ── Trigger: הגן על שדות שתויגו ידנית מפני דריסת סקרייפרים ─────
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION protect_tagged_fields()
+      RETURNS TRIGGER AS $$
+      DECLARE
+        f TEXT;
+        is_tagger BOOLEAN;
+      BEGIN
+        BEGIN
+          is_tagger := current_setting('app.is_tagger_update', true) = 'true';
+        EXCEPTION WHEN OTHERS THEN
+          is_tagger := false;
+        END;
+        IF is_tagger THEN RETURN NEW; END IF;
+        IF OLD.tagged_fields IS NOT NULL AND array_length(OLD.tagged_fields, 1) > 0 THEN
+          FOREACH f IN ARRAY OLD.tagged_fields LOOP
+            IF f = 'color'          THEN NEW.color          := OLD.color; NEW.colors := OLD.colors;
+            ELSIF f = 'style'          THEN NEW.style          := OLD.style;
+            ELSIF f = 'fit'            THEN NEW.fit            := OLD.fit; NEW.fits := OLD.fits;
+            ELSIF f = 'fabric'         THEN NEW.fabric         := OLD.fabric;
+            ELSIF f = 'pattern'        THEN NEW.pattern        := OLD.pattern;
+            ELSIF f = 'category'       THEN NEW.category       := OLD.category;
+            ELSIF f = 'design_details' THEN NEW.design_details := OLD.design_details;
+            END IF;
+          END LOOP;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await pool.query(`DROP TRIGGER IF EXISTS trg_protect_tagged_fields ON products`);
+    await pool.query(`
+      CREATE TRIGGER trg_protect_tagged_fields
+      BEFORE UPDATE ON products
+      FOR EACH ROW EXECUTE FUNCTION protect_tagged_fields();
+    `);
+    console.log('[init] ✅ trigger protect_tagged_fields פעיל');
   } catch(e) { console.error('clicks table init:', e.message); }
 
   // ── תזכורת due-date — בדיקה כל 30 דקות ──────────────────────────

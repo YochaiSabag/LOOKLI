@@ -2579,17 +2579,17 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       if (field === 'design_details') {
         await client.query(
           `UPDATE products
-           SET design_details = array_append(COALESCE(design_details,'{}'), $1),
+           SET design_details = array_append(COALESCE(design_details,'{}'), $1::text),
                tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
                updated_at     = NOW()
-           WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1])`,
+           WHERE id = ANY($2::int[]) AND NOT (design_details @> ARRAY[$1::text])`,
           [value, ids]
         );
       } else if (field === 'fit') {
         await client.query(
           `UPDATE products
-           SET fit           = $1,
-               fits          = array_append(COALESCE(fits,'{}'), $1),
+           SET fit           = $1::text,
+               fits          = array_append(COALESCE(fits,'{}'), $1::text),
                tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'fit'), 'fit'),
                updated_at    = NOW()
            WHERE id = ANY($2::int[])`,
@@ -2599,8 +2599,8 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         if (replaceOther) {
           await client.query(
             `UPDATE products
-             SET color         = CASE WHEN color = 'אחר' THEN $1 ELSE color END,
-                 colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1), NULL),
+             SET color         = CASE WHEN color = 'אחר' THEN $1::text ELSE color END,
+                 colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1::text), NULL),
                  tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                  updated_at    = NOW()
              WHERE id = ANY($2::int[])`,
@@ -2609,8 +2609,8 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         } else {
           await client.query(
             `UPDATE products
-             SET color         = $1,
-                 colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1)))),
+             SET color         = $1::text,
+                 colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1::text)))),
                  tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color'),
                  updated_at    = NOW()
              WHERE id = ANY($2::int[])`,
@@ -2620,7 +2620,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       } else {
         await client.query(
           `UPDATE products
-           SET ${field}      = $1,
+           SET ${field}      = $1::text,
                tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2::text), $2::text),
                updated_at    = NOW()
            WHERE id = ANY($3::int[])`,

@@ -180,31 +180,28 @@ async function scrapeProduct(page, url, isEvening = false) {
         if (src && !images.includes(src)) images.push(src);
       });
       
-      // תמונות משנה מ-carousel (wd-carousel-item)
-      document.querySelectorAll('.wd-carousel-item img').forEach(img => {
-        // קח את התמונה בגודל מלא (בלי -150x)
-        const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
-        // חפש את התמונה הגדולה ביותר ב-srcset
-        const fullSizeMatch = srcset.match(/(\S+)\s+\d{3,}w/);
-        if (fullSizeMatch) {
-          // קח את התמונה עם הרוחב הגדול ביותר
-          const parts = srcset.split(',').map(s => s.trim());
-          let largest = '';
-          let largestWidth = 0;
-          parts.forEach(part => {
-            const match = part.match(/(\S+)\s+(\d+)w/);
-            if (match && parseInt(match[2]) > largestWidth) {
-              largestWidth = parseInt(match[2]);
-              largest = match[1];
-            }
-          });
-          if (largest && !images.includes(largest)) images.push(largest);
-        } else {
-          // fallback: src
-          const src = img.src;
-          if (src && src.includes('uploads') && !src.includes('-150x') && !images.includes(src)) images.push(src);
-        }
-      });
+      // תמונות משנה מ-carousel — רק בתוך גלריית המוצר (לא related products)
+      const gallery = document.querySelector('.woocommerce-product-gallery');
+      if (gallery) {
+        gallery.querySelectorAll('.wd-carousel-item img').forEach(img => {
+          const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
+          if (srcset) {
+            const parts = srcset.split(',').map(s => s.trim());
+            let largest = '', largestWidth = 0;
+            parts.forEach(part => {
+              const match = part.match(/(\S+)\s+(\d+)w/);
+              if (match && parseInt(match[2]) > largestWidth) {
+                largestWidth = parseInt(match[2]);
+                largest = match[1];
+              }
+            });
+            if (largest && !images.includes(largest)) images.push(largest);
+          } else {
+            const src = img.src;
+            if (src && src.includes('uploads') && !src.includes('-150x') && !images.includes(src)) images.push(src);
+          }
+        });
+      }
       
       // fallback כללי
       if (images.length === 0) {

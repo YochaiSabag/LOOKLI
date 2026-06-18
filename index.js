@@ -3715,6 +3715,11 @@ app.listen(PORT, async () => {
     await pool.query(`DROP TABLE IF EXISTS image_cache`).catch(()=>{});
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE`).catch(()=>{});
     await pool.query(`ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS derived_tags JSONB DEFAULT '{}'`).catch(()=>{});
+    // הרחב עמודות VARCHAR קצרות מדי ב-products
+    for (const col of ['store','color','style','fit','category','fabric','pattern','description']) {
+      await pool.query(`ALTER TABLE products ALTER COLUMN ${col} TYPE TEXT`).catch(()=>{});
+    }
+    console.log('[init] ✅ products columns widened to TEXT');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

@@ -36,7 +36,7 @@ function normalizeSize(s) {
 async function getAllProductUrls(page) {
   // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
   //console.log('\n🧪 TEST MODE — מוצר בודד\n');
-  //return ['https://avivit-weizman.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%90%d7%9c%d7%94-%d7%a0%d7%a7%d7%95%d7%93%d7%95%d7%aa-%d7%a9%d7%9e%d7%a0%d7%aa/'];
+  //return ['https://avivit-weizman.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%91%d7%99%d7%99%d7%9c%d7%99-%d7%a0%d7%a7%d7%95%d7%93%d7%95%d7%aa/'];
   // ===== END TEST MODE =====
   console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il...\n');
   const allUrls = new Set();

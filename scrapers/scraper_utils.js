@@ -77,6 +77,9 @@ const SKIP_KEYWORDS = [
   'כרטיס','gift card','voucher',
 ];
 
+// derived_tags maps — מאוכלסים בטעינה מה-DB
+let fabricDerived = {}, patternDerived = {}, categoryDerived = {};
+
 export async function loadScraperConfig(db) {
   let colorMap = {...DEFAULT_COLORS};
   let categoryMap = {...DEFAULT_CATEGORIES};
@@ -86,12 +89,17 @@ export async function loadScraperConfig(db) {
   let patternMap = {...DEFAULT_PATTERNS};
 
   try {
-    const r = await db.query(`SELECT type, name, aliases FROM scraper_config ORDER BY type, name`);
+    const r = await db.query(`SELECT type, name, aliases, derived_tags FROM scraper_config ORDER BY type, name`);
     if (r.rows.length > 0) {
       const maps = { color:{}, category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
+      // derived_tags: { type: { name: { field: [values] } } }
+      const derivedMaps = { color:{}, category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
       r.rows.forEach(row => {
         if (maps[row.type] !== undefined) {
           maps[row.type][row.name] = row.aliases || [];
+          if (row.derived_tags && Object.keys(row.derived_tags).length) {
+            derivedMaps[row.type][row.name] = row.derived_tags;
+          }
         }
       });
       colorMap    = { ...DEFAULT_COLORS,    ...maps.color    };
@@ -100,6 +108,9 @@ export async function loadScraperConfig(db) {
       fitMap      = { ...DEFAULT_FITS,      ...maps.fit      };
       fabricMap   = { ...DEFAULT_FABRICS,   ...maps.fabric   };
       patternMap  = { ...DEFAULT_PATTERNS,  ...maps.pattern  };
+      fabricDerived   = derivedMaps.fabric   || {};
+      patternDerived  = derivedMaps.pattern  || {};
+      categoryDerived = derivedMaps.category || {};
       console.log(`✅ scraper_config נטען מ-DB: ${r.rows.length} הגדרות (ממוזג עם ברירות מחדל)`);
     } else {
       console.log('⚠️ scraper_config ריק — משתמש בברירות מחדל');
@@ -238,17 +249,24 @@ export async function loadScraperConfig(db) {
     detectFabric(title, description='') {
       const text = ((title||'')+' '+(description||'')).toLowerCase();
       for (const [name, aliases] of Object.entries(fabricMap)) {
-        if (aliases.some(a => text.includes(a.toLowerCase()))) return name;
+        if (aliases.some(a => text.includes(a.toLowerCase()))) {
+          // בדוק אם יש derived_tags לבד זה
+          const derived = fabricDerived[name] || {};
+          return { fabric: name, derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
+        }
       }
-      return '';
+      return { fabric: '', derivedStyle: null, derivedStyles: [] };
     },
 
     detectPattern(title, description='') {
       const text = ((title||'')+' '+(description||'')).toLowerCase();
       for (const [name, aliases] of Object.entries(patternMap)) {
-        if (aliases.some(a => text.includes(a.toLowerCase()))) return name;
+        if (aliases.some(a => text.includes(a.toLowerCase()))) {
+          const derived = patternDerived[name] || {};
+          return { pattern: name, derivedStyle: derived.style?.[0] || null };
+        }
       }
-      return '';
+      return { pattern: '', derivedStyle: null };
     },
 
     detectDesignDetails(title, description='') {

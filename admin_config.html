@@ -150,6 +150,20 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       </div>
       <div class="modal-hint">למשל לצבע "ורוד": pink, coral, ורודה, פודרה, בייבי ורוד</div>
     </div>
+    <div id="derivedGroup" style="display:none;margin-top:16px">
+      <label style="font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px">תגיות נגזרות — כשמוצאים ערך זה, הוסף גם:</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <select id="derivedField" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px 10px;font-family:'Heebo',sans-serif;font-size:13px;outline:none">
+          <option value="style">סגנון (style)</option>
+          <option value="fit">גזרה (fit)</option>
+          <option value="category">קטגוריה (category)</option>
+        </select>
+        <input id="derivedValue" class="form-input" placeholder="למשל: אלגנטי" style="flex:1;min-width:100px">
+        <button onclick="addDerivedTag()" style="padding:7px 12px;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.3);border-radius:8px;color:var(--accent);font-family:'Heebo',sans-serif;font-size:13px;cursor:pointer">+ הוסף</button>
+      </div>
+      <div id="derivedChips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>
+      <div style="font-size:11px;color:var(--muted)">למשל: סאטן ב-fabric → style: אלגנטי</div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()" style="background:var(--surface2);color:var(--muted)">ביטול</button>
       <button class="btn btn-primary" onclick="saveItem()">💾 שמור</button>
@@ -160,7 +174,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 <script>
 let currentType = 'color';
 let editId = null;
-let aliases = [];
+let aliases = [], derivedTags = {};
 const counts = {};
 
 const typeLabels = {
@@ -259,6 +273,8 @@ function openAdd() {
   document.getElementById('colorHexGroup').style.display = currentType === 'color' ? '' : 'none';
   renderAliasChips();
   document.getElementById('modalTitle').textContent = `הוסף ל${typeLabels[currentType].label.split(' ')[1]}`;
+  derivedTags = {}; renderDerivedChips();
+  document.getElementById('derivedGroup').style.display = currentType === 'color' ? 'none' : '';
   document.getElementById('modalBg').classList.add('open');
   setTimeout(() => document.getElementById('fieldName').focus(), 50);
 }
@@ -270,7 +286,9 @@ function openEdit(item) {
   document.getElementById('fieldHex').value = item.color_hex || '';
   document.getElementById('fieldColorPicker').value = item.color_hex || '#c97cc0';
   document.getElementById('colorHexGroup').style.display = currentType === 'color' ? '' : 'none';
-  renderAliasChips();
+  document.getElementById('derivedGroup').style.display = currentType === 'color' ? 'none' : '';
+  derivedTags = JSON.parse(JSON.stringify(item.derived_tags || {}));
+  renderAliasChips(); renderDerivedChips();
   document.getElementById('modalTitle').textContent = `עריכה: ${item.name}`;
   document.getElementById('modalBg').classList.add('open');
 }
@@ -307,6 +325,29 @@ function renderAliasChips() {
   container.appendChild(input);
 }
 
+function addDerivedTag() {
+  const field = document.getElementById('derivedField').value;
+  const val = document.getElementById('derivedValue').value.trim();
+  if (!val) return;
+  if (!derivedTags[field]) derivedTags[field] = [];
+  if (!derivedTags[field].includes(val)) derivedTags[field].push(val);
+  document.getElementById('derivedValue').value = '';
+  renderDerivedChips();
+}
+function removeDerivedTag(field, val) {
+  if (derivedTags[field]) {
+    derivedTags[field] = derivedTags[field].filter(v => v !== val);
+    if (!derivedTags[field].length) delete derivedTags[field];
+  }
+  renderDerivedChips();
+}
+function renderDerivedChips() {
+  const c = document.getElementById('derivedChips'); if (!c) return;
+  const labels = { style:'סגנון', fit:'גזרה', category:'קטגוריה' };
+  c.innerHTML = Object.entries(derivedTags).flatMap(([field, vals]) =>
+    vals.map(v => `<span class="alias-chip" style="background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3);color:#34d399">${labels[field]||field}: ${esc(v)}<button onclick="removeDerivedTag('${field}','${esc(v)}')" tabindex="-1">×</button></span>`)
+  ).join('');
+}
 async function saveItem() {
   // הוסף מה שנשאר בinput
   const inputVal = document.getElementById('aliasInput').value.trim();
@@ -315,7 +356,7 @@ async function saveItem() {
   const name = document.getElementById('fieldName').value.trim();
   if (!name) { alert('חובה להזין שם'); return; }
 
-  const body = { type: currentType, name, aliases, color_hex: document.getElementById('fieldHex').value.trim() || null };
+  const body = { type: currentType, name, aliases, color_hex: document.getElementById('fieldHex').value.trim() || null, derived_tags: derivedTags };
   // אם עורכים — PUT לפי id; אחרת — POST חדש
   const url = editId ? `/api/admin/scraper-config/${editId}` : '/api/admin/scraper-config';
   const method = editId ? 'PUT' : 'POST';

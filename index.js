@@ -3474,20 +3474,20 @@ app.get('/api/admin/scraper-config', adminAuth, async (req, res) => {
   const { type } = req.query;
   const q = type
     ? `SELECT * FROM scraper_config WHERE type=$1 ORDER BY name`
-    : `SELECT * FROM scraper_config ORDER BY type, name`;
+    : `SELECT id, type, name, aliases, color_hex, derived_tags FROM scraper_config ORDER BY type, name`;
   const r = await pool.query(q, type ? [type] : []);
   res.json({ ok: true, items: r.rows });
 });
 
 app.post('/api/admin/scraper-config', adminAuth, async (req, res) => {
-  const { type, name, aliases = [], color_hex } = req.body;
+  const { type, name, aliases = [], color_hex, derived_tags = {} } = req.body;
   if (!type || !name) return res.status(400).json({ error: 'type ו-name חובה' });
   const r = await pool.query(
-    `INSERT INTO scraper_config (type, name, aliases, color_hex)
-     VALUES ($1,$2,$3,$4)
-     ON CONFLICT (type, name) DO UPDATE SET aliases=$3, color_hex=$4, updated_at=NOW()
+    `INSERT INTO scraper_config (type, name, aliases, color_hex, derived_tags)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (type, name) DO UPDATE SET aliases=$3, color_hex=$4, derived_tags=$5, updated_at=NOW()
      RETURNING *`,
-    [type, name, aliases, color_hex || null]
+    [type, name, aliases, color_hex || null, JSON.stringify(derived_tags)]
   );
   await loadSearchAliases(); // רענון מיידי
   res.json({ ok: true, item: r.rows[0] });
@@ -3495,12 +3495,12 @@ app.post('/api/admin/scraper-config', adminAuth, async (req, res) => {
 
 // PUT /api/admin/scraper-config/:id — עדכון ערך קיים לפי id (כולל שינוי שם)
 app.put('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
-  const { name, aliases = [], color_hex } = req.body;
+  const { name, aliases = [], color_hex, derived_tags = {} } = req.body;
   if (!name) return res.status(400).json({ error: 'name חובה' });
   try {
     const r = await pool.query(
-      `UPDATE scraper_config SET name=$1, aliases=$2, color_hex=$3, updated_at=NOW() WHERE id=$4 RETURNING *`,
-      [name, aliases, color_hex || null, req.params.id]
+      `UPDATE scraper_config SET name=$1, aliases=$2, color_hex=$3, derived_tags=$4, updated_at=NOW() WHERE id=$5 RETURNING *`,
+      [name, aliases, color_hex || null, JSON.stringify(derived_tags), req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'לא נמצא' });
     await loadSearchAliases();
@@ -3535,7 +3535,7 @@ app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
 app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
   try {
     // 1. טען config מה-DB
-    const cfgRows = await pool.query(`SELECT type, name, aliases FROM scraper_config WHERE aliases IS NOT NULL AND array_length(aliases,1)>0`);
+    const cfgRows = await pool.query(`SELECT type, name, aliases, derived_tags FROM scraper_config WHERE aliases IS NOT NULL AND array_length(aliases,1)>0`);
     const maps = { category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
     cfgRows.rows.forEach(r => { if (maps[r.type]) maps[r.type][r.name] = (r.aliases||[]).map(a=>a.toLowerCase()); });
 
@@ -3587,10 +3587,18 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     // ─── שאר השדות ────────────────────────────────────────────────────
     const fields = ['category','style','fit','fabric','pattern'];
 
+    // derived_tags map: { type: { name: { field: [values] } } }
+    const derivedMap = {};
+    cfgRows.rows.forEach(r => {
+      if (r.derived_tags && Object.keys(r.derived_tags).length) {
+        if (!derivedMap[r.type]) derivedMap[r.type] = {};
+        derivedMap[r.type][r.name] = r.derived_tags;
+      }
+    });
+
     for (const field of fields) {
       if (!Object.keys(maps[field]).length) continue;
 
-      // שלוף מוצרים שהשדה ריק ואינו נעול ידנית
       const prods = await pool.query(
         `SELECT id, title, description FROM products
          WHERE (${field} IS NULL OR ${field} = '')
@@ -3601,8 +3609,20 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
       for (const p of prods.rows) {
         const val = detect((p.title||'') + ' ' + (p.description||''), maps[field]);
         if (val) {
-          await pool.query(`UPDATE products SET ${field}=$1 WHERE id=$2`, [val, p.id]);
+          await pool.query(`UPDATE products SET ${field}=$1::text WHERE id=$2`, [val, p.id]);
           updated++;
+          // החל derived_tags — רק אם השדה הנגזר ריק ולא נעול
+          const derived = derivedMap[field]?.[val] || {};
+          for (const [df, dvals] of Object.entries(derived)) {
+            if (!dvals?.length) continue;
+            await pool.query(
+              `UPDATE products SET ${df}=$1::text
+               WHERE id=$2
+                 AND (${df} IS NULL OR ${df} = '')
+                 AND NOT ($3::text = ANY(COALESCE(tagged_fields, '{}')))`,
+              [dvals[0], p.id, df]
+            );
+          }
         }
       }
     }
@@ -3694,11 +3714,13 @@ app.listen(PORT, async () => {
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
     await pool.query(`DROP TABLE IF EXISTS image_cache`).catch(()=>{});
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE`).catch(()=>{});
+    await pool.query(`ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS derived_tags JSONB DEFAULT '{}'`).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,
       name VARCHAR(100) NOT NULL,
       aliases TEXT[] DEFAULT '{}',
+      derived_tags JSONB DEFAULT '{}',
       color_hex VARCHAR(20),
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW(),

@@ -293,5 +293,47 @@ export async function loadScraperConfig(db) {
       if (/שכבות|layer/i.test(text)) details.push('שכבות');
       return details;
     },
+
+    // ── מנגנון הסתרת מוצרים שלא נמצאים יותר באתר ──────────────────────
+    // קוראים בסוף כל סקרייפר: await reportScraperFinished(db, 'STORE_NAME', foundUrls)
+    // - מוצרים שנמצאו: not_seen_count=0, hidden_stale=false (חזרו לחיים)
+    // - מוצרים שלא נמצאו: not_seen_count++, ואם הגיע ל-3 → hidden_stale=true (מוסתר, לא נמחק)
+    async reportScraperFinished(dbClient, store, foundUrls) {
+      try {
+        await dbClient.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS not_seen_count INTEGER DEFAULT 0`).catch(()=>{});
+        await dbClient.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden_stale BOOLEAN DEFAULT false`).catch(()=>{});
+
+        if (foundUrls.length > 0) {
+          await dbClient.query(
+            `UPDATE products SET not_seen_count = 0, hidden_stale = false
+             WHERE store = $1 AND source_url = ANY($2::text[])`,
+            [store, foundUrls]
+          );
+        }
+
+        const result = await dbClient.query(
+          `UPDATE products
+           SET not_seen_count = not_seen_count + 1,
+               hidden_stale = (not_seen_count + 1) >= 3
+           WHERE store = $1
+             AND NOT (source_url = ANY($2::text[]))
+             AND (banned IS NULL OR banned = false)
+           RETURNING id, not_seen_count, hidden_stale`,
+          [store, foundUrls]
+        );
+
+        const newlyHidden = result.rows.filter(r => r.hidden_stale && r.not_seen_count === 3).length;
+        if (newlyHidden > 0) {
+          console.log(`  🙈 ${newlyHidden} מוצרים הוסתרו (3 הרצות רצופות לא נמצאו)`);
+        }
+        if (result.rows.length > 0) {
+          console.log(`  📊 ${result.rows.length} מוצרים לא נמצאו בריצה זו (מונה הוגדל)`);
+        }
+        return { notFoundCount: result.rows.length, newlyHidden };
+      } catch(e) {
+        console.log(`  ⚠️ reportScraperFinished נכשל: ${e.message.substring(0,60)}`);
+        return { notFoundCount: 0, newlyHidden: 0 };
+      }
+    },
   };
 }

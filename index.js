@@ -351,7 +351,7 @@ function calculateShipping(store, price) {
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
-    let baseWhere = '(banned IS NULL OR banned = false)';
+    let baseWhere = '(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)';
     const baseParams = [];
     let paramIndex = 1;
     
@@ -539,7 +539,7 @@ async function loadSearchAliases() {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields FROM products WHERE (banned IS NULL OR banned = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
     const params = [];
     let i = 1;
 
@@ -873,7 +873,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
     const params = [];
     let i = 1;
 
@@ -977,7 +977,7 @@ app.post("/api/search-by-image", async (req, res) => {
     try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
     catch { analysis = { keywords: [], color: null, category: null, style: null, fit: null, fabric: null, pattern: null, size: null, designDetails: [], maxPrice: null, store: null }; }
 
-    let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND array_length(sizes,1)>0`;
+    let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0`;
     const params = [];
     let idx = 1;
     if (analysis.keywords?.length) { sql += ` AND title ILIKE $${idx++}`; params.push(`%${analysis.keywords.join(" ")}%`); }
@@ -3538,6 +3538,10 @@ app.put('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
   }
 });
 
+// הערה: הסתרת מוצרים שלא נמצאים יותר (not_seen_count/hidden_stale) מתבצעת
+// ישירות מתוך כל סקרייפר דרך reportScraperFinished() ב-scraper_utils.js
+// (קריאה ישירה ל-DB, ללא צורך ב-endpoint נפרד)
+
 // DELETE /api/admin/products/:id — בן מוצר לתמיד (banned=true)
 app.delete('/api/admin/products/:id', adminAuth, async (req, res) => {
   try {
@@ -3748,6 +3752,13 @@ app.listen(PORT, async () => {
       await pool.query(`ALTER TABLE products ALTER COLUMN ${col} TYPE TEXT`).catch(()=>{});
     }
     console.log('[init] ✅ products columns widened to TEXT');
+
+    // ── מנגנון הסתרת מוצרים שלא נמצאים יותר באתר המקור ──────────────
+    // not_seen_count: כמה הרצות רצופות המוצר לא עודכן
+    // hidden_stale: true = מוסתר מהאתר (אבל לא נמחק מה-DB)
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS not_seen_count INTEGER DEFAULT 0`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden_stale BOOLEAN DEFAULT false`).catch(()=>{});
+    console.log('[init] ✅ עמודות not_seen_count / hidden_stale מוכנות');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

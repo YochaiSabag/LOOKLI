@@ -85,8 +85,27 @@ async function getAllProductUrls(page) {
 
         if (allUrls.size === before && p > 1) break;
       } catch (e) {
-        console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
-        break;
+        console.log(`    ⚠ שגיאה בעמוד ${p} - ${e.message.substring(0, 30)} - מנסה שוב`);
+        try {
+          await page.waitForTimeout(3000);
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.waitForTimeout(2000);
+          const urls2 = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('www.ordman.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls2.length > 0) {
+            const before2 = allUrls.size;
+            urls2.forEach(u => allUrls.add(u));
+            console.log(`    ✓ ניסיון שני הצליח: ${urls2.length} (סה"כ: ${allUrls.size})`);
+          } else {
+            console.log(`    ⏭ ניסיון שני גם ריק - ממשיך לעמוד הבא (לא עוצר קטגוריה)`);
+          }
+        } catch (e2) {
+          console.log(`    ⏭ ניסיון שני נכשל - ממשיך לעמוד הבא (לא עוצר קטגוריה)`);
+        }
       }
     }
   }

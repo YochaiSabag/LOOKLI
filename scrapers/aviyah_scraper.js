@@ -86,8 +86,26 @@ async function getAllProductUrls(page) {
       urls.forEach(u => allUrls.set(u, { isEvening: true }));
       console.log(`    ✓ ${urls.length} (ערב)`);
     } catch (e) {
-      console.log(`    ⏹ שגיאה - עוצר`);
-      break;
+      console.log(`    ⚠ שגיאה - ${e.message.substring(0, 30)} - מנסה שוב`);
+      try {
+        await page.waitForTimeout(3000);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(2000);
+        const urls2 = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href)
+            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls2.length > 0) {
+          urls2.forEach(u => allUrls.set(u, { isEvening: true }));
+          console.log(`    ✓ ניסיון שני הצליח: ${urls2.length} (ערב)`);
+        } else {
+          console.log(`    ⏭ ניסיון שני גם ריק - ממשיך (לא עוצר קטגוריה)`);
+        }
+      } catch (e2) {
+        console.log(`    ⏭ ניסיון שני נכשל - ממשיך (לא עוצר קטגוריה)`);
+      }
     }
   }
   
@@ -120,8 +138,26 @@ async function getAllProductUrls(page) {
       urls.forEach(u => { if (!allUrls.has(u)) allUrls.set(u, { isEvening: false }); });
       console.log(`    ✓ ${urls.length}`);
     } catch (e) {
-      console.log(`    ⏹ שגיאה - עוצר`);
-      break;
+      console.log(`    ⚠ שגיאה - ${e.message.substring(0, 30)} - מנסה שוב`);
+      try {
+        await page.waitForTimeout(3000);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(2000);
+        const urls2 = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href)
+            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls2.length > 0) {
+          urls2.forEach(u => { if (!allUrls.has(u)) allUrls.set(u, { isEvening: false }); });
+          console.log(`    ✓ ניסיון שני הצליח: ${urls2.length}`);
+        } else {
+          console.log(`    ⏭ ניסיון שני גם ריק - ממשיך (לא עוצר קטגוריה)`);
+        }
+      } catch (e2) {
+        console.log(`    ⏭ ניסיון שני נכשל - ממשיך (לא עוצר קטגוריה)`);
+      }
     }
   }
   

@@ -2585,8 +2585,9 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
     await client.query('BEGIN');
     await client.query(`SET LOCAL app.is_tagger_update = 'true'`);
 
+    let result;
     if (field === 'design_details') {
-      await client.query(
+      result = await client.query(
         `UPDATE products
          SET design_details = array_append(COALESCE(design_details,'{}'), $1::text),
              tagged_fields  = array_append(COALESCE(tagged_fields,'{}'), 'design_details'),
@@ -2595,7 +2596,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         [value, ids]
       );
     } else if (field === 'fit') {
-      await client.query(
+      result = await client.query(
         `UPDATE products
          SET fit           = $1::text,
              fits          = array_append(COALESCE(fits,'{}'), $1::text),
@@ -2606,7 +2607,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       );
     } else if (field === 'color') {
       if (replaceOther) {
-        await client.query(
+        result = await client.query(
           `UPDATE products
            SET color         = CASE WHEN color = 'אחר' THEN $1::text ELSE color END,
                colors        = array_remove(array_replace(COALESCE(colors,'{}'), 'אחר', $1::text), NULL),
@@ -2616,7 +2617,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
           [value, ids]
         );
       } else {
-        await client.query(
+        result = await client.query(
           `UPDATE products
            SET color         = $1::text,
                colors        = (SELECT ARRAY(SELECT DISTINCT unnest(array_append(COALESCE(colors,'{}'), $1::text)))),
@@ -2627,7 +2628,7 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         );
       }
     } else {
-      await client.query(
+      result = await client.query(
         `UPDATE products
          SET ${field}      = $1::text,
              tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), $2::text), $2::text),
@@ -2636,10 +2637,31 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
         [value, field, ids]
       );
     }
+
+    // ── אימות אמיתי: בדוק שהערך אכן נשמר ב-DB לפני שמדווחים הצלחה ──────
+    const verify = await client.query(
+      `SELECT id, ${field === 'color' ? 'color' : field} AS val, tagged_fields
+       FROM products WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    const failedIds = verify.rows
+      .filter(r => r.val !== value || !(r.tagged_fields||[]).includes(field === 'color' ? 'color' : field))
+      .map(r => r.id);
+
+    if (failedIds.length > 0) {
+      await client.query('ROLLBACK');
+      console.error(`[tag-products] ⚠️ אימות נכשל — ${failedIds.length} מוצרים לא התעדכנו:`, failedIds);
+      return res.status(500).json({
+        error: `השמירה נכשלה עבור ${failedIds.length} מוצרים — ייתכן שחוסם אחר (כמו trigger) מנע את העדכון`,
+        failedIds
+      });
+    }
+
     await client.query('COMMIT');
-    res.json({ ok: true, updated: ids.length });
+    res.json({ ok: true, updated: result.rowCount, verified: verify.rows.length });
   } catch(e) {
     await client.query('ROLLBACK').catch(()=>{});
+    console.error('[tag-products] שגיאה:', e.message);
     res.status(500).json({ error: e.message });
   } finally {
     client.release();

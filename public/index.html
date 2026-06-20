@@ -387,9 +387,9 @@
     .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;font-size:14px;font-weight:bold;display:none;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);color:#333}
     .img-wrap:hover .carousel-nav{display:flex}
     @media(max-width:768px){
-      .carousel-nav{display:flex!important;width:20px;height:20px;background:rgba(255,255,255,.7);box-shadow:none;border-radius:4px;font-size:16px}
-      .carousel-prev{right:auto;left:2px}
-      .carousel-next{left:auto;right:2px}
+      .carousel-nav{display:flex!important;pointer-events:none;width:18px;height:18px;background:rgba(255,255,255,.55);box-shadow:none;border-radius:50%;font-size:13px;opacity:.85}
+      .carousel-prev{right:auto;left:5px}
+      .carousel-next{left:auto;right:5px}
     }
     .carousel-prev{right:8px}
     .carousel-next{left:8px}
@@ -1515,7 +1515,7 @@ function renderProducts(products,append=false){
     if(images.length>1){
       const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" loading="lazy" ${si===0?'onload="checkNetfreeBlock(this)" onerror="handleImgError(this)"':''}>\u200B</div>`).join('');
       const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
-      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
+      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">›</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">‹</button></div>`;
     }else if(images.length===1){
       carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this)">`;
     }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}

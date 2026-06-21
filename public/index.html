@@ -386,13 +386,13 @@
     .carousel-dot.active{background:#fff}
     .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;font-size:14px;font-weight:bold;display:none;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);color:#333}
     .img-wrap:hover .carousel-nav{display:flex}
-    @media(max-width:768px){
-      .carousel-nav{display:flex!important;pointer-events:none;width:18px;height:18px;background:rgba(255,255,255,.55);box-shadow:none;border-radius:50%;font-size:13px;opacity:.85}
-      .carousel-prev{right:auto;left:5px}
-      .carousel-next{left:auto;right:5px}
-    }
     .carousel-prev{right:8px}
     .carousel-next{left:8px}
+    @media(max-width:768px){
+      .carousel-nav{display:flex!important;pointer-events:none;width:auto;height:auto;background:none;box-shadow:none;border-radius:0;font-size:15px;font-weight:900;opacity:.75;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+      .carousel-prev{right:auto!important;left:6px!important}
+      .carousel-next{left:auto!important;right:6px!important}
+    }
     
     /* Card elements */
     .card-logo{position:absolute;top:10px;right:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
@@ -1547,7 +1547,7 @@ function renderProducts(products,append=false){
     const isSaved = savedUrls.has(p.source_url||'');
     const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
     grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
-    if(isMobile){const c=grid.lastElementChild?.querySelector('.carousel');if(c)initCarouselSwipe(c);}
+    {const c=grid.lastElementChild?.querySelector('.carousel');if(c)initCarouselSwipe(c);}
     cardIndex++;
   }
 }
@@ -1558,9 +1558,10 @@ function carouselNav(btn,dir){
   carousel.dataset.index=idx;inner.style.transform=`translateX(${idx*100}%)`;dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
 }
 
-// swipe במובייל לכל carousel חדש
+// swipe לכל carousel חדש — מאזין לטאצ' תמיד (לא תלוי ב-isMobile הסטטי,
+// כך גם DevTools Device Mode / מצב פלאפון בדפדפן מחשב עובד נכון)
 function initCarouselSwipe(carousel) {
-  if(!isMobile || carousel._swipeInit) return;
+  if(carousel._swipeInit) return;
   carousel._swipeInit = true;
   let startX = 0;
   carousel.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive:true});

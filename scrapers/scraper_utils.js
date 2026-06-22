@@ -78,7 +78,7 @@ const SKIP_KEYWORDS = [
 ];
 
 // derived_tags maps — מאוכלסים בטעינה מה-DB
-let fabricDerived = {}, patternDerived = {}, categoryDerived = {};
+let fabricDerived = {}, patternDerived = {}, categoryDerived = {}, colorDerived = {};
 
 export async function loadScraperConfig(db) {
   let colorMap = {...DEFAULT_COLORS};
@@ -111,6 +111,7 @@ export async function loadScraperConfig(db) {
       fabricDerived   = derivedMaps.fabric   || {};
       patternDerived  = derivedMaps.pattern  || {};
       categoryDerived = derivedMaps.category || {};
+      colorDerived    = derivedMaps.color    || {};
       console.log(`✅ scraper_config נטען מ-DB: ${r.rows.length} הגדרות (ממוזג עם ברירות מחדל)`);
     } else {
       console.log('⚠️ scraper_config ריק — משתמש בברירות מחדל');
@@ -206,6 +207,12 @@ export async function loadScraperConfig(db) {
     },
 
     unknownColors,
+
+    // אם יש derived_tags על הצבע (למשל "אדום" → style: "בולט"), מחזיר אותם
+    getColorDerivedStyle(colorName) {
+      const derived = colorDerived[colorName] || {};
+      return { derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
+    },
 
     shouldSkip(title) {
       if (!title) return false;

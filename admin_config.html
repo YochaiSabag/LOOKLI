@@ -274,7 +274,7 @@ function openAdd() {
   renderAliasChips();
   document.getElementById('modalTitle').textContent = `הוסף ל${typeLabels[currentType].label.split(' ')[1]}`;
   derivedTags = {}; renderDerivedChips();
-  document.getElementById('derivedGroup').style.display = currentType === 'color' ? 'none' : '';
+  document.getElementById('derivedGroup').style.display = '';
   document.getElementById('modalBg').classList.add('open');
   setTimeout(() => document.getElementById('fieldName').focus(), 50);
 }
@@ -286,7 +286,7 @@ function openEdit(item) {
   document.getElementById('fieldHex').value = item.color_hex || '';
   document.getElementById('fieldColorPicker').value = item.color_hex || '#c97cc0';
   document.getElementById('colorHexGroup').style.display = currentType === 'color' ? '' : 'none';
-  document.getElementById('derivedGroup').style.display = currentType === 'color' ? 'none' : '';
+  document.getElementById('derivedGroup').style.display = '';
   derivedTags = JSON.parse(JSON.stringify(item.derived_tags || {}));
   renderAliasChips(); renderDerivedChips();
   document.getElementById('modalTitle').textContent = `עריכה: ${item.name}`;

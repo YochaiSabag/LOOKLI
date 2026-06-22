@@ -3592,6 +3592,15 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     });
 
     if (Object.keys(colorAliasMap).length) {
+      // derived_tags map: { type: { name: { field: [values] } } } — נטען מוקדם כדי שגם color יוכל להשתמש בו
+      const derivedMap = {};
+      cfgRows.rows.forEach(r => {
+        if (r.derived_tags && Object.keys(r.derived_tags).length) {
+          if (!derivedMap[r.type]) derivedMap[r.type] = {};
+          derivedMap[r.type][r.name] = r.derived_tags;
+        }
+      });
+
       // מוצרים שהצבע שלהם לא נעול — ננסה לזהות מחדש מהכותרת
       const colorProds = await pool.query(
         `SELECT id, title, color FROM products
@@ -3612,21 +3621,25 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
             [found, p.id]
           );
           updated++;
+
+          // החל derived_tags של הצבע — רק אם השדה הנגזר ריק ולא נעול
+          const derived = derivedMap['color']?.[found] || {};
+          for (const [df, dvals] of Object.entries(derived)) {
+            if (!dvals?.length) continue;
+            await pool.query(
+              `UPDATE products SET ${df}=$1::text
+               WHERE id=$2
+                 AND (${df} IS NULL OR ${df} = '')
+                 AND NOT ($3::text = ANY(COALESCE(tagged_fields, '{}')))`,
+              [dvals[0], p.id, df]
+            );
+          }
         }
       }
     }
 
     // ─── שאר השדות ────────────────────────────────────────────────────
     const fields = ['category','style','fit','fabric','pattern'];
-
-    // derived_tags map: { type: { name: { field: [values] } } }
-    const derivedMap = {};
-    cfgRows.rows.forEach(r => {
-      if (r.derived_tags && Object.keys(r.derived_tags).length) {
-        if (!derivedMap[r.type]) derivedMap[r.type] = {};
-        derivedMap[r.type][r.name] = r.derived_tags;
-      }
-    });
 
     for (const field of fields) {
       if (!Object.keys(maps[field]).length) continue;

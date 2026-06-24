@@ -439,7 +439,7 @@ app.get("/api/filters", async (req, res) => {
       if (r.type === 'color' && r.color_hex) colorHexFromDB[r.name] = r.color_hex;
     });
 
-    // פונקציית סינון: אם יש הגדרה ב-config — סנן לפיה; אם אין — הצג הכל
+    // פונקציית סינון: מציג רק ערכים שגם מוגדרים ב-config וגם קיימים בפועל במוצרים
     const filterByCfg = (rows, key, type) => {
       const vals = rows.map(r => r[key]).filter(Boolean);
       if (!cfgByType[type] || cfgByType[type].size === 0) return [...new Set(vals)];
@@ -539,7 +539,7 @@ async function loadSearchAliases() {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
     const params = [];
     let i = 1;
 
@@ -2605,6 +2605,16 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
          WHERE id = ANY($2::int[])`,
         [value, ids]
       );
+    } else if (field === 'style') {
+      result = await client.query(
+        `UPDATE products
+         SET style         = $1::text,
+             styles        = array_append(COALESCE(styles,'{}'), $1::text),
+             tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'style'), 'style'),
+             updated_at    = NOW()
+         WHERE id = ANY($2::int[])`,
+        [value, ids]
+      );
     } else if (field === 'color') {
       if (replaceOther) {
         result = await client.query(
@@ -2679,6 +2689,18 @@ app.patch('/api/admin/tag-products/remove-value', adminAuth, async (req, res) =>
          color=CASE WHEN color=$1 THEN (SELECT c FROM unnest(array_remove(COALESCE(colors,'{}'),$1)) c LIMIT 1) ELSE color END,
          updated_at=NOW() WHERE id=$2`, [value, id]
       );
+    } else if (field === 'fit') {
+      await pool.query(
+        `UPDATE products SET fits=array_remove(COALESCE(fits,'{}'),$1),
+         fit=CASE WHEN fit=$1 THEN (SELECT f FROM unnest(array_remove(COALESCE(fits,'{}'),$1)) f LIMIT 1) ELSE fit END,
+         updated_at=NOW() WHERE id=$2`, [value, id]
+      );
+    } else if (field === 'style') {
+      await pool.query(
+        `UPDATE products SET styles=array_remove(COALESCE(styles,'{}'),$1),
+         style=CASE WHEN style=$1 THEN (SELECT s FROM unnest(array_remove(COALESCE(styles,'{}'),$1)) s LIMIT 1) ELSE style END,
+         updated_at=NOW() WHERE id=$2`, [value, id]
+      );
     } else if (field === 'design_details') {
       await pool.query(`UPDATE products SET design_details=array_remove(COALESCE(design_details,'{}'),$1),updated_at=NOW() WHERE id=$2`, [value, id]);
     } else {
@@ -2713,6 +2735,22 @@ app.patch('/api/admin/tag-products/clear-fits', adminAuth, async (req, res) => {
        SET fit           = NULL,
            fits          = NULL,
            tagged_fields = array_remove(COALESCE(tagged_fields,'{}'), 'fit'),
+           updated_at    = NOW()
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    res.json({ ok: true, updated: ids.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.patch('/api/admin/tag-products/clear-styles', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids?.length) return res.status(400).json({ error: 'חסרים ids' });
+    await pool.query(
+      `UPDATE products
+       SET style         = NULL,
+           styles        = NULL,
+           tagged_fields = array_remove(COALESCE(tagged_fields,'{}'), 'style'),
            updated_at    = NOW()
        WHERE id = ANY($1::int[])`,
       [ids]
@@ -3612,17 +3650,20 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
         for (const [alias, name] of Object.entries(colorAliasMap)) {
           if (alias.length >= 2 && t.includes(alias)) { found = name; break; }
         }
-        if (found && found !== p.color) {
-          // עדכן צבע + הוסף 'color' ל-tagged_fields כדי שהסקרייפר לא ידרוס
-          await pool.query(
-            `UPDATE products SET color=$1,
-              tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color')
-             WHERE id=$2`,
-            [found, p.id]
-          );
-          updated++;
+        if (found) {
+          if (found !== p.color) {
+            // עדכן צבע + הוסף 'color' ל-tagged_fields כדי שהסקרייפר לא ידרוס
+            await pool.query(
+              `UPDATE products SET color=$1,
+                tagged_fields = array_append(array_remove(COALESCE(tagged_fields,'{}'), 'color'), 'color')
+               WHERE id=$2`,
+              [found, p.id]
+            );
+            updated++;
+          }
 
-          // החל derived_tags של הצבע — רק אם השדה הנגזר ריק ולא נעול
+          // החל derived_tags של הצבע — גם אם הצבע כבר היה נכון קודם
+          // (רק אם השדה הנגזר ריק ולא נעול)
           const derived = derivedMap['color']?.[found] || {};
           for (const [df, dvals] of Object.entries(derived)) {
             if (!dvals?.length) continue;
@@ -3772,6 +3813,10 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS not_seen_count INTEGER DEFAULT 0`).catch(()=>{});
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS hidden_stale BOOLEAN DEFAULT false`).catch(()=>{});
     console.log('[init] ✅ עמודות not_seen_count / hidden_stale מוכנות');
+
+    // ── styles[] — מאפשר להחיל כמה סגנונות על אותו מוצר (כמו fits[] ו-colors[]) ──
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS styles TEXT[] DEFAULT '{}'`).catch(()=>{});
+    console.log('[init] ✅ עמודת styles[] מוכנה');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,
@@ -3803,7 +3848,7 @@ app.listen(PORT, async () => {
         IF OLD.tagged_fields IS NOT NULL AND array_length(OLD.tagged_fields, 1) > 0 THEN
           FOREACH f IN ARRAY OLD.tagged_fields LOOP
             IF f = 'color'          THEN NEW.color          := OLD.color; NEW.colors := OLD.colors;
-            ELSIF f = 'style'          THEN NEW.style          := OLD.style;
+            ELSIF f = 'style'          THEN NEW.style          := OLD.style; NEW.styles := OLD.styles;
             ELSIF f = 'fit'            THEN NEW.fit            := OLD.fit; NEW.fits := OLD.fits;
             ELSIF f = 'fabric'         THEN NEW.fabric         := OLD.fabric;
             ELSIF f = 'pattern'        THEN NEW.pattern        := OLD.pattern;

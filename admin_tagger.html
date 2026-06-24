@@ -308,6 +308,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       </button>
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
+      <button class="clear-btn" id="clearStylesBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearStyles()">נקה סגנונות לנבחרים</button>
       <button class="clear-btn" id="clearDesignBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearDesign()">נקה עיצוב לנבחרים</button>
     </div>
 
@@ -431,7 +432,9 @@ function applyFilter() {
       ? (p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details) ? (Array.isArray(p.design_details) ? p.design_details.join(', ') : p.design_details) : null)
       : currentField === 'fit'
         ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits.join(', ') : (p.fits || p.fit))
-        : p[currentField];
+        : currentField === 'style'
+          ? (Array.isArray(p.styles) && p.styles.length > 0 ? p.styles.join(', ') : (p.styles || p.style))
+          : p[currentField];
     const isUntagged = !fieldVal || fieldVal === 'אחר' || fieldVal === '';
     if (fieldF === 'untagged' && !isUntagged) return false;
     if (fieldF === 'tagged' && isUntagged) return false;
@@ -500,9 +503,11 @@ function renderGrid() {
           })() : ''}
           ${currentField === 'fit' && (p.fits || p.fit) && (Array.isArray(p.fits) ? p.fits.length > 0 : (p.fits || p.fit))
             ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits : (p.fit ? [p.fit] : [])).map(f => `<span class="meta-tag has-val" style="background:rgba(124,111,207,.15);border-color:rgba(124,111,207,.5);color:#a89ef7;display:inline-flex;align-items:center;gap:3px">${escHtml(f)}<button data-id="${p.id}" data-field="fit" data-val="${escHtml(f)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
-            : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)
-              ? (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4;display:inline-flex;align-items:center;gap:3px">${escHtml(d)}<button data-id="${p.id}" data-field="design_details" data-val="${escHtml(d)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
-              : (fieldVal && currentField !== 'color' && currentField !== 'category' ? `<span class="meta-tag has-val" style="display:inline-flex;align-items:center;gap:3px">${escHtml(fieldVal)}<button data-id="${p.id}" data-field="${escHtml(currentField)}" data-val="${escHtml(fieldVal)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>` : '')}
+            : currentField === 'style' && (p.styles || p.style) && (Array.isArray(p.styles) ? p.styles.length > 0 : (p.styles || p.style))
+              ? (Array.isArray(p.styles) && p.styles.length > 0 ? p.styles : (p.style ? [p.style] : [])).map(s => `<span class="meta-tag has-val" style="background:rgba(192,132,252,.15);border-color:rgba(192,132,252,.5);color:#c084fc;display:inline-flex;align-items:center;gap:3px">${escHtml(s)}<button data-id="${p.id}" data-field="style" data-val="${escHtml(s)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
+              : currentField === 'design_details' && p.design_details && (Array.isArray(p.design_details) ? p.design_details.length > 0 : p.design_details)
+                ? (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).map(d => `<span class="meta-tag has-val" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4;display:inline-flex;align-items:center;gap:3px">${escHtml(d)}<button data-id="${p.id}" data-field="design_details" data-val="${escHtml(d)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>`).join('')
+                : (fieldVal && currentField !== 'color' && currentField !== 'category' ? `<span class="meta-tag has-val" style="display:inline-flex;align-items:center;gap:3px">${escHtml(fieldVal)}<button data-id="${p.id}" data-field="${escHtml(currentField)}" data-val="${escHtml(fieldVal)}" onclick="event.stopPropagation();removeFieldTag(+this.dataset.id,this.dataset.field,this.dataset.val)" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:10px;padding:0 0 0 2px" title="הסר">✕</button></span>` : '')}
         </div>
         <div class="card-store">${escHtml(store)}</div>
       </div>
@@ -617,6 +622,23 @@ async function clearFits() {
   } else showToast('שגיאה: ' + data.error, 'error');
 }
 
+async function clearStyles() {
+  if (selected.size === 0) return;
+  const ids = [...selected];
+  const r = await fetch('/api/admin/tag-products/clear-styles', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  });
+  const data = await r.json();
+  if (r.ok) {
+    ids.forEach(id => { const p = allProducts.find(x => x.id === id); if (p) { p.style = null; p.styles = []; } });
+    showToast(`ניקוי סגנונות ל-${ids.length} מוצרים`, 'success');
+    clearSelection(); applyFilter();
+  } else showToast('שגיאה: ' + data.error, 'error');
+}
+
 function selectField(field, btn) {
   currentField = field;
   document.querySelectorAll('.field-btn').forEach(b => b.classList.remove('active'));
@@ -626,6 +648,7 @@ function selectField(field, btn) {
   document.getElementById('valueInput').value = '';
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
+  document.getElementById('clearStylesBtn').style.display = field === 'style' ? '' : 'none';
   document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
   applyFilter();
   updateSelectionUI();
@@ -701,6 +724,11 @@ async function applyTag() {
           : (p.fits ? [p.fits] : (p.fit ? [p.fit] : []));
         p.fit = currentValue.trim();
         p.fits = [...new Set([...existingFits, currentValue.trim()])];
+      } else if (currentField === 'style') {
+        const existingStyles = Array.isArray(p.styles) ? p.styles
+          : (p.styles ? [p.styles] : (p.style ? [p.style] : []));
+        p.style = currentValue.trim();
+        p.styles = [...new Set([...existingStyles, currentValue.trim()])];
       } else if (currentField === 'design_details') {
         const dd = Array.isArray(p.design_details) ? p.design_details : (p.design_details ? [p.design_details] : []);
         p.design_details = [...new Set([...dd, currentValue.trim()])];
@@ -769,6 +797,9 @@ async function removeFieldTag(id, field, value) {
       if (field === 'fit') {
         p.fits = (p.fits || []).filter(v => v !== value);
         if (p.fit === value) p.fit = p.fits[0] || null;
+      } else if (field === 'style') {
+        p.styles = (p.styles || []).filter(v => v !== value);
+        if (p.style === value) p.style = p.styles[0] || null;
       } else if (field === 'design_details') {
         p.design_details = (Array.isArray(p.design_details) ? p.design_details : [p.design_details]).filter(v => v !== value);
       } else {

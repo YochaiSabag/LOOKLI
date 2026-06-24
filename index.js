@@ -615,22 +615,31 @@ app.get("/api/products", async (req, res) => {
     if (store) { sql += ` AND store = $${i++}`; params.push(store); }
     if (style) { 
       const styles = style.split(',').filter(Boolean);
+      // מיפוי ערכי תצוגה מאוחדים לערכי DB אמיתיים (אותה לוגיקה גם לבחירה בודדת וגם למרובה)
+      const expandStyle = (s) => {
+        if (s === 'יום חול') return { vals: [s, 'יומיומי'], titleLikes: ['יום חול','יומיומי','יום יום'] };
+        if (s === 'שבת/ערב') return { vals: ['ערב','חגיגי','אלגנטי','שבת'], titleLikes: ['שבת','ערב','חגיג','אלגנט'] };
+        return { vals: [s], titleLikes: [s] };
+      };
       if (styles.length === 1) {
         const s = styles[0];
-        if (s === '\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc') {
-          sql += ` AND (style = $${i} OR style = '\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR title ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%' OR title ILIKE '%\u05d9\u05d5\u05dd \u05d9\u05d5\u05dd%' OR description ILIKE '%\u05d9\u05d5\u05dd \u05d7\u05d5\u05dc%' OR description ILIKE '%\u05d9\u05d5\u05de\u05d9\u05d5\u05de\u05d9%')`;
-          params.push(s); i++;
-        } else if (s === '\u05e9\u05d1\u05ea/\u05e2\u05e8\u05d1') {
-          sql += ` AND (style IN ('\u05e2\u05e8\u05d1','\u05d7\u05d2\u05d9\u05d2\u05d9','\u05d0\u05dc\u05d2\u05e0\u05d8\u05d9','\u05e9\u05d1\u05ea') OR title ILIKE '%\u05e9\u05d1\u05ea%' OR title ILIKE '%\u05e2\u05e8\u05d1%' OR title ILIKE '%\u05d7\u05d2\u05d9\u05d2%' OR title ILIKE '%\u05d0\u05dc\u05d2\u05e0\u05d8%')`;
-        } else {
-          sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(s, `%${s}%`); i += 2;
-        }
+        const exp = expandStyle(s);
+        const valPlaceholders = exp.vals.map(() => `style = $${i++}`).join(' OR ');
+        const likeParts = exp.titleLikes.map(t => `title ILIKE '%${t.replace(/'/g,"''")}%' OR description ILIKE '%${t.replace(/'/g,"''")}%'`).join(' OR ');
+        sql += ` AND (${valPlaceholders} OR ${likeParts})`;
+        exp.vals.forEach(v => params.push(v));
       } else {
-        const orParts = styles.map((_, idx) => `style = $${i + idx} OR title ILIKE $${i + styles.length + idx}`);
-        sql += ` AND (${orParts.join(' OR ')})`;
-        styles.forEach(s2 => params.push(s2));
-        styles.forEach(s2 => params.push(`%${s2}%`));
-        i += styles.length * 2;
+        // בחירה מרובה — הרחב כל סגנון לערכי ה-DB האמיתיים שלו, חבר הכל ב-OR
+        const allConds = [];
+        styles.forEach(s => {
+          const exp = expandStyle(s);
+          exp.vals.forEach(v => { allConds.push(`style = $${i++}`); params.push(v); });
+          exp.titleLikes.forEach(t => {
+            allConds.push(`title ILIKE $${i}`); params.push(`%${t}%`); i++;
+            allConds.push(`description ILIKE $${i}`); params.push(`%${t}%`); i++;
+          });
+        });
+        sql += ` AND (${allConds.join(' OR ')})`;
       }
     }
     if (fit) { 
@@ -900,7 +909,16 @@ app.post("/api/ai-search", async (req, res) => {
         params.push(cats); cats.forEach(c => params.push(`%${c}%`)); i += 1 + cats.length;
       }
     }
-    if (analysis.style) { sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(analysis.style, `%${analysis.style}%`); i += 2; }
+    if (analysis.style) {
+      if (analysis.style === 'יום חול') {
+        sql += ` AND (style = $${i} OR style = 'יומיומי' OR title ILIKE '%יום חול%' OR title ILIKE '%יומיומי%' OR title ILIKE '%יום יום%' OR description ILIKE '%יום חול%' OR description ILIKE '%יומיומי%')`;
+        params.push(analysis.style); i++;
+      } else if (analysis.style === 'שבת/ערב') {
+        sql += ` AND (style IN ('ערב','חגיגי','אלגנטי','שבת') OR title ILIKE '%שבת%' OR title ILIKE '%ערב%' OR title ILIKE '%חגיג%' OR title ILIKE '%אלגנט%')`;
+      } else {
+        sql += ` AND (style = $${i} OR title ILIKE $${i+1})`; params.push(analysis.style, `%${analysis.style}%`); i += 2;
+      }
+    }
     if (analysis.fit || analysis.fits?.length) {
       const fits = analysis.fits?.length > 1 ? analysis.fits : (analysis.fit ? [analysis.fit] : []);
       if (fits.length === 1) {
@@ -1179,6 +1197,21 @@ function analyzeQuery(query) {
   for (const [phrase, designName] of Object.entries(multiWordDesign)) {
     if (fullText.includes(phrase)) {
       analysis.designDetails.push(designName);
+      const idx = fullText.indexOf(phrase);
+      usedRanges.push([idx, idx + phrase.length]);
+    }
+  }
+
+  // Multi-word styles — ביטויים דו-מילתיים שלא יתפסו בפיצול למילה בודדת
+  const multiWordStyle = {
+    'יום חול': 'יום חול',
+    'יום יום': 'יום חול',
+    'שבת ערב': 'שבת/ערב',
+    'שבת/ערב': 'שבת/ערב',
+  };
+  for (const [phrase, styleName] of Object.entries(multiWordStyle)) {
+    if (fullText.includes(phrase) && !analysis.style) {
+      analysis.style = styleName;
       const idx = fullText.indexOf(phrase);
       usedRanges.push([idx, idx + phrase.length]);
     }

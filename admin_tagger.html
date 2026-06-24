@@ -306,6 +306,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="apply-btn" id="applyBtn" onclick="applyTag()" disabled>
         שמור תיוג
       </button>
+      <button class="clear-btn" id="autoDetectBtn" style="display:none;border-color:#34d399;color:#34d399" onclick="autoDetectFromDescription()">🔍 זהה אוטומטית מהתיאור</button>
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
       <button class="clear-btn" id="clearStylesBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearStyles()">נקה סגנונות לנבחרים</button>
@@ -366,6 +367,9 @@ const PRESETS_FALLBACK = {
   design_details: ['צווארון V','צווארון עגול','צווארון גבוה','גולף','צווארון סירה','כפתורים','רוכסן','שרוול ארוך','שרוול קצר','שרוול 3/4','ללא שרוולים','שרוול פעמון','שרוול נפוח','חגורה','קשירה','כיסים','תחרה','פפלום','מלמלה','קפלים','שסע','מעטפת','חשוף כתפיים'],
 };
 
+// aliases מלאים מה-config — { type: { name: [alias1, alias2, ...] } } — נדרש לזיהוי אוטומטי מהתיאור
+const CONFIG_ALIASES = {};
+
 async function loadPresets() {
   try {
     const r = await fetch('/api/admin/scraper-config', { credentials: 'include' });
@@ -382,6 +386,11 @@ async function loadPresets() {
     });
     // design_details אין בקונפיג — תמיד fallback
     PRESETS.design_details = PRESETS_FALLBACK.design_details;
+    // שמור גם את ה-aliases המלאים — נדרש לזיהוי אוטומטי מהתיאור
+    items.forEach(item => {
+      if (!CONFIG_ALIASES[item.type]) CONFIG_ALIASES[item.type] = {};
+      CONFIG_ALIASES[item.type][item.name] = (item.aliases || []).map(a => a.toLowerCase());
+    });
   } catch {
     // fallback לכל השדות
     Object.assign(PRESETS, PRESETS_FALLBACK);
@@ -465,7 +474,11 @@ function renderGrid() {
     const isSel = selected.has(p.id);
     const fieldVal = currentField === 'category'
       ? (Array.isArray(p.categories) && p.categories.length ? p.categories.join(' + ') : p.category)
-      : p[currentField];
+      : currentField === 'fit'
+        ? (Array.isArray(p.fits) && p.fits.length > 0 ? p.fits.join(' + ') : p.fit)
+        : currentField === 'style'
+          ? (Array.isArray(p.styles) && p.styles.length > 0 ? p.styles.join(' + ') : p.style)
+          : p[currentField];
     const img = p.image_url || (p.images && p.images[0]) || '';
     const store = p.store || '';
     const price = p.price ? `₪${Math.round(p.price)}` : '';
@@ -649,6 +662,7 @@ function selectField(field, btn) {
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
   document.getElementById('clearStylesBtn').style.display = field === 'style' ? '' : 'none';
+  document.getElementById('autoDetectBtn').style.display = ['style','fit','fabric','pattern'].includes(field) ? '' : 'none';
   document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
   applyFilter();
   updateSelectionUI();
@@ -667,6 +681,85 @@ function selectPreset(val, btn) {
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   updateApplyBtn();
+}
+
+// ─── זיהוי אוטומטי מהתיאור — מוצא את כל ההתאמות (לא רק הראשונה) ומחיל את כולן ───
+async function autoDetectFromDescription() {
+  if (selected.size === 0) return;
+  const field = currentField;
+  if (!['style','fit','fabric','pattern'].includes(field)) return;
+
+  const btn = document.getElementById('autoDetectBtn');
+  const origText = btn.textContent;
+  btn.textContent = 'מזהה...'; btn.disabled = true;
+
+  try {
+    const aliasMap = CONFIG_ALIASES[field] || {};
+    const ids = [...selected];
+
+    // לכל מוצר נבחר — מצא את כל הערכים שמתאימים (כותרת + תיאור)
+    // value → Set of product ids that should get this value
+    const valueToIds = {};
+    let matchedProductsCount = 0, multiMatchCount = 0;
+
+    for (const id of ids) {
+      const p = allProducts.find(x => x.id === id);
+      if (!p) continue;
+      const text = ((p.title || '') + ' ' + (p.description || '')).toLowerCase();
+      const foundValues = [];
+      for (const [name, aliases] of Object.entries(aliasMap)) {
+        if (aliases.some(a => a && text.includes(a))) foundValues.push(name);
+      }
+      if (foundValues.length === 0) continue;
+      matchedProductsCount++;
+      if (foundValues.length > 1) multiMatchCount++;
+      foundValues.forEach(v => {
+        if (!valueToIds[v]) valueToIds[v] = [];
+        valueToIds[v].push(id);
+      });
+    }
+
+    if (Object.keys(valueToIds).length === 0) {
+      showToast('לא נמצאו התאמות בתיאור/כותרת', 'error');
+      return;
+    }
+
+    // הפעל את ה-endpoint הקיים פעם אחת לכל ערך שנמצא (ה-API כבר תומך בהוספה ל-array בלי דריסה)
+    for (const [value, valueIds] of Object.entries(valueToIds)) {
+      const r = await fetch('/api/admin/tag-products', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: valueIds, field, value })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'שגיאה');
+
+      // עדכן local state — בדיוק כמו ב-applyTag
+      valueIds.forEach(id => {
+        const p = allProducts.find(x => x.id === id);
+        if (!p) return;
+        if (field === 'fit') {
+          const existing = Array.isArray(p.fits) ? p.fits : (p.fits ? [p.fits] : (p.fit ? [p.fit] : []));
+          p.fit = value;
+          p.fits = [...new Set([...existing, value])];
+        } else if (field === 'style') {
+          const existing = Array.isArray(p.styles) ? p.styles : (p.styles ? [p.styles] : (p.style ? [p.style] : []));
+          p.style = value;
+          p.styles = [...new Set([...existing, value])];
+        } else {
+          p[field] = value;
+        }
+      });
+    }
+
+    showToast(`✅ זוהו ועודכנו ${matchedProductsCount} מוצרים (${multiMatchCount} מהם עם 2+ ערכים)`, 'success');
+    applyFilter();
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  } finally {
+    btn.textContent = origText; btn.disabled = false;
+  }
 }
 
 function syncValueFromInput() {

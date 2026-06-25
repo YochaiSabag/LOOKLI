@@ -306,7 +306,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="apply-btn" id="applyBtn" onclick="applyTag()" disabled>
         שמור תיוג
       </button>
-      <button class="clear-btn" id="autoDetectBtn" style="display:;border-color:#34d399;color:#34d399" onclick="autoDetectFromDescription()">🔍 זהה אוטומטית מהתיאור</button>
+      <button class="clear-btn" id="autoDetectBtn" style="display:;border-color:#34d399;color:#34d399" onclick="autoDetectFromDescription()">🔍 זהה אוטומטית מהתיאור (נבחרים)</button>
+      <button class="clear-btn" id="autoDetectAllBtn" style="display:;border-color:#0ea5e9;color:#0ea5e9" onclick="autoDetectFromDescription(true)">🔍 זהה אוטומטית — על כל המוצרים המסוננים</button>
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
       <button class="clear-btn" id="clearStylesBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearStyles()">נקה סגנונות לנבחרים</button>
@@ -328,7 +329,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
         <option value="tagged">עם תיוג בשדה</option>
       </select>
       <span class="count-badge" id="countBadge">0 מוצרים</span>
-      <button class="select-all-btn" onclick="selectAllVisible()">בחר הכל</button>
+      <button class="select-all-btn" onclick="selectAllVisible()">בחר עמוד</button>
+      <button class="select-all-btn" id="selectAllFilteredBtn" onclick="selectAllFiltered()" style="border-color:#34d399;color:#34d399">בחר את כל המוצרים המסוננים</button>
     </div>
 
     <div class="products-grid" id="productsGrid">
@@ -579,6 +581,20 @@ function selectAllVisible() {
   updateSelectionUI();
 }
 
+// בחירת כל המוצרים המסוננים (לא רק עמוד נוכחי) — כדי לאפשר החלת תיוג על אלפי מוצרים בבת אחת
+function selectAllFiltered() {
+  const allSel = filtered.length > 0 && filtered.every(p => selected.has(p.id));
+  if (allSel) {
+    filtered.forEach(p => selected.delete(p.id));
+    showToast('הבחירה בוטלה', 'success');
+  } else {
+    filtered.forEach(p => selected.add(p.id));
+    showToast(`✅ נבחרו ${filtered.length} מוצרים`, 'success');
+  }
+  renderGrid();
+  updateSelectionUI();
+}
+
 function clearSelection() {
   selected.clear();
   renderGrid();
@@ -590,6 +606,12 @@ function updateSelectionUI() {
   document.getElementById('selCount').textContent = count;
   const btn = document.getElementById('applyBtn');
   btn.disabled = count === 0 || !currentValue.trim();
+
+  const allFilteredBtn = document.getElementById('selectAllFilteredBtn');
+  if (allFilteredBtn) {
+    const allSel = filtered.length > 0 && filtered.every(p => selected.has(p.id));
+    allFilteredBtn.textContent = allSel ? `✓ נבחרו כל ${filtered.length} המוצרים` : `בחר את כל המוצרים המסוננים (${filtered.length})`;
+  }
 
   // Preview chips
   const preview = document.getElementById('selPreview');
@@ -662,7 +684,8 @@ function selectField(field, btn) {
   document.querySelectorAll('.preset-val').forEach(b => b.classList.remove('active'));
   document.getElementById('clearFitsBtn').style.display = field === 'fit' ? '' : 'none';
   document.getElementById('clearStylesBtn').style.display = field === 'style' ? '' : 'none';
-  document.getElementById('autoDetectBtn').style.display = ['style','fit','fabric','pattern'].includes(field) ? '' : 'none';
+  document.getElementById('autoDetectBtn').style.display = ['style','fit','fabric','pattern','design_details','category','color'].includes(field) ? '' : 'none';
+  document.getElementById('autoDetectAllBtn').style.display = ['style','fit','fabric','pattern','design_details','category','color'].includes(field) ? '' : 'none';
   document.getElementById('clearDesignBtn').style.display = field === 'design_details' ? '' : 'none';
   applyFilter();
   updateSelectionUI();
@@ -683,19 +706,50 @@ function selectPreset(val, btn) {
   updateApplyBtn();
 }
 
-// ─── זיהוי אוטומטי מהתיאור — מוצא את כל ההתאמות (לא רק הראשונה) ומחיל את כולן ───
-async function autoDetectFromDescription() {
-  if (selected.size === 0) return;
-  const field = currentField;
-  if (!['style','fit','fabric','pattern'].includes(field)) return;
+// regex לזיהוי עיצוב מהתיאור — מראה מקבילה ל-detectDesignDetails ב-scraper_utils.js
+const DESIGN_DETAIL_PATTERNS = [
+  [/צווארון\s*וי|v.?neck/i, 'צווארון V'],
+  [/צווארון\s*עגול|round.?neck|crew.?neck/i, 'צווארון עגול'],
+  [/גולף|turtle.?neck/i, 'גולף'],
+  [/סטרפלס|strapless/i, 'סטרפלס'],
+  [/כתפיי?ה|off.?shoulder/i, 'חשוף כתפיים'],
+  [/שרוול\s*ארוך|long.?sleeve/i, 'שרוול ארוך'],
+  [/שרוול\s*קצר|short.?sleeve/i, 'שרוול קצר'],
+  [/3\/4|שרוול\s*3/i, 'שרוול 3/4'],
+  [/ללא\s*שרוול|sleeveless/i, 'ללא שרוולים'],
+  [/שרוול\s*פעמון|bell.?sleeve/i, 'שרוול פעמון'],
+  [/שרוול\s*נפוח|puff.?sleeve/i, 'שרוול נפוח'],
+  [/כפתור|button/i, 'כפתורים'],
+  [/רוכסן|zipper/i, 'רוכסן'],
+  [/חגורה|belt/i, 'חגורה'],
+  [/קשירה|tie|bow/i, 'קשירה'],
+  [/כיס|pocket/i, 'כיסים'],
+  [/שסע|slit/i, 'שסע'],
+  [/פפלום|peplum/i, 'פפלום'],
+  [/שכבות|layer/i, 'שכבות'],
+];
 
-  const btn = document.getElementById('autoDetectBtn');
+// ─── זיהוי אוטומטי מהתיאור — מוצא את כל ההתאמות (לא רק הראשונה) ומחיל את כולן ───
+async function autoDetectFromDescription(useAllFiltered) {
+  const field = currentField;
+  if (!['style','fit','fabric','pattern','design_details','category','color'].includes(field)) return;
+
+  const ids = useAllFiltered ? filtered.map(p => p.id) : [...selected];
+  if (ids.length === 0) {
+    showToast(useAllFiltered ? 'אין מוצרים מסוננים' : 'לא נבחרו מוצרים', 'error');
+    return;
+  }
+
+  if (useAllFiltered && ids.length > 50) {
+    if (!confirm(`לזהות ולתייג אוטומטית על ${ids.length} מוצרים? פעולה זו עלולה לקחת זמן.`)) return;
+  }
+
+  const btn = document.getElementById(useAllFiltered ? 'autoDetectAllBtn' : 'autoDetectBtn');
   const origText = btn.textContent;
   btn.textContent = 'מזהה...'; btn.disabled = true;
 
   try {
     const aliasMap = CONFIG_ALIASES[field] || {};
-    const ids = [...selected];
 
     // לכל מוצר נבחר — מצא את כל הערכים שמתאימים (כותרת + תיאור)
     // value → Set of product ids that should get this value
@@ -707,8 +761,15 @@ async function autoDetectFromDescription() {
       if (!p) continue;
       const text = ((p.title || '') + ' ' + (p.description || '')).toLowerCase();
       const foundValues = [];
-      for (const [name, aliases] of Object.entries(aliasMap)) {
-        if (aliases.some(a => a && text.includes(a))) foundValues.push(name);
+      if (field === 'design_details') {
+        // עיצוב — regex matching, לא config aliases
+        for (const [pattern, name] of DESIGN_DETAIL_PATTERNS) {
+          if (pattern.test(text)) foundValues.push(name);
+        }
+      } else {
+        for (const [name, aliases] of Object.entries(aliasMap)) {
+          if (aliases.some(a => a && text.includes(a))) foundValues.push(name);
+        }
       }
       if (foundValues.length === 0) continue;
       matchedProductsCount++;
@@ -747,6 +808,13 @@ async function autoDetectFromDescription() {
           const existing = Array.isArray(p.styles) ? p.styles : (p.styles ? [p.styles] : (p.style ? [p.style] : []));
           p.style = value;
           p.styles = [...new Set([...existing, value])];
+        } else if (field === 'color') {
+          const existing = Array.isArray(p.colors) ? p.colors : (p.color ? [p.color] : []);
+          p.color = value;
+          p.colors = [...new Set([...existing, value])];
+        } else if (field === 'design_details') {
+          const dd = Array.isArray(p.design_details) ? p.design_details : (p.design_details ? [p.design_details] : []);
+          p.design_details = [...new Set([...dd, value])];
         } else {
           p[field] = value;
         }
@@ -798,9 +866,10 @@ async function applyTag() {
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'שגיאה');
 
-    // עדכן local state
-    const ARRAY_FIELDS = ['fit', 'fits', 'design_details'];
-    ids.forEach(id => {
+    // עדכן local state — רק למוצרים שבאמת עודכנו (לא דולגו)
+    const skippedSet = new Set(data.skippedIds || []);
+    const updatedIds = ids.filter(id => !skippedSet.has(id));
+    updatedIds.forEach(id => {
       const p = allProducts.find(x => x.id === id);
       if (!p) return;
       if (currentField === 'color') {
@@ -830,7 +899,8 @@ async function applyTag() {
       }
     });
 
-    showToast(`✅ עודכנו ${ids.length} מוצרים → ${currentField}: "${currentValue}"`, 'success');
+    const skipMsg = data.skipped > 0 ? ` (${data.skipped} דולגו)` : '';
+    showToast(`✅ עודכנו ${updatedIds.length} מוצרים${skipMsg} → ${currentField}: "${currentValue}"`, 'success');
     clearSelection();
     applyFilter();
   } catch(e) {

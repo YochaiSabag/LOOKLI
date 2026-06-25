@@ -3943,6 +3943,9 @@ app.listen(PORT, async () => {
       updated_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(type, name)
     )`);
+    // הרחב color_hex מ-VARCHAR(20) ל-TEXT — דוגמאות הדפס (מנומר/פרחוני) הן SVG מוטמע
+    // שאורכן אלפי תווים, וVARCHAR(20) המקורי היה דוחה אותן בשקט (value too long)
+    await pool.query(`ALTER TABLE scraper_config ALTER COLUMN color_hex TYPE TEXT`).catch(()=>{});
     // טען aliases לחיפוש אחרי שהטבלה קיימת
     await loadSearchAliases();
 

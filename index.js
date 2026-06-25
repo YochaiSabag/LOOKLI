@@ -117,7 +117,77 @@ const pool = new Pool({
   ssl: useSSL ? { rejectUnauthorized: false } : undefined,
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
+
+// POST /api/contact-form — קולט פניות מטופס "צור קשר" ושולח מייל
+app.post('/api/contact-form', async (req, res) => {
+  try {
+    const { type, name, email, phone, storeName, storeUrl, subject, message } = req.body;
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'שם, אימייל והודעה הם שדות חובה' });
+    }
+    if (!process.env.RESEND_API_KEY) {
+      console.error('[contact-form] RESEND_API_KEY חסר');
+      return res.status(500).json({ error: 'שגיאת שרת — נסו שוב מאוחר יותר' });
+    }
+
+    const TYPE_LABELS = { store: 'בקשת הצטרפות לאתר', update: 'עדכון פרטי חנות', question: 'שאלה כללית', bug: 'דיווח על באג/תקלה', suggestion: 'הצעה לשיפור', product: 'בעיה עם מוצר ספציפי', other: 'אחר' };
+    const typeLabel = TYPE_LABELS[type] || TYPE_LABELS[subject] || 'פנייה כללית';
+
+    const rows = [
+      ['סוג פנייה', typeLabel],
+      ['שם', name],
+      ['אימייל', email],
+      ['טלפון', phone || '—'],
+    ];
+    if (storeName) rows.push(['שם חנות', storeName]);
+    if (storeUrl)  rows.push(['כתובת אתר', storeUrl]);
+
+    const rowsHtml = rows.map(([label, val]) =>
+      `<tr><td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6b7280;font-weight:600">${label}</td><td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${String(val).replace(/</g,'&lt;')}</td></tr>`
+    ).join('');
+
+    const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:'Heebo',Arial,sans-serif;direction:rtl">
+  <div style="max-width:580px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e5e7eb">
+    <div style="background:linear-gradient(135deg,#d191b0,#c48cb3);padding:20px 24px">
+      <div style="font-size:22px;font-weight:900;color:#fff">LOOKLI</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.8)">📩 פנייה חדשה מטופס "צור קשר" — ${typeLabel}</div>
+    </div>
+    <div style="padding:20px 24px">
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:16px">
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div style="font-size:12px;color:#6b7280;font-weight:600;margin-bottom:6px">הודעה:</div>
+      <div style="padding:14px;background:#f9fafb;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap">${String(message).replace(/</g,'&lt;')}</div>
+      <a href="mailto:${email}" style="display:inline-block;margin-top:18px;background:linear-gradient(135deg,#d191b0,#c48cb3);color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">השב ל-${name}</a>
+    </div>
+  </div>
+</body></html>`;
+
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'LOOKLI טופס יצירת קשר <noreply@lookli.co.il>',
+        to: ['lookli2015@gmail.com'],
+        reply_to: email,
+        subject: `📩 ${typeLabel} — ${name}`,
+        html,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error('[contact-form] Resend error:', JSON.stringify(data));
+      return res.status(500).json({ error: 'שליחת המייל נכשלה — נסו שוב' });
+    }
+    console.log(`[contact-form] ✅ מייל נשלח: ${typeLabel} מ-${name} (${email})`);
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('[contact-form] שגיאה:', e.message);
+    res.status(500).json({ error: 'שגיאת שרת — נסו שוב מאוחר יותר' });
+  }
+});
 
 // ===== נעילת אתר — רק דרך קישור זמני =====
 const SITE_LOCKED = process.env.SITE_LOCKED === 'true';
@@ -2681,27 +2751,39 @@ app.patch('/api/admin/tag-products', adminAuth, async (req, res) => {
       );
     }
 
-    // ── אימות אמיתי: בדוק שהערך אכן נשמר ב-DB לפני שמדווחים הצלחה ──────
+    // ── אימות: בדוק שהערך נשמר. שדות מערך (fit/design_details/color) נבדקים ב-containment, לא equality ──
+    const isArrayField = field === 'fit' || field === 'design_details' || field === 'color';
+    const arrayCol = field === 'fit' ? 'fits' : field === 'color' ? 'colors' : field;
     const verify = await client.query(
-      `SELECT id, ${field === 'color' ? 'color' : field} AS val, tagged_fields
-       FROM products WHERE id = ANY($1::int[])`,
-      [ids]
+      isArrayField
+        ? `SELECT id, (${arrayCol} @> ARRAY[$2::text]) AS matched FROM products WHERE id = ANY($1::int[])`
+        : `SELECT id, ${field} AS val FROM products WHERE id = ANY($1::int[])`,
+      isArrayField ? [ids, value] : [ids]
     );
-    const failedIds = verify.rows
-      .filter(r => r.val !== value || !(r.tagged_fields||[]).includes(field === 'color' ? 'color' : field))
-      .map(r => r.id);
+    const failedIds = (isArrayField
+      ? verify.rows.filter(r => !r.matched)
+      : verify.rows.filter(r => r.val !== value)
+    ).map(r => r.id);
+    const skippedCount = failedIds.length;
 
-    if (failedIds.length > 0) {
+    if (skippedCount > 0 && skippedCount === ids.length) {
+      // אף מוצר לא התעדכן — זה כן שגיאה אמיתית (לא רק "כמה דולגו")
       await client.query('ROLLBACK');
-      console.error(`[tag-products] ⚠️ אימות נכשל — ${failedIds.length} מוצרים לא התעדכנו:`, failedIds);
+      console.error(`[tag-products] ⚠️ אימות נכשל לחלוטין — 0/${ids.length} התעדכנו`);
       return res.status(500).json({
-        error: `השמירה נכשלה עבור ${failedIds.length} מוצרים — ייתכן שחוסם אחר (כמו trigger) מנע את העדכון`,
+        error: `השמירה נכשלה לכל המוצרים הנבחרים`,
         failedIds
       });
     }
 
     await client.query('COMMIT');
-    res.json({ ok: true, updated: result.rowCount, verified: verify.rows.length });
+    res.json({
+      ok: true,
+      updated: result.rowCount,
+      verified: verify.rows.length - skippedCount,
+      skipped: skippedCount,
+      skippedIds: skippedCount > 0 ? failedIds : undefined,
+    });
   } catch(e) {
     await client.query('ROLLBACK').catch(()=>{});
     console.error('[tag-products] שגיאה:', e.message);

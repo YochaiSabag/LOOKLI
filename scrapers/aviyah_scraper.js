@@ -18,7 +18,7 @@ console.log('🚀 Aviyah Yosef Scraper');
 
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -469,12 +469,19 @@ async function launchBrowser() {
 
 let { browser, context, page } = await launchBrowser();
 
+// ספירה לפני ההרצה — כמה מוצרים היו "פעילים" (נראו ב-48 השעות האחרונות)
+const beforeRun = await db.query(
+  `SELECT COUNT(*) as c FROM products WHERE store='AVIYAH' AND last_seen > NOW() - INTERVAL '48 hours'`
+);
+const activeBeforeCount = parseInt(beforeRun.rows[0].c);
+
 try {
   const urlMap = await getAllProductUrls(page);
   const totalUrls = urlMap.size;
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${totalUrls} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0, idx = 0;
+  const successfulUrls = []; // רק URLs שבאמת הצליחו להישמר ב-DB
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
   for (const [url, meta] of urlMap) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
@@ -486,13 +493,21 @@ try {
     idx++;
     console.log(`\n[${idx}/${totalUrls}]`);
     const p = await scrapeProduct(page, url, meta.isEvening);
-    if (p) { await saveProduct(p); ok++; } else fail++;
+    if (p) { await saveProduct(p); ok++; successfulUrls.push(url); } else fail++;
     await page.waitForTimeout(500);
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
   
-  await runHealthCheck(ok, fail);
+  await runHealthCheck(ok, fail, activeBeforeCount, totalUrls);
+
+  // ── דווח רק מוצרים שבאמת נשמרו בהצלחה — מוצרים שנכשלו בעיבוד (לא רק שנעלמו מהקטגוריה)
+  // יחשבו כ"לא נמצאו" וייספרו לקראת ה-3 הרצות שמסתירות מוצר תקוע/פגום ──
+  if (fail > totalUrls * 0.5 && totalUrls > 10) {
+    console.log(`\n⚠️ ${fail}/${totalUrls} מוצרים נכשלו בעיבוד — דילוג על reportScraperFinished למניעת הסתרה גורפת שגויה`);
+  } else {
+    await reportScraperFinished(db, 'AVIYAH', successfulUrls);
+  }
   
 } finally {
   await browser.close();
@@ -502,10 +517,27 @@ try {
 // ======================================================================
 // בדיקת בריאות
 // ======================================================================
-async function runHealthCheck(scraped, failed) {
+async function runHealthCheck(scraped, failed, activeBeforeCount, totalUrlsFound) {
   console.log('\n🔍 בודק תקינות נתונים...');
   
   const problems = [];
+
+  // ── בדיקת "נעלמו" — האם זו ירידה אמיתית או כשל סקרייפר? ──────────
+  const notSeenToday = await db.query(
+    `SELECT COUNT(*) as c FROM products
+     WHERE store='AVIYAH' AND last_seen < NOW() - INTERVAL '20 hours'
+       AND last_seen > NOW() - INTERVAL '72 hours'`
+  );
+  const notSeenCount = parseInt(notSeenToday.rows[0].c);
+  const dropPct = activeBeforeCount > 0 ? Math.round((notSeenCount / activeBeforeCount) * 100) : 0;
+
+  if (activeBeforeCount > 0 && totalUrlsFound < activeBeforeCount * 0.85) {
+    // נמצאו הרבה פחות קישורים מהצפוי — זה חשוד כקריסת איסוף, לא ירידת מלאי
+    problems.push(`🚨 חשד לכשל איסוף: נמצאו ${totalUrlsFound} קישורים מתוך ${activeBeforeCount} שהיו פעילים (${100-Math.round(totalUrlsFound/activeBeforeCount*100)}% ירידה) — בדוק לוג למעלה אם היו "שגיאה" חוזרות בעמודים`);
+  }
+  if (notSeenCount > 0) {
+    problems.push(`📉 ${notSeenCount} מוצרים לא נראו ב-20+ שעות (${dropPct}% מהפעילים) — ייתכן שירדו מהאתר/אזלו, או שהסקרייפר פספס אותם`);
+  }
   
   if (unknownColors.size > 0) {
     problems.push(`⚠️ צבעים לא מזוהים (${unknownColors.size}):`);

@@ -139,9 +139,16 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="form-group" id="colorHexGroup">
       <label>צבע HEX (אופציונלי)</label>
       <div style="display:flex;gap:8px;align-items:center">
-        <input class="form-input" id="fieldHex" placeholder="#f472b6" style="flex:1">
-        <input type="color" id="fieldColorPicker" style="width:42px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;padding:2px" oninput="document.getElementById('fieldHex').value=this.value">
+        <input class="form-input" id="fieldHex" placeholder="#f472b6" style="flex:1" oninput="updateHexPreview()">
+        <input type="color" id="fieldColorPicker" style="width:42px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;padding:2px" oninput="document.getElementById('fieldHex').value=this.value;updateHexPreview()">
+        <span id="hexPreviewDot" style="width:42px;height:42px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0"></span>
       </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-sm" style="background:var(--surface2);color:var(--muted)" onclick="fillPatternHex('leopard')">🐆 דוגמת מנומר</button>
+        <button type="button" class="btn btn-sm" style="background:var(--surface2);color:var(--muted)" onclick="fillPatternHex('floral')">🌸 דוגמת פרחוני</button>
+        <button type="button" class="btn btn-sm" style="background:var(--surface2);color:var(--muted)" onclick="fillPatternHex('denim')">👖 דוגמת ג'ינס</button>
+      </div>
+      <div class="modal-hint">הכפתורים ממלאים דוגמת הדפס מוכנה (SVG) במקום צבע שטוח — מתאים לערכים כמו "מנומר"/"פרחוני"/"ג'ינס".</div>
     </div>
     <div class="form-group">
       <label>וריאנטים (כינויים לזיהוי)</label>
@@ -276,6 +283,7 @@ function openAdd() {
   derivedTags = {}; renderDerivedChips();
   document.getElementById('derivedGroup').style.display = '';
   document.getElementById('modalBg').classList.add('open');
+  updateHexPreview();
   setTimeout(() => document.getElementById('fieldName').focus(), 50);
 }
 
@@ -284,13 +292,71 @@ function openEdit(item) {
   aliases = [...(item.aliases || [])];
   document.getElementById('fieldName').value = item.name;
   document.getElementById('fieldHex').value = item.color_hex || '';
-  document.getElementById('fieldColorPicker').value = item.color_hex || '#c97cc0';
+  // input type="color" מקבל רק #rrggbb — אם יש כאן gradient/SVG, משאירים את הפיקר על ברירת מחדל
+  const isSimpleHex = /^#[0-9a-fA-F]{6}$/.test(item.color_hex || '');
+  document.getElementById('fieldColorPicker').value = isSimpleHex ? item.color_hex : '#c97cc0';
   document.getElementById('colorHexGroup').style.display = currentType === 'color' ? '' : 'none';
   document.getElementById('derivedGroup').style.display = '';
   derivedTags = JSON.parse(JSON.stringify(item.derived_tags || {}));
   renderAliasChips(); renderDerivedChips();
   document.getElementById('modalTitle').textContent = `עריכה: ${item.name}`;
   document.getElementById('modalBg').classList.add('open');
+  updateHexPreview();
+}
+
+function updateHexPreview() {
+  const dot = document.getElementById('hexPreviewDot');
+  const val = document.getElementById('fieldHex').value.trim();
+  dot.style.background = val || 'var(--surface2)';
+}
+
+// ── דוגמאות הדפס (מנומר/פרחוני/ג'ינס) — אותה לוגיקה כמו ב-index.html ──
+function fillPatternHex(kind) {
+  let svg;
+  if (kind === 'leopard') {
+    const blotches=[[12,14,6,4],[30,10,5,4],[48,16,6,4],[66,11,5,4],[84,16,6,4],
+      [8,34,5,4],[24,30,6,4],[42,36,6,4],[60,32,5,4],[78,36,6,4],[94,30,4,3],
+      [16,54,5,4],[34,58,6,4],[52,54,5,4],[70,58,6,4],[88,54,5,4],
+      [10,76,5,3],[28,80,6,4],[46,76,5,4],[64,80,6,4],[82,76,5,4],
+      [18,94,5,3],[40,96,5,3],[60,94,5,3],[78,96,5,3]];
+    let spots='';
+    blotches.forEach(([x,y,rx,ry],i)=>{
+      const rot=(i*37)%360;
+      spots+=`<g transform="rotate(${rot} ${x} ${y})"><path d="M ${x-rx} ${y} q ${rx*0.3} ${-ry*1.3} ${rx} 0 q ${rx*0.3} ${ry*1.3} ${-rx} 0 0" fill="none" stroke="#2e1c10" stroke-width="2"/><ellipse cx="${x+0.5}" cy="${y-0.3}" rx="${rx*0.45}" ry="${ry*0.4}" fill="#8a5a32"/></g>`;
+    });
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#C9A06A"/>${spots}</svg>`;
+  } else if (kind === 'floral') {
+    function flower(cx,cy,scale,petalColor){
+      let petals='';
+      for(let i=0;i<6;i++){
+        petals+=`<circle cx="${cx}" cy="${cy-2.6*scale}" r="${1.7*scale}" fill="${petalColor}" transform="rotate(${i*60} ${cx} ${cy})" opacity="0.95"/>`;
+      }
+      return `<g>${petals}<circle cx="${cx}" cy="${cy}" r="${1*scale}" fill="#D97706"/></g>`;
+    }
+    const colors=['#F472B6','#FB923C','#F9A8D4','#FCA5A5','#F0ABFC'];
+    let out='';
+    for(let row=0;row<5;row++){
+      for(let col=0;col<5;col++){
+        const x=col*22+(row%2===0?6:16)+(Math.sin(row*col)*3);
+        const y=row*22+8;
+        const idx=row*5+col;
+        out+=flower(x,y,0.85+((idx%3)*0.1),colors[idx%colors.length]);
+      }
+    }
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#FEFCE8"/>${out}</svg>`;
+  } else if (kind === 'denim') {
+    let lines='';
+    for(let i=-20;i<140;i+=6){
+      lines+=`<line x1="${i}" y1="0" x2="${i+100}" y2="100" stroke="#3a6485" stroke-width="1.4" opacity="0.55"/>`;
+    }
+    for(let i=-20;i<140;i+=6){
+      lines+=`<line x1="${i}" y1="100" x2="${i+100}" y2="0" stroke="#5a9bc4" stroke-width="1" opacity="0.35"/>`;
+    }
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#4A7FA5"/>${lines}</svg>`;
+  }
+  const dataUri = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") center/cover`;
+  document.getElementById('fieldHex').value = dataUri;
+  updateHexPreview();
 }
 
 function closeModal() {

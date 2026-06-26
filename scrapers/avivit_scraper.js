@@ -407,8 +407,22 @@ async function scrapeProduct(page, url) {
 // ======================================================================
 // שמירה ל-DB
 // ======================================================================
-// מחשב כותרת בסיס ללא מילת הצבע (לאיחוד ווריאנטים)
+// מחשב כותרת בסיס ללא ציון הצבע (לאיחוד ווריאנטים)
+// כותרות מהאתר הן בתבנית "<שם המוצר>- <צבע>" — הצבע יכול להיות מילה אחת
+// (אדום, שמנת) או ביטוי דו-מילתי (כחול רויאל). לכן קודם מנסים להסיר את כל
+// המקטע שאחרי המקף האחרון (גנרי, לא תלוי ברשימת צבעים), ורק אם אין מקף
+// בכותרת נופלים חזרה לסינון מילה-בודדת לפי mainColor המנורמל.
 function computeBaseTitle(title, mainColor) {
+  if (!title) return title;
+
+  // ניסיון 1: הסר מקטע "- <צבע>" בסוף הכותרת (תומך בצבעים דו-מילתיים)
+  const dashMatch = title.match(/^(.*\S)\s*-\s*\S.*$/);
+  if (dashMatch) {
+    const base = dashMatch[1].trim();
+    if (base.length > 1) return base;
+  }
+
+  // ניסיון 2 (fallback): אין מקף — סנן מילה בודדת שתואמת ל-mainColor המנורמל
   if (!mainColor || mainColor === 'אחר') return title;
   const variants = [mainColor, mainColor + 'ה', mainColor + 'ות', mainColor + 'ים',
                     mainColor + 'ת', mainColor.replace(/ה$/, '')].filter(v => v.length > 1);
@@ -514,13 +528,15 @@ try {
     await page.waitForTimeout(400);
   }
 
-  // שלב ב: מזג לפי base_title — ווריאנטים של אותו מוצר → שורה אחת
+  // שלב ב: מזג לפי base_title + price — ווריאנטים של אותו מוצר באותו מחיר → שורה אחת.
+  // אם יש הבדל במחיר בין צבעים (sale חל רק על חלק מהם) — לא מאחדים,
+  // כדי שלא "נבלע" הבדל מחיר אמיתי בין וריאנטים.
   console.log(`\n🔀 מאחד ווריאנטים (${rawProducts.length} מוצרים)...`);
   const grouped = new Map();
   for (const p of rawProducts) {
-    const key = p.baseTitle || p.title;
+    const key = `${p.baseTitle || p.title}__${p.price || 0}`;
     if (!grouped.has(key)) {
-      grouped.set(key, { ...p, colors: [...(p.colors || [])], colorSizes: { ...(p.colorSizes || {}) } });
+      grouped.set(key, { ...p, colors: [...(p.colors || [])], colorSizes: { ...(p.colorSizes || {}) }, allSizes: [...(p.allSizes || [])] });
     } else {
       const ex = grouped.get(key);
       // מזג צבעים
@@ -529,6 +545,7 @@ try {
       Object.assign(ex.colorSizes, p.colorSizes || {});
       // מזג מידות
       ex.sizes = [...new Set([...(ex.sizes || []), ...(p.sizes || [])])];
+      ex.allSizes = [...new Set([...(ex.allSizes || []), ...(p.allSizes || [])])];
       // שמור תמונות של הווריאנט הראשון
     }
   }

@@ -162,6 +162,17 @@ async function scrapeProduct(page, url) {
       document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
         addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
       });
+      // גלריית Jet Woo Builder (swiper) — בשימוש באתר salinafashion.com
+      // תמונה ראשית (jet-woo-product-gallery__image) היא ברזולוציה מלאה — מקור עדיף
+      document.querySelectorAll('.jet-woo-product-gallery__image img').forEach(img => {
+        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
+      });
+      // thumbnails כ-fallback בלבד — רק אם הגלריה הראשית לא נמצאה
+      if (images.length === 0) {
+        document.querySelectorAll('.jet-woo-swiper-control-thumbs__item-image img, .jet-gallery-swiper-thumb img').forEach(img => {
+          addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
+        });
+      }
 
       // תיאור
       const description = (

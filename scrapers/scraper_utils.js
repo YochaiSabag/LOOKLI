@@ -168,7 +168,6 @@ export async function loadScraperConfig(db) {
     if (unknowns) unknowns.add(val);
     return null;
   }
-
   return {
     normalizeColor(c, title) {
       const JEANS_WORDS = ["ג'ינס","ג׳ינס","ג\u05F3ינס",'גינס','denim','jeans'];
@@ -256,24 +255,29 @@ export async function loadScraperConfig(db) {
     detectFabric(title, description='') {
       const text = ((title||'')+' '+(description||'')).toLowerCase();
       for (const [name, aliases] of Object.entries(fabricMap)) {
-        if (aliases.some(a => text.includes(a.toLowerCase()))) {
-          // בדוק אם יש derived_tags לבד זה
-          const derived = fabricDerived[name] || {};
-          return { fabric: name, derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
-        }
+        if (aliases.some(a => text.includes(a.toLowerCase()))) return name;
       }
-      return { fabric: '', derivedStyle: null, derivedStyles: [] };
+      return '';
+    },
+
+    // אם יש derived_tags על סוג הבד (למשל "סאטן" → style: "אלגנטי"), מחזיר אותם
+    getFabricDerivedStyle(fabricName) {
+      const derived = fabricDerived[fabricName] || {};
+      return { derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
     },
 
     detectPattern(title, description='') {
       const text = ((title||'')+' '+(description||'')).toLowerCase();
       for (const [name, aliases] of Object.entries(patternMap)) {
-        if (aliases.some(a => text.includes(a.toLowerCase()))) {
-          const derived = patternDerived[name] || {};
-          return { pattern: name, derivedStyle: derived.style?.[0] || null };
-        }
+        if (aliases.some(a => text.includes(a.toLowerCase()))) return name;
       }
-      return { pattern: '', derivedStyle: null };
+      return '';
+    },
+
+    // אם יש derived_tags על הדוגמה (למשל "פרחוני" → style: "רומנטי"), מחזיר אותם
+    getPatternDerivedStyle(patternName) {
+      const derived = patternDerived[patternName] || {};
+      return { derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
     },
 
     detectDesignDetails(title, description='') {

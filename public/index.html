@@ -1388,26 +1388,16 @@ async function searchByImage(event){
       img.src=url;
     });
 
-    // שלב ב: ניתוח תמונה (Claude)
-    const analyzeResp=await fetch('/api/analyze-image',{
+    // שלב ב: ניתוח תמונה + חיפוש ב-DB בקריאה אחת (endpoint קיים ועובד בשרת)
+    const searchResp=await fetch('/api/search-by-image',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
-    });
-    const analyzeText=await analyzeResp.text();
-    let analyzeData;
-    try{analyzeData=JSON.parse(analyzeText);}catch{alert('שגיאה בניתוח תמונה');runRegularSearch();return;}
-    if(!analyzeResp.ok){alert(analyzeData.error||'שגיאה בניתוח');runRegularSearch();return;}
-    const analysis=analyzeData.analysis;
-
-    // שלב ג: חיפוש ב-DB לפי הפרמטרים (מהיר)
-    const searchResp=await fetch('/api/search-by-params',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(analysis)
     });
     const searchText=await searchResp.text();
     let data;
     try{data=JSON.parse(searchText);}catch{alert('שגיאה בחיפוש');runRegularSearch();return;}
     if(!searchResp.ok){alert(data.error||'שגיאה');runRegularSearch();return;}
+    const analysis=data.analysis||{};
 
     lastSearchKeywords=analysis.keywords||[];
     resetAllFiltersQuietly();
@@ -1473,7 +1463,8 @@ async function analyzeStylist(event){
     const a=data.analysis||{};
     const rec=a.recommendations||{};
     let html='';
-    if(a.bodyShape) html+=`<div style="font-size:13px;color:#7c6fa0;margin-bottom:6px">מבנה גוף: <strong>${a.bodyShape}</strong></div>`;
+    if(a.bodyShape) html+=`<div style="font-size:13px;color:#7c6fa0;margin-bottom:2px">מבנה גוף: <strong>${a.bodyShape}</strong>${a.waistHeight?` · קו מותן: <strong>${a.waistHeight}</strong>`:''}</div>`;
+    if(a.proportionNote) html+=`<div style="font-size:13px;color:#7c6fa0;margin-bottom:6px">${a.proportionNote}</div>`;
     if(a.explanation) html+=`<div style="margin-bottom:10px">${a.explanation}</div>`;
     const catLabels={dresses:'שמלות',skirts:'חצאיות',tops:'חולצות/סריגים'};
     const catItems=Object.keys(catLabels).filter(k=>rec[k]&&rec[k].fits&&rec[k].fits.length);

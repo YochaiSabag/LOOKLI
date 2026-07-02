@@ -1084,6 +1084,93 @@ app.post("/api/search-by-image", async (req, res) => {
   }
 });
 
+// ── AI סטייליסטית — המלצות סטייל אישיות לפי תמונת גוף ──────────────
+// דורש התחברות (authMiddleware) + מוגבל ל-5 שימושים בשבוע למשתמשת
+app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
+  try {
+    const { imageBase64, mimeType } = req.body;
+    if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
+
+    // טבלת מעקב שימוש — נוצרת אוטומטית אם לא קיימת, לא פוגעת בשום דבר קיים
+    await pool.query(`CREATE TABLE IF NOT EXISTS ai_stylist_usage (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      used_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_stylist_usage_user_date ON ai_stylist_usage(user_id, used_at)`);
+
+    const WEEKLY_LIMIT = 5;
+    const usageRes = await pool.query(
+      `SELECT COUNT(*) AS c FROM ai_stylist_usage WHERE user_id=$1 AND used_at > NOW() - INTERVAL '7 days'`,
+      [req.userId]
+    );
+    const usedCount = parseInt(usageRes.rows[0].c);
+    if (usedCount >= WEEKLY_LIMIT) {
+      return res.status(429).json({
+        error: `הגעת למגבלת השימוש השבועית (${WEEKLY_LIMIT} פעמים). אפשר לנסות שוב בעוד כמה ימים.`,
+        limitReached: true,
+      });
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
+
+    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 600,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+          { type: "text", text: `את סטייליסטית אופנה מקצועית, עדינה ומכבדת. נתחי את מבנה הגוף בתמונה בצורה חיובית ולא שיפוטית לחלוטין, והחזירי אך ורק JSON תקין (בלי טקסט נוסף לפני/אחרי):
+{
+  "bodyShape": "אחת: שעון חול / אגס / משולש הפוך / תפוח / מלבן",
+  "recommendedFits": ["1-3 גזרות עבריות מתוך: ישרה, A, מתרחבת, רפויה, מעטפת, צמודה, מחויטת"],
+  "recommendedColors": ["2-4 צבעים עבריים, לדוגמה: שחור, לבן, אדום, כחול, ירוק, ורוד, סגול, כתום, חום, בז', אפור, זהב, תכלת, נייבי, בורדו, קאמל"],
+  "explanation": "2-3 משפטים קצרים, חיוביים ומעודדים בעברית, שמסבירים למה ההמלצות מתאימות"
+}
+חשוב מאוד: היי עדינה, חיובית ומעודדת. לעולם אל תשתמשי במונחים שיפוטיים או שליליים על הגוף.` }
+        ]}]
+      })
+    });
+    if (!claudeRes.ok) return res.status(502).json({ error: "שגיאה בניתוח התמונה" });
+    const claudeData = await claudeRes.json();
+    const text = claudeData.content?.[0]?.text || "{}";
+    let analysis;
+    try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
+    catch { return res.status(502).json({ error: "שגיאה בעיבוד התשובה, נסי שוב" }); }
+
+    // רושמים שימוש רק אחרי ניתוח מוצלח (לא רוצים לספור כשלים)
+    await pool.query(`INSERT INTO ai_stylist_usage (user_id) VALUES ($1)`, [req.userId]);
+
+    let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0`;
+    const params = [];
+    let idx = 1;
+    if (analysis.recommendedFits?.length) {
+      sql += ` AND fits && $${idx++}::text[]`;
+      params.push(analysis.recommendedFits);
+    }
+    if (analysis.recommendedColors?.length) {
+      sql += ` AND (color = ANY($${idx}::text[]) OR colors && $${idx}::text[])`;
+      params.push(analysis.recommendedColors); idx++;
+    }
+    sql += ` ORDER BY id DESC LIMIT 60`;
+    const result = await pool.query(sql, params);
+    const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
+
+    res.json({
+      analysis,
+      results: rows,
+      count: rows.length,
+      usageRemaining: WEEKLY_LIMIT - usedCount - 1,
+    });
+  } catch (err) {
+    console.error("ai-stylist error:", err.message);
+    res.status(500).json({ error: "שגיאה בניתוח, נסי שוב" });
+  }
+});
+
 function analyzeQuery(query) {
   const analysis = { keywords: [], color: null, size: null, style: null, fit: null, fits: [], category: null, categories: [], maxPrice: null, minDiscount: null, pattern: null, fabric: null, designDetails: [], store: null };
   

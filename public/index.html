@@ -752,6 +752,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span id="savedNavCount"></span>
         </button>
+        <button class="auth-btn" id="stylistNavBtn" onclick="openStylistUpload()" title="סטייליסטית AI">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1.5 2 3 3 3 5.5A3.5 3.5 0 0 1 8 8.5C8 6 9.5 5 11 3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6"/></svg>
+          <span>סטייליסטית AI</span>
+        </button>
+        <input id="stylistImgInput" type="file" accept="image/*" style="display:none" onchange="analyzeStylist(event)"/>
       </div>
       <button class="mobile-menu-btn" onclick="toggleMobileNav()">☰</button>
     </div>
@@ -939,6 +944,11 @@
             <div class="sort-item" data-val="price_desc" onclick="selectSort('price_desc','מחיר ↓',this)">מחיר ↓</div>
           </div>
         </div>
+      </div>
+      <div id="stylistBanner" style="display:none;max-width:900px;margin:0 auto 20px;background:linear-gradient(135deg,#f5f0ff,#fef3f8);border:1px solid #e5d5f5;border-radius:14px;padding:18px 22px">
+        <div style="font-weight:800;font-size:15px;color:#6d28d9;margin-bottom:6px">✨ ההמלצה האישית שלך</div>
+        <div id="stylistExplanation" style="font-size:14px;color:#4c1d95;line-height:1.7"></div>
+        <div id="stylistUsageNote" style="font-size:12px;color:#7c6fa0;margin-top:8px"></div>
       </div>
       <div class="grid" id="grid"></div>
     </main>
@@ -1411,6 +1421,62 @@ async function searchByImage(event){
     allProducts=data.results;currentPage=1;renderPage();
     document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (חיפוש תמונה)`;
   }catch(e){console.error(e);alert('שגיאה בחיפוש תמונה');runRegularSearch();}
+}
+
+function openStylistUpload(){
+  if(!authToken){ openAuthModal(); return; }
+  document.getElementById('stylistImgInput').click();
+}
+
+async function analyzeStylist(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  event.target.value='';
+  setLoading();
+  window.scrollTo({top:0,behavior:'smooth'});
+  document.getElementById('stylistBanner').style.display='none';
+  try{
+    // דחיסת תמונה בצד הלקוח (כמו בחיפוש תמונה רגיל)
+    const base64=await new Promise((res,rej)=>{
+      const img=new Image();
+      const url=URL.createObjectURL(file);
+      img.onload=()=>{
+        const MAX=700;
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        const c=document.createElement('canvas');
+        c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg',0.75).split(',')[1]);
+      };
+      img.onerror=rej;
+      img.src=url;
+    });
+
+    const resp=await fetch('/api/ai-stylist',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
+      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
+    });
+    const text=await resp.text();
+    let data;
+    try{data=JSON.parse(text);}catch{alert('שגיאה בניתוח, נסי שוב');runRegularSearch();return;}
+
+    if(resp.status===429){ alert(data.error); runRegularSearch(); return; }
+    if(resp.status===401){ openAuthModal(); runRegularSearch(); return; }
+    if(!resp.ok){ alert(data.error||'שגיאה בניתוח'); runRegularSearch(); return; }
+
+    // הצגת ההסבר בבאנר
+    const a=data.analysis||{};
+    document.getElementById('stylistExplanation').textContent=a.explanation||'';
+    document.getElementById('stylistUsageNote').textContent=`נותרו לך ${data.usageRemaining} שימושים השבוע`;
+    document.getElementById('stylistBanner').style.display='block';
+
+    resetAllFiltersQuietly();
+    allProducts=data.results;currentPage=1;renderPage();
+    document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (סטייליסטית AI)`;
+  }catch(e){console.error(e);alert('שגיאה בניתוח התמונה');runRegularSearch();}
 }
 
 async function runAISearch(){

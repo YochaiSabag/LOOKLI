@@ -1046,15 +1046,28 @@ app.post("/api/search-by-image", async (req, res) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
 
+    // רשימות ערכים סגורות — זהות בדיוק לתגיות הקיימות במאגר (admin_tagger.html),
+    // כדי שהתשובה של Claude תתאים ישירות ל-fits/design_details/fabric/pattern/color בפועל
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 500,
+        max_tokens: 600,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
-          { type: "text", text: `נתח את פריט הלבוש בתמונה והחזר JSON בלבד:\n{"keywords":["מילה עברית כגון שמלה/חצאית/חולצה"],"color":"צבע עברי (שחור/לבן/אדום/כחול/ירוק/צהוב/ורוד/סגול/כתום/חום/בז/אפור/זהב/תכלת/נייבי/בורדו/קאמל/ניוד) או null","category":"שמלה/חצאית/חולצה/מכנסיים/קרדיגן/ג'קט או null","style":null,"fit":null,"fabric":null,"pattern":null,"size":null,"designDetails":[],"maxPrice":null,"store":null}` }
+          { type: "text", text: `נתחי בדיוק את פריט הלבוש בתמונה כמו מתייגת מקצועית של קטלוג אופנה. החזירי אך ורק JSON תקין (בלי טקסט נוסף):
+{
+  "category": "בחרי ערך אחד בדיוק מתוך: שמלה, חולצה, חצאית, מכנסיים, קרדיגן, ז'קט, בלייזר, וסט, עליונית, מעיל, סט, טוניקה, סרפן, חלוק, סוודר — או null אם לא ברור",
+  "color": "בחרי ערך אחד בדיוק מתוך: שחור, לבן, שמנת, כחול, תכלת, אדום, בורדו, ירוק, זית, חאקי, חום, קאמל, בז', ניוד, אפור, ורוד, סגול, לילך, צהוב, חרדל, כתום, זהב, כסף, פרחוני, צבעוני, מנטה, אפרסק, אבן — הצבע הדומיננטי בלבד, או null",
+  "fits": "מערך של 1-3 ערכים בדיוק מתוך: ארוכה, מידי, קצרה, מותן, מתרחבת, ישרה, מחויטת, מעטפת, צמודה, רפויה, הריון, הנקה. חשוב מאוד לגבי אורך — תבדקי בקפידה איפה מסתיים הפריט ביחס לברך הנראית בתמונה: אם הוא מסתיים בגובה הברך או מעליה → קצרה. אם מגיע עד אמצע השוק → מידי. אם מגיע עד הקרסול/הרצפה → ארוכה. אל תניחי שפריט הוא ארוך רק כי הוא נראה אלגנטי — התבססי רק על מה שנראה בפועל בתמונה. בנוסף לאורך, ציינו גם את הגזרה (ישרה/מתרחבת/מחויטת/מעטפת/צמודה/רפויה) אם ברורה",
+  "fabric": "בחרי ערך אחד בדיוק מתוך: ז'רסי, סריג, שיפון, כותנה, סאטן, תחרה, קטיפה, אריג, פשתן, משי, צמר, עור, פרווה, לייקרה, טריקו, רשת — לפי המרקם הנראה בתמונה, או null אם לא ברור",
+  "pattern": "בחרי ערך אחד בדיוק מתוך: פסים, פרחוני, משבצות, נקודות, חלק, הדפס, אבסטרקטי, גיאומטרי — או null",
+  "designDetails": "מערך של 0-3 ערכים בדיוק מתוך: צווארון V, צווארון עגול, צווארון גבוה, גולף, צווארון סירה, כפתורים, רוכסן, שרוול ארוך, שרוול קצר, שרוול 3/4, ללא שרוולים, שרוול פעמון, שרוול נפוח, חגורה, קשירה, כיסים, תחרה, פפלום, מלמלה, קפלים, שסע",
+  "style": "בחרי ערך אחד בדיוק מתוך: ערב, שבת, חגיגי, יום חול, קלאסי, מינימליסטי, מודרני, רטרו, אוברסייז — או null",
+  "keywords": ["1-2 מילות חיפוש עבריות קצרות בלבד, בדרך כלל רק שם הפריט עצמו כגון שמלה או חצאית — לא משפט תיאורי"]
+}
+חשוב: כל שדה שמופיע ברשימה סגורה חייב להכיל ערך מתוך הרשימה בדיוק (או null/מערך ריק) — אסור להמציא ערכים חדשים.` }
         ]}]
       })
     });
@@ -1063,18 +1076,38 @@ app.post("/api/search-by-image", async (req, res) => {
     const text = claudeData.content?.[0]?.text || "{}";
     let analysis;
     try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
-    catch { analysis = { keywords: [], color: null, category: null, style: null, fit: null, fabric: null, pattern: null, size: null, designDetails: [], maxPrice: null, store: null }; }
+    catch { analysis = { category: null, color: null, fits: [], fabric: null, pattern: null, designDetails: [], style: null, keywords: [] }; }
+    analysis.fits = Array.isArray(analysis.fits) ? analysis.fits : [];
+    analysis.designDetails = Array.isArray(analysis.designDetails) ? analysis.designDetails : [];
+    analysis.keywords = Array.isArray(analysis.keywords) ? analysis.keywords : [];
 
-    let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0`;
-    const params = [];
-    let idx = 1;
-    if (analysis.keywords?.length) { sql += ` AND title ILIKE $${idx++}`; params.push(`%${analysis.keywords.join(" ")}%`); }
-    if (analysis.color) { sql += ` AND (color=$${idx} OR $${idx}=ANY(colors))`; params.push(analysis.color); idx++; }
-    if (analysis.category) { sql += ` AND (category=$${idx} OR title ILIKE $${idx+1})`; params.push(analysis.category, `%${analysis.category}%`); idx += 2; }
-    if (analysis.style) { sql += ` AND style=$${idx++}`; params.push(analysis.style); }
-    if (analysis.fabric) { sql += ` AND (fabric=$${idx} OR description ILIKE $${idx+1})`; params.push(analysis.fabric, `%${analysis.fabric}%`); idx += 2; }
-    if (analysis.pattern) { sql += ` AND (pattern=$${idx} OR title ILIKE $${idx+1})`; params.push(analysis.pattern, `%${analysis.pattern}%`); idx += 2; }
-    sql += ` ORDER BY id DESC LIMIT 5000`;
+    // חיפוש מבוסס-ניקוד (כמו בסטייליסטית AI) במקום ILIKE נוקשה על כל המילים ביחד —
+    // כל קריטריון שתואם מוסיף נקודות, ומחזירים לפי רלוונטיות ולא רק "הכל או כלום"
+    const keywordPatterns = analysis.keywords.filter(Boolean).map(k => `%${k}%`);
+    const scoreExpr = `(
+        (CASE WHEN $1::text IS NOT NULL AND category = $1::text THEN 3 ELSE 0 END) +
+        (CASE WHEN $2::text[] = '{}' THEN 0 WHEN fits && $2::text[] THEN 2 ELSE 0 END) +
+        (CASE WHEN $3::text IS NOT NULL AND (color = $3::text OR $3::text = ANY(colors)) THEN 2 ELSE 0 END) +
+        (CASE WHEN $4::text IS NOT NULL AND fabric = $4::text THEN 1 ELSE 0 END) +
+        (CASE WHEN $5::text IS NOT NULL AND pattern = $5::text THEN 1 ELSE 0 END) +
+        (CASE WHEN $6::text[] = '{}' THEN 0 WHEN design_details && $6::text[] THEN 1 ELSE 0 END) +
+        (CASE WHEN $7::text[] = '{}' THEN 0 WHEN title ILIKE ANY($7::text[]) THEN 1 ELSE 0 END)
+      )`;
+    const params = [
+      analysis.category || null,
+      analysis.fits,
+      analysis.color || null,
+      analysis.fabric || null,
+      analysis.pattern || null,
+      analysis.designDetails,
+      keywordPatterns,
+    ];
+    const sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,
+      ${scoreExpr} AS match_score
+      FROM products
+      WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0
+      AND ${scoreExpr} > 0
+      ORDER BY match_score DESC, RANDOM() LIMIT 60`;
     const result = await pool.query(sql, params);
     const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
     res.json({ analysis, results: rows, count: rows.length });
@@ -1127,22 +1160,20 @@ app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
 {
   "bodyShape": "אחת: שעון חול / אגס / משולש הפוך / תפוח / מלבן",
   "waistHeight": "אחת: מותן גבוה / מותן מוגדר / מותן נמוך",
-  "proportionNote": "משפט אחד מקצועי על יחס פלג גוף עליון-תחתון או רוחב כתפיים-ירכיים, בשפה חיובית",
-  "explanation": "3-4 משפטים חיוביים ומעודדים בעברית שמסבירים את מבנה הגוף וההיגיון הכללי מאחורי ההמלצות",
+  "explanation": "3-5 משפטים חיוביים ומעודדים בעברית שמסבירים את מבנה הגוף וההיגיון הכללי מאחורי ההמלצות. במשפט האחרון בלבד, אם רלוונטי למבנה הגוף, שלבי בצורה טבעית וזורמת (לא כמונח טכני יבש) את התובנה הבאה: גוונים בהירים מאוד על שטח גדול ואחיד עלולים לשנות את תפיסת הפרופורציות, ולכן עדיף לשלב אותם כהדגשה נקודתית ולא כבסיס לכל התלבושת",
   "recommendations": {
-    "dresses": {"fits": ["1-2 גזרות מתוך: A, מעטפת, ישרה, מתרחבת, מחויטת, רפויה"], "note": "משפט קצר למה זה מחמיא לשמלות"},
-    "skirts": {"fits": ["1-2 גזרות מתוך: A, מעטפת, ישרה, מתרחבת, מחויטת, עיפרון"], "note": "משפט קצר למה זה מחמיא לחצאיות"},
-    "tops": {"fits": ["1-2 גזרות מתוך: רפויה, צמודה, מחויטת, אוברסייז"], "note": "משפט קצר למה זה מחמיא לחולצות/סריגים"}
+    "dresses": {"fits": ["1-2 גזרות מתוך: מעטפת, ישרה, מתרחבת, מחויטת, רפויה"], "note": "משפט קצר למה זה מחמיא לשמלות"},
+    "skirts": {"fits": ["1-2 גזרות מתוך: מעטפת, ישרה, מתרחבת, מחויטת"], "note": "משפט קצר למה זה מחמיא לחצאיות"},
+    "tops": {"fits": ["1-2 גזרות מתוך: רפויה, צמודה, מחויטת"], "note": "משפט קצר למה זה מחמיא לחולצות/סריגים"}
   },
-  "necklines": ["0-2 סוגי צווארון מומלצים מתוך: צווארון V, צווארון עגול, גולף"],
-  "recommendedColors": ["3-5 צבעים עבריים שמחמיאים, מתוך: שחור, לבן, אדום, כחול, ירוק, צהוב, ורוד, סגול, כתום, חום, בז', אפור, זהב, תכלת, נייבי, בורדו, קאמל, ניוד"],
-  "colorsToAvoidNote": "משפט אחד עדין ואופציונלי - אילו גוונים כדאי פחות, בלי שיפוטיות (או null אם אין המלצה מיוחדת)"
+  "colorGuidance": "משפט אחד מעשי וקונקרטי בעברית, שנותן הצעת שילוב צבעים ברורה בין הפריט העליון לתחתון (לדוגמה: חצאית בהירה וחולצה כהה, או ההפך) - לא רשימת צבעים כללית אלא הנחיה מעשית לשילוב"
 }
 חשוב מאוד:
 - היי עדינה, מקצועית ומעודדת לאורך כל התשובה.
-- לעולם אל תשתמשי במונחים שיפוטיים, סלנג, או ביטויים לא מכבדים מכל סוג שהוא — רק שפה מקצועית מעולם האופנה והסטיילינג.
+- לעולם אל תשתמשי במונחים שיפוטיים, סלנג, או ביטויים לא מכבדים מכל סוג שהוא — רק שפה מקצועית מעולם האופנה והסטיילינג. בלי אימוג'ים.
 - תני המלצות ספציפיות ומועילות המבוססות על הפרופורציות בתמונה, לא כלליות מדי.
-- כל ההמלצות (גזרות, צווארונים) חייבות להיות בגדים צנועים בלבד: אורך ברכיים ומטה, שרוולים מכסים לפחות עד המרפק, בלי חשיפת כתפיים או מחשוף עמוק.` }
+- כל ההמלצות (גזרות) חייבות להיות בגדים צנועים בלבד: אורך ברכיים ומטה, שרוולים מכסים לפחות עד המרפק, בלי חשיפת כתפיים או מחשוף עמוק.
+- שדות "fits" חייבים להכיל אך ורק ערכים מתוך הרשימות הסגורות שניתנו - אסור להמציא ערכים אחרים.` }
         ]}]
       })
     });
@@ -1156,37 +1187,32 @@ app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
     // רושמים שימוש רק אחרי ניתוח מוצלח (לא רוצים לספור כשלים)
     await pool.query(`INSERT INTO ai_stylist_usage (user_id) VALUES ($1)`, [req.userId]);
 
-    // איחוד כל הגזרות המומלצות מכל קטגוריות הבגד לרשימה אחת לצורך התאמה במאגר
     const rec = analysis.recommendations || {};
-    const allFits = [...new Set([
-      ...(rec.dresses?.fits || []),
-      ...(rec.skirts?.fits || []),
-      ...(rec.tops?.fits || []),
-    ])];
-    const allColors = analysis.recommendedColors || [];
-    const allNecklines = analysis.necklines || [];
 
-    // התאמה מבוססת-ניקוד במקום AND נוקשה — כל קריטריון שמתאים מוסיף נקודה,
-    // ואז מיון לפי רלוונטיות + ערבוב קל (RANDOM) כדי לא להחזיר תמיד את אותם מוצרים
-    const scoreExpr = `(
-        (CASE WHEN $1::text[] = '{}' THEN 0 WHEN fits && $1::text[] THEN 1 ELSE 0 END) +
-        (CASE WHEN $2::text[] = '{}' THEN 0 WHEN color = ANY($2::text[]) OR colors && $2::text[] THEN 1 ELSE 0 END) +
-        (CASE WHEN $3::text[] = '{}' THEN 0 WHEN design_details && $3::text[] THEN 1 ELSE 0 END)
-      )`;
-    // סינון צניעות קשיח — לא תלוי בניקוד, חל תמיד: בלי סטרפלס/חשוף כתפיים/שרוולים קצרים/אורך קצר, ובלי מכנסיים
+    // סינון צניעות קשיח — לא תלוי בניקוד, חל תמיד: בלי סטרפלס/חשוף כתפיים/שרוולים קצרים/אורך קצר
     const MODESTY_EXCLUDE = ['סטרפלס', 'חשוף כתפיים', 'ללא שרוולים', 'שרוול קצר'];
-    let sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,
-      ${scoreExpr} AS match_score
-      FROM products
-      WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0
-      AND (category IS NULL OR category <> 'מכנסיים')
-      AND NOT (design_details && $4::text[])
-      AND NOT ('קצרה' = ANY(fits))
-      AND ${scoreExpr} > 0
-      ORDER BY match_score DESC, RANDOM() LIMIT 60`;
-    const params = [allFits, allColors, allNecklines, MODESTY_EXCLUDE];
-    const result = await pool.query(sql, params);
-    const rows = result.rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
+    const modestyWhere = `(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0
+      AND NOT (design_details && $2::text[])
+      AND NOT ('קצרה' = ANY(fits))`;
+
+    // שלוש שאילתות מקבילות — אחת לכל סוג פריט (שמלות/חצאיות/חולצות) — כדי שתמיד יובאו הצעות מכל הסוגים
+    // ולא רק מהסוג עם ההתאמה הכי חזקה. כל שאילתה מדורגת לפי חפיפת הגזרות המומלצות, עם ערבוב קל.
+    async function fetchCategoryMatches(dbCategory, fitsList) {
+      const sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,
+        (CASE WHEN $3::text[] = '{}' THEN 0 WHEN fits && $3::text[] THEN 1 ELSE 0 END) AS match_score
+        FROM products
+        WHERE category = $1 AND ${modestyWhere}
+        ORDER BY match_score DESC, RANDOM() LIMIT 8`;
+      const { rows } = await pool.query(sql, [dbCategory, MODESTY_EXCLUDE, fitsList || []]);
+      return rows;
+    }
+
+    const [dressRows, skirtRows, topRows] = await Promise.all([
+      fetchCategoryMatches('שמלה', rec.dresses?.fits),
+      fetchCategoryMatches('חצאית', rec.skirts?.fits),
+      fetchCategoryMatches('חולצה', rec.tops?.fits),
+    ]);
+    const rows = [...dressRows, ...skirtRows, ...topRows].map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
 
     res.json({
       analysis,

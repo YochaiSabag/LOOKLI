@@ -1119,10 +1119,15 @@ app.post("/api/search-by-image", async (req, res) => {
 
 // ── AI סטייליסטית — המלצות סטייל אישיות לפי תמונת גוף ──────────────
 // דורש התחברות (authMiddleware) + מוגבל ל-5 שימושים בשבוע למשתמשת
+// גוונים בהירים/כהים — לניקוד התאמת הצעת הצבעים (colorGuidance) מול הצבע האמיתי של המוצרים
+const LIGHT_COLORS = ['לבן', 'שמנת', "בז'", 'ניוד', 'תכלת', 'לילך', 'אפרסק', 'אבן', 'זהב', 'כסף', 'צהוב'];
+const DARK_COLORS = ['שחור', 'בורדו', 'חום', 'זית', 'חאקי', 'סגול', 'כחול', 'אפור'];
+
 app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
   try {
     const { imageBase64, mimeType } = req.body;
     if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
+    const userRequest = (req.body.userRequest || "").toString().trim().slice(0, 300);
 
     // טבלת מעקב שימוש — נוצרת אוטומטית אם לא קיימת, לא פוגעת בשום דבר קיים
     await pool.query(`CREATE TABLE IF NOT EXISTS ai_stylist_usage (
@@ -1148,32 +1153,42 @@ app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
 
+    const requestContext = userRequest
+      ? `הלקוחה כתבה בקשה ספציפית: "${userRequest}". התאימי את ההמלצות בדיוק לבקשה הזו — כללי ב-"focusCategories" ובתוך "recommendations" רק את סוגי הפריטים שרלוונטיים לבקשה (לדוגמה: אם ביקשה המלצה לחצאית וחולצה, אל תכללי שמלות בכלל). אם צויין אירוע או הקשר (כמו שבת, יום חול, ערב, חגיגה) שקפי אותו בשדה "style" בכל קטגוריה רלוונטית.`
+      : `הלקוחה לא ציינה בקשה ספציפית — תני המלצה כללית שכוללת שלושה סוגי פריטים: שמלות, חצאיות וחולצות.`;
+
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1000,
+        max_tokens: 900,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
-          { type: "text", text: `את סטייליסטית אופנה מקצועית עם שנות ניסיון, עדינה ומכבדת. נתחי את מבנה הגוף בתמונה כמו סטייליסטית אמיתית בפגישת ייעוץ: התייחסי לפרופורציות (יחס בין פלג גוף עליון לתחתון, רוחב כתפיים ביחס לירכיים, גובה קו המותן), לא רק לקטגוריה כללית. החזירי אך ורק JSON תקין (בלי טקסט נוסף לפני/אחרי):
+          { type: "text", text: `את סטייליסטית אופנה מקצועית עם שנות ניסיון, עדינה ומכבדת. נתחי את מבנה הגוף בתמונה כמו סטייליסטית אמיתית בפגישת ייעוץ קצרה וממוקדת: התייחסי לפרופורציות (יחס בין פלג גוף עליון לתחתון, רוחב כתפיים ביחס לירכיים, גובה קו המותן), לא רק לקטגוריה כללית.
+${requestContext}
+החזירי אך ורק JSON תקין (בלי טקסט נוסף לפני/אחרי):
 {
   "bodyShape": "אחת: שעון חול / אגס / משולש הפוך / תפוח / מלבן",
   "waistHeight": "אחת: מותן גבוה / מותן מוגדר / מותן נמוך",
-  "explanation": "3-5 משפטים חיוביים ומעודדים בעברית שמסבירים את מבנה הגוף וההיגיון הכללי מאחורי ההמלצות. במשפט האחרון בלבד, אם רלוונטי למבנה הגוף, שלבי בצורה טבעית וזורמת (לא כמונח טכני יבש) את התובנה הבאה: גוונים בהירים מאוד על שטח גדול ואחיד עלולים לשנות את תפיסת הפרופורציות, ולכן עדיף לשלב אותם כהדגשה נקודתית ולא כבסיס לכל התלבושת",
+  "explanation": "2-3 משפטים בלבד, חיוביים ומעודדים בעברית, שמסבירים בקצרה את ההיגיון מאחורי ההמלצות. במשפט האחרון, אם רלוונטי, שלבי בצורה טבעית וזורמת (לא כמונח טכני יבש) את התובנה הבאה: גוונים בהירים מאוד על שטח גדול ואחיד עלולים לשנות את תפיסת הפרופורציות, ולכן עדיף לשלב אותם כהדגשה נקודתית ולא כבסיס לכל התלבושת",
+  "focusCategories": ["מערך שמכיל רק את סוגי הפריטים הרלוונטיים מתוך: dresses, skirts, tops — בהתאם להקשר למעלה"],
   "recommendations": {
-    "dresses": {"fits": ["1-2 גזרות מתוך: מעטפת, ישרה, מתרחבת, מחויטת, רפויה"], "note": "משפט קצר למה זה מחמיא לשמלות"},
-    "skirts": {"fits": ["1-2 גזרות מתוך: מעטפת, ישרה, מתרחבת, מחויטת"], "note": "משפט קצר למה זה מחמיא לחצאיות"},
-    "tops": {"fits": ["1-2 גזרות מתוך: רפויה, צמודה, מחויטת"], "note": "משפט קצר למה זה מחמיא לחולצות/סריגים"}
+    "dresses": {"fits": ["1-2 גזרות מתוך: מעטפת, ישרה, מתרחבת, מחויטת, רפויה"], "style": "ערך אחד מתוך: ערב, שבת, חגיגי, יום חול, קלאסי, מינימליסטי, מודרני, רטרו, אוברסייז — או null אם לא רלוונטי", "note": "משפט קצר אחד למה זה מחמיא"},
+    "skirts": {"fits": ["1-2 גזרות מתוך: מעטפת, ישרה, מתרחבת, מחויטת"], "style": "כנ״ל או null", "note": "משפט קצר אחד"},
+    "tops": {"fits": ["1-2 גזרות מתוך: רפויה, צמודה, מחויטת"], "style": "כנ״ל, כולל אפשרות אוברסייז, או null", "note": "משפט קצר אחד"}
   },
-  "colorGuidance": "משפט אחד מעשי וקונקרטי בעברית, שנותן הצעת שילוב צבעים ברורה בין הפריט העליון לתחתון (לדוגמה: חצאית בהירה וחולצה כהה, או ההפך) - לא רשימת צבעים כללית אלא הנחיה מעשית לשילוב"
+  "colorGuidance": {
+    "text": "משפט אחד מעשי וקונקרטי בעברית שנותן הצעת שילוב צבעים ברורה (לדוגמה: חצאית בהירה וחולצה כהה, או ההפך) - לא רשימת צבעים כללית אלא הנחיה מעשית",
+    "topTone": "אחת בדיוק: בהיר / כהה / ניטרלי",
+    "bottomTone": "אחת בדיוק: בהיר / כהה / ניטרלי"
+  }
 }
 חשוב מאוד:
-- היי עדינה, מקצועית ומעודדת לאורך כל התשובה.
-- לעולם אל תשתמשי במונחים שיפוטיים, סלנג, או ביטויים לא מכבדים מכל סוג שהוא — רק שפה מקצועית מעולם האופנה והסטיילינג. בלי אימוג'ים.
-- תני המלצות ספציפיות ומועילות המבוססות על הפרופורציות בתמונה, לא כלליות מדי.
-- כל ההמלצות (גזרות) חייבות להיות בגדים צנועים בלבד: אורך ברכיים ומטה, שרוולים מכסים לפחות עד המרפק, בלי חשיפת כתפיים או מחשוף עמוק.
-- שדות "fits" חייבים להכיל אך ורק ערכים מתוך הרשימות הסגורות שניתנו - אסור להמציא ערכים אחרים.` }
+- כללי בתוך "recommendations" רק את המפתחות שמופיעים ב-"focusCategories" — אל תכללי קטגוריות שלא רלוונטיות.
+- היי עדינה, מקצועית ומעודדת. בלי אימוג'ים, בלי סלנג, בלי ביטויים לא מכבדים.
+- כל ההמלצות חייבות להיות בגדים צנועים בלבד: אורך ברכיים ומטה, שרוולים מכסים לפחות עד המרפק, בלי חשיפת כתפיים או מחשוף עמוק.
+- שדות "fits" ו-"style" חייבים להכיל אך ורק ערכים מתוך הרשימות הסגורות שניתנו - אסור להמציא ערכים אחרים.` }
         ]}]
       })
     });
@@ -1188,6 +1203,10 @@ app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
     await pool.query(`INSERT INTO ai_stylist_usage (user_id) VALUES ($1)`, [req.userId]);
 
     const rec = analysis.recommendations || {};
+    const colorGuidance = analysis.colorGuidance || {};
+    let focusCategories = Array.isArray(analysis.focusCategories) && analysis.focusCategories.length
+      ? analysis.focusCategories
+      : ['dresses', 'skirts', 'tops'];
 
     // סינון צניעות קשיח — לא תלוי בניקוד, חל תמיד: בלי סטרפלס/חשוף כתפיים/שרוולים קצרים/אורך קצר
     const MODESTY_EXCLUDE = ['סטרפלס', 'חשוף כתפיים', 'ללא שרוולים', 'שרוול קצר'];
@@ -1195,28 +1214,38 @@ app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
       AND NOT (design_details && $2::text[])
       AND NOT ('קצרה' = ANY(fits))`;
 
-    // שלוש שאילתות מקבילות — אחת לכל סוג פריט (שמלות/חצאיות/חולצות) — כדי שתמיד יובאו הצעות מכל הסוגים
-    // ולא רק מהסוג עם ההתאמה הכי חזקה. כל שאילתה מדורגת לפי חפיפת הגזרות המומלצות, עם ערבוב קל.
-    async function fetchCategoryMatches(dbCategory, fitsList) {
+    // שאילתות מקבילות — רק לסוגי הפריטים הרלוונטיים (focusCategories), כדי שתוצג בדיוק ההמלצה שביקשה הלקוחה
+    // ולא תמיד שלושת הסוגים. הניקוד כולל גזרה + סגנון + טון צבע (בהיר/כהה) בהתאם ל-colorGuidance.
+    async function fetchCategoryMatches(dbCategory, fitsList, styleValue, toneWord) {
+      const toneColors = toneWord === 'בהיר' ? LIGHT_COLORS : toneWord === 'כהה' ? DARK_COLORS : [];
       const sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,
-        (CASE WHEN $3::text[] = '{}' THEN 0 WHEN fits && $3::text[] THEN 1 ELSE 0 END) AS match_score
+        (
+          (CASE WHEN $3::text[] = '{}' THEN 0 WHEN fits && $3::text[] THEN 2 ELSE 0 END) +
+          (CASE WHEN $4::text IS NOT NULL AND style = $4::text THEN 1 ELSE 0 END) +
+          (CASE WHEN $5::text[] = '{}' THEN 0 WHEN color = ANY($5::text[]) THEN 2 ELSE 0 END)
+        ) AS match_score
         FROM products
         WHERE category = $1 AND ${modestyWhere}
-        ORDER BY match_score DESC, RANDOM() LIMIT 8`;
-      const { rows } = await pool.query(sql, [dbCategory, MODESTY_EXCLUDE, fitsList || []]);
+        ORDER BY match_score DESC, RANDOM() LIMIT 10`;
+      const { rows } = await pool.query(sql, [dbCategory, MODESTY_EXCLUDE, fitsList || [], styleValue || null, toneColors]);
       return rows;
     }
 
-    const [dressRows, skirtRows, topRows] = await Promise.all([
-      fetchCategoryMatches('שמלה', rec.dresses?.fits),
-      fetchCategoryMatches('חצאית', rec.skirts?.fits),
-      fetchCategoryMatches('חולצה', rec.tops?.fits),
-    ]);
-    const rows = [...dressRows, ...skirtRows, ...topRows].map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
+    const categoryDbMap = { dresses: 'שמלה', skirts: 'חצאית', tops: 'חולצה' };
+    const categoryToneMap = { dresses: null, skirts: colorGuidance.bottomTone, tops: colorGuidance.topTone };
+    const activeCats = focusCategories.filter(k => categoryDbMap[k]);
+    const fetched = await Promise.all(activeCats.map(k =>
+      fetchCategoryMatches(categoryDbMap[k], rec[k]?.fits, rec[k]?.style, categoryToneMap[k])
+    ));
+    const rows = fetched.flat().map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
+
+    // 3 ההצעות עם הניקוד הכי גבוה מכל הקטגוריות המשולבות — מוצגות בבירור בסוף התוצאה
+    const topPicks = [...rows].sort((a, b) => (b.match_score || 0) - (a.match_score || 0)).slice(0, 3);
 
     res.json({
       analysis,
       results: rows,
+      topPicks,
       count: rows.length,
       usageRemaining: WEEKLY_LIMIT - usedCount - 1,
     });

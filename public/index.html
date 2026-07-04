@@ -753,7 +753,7 @@
           <span id="savedNavCount"></span>
         </button>
         <button class="auth-btn" id="stylistNavBtn" onclick="openStylistUpload()" title="סטייליסטית AI">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1.5 2 3 3 3 5.5A3.5 3.5 0 0 1 8 8.5C8 6 9.5 5 11 3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><ellipse cx="12" cy="6.4" rx="7" ry="1.7"/><path d="M8.3 5.7c0-2.1 1.6-3.3 3.7-3.3s3.7 1.2 3.7 3.3c0 .25-.03.5-.1.75H8.4c-.07-.25-.1-.5-.1-.75z"/><circle cx="12" cy="9.5" r="2.5"/><path d="M7.2 21v-4c0-3.2 2.1-5.6 4.8-5.6s4.8 2.4 4.8 5.6v4z"/></svg>
           <span>סטייליסטית AI</span>
         </button>
         <input id="stylistImgInput" type="file" accept="image/*" style="display:none" onchange="analyzeStylist(event)"/>
@@ -1027,7 +1027,12 @@
   <div class="modal-backdrop" id="stylistModalBackdrop" onclick="closeStylistModal(event)">
     <div id="stylistModalWrapper" onclick="event.stopPropagation()" style="width:min(640px,100%);background:#fff;border-radius:18px;box-shadow:0 25px 80px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:88vh">
       <div class="modal-head" style="background:linear-gradient(135deg,#f5f0ff,#fef3f8)">
-        <div class="modal-title" style="color:#6d28d9">✨ הסטייליסטית האישית שלך</div>
+        <div class="modal-title" style="color:#6d28d9;display:flex;align-items:center;gap:8px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#6d28d9;flex-shrink:0">
+            <svg viewBox="0 0 24 24" fill="#fff" style="width:15px;height:15px"><ellipse cx="12" cy="6.4" rx="7" ry="1.7"/><path d="M8.3 5.7c0-2.1 1.6-3.3 3.7-3.3s3.7 1.2 3.7 3.3c0 .25-.03.5-.1.75H8.4c-.07-.25-.1-.5-.1-.75z"/><circle cx="12" cy="9.5" r="2.5"/><path d="M7.2 21v-4c0-3.2 2.1-5.6 4.8-5.6s4.8 2.4 4.8 5.6v4z"/></svg>
+          </span>
+          הסטייליסטית האישית שלך
+        </div>
         <button class="close-btn" onclick="closeStylistModal()" aria-label="סגור">✕</button>
       </div>
       <div id="stylistModalBody" style="padding:20px 22px;overflow-y:auto"></div>
@@ -1421,9 +1426,26 @@ async function searchByImage(event){
   }catch(e){console.error(e);alert('שגיאה בחיפוש תמונה');runRegularSearch();}
 }
 
+const STYLIST_ICON_SVG='<svg viewBox="0 0 24 24" fill="#6d28d9" style="width:34px;height:34px"><ellipse cx="12" cy="6.4" rx="7" ry="1.7"/><path d="M8.3 5.7c0-2.1 1.6-3.3 3.7-3.3s3.7 1.2 3.7 3.3c0 .25-.03.5-.1.75H8.4c-.07-.25-.1-.5-.1-.75z"/><circle cx="12" cy="9.5" r="2.5"/><path d="M7.2 21v-4c0-3.2 2.1-5.6 4.8-5.6s4.8 2.4 4.8 5.6v4z"/></svg>';
+
 function openStylistUpload(){
   if(!authToken){ openAuthModal(); return; }
-  document.getElementById('stylistImgInput').click();
+  showStylistIntro();
+}
+
+function showStylistIntro(){
+  document.getElementById('stylistModalBody').innerHTML=`
+    <div style="text-align:center;padding:4px 2px 8px">
+      <div style="margin-bottom:12px">${STYLIST_ICON_SVG}</div>
+      <div style="font-weight:800;font-size:15px;color:#3a1a5c;margin-bottom:6px">בואי נמצא לך את הלוק המושלם</div>
+      <div style="font-size:13px;color:#7c6fa0;line-height:1.6;margin-bottom:12px">
+        להתאמה הכי מדוייקת — מומלץ תמונה ישרה מהחזית, בעמידה זקופה, עם בגדים לא רחבים מדי ותאורה טובה.
+      </div>
+      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:16px">🔒 התמונה משמשת רק לניתוח הרגעי ואינה נשמרת אצלנו</div>
+      <textarea id="stylistUserRequest" placeholder="יש לך בקשה ספציפית? למשל: &quot;רוצה לדעת איזה חצאית וחולצה הכי יחמיא לי לשבת&quot; (רשות — בלי בקשה תקבלי המלצה כללית לשמלות, חצאיות וחולצות)" style="width:100%;min-height:64px;border:1px solid #e5d5f5;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;margin-bottom:14px;box-sizing:border-box"></textarea>
+      <button onclick="document.getElementById('stylistImgInput').click()" style="width:100%;background:#6d28d9;color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">📷 בחרי תמונה והתחילי</button>
+    </div>`;
+  openStylistModal();
 }
 
 function openStylistModal(){
@@ -1441,12 +1463,14 @@ async function analyzeStylist(event){
   if(!file)return;
   event.target.value='';
 
-  // פותחת את המודל מיד עם ספינר "חושבת" — לפני שהתמונה בכלל נשלחת
+  // שולפים את הבקשה החופשית (אם נכתבה) לפני שמוחקים את שלב ההעלאה מהמודל
+  const userRequest=document.getElementById('stylistUserRequest')?.value.trim()||'';
+
+  // ספינר "חושבת" — לפני שהתמונה בכלל נשלחת
   document.getElementById('stylistModalBody').innerHTML=`<div style="text-align:center;padding:40px 10px">
     <div style="display:inline-block;width:36px;height:36px;border:3px solid #e5d5f5;border-top-color:#6d28d9;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:14px"></div>
     <div style="color:#6d28d9;font-weight:600;font-size:14px">מנתחת את התמונה ומחפשת התאמות...</div>
   </div>`;
-  openStylistModal();
 
   try{
     // דחיסת תמונה בצד הלקוח (כמו בחיפוש תמונה רגיל)
@@ -1470,7 +1494,7 @@ async function analyzeStylist(event){
     const resp=await fetch('/api/ai-stylist',{
       method:'POST',
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
-      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
+      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg',userRequest})
     });
     const text=await resp.text();
     let data;
@@ -1480,9 +1504,10 @@ async function analyzeStylist(event){
     if(resp.status===401){ closeStylistModal(); openAuthModal(); return; }
     if(!resp.ok){ closeStylistModal(); alert(data.error||'שגיאה בניתוח'); return; }
 
-    // בניית תוכן המודל — הסבר + פירוט לפי סוג פריט + הנחיית צבעים בולטת (בלי צווארונים/רשימת צבעים נפרדת)
+    // בניית תוכן המודל בחלקים ממוקדים: הסבר קצר → פירוט לפי סוג פריט → הנחיית צבעים → 3 המומלצים ביותר
     const a=data.analysis||{};
     const rec=a.recommendations||{};
+    const cg=a.colorGuidance||{};
     let html='';
     if(a.bodyShape) html+=`<div style="font-size:13px;color:#7c6fa0;margin-bottom:8px">מבנה גוף: <strong>${a.bodyShape}</strong>${a.waistHeight?` · קו מותן: <strong>${a.waistHeight}</strong>`:''}</div>`;
     if(a.explanation) html+=`<div style="font-size:14px;color:#4c1d95;line-height:1.7;margin-bottom:14px">${a.explanation}</div>`;
@@ -1493,14 +1518,29 @@ async function analyzeStylist(event){
       catItems.forEach(k=>{
         html+=`<div style="background:#f9f5ff;border-radius:10px;padding:10px 12px;font-size:13px;flex:1;min-width:140px">
           <div style="font-weight:700;color:#6d28d9">${catLabels[k]}</div>
-          <div style="color:#4c1d95">${rec[k].fits.join(', ')}</div>
+          <div style="color:#4c1d95">${rec[k].fits.join(', ')}${rec[k].style?` · ${rec[k].style}`:''}</div>
           ${rec[k].note?`<div style="color:#7c6fa0;font-size:12px;margin-top:2px">${rec[k].note}</div>`:''}
         </div>`;
       });
       html+='</div>';
     }
-    if(a.colorGuidance) html+=`<div style="background:linear-gradient(135deg,#f5f0ff,#fef3f8);border:1px solid #e5d5f5;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#6d28d9;line-height:1.6">🎨 ${a.colorGuidance}</div>`;
-    html+=`<div style="font-size:12px;color:#9ca3af;margin-top:14px">נותרו לך ${data.usageRemaining} שימושים השבוע</div>`;
+    if(cg.text) html+=`<div style="background:linear-gradient(135deg,#f5f0ff,#fef3f8);border:1px solid #e5d5f5;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#6d28d9;line-height:1.6;margin-bottom:14px">🎨 ${cg.text}</div>`;
+
+    // 3 המוצרים עם ההתאמה הכי גבוהה — מוצגים בבירור בסוף
+    if(data.topPicks?.length){
+      html+='<div style="font-size:12px;font-weight:700;color:#9ca3af;letter-spacing:.3px;margin-bottom:8px">✓ הכי מתאימים לך מהאתר</div>';
+      html+='<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px">';
+      data.topPicks.forEach(p=>{
+        const img=p.image_url||(p.images&&p.images[0])||'';
+        html+=`<div onclick="closeStylistModal();openProduct(${p.id})" style="flex:0 0 110px;cursor:pointer">
+          <div style="width:110px;height:146px;border-radius:10px;overflow:hidden;background:#f3f4f6">${img?`<img src="${escapeHtml(img)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`:''}</div>
+          <div style="font-size:11px;color:#4c1d95;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.title||'')}</div>
+          <div style="font-size:12px;font-weight:700;color:#6d28d9">₪${parseFloat(p.price)||''}</div>
+        </div>`;
+      });
+      html+='</div>';
+    }
+    html+=`<div style="font-size:12px;color:#9ca3af">נותרו לך ${data.usageRemaining} שימושים השבוע</div>`;
     document.getElementById('stylistModalBody').innerHTML=html;
 
     resetAllFiltersQuietly();

@@ -754,7 +754,7 @@
         </button>
         <button class="auth-btn" id="stylistNavBtn" onclick="openStylistUpload()" title="סטייליסטית AI">
           <img src="/סטייליסטית.png" alt="" style="width:18px;height:18px;object-fit:contain">
-          <span>סטייליסטית AI</span>
+          <span class="auth-name">סטייליסטית AI</span>
         </button>
         <input id="stylistImgInput" type="file" accept="image/*" style="display:none" onchange="onStylistFileSelected(event)"/>
       </div>
@@ -767,7 +767,7 @@
           <button class="btn" onclick="runAISearch()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </button>
-          <button class="btn" onclick="document.getElementById('imgSearchInput').click()" title="חיפוש לפי תמונה">
+          <button class="btn" id="imgSearchBtn" onclick="document.getElementById('imgSearchInput').click()" title="חיפוש לפי תמונה">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           </button>
           <input id="imgSearchInput" type="file" accept="image/*" style="display:none" onchange="searchByImage(event)"/>
@@ -1025,13 +1025,13 @@
   
   <!-- STYLIST MODAL -->
   <div class="modal-backdrop" id="stylistModalBackdrop" onclick="closeStylistModal(event)">
-    <div id="stylistModalWrapper" onclick="event.stopPropagation()" style="width:min(640px,100%);background:#fff;border-radius:18px;box-shadow:0 25px 80px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:88vh">
-      <div class="modal-head">
-        <div class="modal-title" style="display:flex;align-items:center;gap:8px">
-          <img src="/סטייליסטית.png" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0">
+    <div id="stylistModalWrapper" onclick="event.stopPropagation()" style="width:min(680px,100%);background:#fff;border-radius:18px;box-shadow:0 25px 80px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:90vh">
+      <div class="modal-head" style="background:var(--header-gradient)">
+        <div class="modal-title" style="display:flex;align-items:center;gap:8px;color:#fff;font-weight:700">
+          <img src="/סטייליסטית.png" alt="" style="width:20px;height:20px;object-fit:contain;flex-shrink:0">
           הסטייליסטית האישית שלך
         </div>
-        <button class="close-btn" onclick="closeStylistModal()" aria-label="סגור">✕</button>
+        <button class="close-btn" onclick="closeStylistModal()" aria-label="סגור" style="background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.4);color:#fff">✕</button>
       </div>
       <div id="stylistModalBody" style="padding:20px 22px;overflow-y:auto"></div>
     </div>
@@ -1376,8 +1376,17 @@ async function searchByImage(event){
   const file=event.target.files[0];
   if(!file)return;
   event.target.value='';
+  checkHideHero();
   setLoading();
   window.scrollTo({top:0,behavior:'smooth'});
+
+  // בזמן החיפוש: האייקון נעלם ומוצג ספינר שמראה שהמערכת חושבת
+  const imgBtn=document.getElementById('imgSearchBtn');
+  const originalBtnHTML=imgBtn?imgBtn.innerHTML:'';
+  if(imgBtn){
+    imgBtn.innerHTML='<div style="width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div>';
+    imgBtn.disabled=true;
+  }
   try{
     // שלב א: דחוס תמונה
     const base64=await new Promise((res,rej)=>{
@@ -1425,6 +1434,9 @@ async function searchByImage(event){
     allProducts=data.results;currentPage=1;renderPage();
     document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (חיפוש תמונה)`;
   }catch(e){console.error(e);alert('שגיאה בחיפוש תמונה');runRegularSearch();}
+  finally{
+    if(imgBtn){imgBtn.innerHTML=originalBtnHTML;imgBtn.disabled=false;}
+  }
 }
 
 let pendingStylistFile=null;
@@ -1439,7 +1451,7 @@ function openStylistUpload(){
 function showStylistIntro(){
   document.getElementById('stylistModalBody').innerHTML=`
     <div style="text-align:center;padding:4px 2px 8px">
-      <img src="/סטייליסטית.png" alt="" style="width:60px;height:60px;object-fit:contain;margin:0 auto 12px;display:block">
+      <img src="/סטייליסטית צבעוני.png" alt="" style="width:96px;height:96px;object-fit:contain;margin:0 auto 14px;display:block">
       <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:14px">בואי תעלי תמונה ואני אמצא את הלוק שלך</div>
 
       <div style="display:flex;gap:10px;margin-bottom:16px;text-align:right">
@@ -1447,7 +1459,7 @@ function showStylistIntro(){
           <strong>לתוצאה הכי מדוייקת:</strong> תמונה ישרה מהחזית, עמידה זקופה, בגדים לא רחבים מדי ותאורה טובה.
         </div>
         <div style="flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--text);line-height:1.5">
-          🔒 <strong>פרטיות:</strong> התמונה משמשת רק לניתוח הרגעי ואינה נשמרת אצלנו.
+          <strong>פרטיות:</strong> התמונה משמשת רק לניתוח הרגעי ואינה נשמרת אצלנו.
         </div>
       </div>
 
@@ -1456,19 +1468,20 @@ function showStylistIntro(){
         <div style="font-size:12px;color:var(--accent-dark);margin-top:4px;font-weight:700">✓ התמונה הועלתה</div>
       </div>
 
-      <button id="stylistPickPhotoBtn" onclick="document.getElementById('stylistImgInput').click()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px">📷 בחרי תמונה</button>
+      <button id="stylistPickPhotoBtn" onclick="document.getElementById('stylistImgInput').click()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px">📷 בחרי תמונה</button>
 
-      <div id="stylistRequestSection" style="display:none;text-align:right">
+      <div style="text-align:right">
         <div style="font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:2px">אז מה את רוצה שאני אמליץ לך?</div>
         <div style="font-size:11.5px;color:#9ca3af;margin-bottom:8px">השאירי ריק להתאמה כללית</div>
         <textarea id="stylistUserRequest" placeholder="" style="width:100%;min-height:60px;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;margin-bottom:14px;box-sizing:border-box"></textarea>
-        <button onclick="startStylistAnalysis()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">להתחיל</button>
+        <button id="stylistStartBtn" onclick="startStylistAnalysis()" disabled style="width:100%;background:#d1d5db;color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:not-allowed;transition:background .2s">להתחיל</button>
       </div>
     </div>`;
   openStylistModal();
+  startStylistPlaceholderTypewriter();
 }
 
-// שלב 1: רק שמירת הקובץ + תצוגה מקדימה — לא מתחיל ניתוח עדיין
+// שלב 1: רק שמירת הקובץ + תצוגה מקדימה — לא מתחיל ניתוח עדיין, רק מפעיל את כפתור "להתחיל"
 function onStylistFileSelected(event){
   const file=event.target.files[0];
   if(!file)return;
@@ -1481,9 +1494,15 @@ function onStylistFileSelected(event){
   }
   const pickBtn=document.getElementById('stylistPickPhotoBtn');
   if(pickBtn)pickBtn.textContent='📷 החליפי תמונה';
-  const reqSection=document.getElementById('stylistRequestSection');
-  if(reqSection)reqSection.style.display='block';
-  startStylistPlaceholderTypewriter();
+  const startBtn=document.getElementById('stylistStartBtn');
+  if(startBtn){
+    startBtn.disabled=false;
+    startBtn.style.background='var(--accent)';
+    startBtn.style.cursor='pointer';
+  }
+  // גלילה לסוף הפופאפ כדי שברור שהכפתור "להתחיל" הפך זמין
+  const body=document.getElementById('stylistModalBody');
+  if(body)setTimeout(()=>{body.scrollTo({top:body.scrollHeight,behavior:'smooth'})},50);
 }
 
 // placeholder מתחלף בתיבת הבקשה — באותה טכניקה כמו בשורת החיפוש הראשית
@@ -1499,7 +1518,7 @@ function startStylistPlaceholderTypewriter(){
   let pi=0,ci=0,deleting=false;
   function tick(){
     const input=document.getElementById('stylistUserRequest');
-    if(!input)return; // המודל נסגר/עבר שלב — עוצרים
+    if(!input)return; // המודל נסגר — עוצרים
     if(document.activeElement===input){ stylistPlaceholderTimer=setTimeout(tick,500); return; }
     const phrase=phrases[pi];
     if(!deleting){

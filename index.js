@@ -1261,6 +1261,22 @@ ${requestContext}
     // 3 ההצעות עם הניקוד הכי גבוה מכל הקטגוריות המשולבות — מוצגות בבירור בסוף התוצאה
     const topPicks = [...rows].sort((a, b) => (b.match_score || 0) - (a.match_score || 0)).slice(0, 3);
 
+    // שמירת תוצאת הניתוח בחשבון הלקוחה — בלי התמונה עצמה, רק הטקסט/JSON וסנאפשוט קליל
+    // של 3 ההצעות (לתצוגה מהירה בפרופיל בלי צורך בשליפה נוספת)
+    await pool.query(`CREATE TABLE IF NOT EXISTS ai_stylist_saved_results (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      analysis JSONB NOT NULL,
+      top_picks JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_stylist_saved_user_date ON ai_stylist_saved_results(user_id, created_at DESC)`);
+    const topPicksSnapshot = topPicks.map(p => ({ id: p.id, title: p.title, price: p.price, image_url: p.image_url || (p.images && p.images[0]) || null }));
+    await pool.query(
+      `INSERT INTO ai_stylist_saved_results (user_id, analysis, top_picks) VALUES ($1, $2, $3)`,
+      [req.userId, JSON.stringify(analysis), JSON.stringify(topPicksSnapshot)]
+    );
+
     res.json({
       analysis,
       results: rows,
@@ -1271,6 +1287,29 @@ ${requestContext}
   } catch (err) {
     console.error("ai-stylist error:", err.message);
     res.status(500).json({ error: "שגיאה בניתוח, נסי שוב" });
+  }
+});
+
+// שליפת ההמלצה האחרונה שנשמרה ללקוחה — לתצוגה במסך "הפרופיל שלי" (בלי תמונה, רק הניתוח השמור)
+app.get("/api/ai-stylist/last", authMiddleware, async (req, res) => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS ai_stylist_saved_results (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      analysis JSONB NOT NULL,
+      top_picks JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    const result = await pool.query(
+      `SELECT analysis, top_picks, created_at FROM ai_stylist_saved_results WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`,
+      [req.userId]
+    );
+    if (!result.rows.length) return res.json({ found: false });
+    const row = result.rows[0];
+    res.json({ found: true, analysis: row.analysis, topPicks: row.top_picks, createdAt: row.created_at });
+  } catch (err) {
+    console.error("ai-stylist/last error:", err.message);
+    res.status(500).json({ error: "שגיאה בשליפת ההמלצה" });
   }
 });
 

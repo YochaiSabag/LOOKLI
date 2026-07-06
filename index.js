@@ -1039,12 +1039,32 @@ app.post("/api/ai-search", async (req, res) => {
 });
 
 // ── חיפוש לפי תמונה ──────────────────────────────────────────
-app.post("/api/search-by-image", async (req, res) => {
+app.post("/api/search-by-image", authMiddleware, async (req, res) => {
   try {
     const { imageBase64, mimeType } = req.body;
     if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
+
+    // רישום/הגבלת שימוש שבועי — אותו דפוס בדיוק כמו הסטייליסטית AI
+    await pool.query(`CREATE TABLE IF NOT EXISTS image_search_usage (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      used_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_image_search_usage_user_date ON image_search_usage(user_id, used_at)`);
+    const IMAGE_SEARCH_WEEKLY_LIMIT = 3;
+    const imgUsageRes = await pool.query(
+      `SELECT COUNT(*) AS c FROM image_search_usage WHERE user_id=$1 AND used_at > NOW() - INTERVAL '7 days'`,
+      [req.userId]
+    );
+    const imgUsedCount = parseInt(imgUsageRes.rows[0].c);
+    if (imgUsedCount >= IMAGE_SEARCH_WEEKLY_LIMIT) {
+      return res.status(429).json({
+        error: `הגעת למגבלת השימוש השבועית בחיפוש לפי תמונה (${IMAGE_SEARCH_WEEKLY_LIMIT} פעמים). אפשר לנסות שוב בעוד כמה ימים.`,
+        limitReached: true,
+      });
+    }
 
     // רשימות ערכים סגורות — זהות בדיוק לתגיות הקיימות במאגר (admin_tagger.html),
     // כדי שהתשובה של Claude תתאים ישירות ל-fits/design_details/fabric/pattern/color בפועל
@@ -1125,8 +1145,16 @@ app.post("/api/search-by-image", async (req, res) => {
       }
     }
 
+    // רושמים שימוש רק אחרי חיפוש מוצלח
+    await pool.query(`INSERT INTO image_search_usage (user_id) VALUES ($1)`, [req.userId]);
+
     const rowsWithShipping = rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
-    res.json({ analysis, results: rowsWithShipping, count: rowsWithShipping.length });
+    res.json({
+      analysis,
+      results: rowsWithShipping,
+      count: rowsWithShipping.length,
+      usageRemaining: IMAGE_SEARCH_WEEKLY_LIMIT - imgUsedCount - 1,
+    });
   } catch (err) {
     console.error("search-by-image error:", err.message);
     res.status(500).json({ error: "שגיאה בחיפוש" });
@@ -1134,7 +1162,7 @@ app.post("/api/search-by-image", async (req, res) => {
 });
 
 // ── AI סטייליסטית — המלצות סטייל אישיות לפי תמונת גוף ──────────────
-// דורש התחברות (authMiddleware) + מוגבל ל-5 שימושים בשבוע למשתמשת
+// דורש התחברות (authMiddleware) + מוגבל ל-2 שימושים בשבוע למשתמשת
 // גוונים בהירים/כהים — לניקוד התאמת הצעת הצבעים (colorGuidance) מול הצבע האמיתי של המוצרים
 const LIGHT_COLORS = ['לבן', 'שמנת', "בז'", 'ניוד', 'תכלת', 'לילך', 'אפרסק', 'אבן', 'זהב', 'כסף', 'צהוב'];
 const DARK_COLORS = ['שחור', 'בורדו', 'חום', 'זית', 'חאקי', 'סגול', 'כחול', 'אפור'];
@@ -1153,7 +1181,7 @@ app.post("/api/ai-stylist", authMiddleware, async (req, res) => {
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_stylist_usage_user_date ON ai_stylist_usage(user_id, used_at)`);
 
-    const WEEKLY_LIMIT = 5;
+    const WEEKLY_LIMIT = 2;
     const usageRes = await pool.query(
       `SELECT COUNT(*) AS c FROM ai_stylist_usage WHERE user_id=$1 AND used_at > NOW() - INTERVAL '7 days'`,
       [req.userId]
@@ -1259,7 +1287,7 @@ ${requestContext}
     const rows = fetched.flat().map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
 
     // 3 ההצעות עם הניקוד הכי גבוה מכל הקטגוריות המשולבות — מוצגות בבירור בסוף התוצאה
-    const topPicks = [...rows].sort((a, b) => (b.match_score || 0) - (a.match_score || 0)).slice(0, 3);
+    const topPicks = [...rows].sort((a, b) => (b.match_score || 0) - (a.match_score || 0)).slice(0, 4);
 
     // שמירת תוצאת הניתוח בחשבון הלקוחה — בלי התמונה עצמה, רק הטקסט/JSON וסנאפשוט קליל
     // של 3 ההצעות (לתצוגה מהירה בפרופיל בלי צורך בשליפה נוספת)
@@ -1791,14 +1819,14 @@ app.get("/api/sidebar-ads/all", adminAuth, async (req, res) => {
 // POST /api/sidebar-ads/create
 app.post("/api/sidebar-ads/create", adminAuth, async (req, res) => {
   try {
-    const { title, image_url, mobile_image_url=null, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null, mobile_banner=false, every_n=6 } = req.body;
+    const { title, image_url, mobile_image_url=null, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null, mobile_banner=false, every_n=6, display_target='both' } = req.body;
     let expires_at = null, starts_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     if (starts_in > 0) { const d=new Date(); d.setDate(d.getDate()+starts_in); starts_at=d.toISOString(); }
     const r = await pool.query(
-      `INSERT INTO sidebar_ads (title,image_url,mobile_image_url,link_url,caption,size,impression_weight,show_rate,expires_at,starts_at,price_paid,notes,mobile_banner,every_n)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-      [title,image_url,mobile_image_url||null,link_url,caption,size,impression_weight,show_rate??100,expires_at,starts_at,price_paid,notes,mobile_banner||false,every_n||6]
+      `INSERT INTO sidebar_ads (title,image_url,mobile_image_url,link_url,caption,size,impression_weight,show_rate,expires_at,starts_at,price_paid,notes,mobile_banner,every_n,display_target)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [title,image_url,mobile_image_url||null,link_url,caption,size,impression_weight,show_rate??100,expires_at,starts_at,price_paid,notes,mobile_banner||false,every_n||6,display_target||'both']
     );
     res.json({ id: r.rows[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1807,13 +1835,13 @@ app.post("/api/sidebar-ads/create", adminAuth, async (req, res) => {
 // PUT /api/sidebar-ads/:id
 app.put("/api/sidebar-ads/:id", adminAuth, async (req, res) => {
   try {
-    const { title, image_url, mobile_image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes, mobile_banner, every_n } = req.body;
+    const { title, image_url, mobile_image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes, mobile_banner, every_n, display_target } = req.body;
     let expires_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     await pool.query(
       `UPDATE sidebar_ads SET title=$2,image_url=$3,mobile_image_url=$4,link_url=$5,caption=$6,size=$7,
-       impression_weight=$8,show_rate=$9,expires_at=$10,price_paid=$11,notes=$12,mobile_banner=$13,every_n=$14 WHERE id=$1`,
-      [req.params.id, title, image_url, mobile_image_url||null, link_url, caption, size, impression_weight, show_rate??100, expires_at, price_paid, notes, mobile_banner||false, every_n||6]
+       impression_weight=$8,show_rate=$9,expires_at=$10,price_paid=$11,notes=$12,mobile_banner=$13,every_n=$14,display_target=$15 WHERE id=$1`,
+      [req.params.id, title, image_url, mobile_image_url||null, link_url, caption, size, impression_weight, show_rate??100, expires_at, price_paid, notes, mobile_banner||false, every_n||6, display_target||'both']
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -4136,6 +4164,7 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS mobile_banner BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS mobile_image_url TEXT`);
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS every_n INTEGER DEFAULT 6`);
+    await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS display_target TEXT DEFAULT 'both'`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);

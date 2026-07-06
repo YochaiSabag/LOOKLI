@@ -771,7 +771,7 @@
           <button class="btn" onclick="runAISearch()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </button>
-          <button class="btn" id="imgSearchBtn" onclick="document.getElementById('imgSearchInput').click()" title="חיפוש לפי תמונה">
+          <button class="btn" id="imgSearchBtn" onclick="triggerImageSearch()" title="חיפוש לפי תמונה">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           </button>
           <input id="imgSearchInput" type="file" accept="image/*" style="display:none" onchange="searchByImage(event)"/>
@@ -1378,6 +1378,11 @@ function handleSearchInput(){
   previousSearchQuery=q;
 }
 
+function triggerImageSearch(){
+  if(!authToken){ openAuthModal(); return; }
+  document.getElementById('imgSearchInput').click();
+}
+
 async function searchByImage(event){
   const file=event.target.files[0];
   if(!file)return;
@@ -1412,14 +1417,16 @@ async function searchByImage(event){
       img.src=url;
     });
 
-    // שלב ב: ניתוח תמונה + חיפוש ב-DB בקריאה אחת (endpoint קיים ועובד בשרת)
+    // שלב ב: ניתוח תמונה + חיפוש ב-DB בקריאה אחת (endpoint קיים ועובד בשרת, דורש התחברות)
     const searchResp=await fetch('/api/search-by-image',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
       body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
     });
     const searchText=await searchResp.text();
     let data;
     try{data=JSON.parse(searchText);}catch{alert('שגיאה בחיפוש');runRegularSearch();return;}
+    if(searchResp.status===401){ openAuthModal(); return; }
+    if(searchResp.status===429){ alert(data.error); return; }
     if(!searchResp.ok){alert(data.error||'שגיאה');runRegularSearch();return;}
     const analysis=data.analysis||{};
 
@@ -1460,6 +1467,8 @@ function showStylistIntro(){
       <img src="/סטייליסטית צבעוני.png" alt="" style="width:96px;height:96px;object-fit:contain;margin:0 auto 14px;display:block">
       <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:14px">בואי תעלי תמונה ואני אמצא את הלוק שלך</div>
 
+      <div id="stylistHistoryBox"></div>
+
       <div style="display:flex;gap:10px;margin-bottom:16px;text-align:right">
         <div style="flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--text);line-height:1.5">
           <strong>לתוצאה הכי מדוייקת:</strong> תמונה ישרה מהחזית, עמידה זקופה, בגדים לא רחבים מדי ותאורה טובה.
@@ -1485,6 +1494,23 @@ function showStylistIntro(){
     </div>`;
   openStylistModal();
   startStylistPlaceholderTypewriter();
+  loadStylistIntroHistory();
+}
+
+// אם ללקוחה יש כבר המלצה שמורה מהפעם הקודמת — מציגים תזכורת קצרה ונקייה בראש המסך
+async function loadStylistIntroHistory(){
+  const box=document.getElementById('stylistHistoryBox');
+  if(!box||!authToken)return;
+  try{
+    const res=await fetch('/api/ai-stylist/last',{headers:{Authorization:'Bearer '+authToken}});
+    const data=await res.json();
+    if(!box.isConnected)return; // המודל נסגר בינתיים
+    if(!data.found)return;
+    const dateStr=data.createdAt?new Date(data.createdAt).toLocaleDateString('he-IL'):'';
+    box.innerHTML=`<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text);line-height:1.5;margin-bottom:14px;text-align:right">
+      <strong>ההמלצה האחרונה שלך</strong>${dateStr?` (${dateStr})`:''}: ${escapeHtml(data.analysis?.explanation||'')}
+    </div>`;
+  }catch(e){console.error(e);}
 }
 
 // שלב 1: רק שמירת הקובץ + תצוגה מקדימה — לא מתחיל ניתוח עדיין, רק מפעיל את כפתור "להתחיל"
@@ -3518,15 +3544,14 @@ document.addEventListener('click', e => {
 
       const hasSidebar = window.innerWidth >= 1300;
 
-      // ── מובייל: banner בין שורות הגריד (מתחת ל-1000px) ──
-      if (window.innerWidth < 1000) {
-        const mobileBanners = ads.filter(a => a.mobile_banner && shouldShowByRate(a.show_rate ?? 100));
+      // ── אין מקום לסייד-בר (מתחת ל-1300px): מציגים banner מלא-רוחב בין שורות הגריד ──
+      // זה כולל גם את הטווח הבינוני (1000-1300px, למשל טאבלטים/מחשבים עם חלון מוקטן)
+      // שבעבר לא הוצגה בו שום מודעה כלל כי לא היה מקום לסייד-בר וגם לא נכנס לתנאי המובייל הישן
+      if (!hasSidebar) {
+        const mobileBanners = ads.filter(a => a.mobile_banner && a.display_target !== 'desktop' && shouldShowByRate(a.show_rate ?? 100));
         if (mobileBanners.length) injectMobileBanners(mobileBanners);
         return;
       }
-
-      // ── בין 1000-1300: לא סידבר ולא mobile banner ────────
-      if (!hasSidebar) return;
 
       // ── דסקטופ (1300px+): סידבר ──────────────────────────
       const visibleCards = document.querySelectorAll('#grid .card:not(.sponsored-card)').length;
@@ -3534,6 +3559,7 @@ document.addEventListener('click', e => {
       const availableRows = Math.floor(visibleCards / cols);
 
       for (const ad of ads) {
+        if (ad.display_target === 'mobile') continue;
         if (!shouldShowByRate(ad.show_rate ?? 100)) continue;
         const sizeClass = ad.size === 3 ? 'adunit-triple' : ad.size === 2 ? 'adunit-double' : 'adunit-single';
         const div = document.createElement('a');

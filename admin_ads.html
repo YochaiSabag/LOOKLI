@@ -220,15 +220,25 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
         </div>
 
         <div class="field">
-          <label>קישור לתמונה</label>
+          <label>קישור לתמונה — מחשב (Desktop)</label>
           <input type="url" id="fImageUrl" placeholder="https://..." oninput="onImageInput()"/>
           <img id="imgPreviewSmall" class="img-preview" src="" alt=""/>
         </div>
 
         <div class="field">
-          <label>תמונת מובייל — אופציונלי <span style="font-weight:400;color:var(--muted)">(אם שונה מהדסקטופ)</span></label>
+          <label>קישור לתמונה — מובייל <span style="font-weight:400;color:var(--muted)">(אופציונלי, אם שונה מהדסקטופ)</span></label>
           <input type="url" id="fMobileImageUrl" placeholder="https://... (ריק = אותה תמונה)"/>
-          <div class="field-hint">מומלץ יחס 4:1 למובייל (לדוגמא 800×200px)</div>
+          <div class="field-hint">מומלץ יחס כ-5:1, לדוגמא 1200×240px (רוחב גדול כדי שיישאר חד גם על מסכים רחבים יותר בטווח המובייל/טאבלט)</div>
+        </div>
+
+        <div class="field">
+          <label>היכן להציג את הלוח</label>
+          <select id="fDisplayTarget" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Heebo',sans-serif;outline:none;direction:rtl;width:100%">
+            <option value="both">גם מחשב וגם מובייל</option>
+            <option value="desktop">מחשב בלבד</option>
+            <option value="mobile">מובייל בלבד</option>
+          </select>
+          <div class="field-hint">"מובייל בלבד" — הלוח לא יופיע בסידבר של המחשב, רק כ-banner (אם מסומן למטה)</div>
         </div>
 
         <div class="field">
@@ -417,6 +427,7 @@ function renderTable(ads) {
       : '<span class="badge badge-off">כבוי</span>';
 
     const sizeNames = {1:'רגיל',2:'כפול',3:'תלת'};
+    const targetNames = {both:'בשניהם', desktop:'מחשב בלבד', mobile:'מובייל בלבד'};
     const sizeH = {1:'h50',2:'h100',3:'h150'};
     const pct = Math.round((a.impression_weight||10)/10*100);
     const ctr = a.impressions ? ((a.clicks/a.impressions)*100).toFixed(1) : '0';
@@ -433,6 +444,7 @@ function renderTable(ads) {
         </div>
       </td>
       <td><span class="size-badge">${sizeNames[a.size]||'1×'} (180×${sizeHeights[a.size]||180})</span></td>
+      <td><span class="size-badge" style="background:rgba(34,197,94,.12);color:var(--green)">${targetNames[a.display_target]||'בשניהם'}</span></td>
       <td>${status}</td>
       <td><span class="w-pill">${pct}%</span></td>
       <td><span class="size-badge" style="background:rgba(139,92,246,.12);color:#7c3aed">${a.show_rate||100}% הצגה</span></td>
@@ -454,7 +466,7 @@ function renderTable(ads) {
 
   document.getElementById('tableWrap').innerHTML = `
     <table class="table">
-      <thead><tr><th>לוח</th><th>גודל</th><th>סטטוס</th><th>תדירות</th><th>ביצועים</th><th>תפוגה</th><th>פעולות</th></tr></thead>
+      <thead><tr><th>לוח</th><th>גודל</th><th>יעד</th><th>סטטוס</th><th>תדירות</th><th>ביצועים</th><th>תפוגה</th><th>פעולות</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   updateStats(ads.length, active, clicks, impr);
@@ -492,6 +504,7 @@ async function submitAd() {
     price_paid: parseFloat(document.getElementById('fPaid').value) || null,
     mobile_banner: document.getElementById('fMobileBanner').checked,
     every_n: parseInt(document.getElementById('fEveryN').value) || 6,
+    display_target: document.getElementById('fDisplayTarget').value || 'both',
   };
 
   const editId = document.getElementById('editId').value;
@@ -540,6 +553,7 @@ function editAd(a) {
   document.getElementById('fMobileBanner').checked = isMobileBanner;
   document.getElementById('mobileBannerFields').style.display = isMobileBanner ? 'block' : 'none';
   if (a.every_n) document.getElementById('fEveryN').value = a.every_n;
+  document.getElementById('fDisplayTarget').value = a.display_target || 'both';
   updateWeight(); onImageInput(); onCaptionInput();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -555,6 +569,7 @@ function cancelEdit() {
   document.getElementById('fShowRate').value = 100;
   document.getElementById('srVal').textContent = '100%';
   document.getElementById('fDays').value = 30;
+  document.getElementById('fDisplayTarget').value = 'both';
   selectSize(1); updateWeight();
   document.getElementById('imgPreviewSmall').classList.remove('show');
   document.getElementById('previewImg').style.display='none';

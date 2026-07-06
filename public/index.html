@@ -354,7 +354,7 @@
     /* Ads sidebar */
     .ads-sidebar{width:200px;flex-shrink:0;padding:16px 10px;display:none;position:sticky;top:136px;height:fit-content;max-height:calc(100vh - 150px);overflow-y:auto;scrollbar-width:none}
     .ads-sidebar::-webkit-scrollbar{display:none}
-    @media(min-width:1300px){.ads-sidebar{display:flex;flex-direction:column;gap:10px}}
+    @media(min-width:1024px){.ads-sidebar{display:flex;flex-direction:column;gap:10px}}
     /* גדלי יחידות פרסום — רוחב 180px קבוע */
     .adunit{width:180px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s;flex-shrink:0;position:relative;display:block}
     .adunit:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}
@@ -1379,7 +1379,7 @@ function handleSearchInput(){
 }
 
 function triggerImageSearch(){
-  if(!authToken){ openAuthModal(); return; }
+  if(!authToken){ openAuthModal('image-search'); return; }
   document.getElementById('imgSearchInput').click();
 }
 
@@ -1425,7 +1425,7 @@ async function searchByImage(event){
     const searchText=await searchResp.text();
     let data;
     try{data=JSON.parse(searchText);}catch{alert('שגיאה בחיפוש');runRegularSearch();return;}
-    if(searchResp.status===401){ openAuthModal(); return; }
+    if(searchResp.status===401){ openAuthModal('image-search'); return; }
     if(searchResp.status===429){ alert(data.error); return; }
     if(!searchResp.ok){alert(data.error||'שגיאה');runRegularSearch();return;}
     const analysis=data.analysis||{};
@@ -1456,7 +1456,7 @@ let pendingStylistFile=null;
 let stylistPlaceholderTimer=null;
 
 function openStylistUpload(){
-  if(!authToken){ openAuthModal(); return; }
+  if(!authToken){ openAuthModal('stylist'); return; }
   pendingStylistFile=null;
   showStylistIntro();
 }
@@ -1547,12 +1547,15 @@ async function loadStylistIntroHistory(){
     if(!data.found)return;
     const dateStr=data.createdAt?new Date(data.createdAt).toLocaleDateString('he-IL'):'';
     // מציגים את שורות הפירוט הספציפיות (גזרה/צבע וכו') ולא רק את המשפט הכללי על מבנה הגוף —
-    // כדי שהתזכורת תשקף בדיוק מה שהתבקש/הומלץ בפעם הקודמת
+    // כדי שהתזכורת תשקף בדיוק מה שהתבקש/הומלץ בפעם הקודמת. השורה סגורה כברירת מחדל ונפתחת בלחיצה.
     const detailLines=buildStylistDetailLines(data.analysis);
-    const preview=detailLines.length?detailLines.slice(0,2).join('<br>'):escapeHtml(data.analysis?.explanation||'');
-    box.innerHTML=`<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:right">
-      <div style="font-weight:700;margin-bottom:2px">ההמלצה האחרונה שלך${dateStr?` (${dateStr})`:''}</div>
-      ${preview}
+    const fullContent=detailLines.length?detailLines.join('<br>'):escapeHtml(data.analysis?.explanation||'');
+    box.innerHTML=`<div style="border:1px solid #e5e7eb;border-radius:10px;margin-bottom:14px;overflow:hidden;text-align:right">
+      <div onclick="const c=this.nextElementSibling;const open=c.style.display==='block';c.style.display=open?'none':'block';this.querySelector('.chev').style.transform=open?'':'rotate(180deg)'" style="cursor:pointer;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text);display:flex;justify-content:space-between;align-items:center;background:#f9fafb">
+        <span>ההמלצה האחרונה שלך${dateStr?` (${dateStr})`:''}</span>
+        <span class="chev" style="transition:transform .2s;font-size:10px;color:#9ca3af">▾</span>
+      </div>
+      <div style="display:none;padding:10px 12px;font-size:12px;color:var(--text);line-height:1.6">${fullContent}</div>
     </div>`;
   }catch(e){console.error(e);}
 }
@@ -1665,7 +1668,7 @@ async function startStylistAnalysis(){
     try{data=JSON.parse(text);}catch{closeStylistModal();alert('שגיאה בניתוח, נסי שוב');return;}
 
     if(resp.status===429){ closeStylistModal(); alert(data.error); return; }
-    if(resp.status===401){ closeStylistModal(); openAuthModal(); return; }
+    if(resp.status===401){ closeStylistModal(); openAuthModal('stylist'); return; }
     if(!resp.ok){ closeStylistModal(); alert(data.error||'שגיאה בניתוח'); return; }
 
     // תוכן התוצאה — שורות אחידות וברורות, בלי תיבות/כותרות צבעוניות נפרדות
@@ -2719,6 +2722,7 @@ document.addEventListener('click', e => {
       <div class="auth-modal-head">
         <h2 id="authModalTitle">ברוכה הבאה ל-LOOKLI</h2>
         <p id="authModalSub">שמרי מוצרים אהובים וגשי אליהם בכל זמן</p>
+        <p id="authModalReasonNote" style="display:none;font-size:12.5px;color:var(--accent);font-weight:700;margin-top:6px"></p>
       </div>
       <div class="auth-modal-body">
         <div class="auth-tabs" id="authTabsRow">
@@ -2931,7 +2935,7 @@ document.addEventListener('click', e => {
   }
 
   // ===== AUTH MODAL =====
-  function openAuthModal() {
+  function openAuthModal(reason) {
     if (currentUser) {
       openProfilePanel();
       return;
@@ -2939,6 +2943,14 @@ document.addEventListener('click', e => {
     switchAuthTab('login');
     document.getElementById('authModalBg').classList.add('open');
     clearAuthMessages();
+    const note = document.getElementById('authModalReasonNote');
+    if (note) {
+      const reasonText = reason === 'stylist' ? 'הסטייליסטית האישית ניתנת למשתמשות רשומות (ללא עלות)'
+        : reason === 'image-search' ? 'חיפוש לפי תמונה ניתן למשתמשות רשומות (ללא עלות)'
+        : '';
+      note.textContent = reasonText;
+      note.style.display = reasonText ? 'block' : 'none';
+    }
   }
 
   function openProfilePanel() {
@@ -2969,25 +2981,32 @@ document.addEventListener('click', e => {
       if (!data.found) { container.textContent = 'עדיין לא ביקשת המלצה מהסטייליסטית'; return; }
       const a = data.analysis || {};
       const dateStr = data.createdAt ? new Date(data.createdAt).toLocaleDateString('he-IL') : '';
-      let html = `<div style="color:#9ca3af;font-size:11px;margin-bottom:6px">${dateStr}</div>`;
-      if (a.bodyShape) html += `<div style="color:#374151;margin-bottom:4px">מבנה גוף: <strong>${a.bodyShape}</strong></div>`;
-      if (a.explanation) html += `<div style="color:#374151;line-height:1.6;margin-bottom:8px">${a.explanation}</div>`;
+      let inner = '';
+      if (a.bodyShape) inner += `<div style="color:#374151;margin-bottom:4px">מבנה גוף: <strong>${a.bodyShape}</strong></div>`;
+      if (a.explanation) inner += `<div style="color:#374151;line-height:1.6;margin-bottom:8px">${a.explanation}</div>`;
       const detailLines = buildStylistDetailLines(a);
       if (detailLines.length) {
-        html += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">';
-        detailLines.forEach(line => { html += `<div style="color:#374151;font-size:13px;line-height:1.5">${line}</div>`; });
-        html += '</div>';
+        inner += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">';
+        detailLines.forEach(line => { inner += `<div style="color:#374151;font-size:13px;line-height:1.5">${line}</div>`; });
+        inner += '</div>';
       }
       if (data.topPicks?.length) {
-        html += '<div style="display:flex;gap:8px;overflow-x:auto">';
+        inner += '<div style="display:flex;gap:8px;overflow-x:auto">';
         data.topPicks.forEach(p => {
-          html += `<div onclick="closeProfilePanel();openProduct(${p.id})" style="flex:0 0 70px;cursor:pointer">
+          inner += `<div onclick="closeProfilePanel();openProduct(${p.id})" style="flex:0 0 70px;cursor:pointer">
             <div style="width:70px;height:92px;border-radius:8px;overflow:hidden;background:#f3f4f6">${p.image_url ? `<img src="${escapeHtml(p.image_url)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">` : ''}</div>
           </div>`;
         });
-        html += '</div>';
+        inner += '</div>';
       }
-      container.innerHTML = html;
+      // שורה שנפתחת בלחיצה (סגורה כברירת מחדל), במקום שהכל יהיה פתוח תמיד
+      container.innerHTML = `<div style="border:1px solid #f3f4f6;border-radius:10px;overflow:hidden">
+        <div onclick="const c=this.nextElementSibling;const open=c.style.display==='block';c.style.display=open?'none':'block';this.querySelector('.chev').style.transform=open?'':'rotate(180deg)'" style="cursor:pointer;padding:10px 12px;font-size:13px;font-weight:700;color:#374151;display:flex;justify-content:space-between;align-items:center;background:#f9fafb">
+          <span>ההמלצה האחרונה שלך${dateStr?` (${dateStr})`:''}</span>
+          <span class="chev" style="transition:transform .2s;font-size:10px;color:#9ca3af">▾</span>
+        </div>
+        <div style="display:none;padding:10px 12px;font-size:13px">${inner}</div>
+      </div>`;
     } catch(e) {
       console.error(e);
       container.textContent = 'שגיאה בטעינת ההמלצה';
@@ -3560,35 +3579,46 @@ document.addEventListener('click', e => {
     if (!sidebar) return;
     try {
       const res = await fetch('/api/sidebar-ads');
-      if (!res.ok) return;
-      const { ads } = await res.json();
+      const { ads } = res.ok ? await res.json() : { ads: [] };
       sidebar.innerHTML = '';
-      if (!ads || !ads.length) return;
 
       // הסף הותאם ל-1024px (במקום 1300) כדי לחפוף לנקודת השבירה האמיתית של הגריד עצמו
       // (ה-CSS כבר עובר ל-3 טורים מ-1200px ומטה) — כך שבלפטופים/מסכים בינוניים יוצג הלוח
       // הרגיל בסייד-בר (מותאם לרוחב הפנוי בפועל), במקום באנר ברוחב מלא שנראה מתוח ולא
       // פרופורציונלי במסך שהוא לא באמת ברוחב מובייל. לא נגעתי בעמודות הגריד עצמן (עדיין 4/3/2/1
       // בדיוק כמו קודם) — רק בנקודה שבה מערכת המודעות עוברת בין מצב "באנר" למצב "סייד-בר".
+      // חשוב: ה-CSS של אזור ה-#adsSidebar עצמו (display:none/flex) עודכן לאותו סף (1024px)
+      // בקובץ ה-CSS — בלי זה השינוי כאן לא היה משפיע כי האזור היה נשאר מוסתר.
       const hasSidebar = window.innerWidth >= 1024;
 
-      // ── אין מקום לסייד-בר (מתחת ל-1300px): מציגים banner מלא-רוחב בין שורות הגריד ──
-      // זה כולל גם את הטווח הבינוני (1000-1300px, למשל טאבלטים/מחשבים עם חלון מוקטן)
-      // שבעבר לא הוצגה בו שום מודעה כלל כי לא היה מקום לסייד-בר וגם לא נכנס לתנאי המובייל הישן
+      // ── אין מקום לסייד-בר: מציגים banner מלא-רוחב בין שורות הגריד (מובייל/טאבלט) ──
       if (!hasSidebar) {
+        if (!ads || !ads.length) return;
         const mobileBanners = ads.filter(a => a.mobile_banner && a.display_target !== 'desktop' && shouldShowByRate(a.show_rate ?? 100));
         if (mobileBanners.length) injectMobileBanners(mobileBanners);
         return;
       }
 
-      // ── דסקטופ (1300px+): סידבר ──────────────────────────
+      // ── דסקטופ/לפטופ (1024px+): סייד-בר ──────────────────
       const visibleCards = document.querySelectorAll('#grid .card:not(.sponsored-card)').length;
       const cols = window.innerWidth >= 1200 ? 4 : window.innerWidth >= 900 ? 3 : window.innerWidth >= 640 ? 2 : 1;
       const availableRows = Math.floor(visibleCards / cols);
 
-      for (const ad of ads) {
-        if (ad.display_target === 'mobile') continue;
-        if (!shouldShowByRate(ad.show_rate ?? 100)) continue;
+      const desktopAds = (ads || []).filter(a => a.display_target !== 'mobile' && shouldShowByRate(a.show_rate ?? 100));
+
+      // אין כרגע מודעה פעילה למחשב — לא משאירים את המקום ריק, מציגים תיבת "פרסמו כאן"
+      // (שומר על הרוחב הקבוע של הסייד-בר בלי לגעת בגריד, והופך מלאי פרסום פנוי להזדמנות)
+      if (!desktopAds.length) {
+        const placeholder = document.createElement('a');
+        placeholder.href = '/contact.html';
+        placeholder.className = 'adunit adunit-single';
+        placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;text-align:center;background:#fafafa;border:1.5px dashed #e5e7eb;color:#9ca3af;font-size:12px;padding:10px;line-height:1.6';
+        placeholder.innerHTML = 'מקום פנוי לפרסום<br><strong style="color:#374151">לפרטים — צרו קשר</strong>';
+        sidebar.appendChild(placeholder);
+        return;
+      }
+
+      for (const ad of desktopAds) {
         const sizeClass = ad.size === 3 ? 'adunit-triple' : ad.size === 2 ? 'adunit-double' : 'adunit-single';
         const div = document.createElement('a');
         div.className = 'adunit ' + sizeClass;

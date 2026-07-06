@@ -1774,6 +1774,9 @@ app.get("/api/sidebar-ads", async (req, res) => {
     if (!eligible.length) return res.json({ ads: [] });
     // בחר עד 3 לוחות לפי הגרלה משוקללת
     const picked = weightedPickAds(eligible, 3);
+    // מיון סופי לפי "סדר תצוגה" (display_order) — קובע מי למעלה ומי אחריו מבין הלוחות שנבחרו.
+    // לא משפיע על מי נבחר (זה עדיין ה-weightedPickAds לפי impression_weight), רק על סדר ההצגה.
+    picked.sort((a, b) => (a.display_order ?? 10) - (b.display_order ?? 10));
     // עדכן impressions
     const ids = picked.map(a => a.id);
     if (ids.length) {
@@ -1811,7 +1814,7 @@ app.post("/api/sidebar-ads/:id/click", async (req, res) => {
 // GET /api/sidebar-ads/all (ניהול)
 app.get("/api/sidebar-ads/all", adminAuth, async (req, res) => {
   try {
-    const r = await pool.query("SELECT * FROM sidebar_ads ORDER BY active DESC, created_at DESC");
+    const r = await pool.query("SELECT * FROM sidebar_ads ORDER BY active DESC, display_order ASC, created_at DESC");
     res.json({ ads: r.rows });
   } catch(e) { res.json({ ads: [] }); }
 });
@@ -1819,14 +1822,14 @@ app.get("/api/sidebar-ads/all", adminAuth, async (req, res) => {
 // POST /api/sidebar-ads/create
 app.post("/api/sidebar-ads/create", adminAuth, async (req, res) => {
   try {
-    const { title, image_url, mobile_image_url=null, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null, mobile_banner=false, every_n=6, display_target='both' } = req.body;
+    const { title, image_url, mobile_image_url=null, link_url, caption, size=1, impression_weight=10, show_rate=100, days=0, starts_in=0, price_paid=null, notes=null, mobile_banner=false, every_n=6, display_target='both', display_order=10 } = req.body;
     let expires_at = null, starts_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     if (starts_in > 0) { const d=new Date(); d.setDate(d.getDate()+starts_in); starts_at=d.toISOString(); }
     const r = await pool.query(
-      `INSERT INTO sidebar_ads (title,image_url,mobile_image_url,link_url,caption,size,impression_weight,show_rate,expires_at,starts_at,price_paid,notes,mobile_banner,every_n,display_target)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
-      [title,image_url,mobile_image_url||null,link_url,caption,size,impression_weight,show_rate??100,expires_at,starts_at,price_paid,notes,mobile_banner||false,every_n||6,display_target||'both']
+      `INSERT INTO sidebar_ads (title,image_url,mobile_image_url,link_url,caption,size,impression_weight,show_rate,expires_at,starts_at,price_paid,notes,mobile_banner,every_n,display_target,display_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+      [title,image_url,mobile_image_url||null,link_url,caption,size,impression_weight,show_rate??100,expires_at,starts_at,price_paid,notes,mobile_banner||false,every_n||6,display_target||'both',display_order??10]
     );
     res.json({ id: r.rows[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1835,13 +1838,13 @@ app.post("/api/sidebar-ads/create", adminAuth, async (req, res) => {
 // PUT /api/sidebar-ads/:id
 app.put("/api/sidebar-ads/:id", adminAuth, async (req, res) => {
   try {
-    const { title, image_url, mobile_image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes, mobile_banner, every_n, display_target } = req.body;
+    const { title, image_url, mobile_image_url, link_url, caption, size, impression_weight, show_rate, days, price_paid, notes, mobile_banner, every_n, display_target, display_order } = req.body;
     let expires_at = null;
     if (days > 0) { const d=new Date(); d.setDate(d.getDate()+days); expires_at=d.toISOString(); }
     await pool.query(
       `UPDATE sidebar_ads SET title=$2,image_url=$3,mobile_image_url=$4,link_url=$5,caption=$6,size=$7,
-       impression_weight=$8,show_rate=$9,expires_at=$10,price_paid=$11,notes=$12,mobile_banner=$13,every_n=$14,display_target=$15 WHERE id=$1`,
-      [req.params.id, title, image_url, mobile_image_url||null, link_url, caption, size, impression_weight, show_rate??100, expires_at, price_paid, notes, mobile_banner||false, every_n||6, display_target||'both']
+       impression_weight=$8,show_rate=$9,expires_at=$10,price_paid=$11,notes=$12,mobile_banner=$13,every_n=$14,display_target=$15,display_order=$16 WHERE id=$1`,
+      [req.params.id, title, image_url, mobile_image_url||null, link_url, caption, size, impression_weight, show_rate??100, expires_at, price_paid, notes, mobile_banner||false, every_n||6, display_target||'both', display_order??10]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -4165,6 +4168,7 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS mobile_image_url TEXT`);
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS every_n INTEGER DEFAULT 6`);
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS display_target TEXT DEFAULT 'both'`);
+    await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 10`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);

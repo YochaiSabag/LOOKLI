@@ -231,34 +231,25 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
           <div class="field-hint">מומלץ יחס כ-5:1, לדוגמא 1200×240px (רוחב גדול כדי שיישאר חד גם על מסכים רחבים יותר בטווח המובייל/טאבלט)</div>
         </div>
 
+        <!-- ── מיקום ותצוגה ──────────────────────────────── -->
         <div class="field">
           <label>היכן להציג את הלוח</label>
-          <select id="fDisplayTarget" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Heebo',sans-serif;outline:none;direction:rtl;width:100%">
+          <select id="fDisplayTarget" onchange="toggleMobileBannerFields()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Heebo',sans-serif;outline:none;direction:rtl;width:100%">
             <option value="both">גם מחשב וגם מובייל</option>
-            <option value="desktop">מחשב בלבד</option>
-            <option value="mobile">מובייל בלבד</option>
+            <option value="desktop">מחשב בלבד (סייד-בר)</option>
+            <option value="mobile">מובייל בלבד (banner)</option>
           </select>
-          <div class="field-hint">"מובייל בלבד" — הלוח לא יופיע בסידבר של המחשב, רק כ-banner (אם מסומן למטה)</div>
+          <div class="field-hint">במחשב הלוח מופיע בסייד-בר. במובייל/טאבלט הוא מופיע כ-banner מלא-רוחב בין שורות המוצרים.</div>
         </div>
 
-        <div class="field">
-          <label>פרסומת מובייל — banner בין שורות גריד</label>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
-              <input type="checkbox" id="fMobileBanner" style="width:16px;height:16px;accent-color:var(--accent)" onchange="toggleMobileBannerFields()"/>
-              הצג כ-banner במובייל
-            </label>
-          </div>
-          <div id="mobileBannerFields" style="display:none;margin-top:10px">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">הכנס אחרי כמה כרטיסיות</label>
-            <select id="fEveryN" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;outline:none;direction:rtl;width:100%;margin-top:4px">
-              <option value="6">6 כרטיסיות (3 שורות)</option>
-              <option value="8">8 כרטיסיות (4 שורות)</option>
-              <option value="10">10 כרטיסיות (5 שורות)</option>
-              <option value="12">12 כרטיסיות (6 שורות)</option>
-            </select>
-            <div class="field-hint" style="margin-top:4px">בדסקטופ — הלוח יופיע בסידבר כרגיל</div>
-          </div>
+        <div class="field" id="mobileBannerFields">
+          <label>במובייל — הכנס אחרי כמה כרטיסיות</label>
+          <select id="fEveryN" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;outline:none;direction:rtl;width:100%">
+            <option value="6">6 כרטיסיות (3 שורות)</option>
+            <option value="8">8 כרטיסיות (4 שורות)</option>
+            <option value="10">10 כרטיסיות (5 שורות)</option>
+            <option value="12">12 כרטיסיות (6 שורות)</option>
+          </select>
         </div>
 
         <div class="field">
@@ -271,15 +262,22 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
           <input type="text" id="fCaption" placeholder='קולקציית קיץ 2026' maxlength="80" oninput="onCaptionInput()"/>
         </div>
 
+        <!-- ── סדר וניקוד ────────────────────────────────── -->
+        <div class="field">
+          <label>סדר תצוגה <span style="font-weight:400;color:var(--muted)">(מבין הלוחות שנבחרו להצגה)</span></label>
+          <input type="number" id="fDisplayOrder" value="10" min="1" placeholder="10"/>
+          <div class="field-hint">מספר נמוך יותר = יוצג ראשון / למעלה יותר. אם יש כמה לוחות פעילים בו-זמנית, זה קובע את הסדר ביניהם.</div>
+        </div>
+
         <!-- Weight -->
         <div class="field">
-          <label>עדיפות (משקל בין לוחות)</label>
+          <label>עדיפות בהגרלה <span style="font-weight:400;color:var(--muted)">(כשיש יותר לוחות מסלוטים פנויים)</span></label>
           <input type="range" id="fWeight" min="1" max="10" value="10" oninput="updateWeight()"/>
           <div class="weight-row">
             <div class="weight-bar"><div class="weight-fill" id="wFill" style="width:100%"></div></div>
             <div class="weight-val" id="wVal">100%</div>
           </div>
-          <div class="field-hint">לוח עם משקל גבוה יותר מנצח בהגרלה מול לוחות אחרים</div>
+          <div class="field-hint">קובע מי ייבחר להצגה כשיש יותר לוחות פעילים מסלוטים פנויים (לא משפיע על הסדר — לזה יש את "סדר תצוגה" למעלה).</div>
         </div>
 
         <!-- Show Rate -->
@@ -444,7 +442,7 @@ function renderTable(ads) {
         </div>
       </td>
       <td><span class="size-badge">${sizeNames[a.size]||'1×'} (180×${sizeHeights[a.size]||180})</span></td>
-      <td><span class="size-badge" style="background:rgba(34,197,94,.12);color:var(--green)">${targetNames[a.display_target]||'בשניהם'}</span></td>
+      <td><span class="size-badge" style="background:rgba(34,197,94,.12);color:var(--green)">${targetNames[a.display_target]||'בשניהם'}</span> <span class="size-badge" style="background:rgba(234,179,8,.12);color:var(--yellow);margin-top:4px">סדר ${a.display_order ?? 10}</span></td>
       <td>${status}</td>
       <td><span class="w-pill">${pct}%</span></td>
       <td><span class="size-badge" style="background:rgba(139,92,246,.12);color:#7c3aed">${a.show_rate||100}% הצגה</span></td>
@@ -481,8 +479,8 @@ function updateStats(t,a,c,i) {
 
 // ─── Submit ───────────────────────────────────────────────
 function toggleMobileBannerFields() {
-  const checked = document.getElementById('fMobileBanner').checked;
-  document.getElementById('mobileBannerFields').style.display = checked ? 'block' : 'none';
+  const target = document.getElementById('fDisplayTarget').value;
+  document.getElementById('mobileBannerFields').style.display = (target === 'desktop') ? 'none' : 'block';
 }
 
 async function submitAd() {
@@ -491,6 +489,7 @@ async function submitAd() {
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
+  const displayTarget = document.getElementById('fDisplayTarget').value || 'both';
   const body = {
     title,
     image_url: document.getElementById('fImageUrl').value.trim() || null,
@@ -502,9 +501,11 @@ async function submitAd() {
     show_rate: parseInt(document.getElementById('fShowRate').value),
     days: parseInt(document.getElementById('fDays').value) || 0,
     price_paid: parseFloat(document.getElementById('fPaid').value) || null,
-    mobile_banner: document.getElementById('fMobileBanner').checked,
+    // "היכן להציג" הוא המקור היחיד לאמת — mobile_banner נגזר ממנו אוטומטית (לא עוד שדה נפרד וחופף)
+    mobile_banner: displayTarget !== 'desktop',
     every_n: parseInt(document.getElementById('fEveryN').value) || 6,
-    display_target: document.getElementById('fDisplayTarget').value || 'both',
+    display_target: displayTarget,
+    display_order: parseInt(document.getElementById('fDisplayOrder').value) || 10,
   };
 
   const editId = document.getElementById('editId').value;
@@ -549,11 +550,10 @@ function editAd(a) {
   }
   selectSize(a.size||1);
   document.getElementById('fMobileImageUrl').value = a.mobile_image_url||'';
-  const isMobileBanner = !!a.mobile_banner;
-  document.getElementById('fMobileBanner').checked = isMobileBanner;
-  document.getElementById('mobileBannerFields').style.display = isMobileBanner ? 'block' : 'none';
   if (a.every_n) document.getElementById('fEveryN').value = a.every_n;
   document.getElementById('fDisplayTarget').value = a.display_target || 'both';
+  document.getElementById('fDisplayOrder').value = a.display_order ?? 10;
+  toggleMobileBannerFields();
   updateWeight(); onImageInput(); onCaptionInput();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -570,6 +570,8 @@ function cancelEdit() {
   document.getElementById('srVal').textContent = '100%';
   document.getElementById('fDays').value = 30;
   document.getElementById('fDisplayTarget').value = 'both';
+  document.getElementById('fDisplayOrder').value = 10;
+  toggleMobileBannerFields();
   selectSize(1); updateWeight();
   document.getElementById('imgPreviewSmall').classList.remove('show');
   document.getElementById('previewImg').style.display='none';
@@ -601,6 +603,7 @@ function showToast(msg, type='') {
 
 // ─── Init ─────────────────────────────────────────────────
 updateWeight();
+toggleMobileBannerFields();
 loadAds();
 </script>
 </body>

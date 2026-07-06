@@ -1498,6 +1498,45 @@ function showStylistIntro(){
 }
 
 // אם ללקוחה יש כבר המלצה שמורה מהפעם הקודמת — מציגים תזכורת קצרה ונקייה בראש המסך
+// שורות הפירוט הספציפיות של ההמלצה (לפי מה שבאמת התבקש/הומלץ) — לא ה"מבנה גוף" הכללי.
+// פונקציה משותפת כדי שכל מקום שמציג את ההמלצה (תוצאה חדשה / היסטוריה בפרופיל / תזכורת בפופאפ)
+// יציג בדיוק את אותו מידע ספציפי, ולא רק את המשפט הכללי על מבנה הגוף.
+function buildStylistDetailLines(analysis){
+  const a=analysis||{};
+  const rec=a.recommendations||{};
+  const cg=a.colorGuidance||{};
+  const catLabels={dresses:'גיזרת שמלה מומלצת',skirts:'גיזרת חצאית מומלצת',tops:'גיזרת חולצה מומלצת'};
+  const lines=[];
+  Object.keys(catLabels).forEach(k=>{
+    if(rec[k]?.fits?.length){
+      let line=`<strong>${catLabels[k]}:</strong> ${rec[k].fits.join(', ')}`;
+      if(rec[k].style)line+=` (${rec[k].style})`;
+      if(rec[k].note)line+=` — ${rec[k].note}`;
+      lines.push(line);
+    }
+  });
+  if(a.lessRecommended)lines.push(`<strong>מה פחות יתאים:</strong> ${a.lessRecommended}`);
+  if(cg.text)lines.push(`<strong>גוון צבע מתאים:</strong> ${cg.text}`);
+  if(cg.pairsWith)lines.push(`<strong>משתלב עם:</strong> ${cg.pairsWith}`);
+  return lines;
+}
+
+function buildStylistTopPicksHTML(topPicks, closeFnCall){
+  if(!topPicks?.length)return '';
+  let html='<div style="font-size:12px;font-weight:700;color:#9ca3af;letter-spacing:.3px;margin-bottom:8px">✓ הכי מתאימים לך מהאתר</div>';
+  html+='<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px">';
+  topPicks.forEach(p=>{
+    const img=p.image_url||(p.images&&p.images[0])||'';
+    html+=`<div onclick="${closeFnCall};openProduct(${p.id})" style="flex:0 0 110px;cursor:pointer">
+      <div style="width:110px;height:146px;border-radius:10px;overflow:hidden;background:#f3f4f6">${img?`<img src="${escapeHtml(img)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`:''}</div>
+      <div style="font-size:11px;color:var(--text);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.title||'')}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text)">₪${parseFloat(p.price)||''}</div>
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
 async function loadStylistIntroHistory(){
   const box=document.getElementById('stylistHistoryBox');
   if(!box||!authToken)return;
@@ -1507,8 +1546,13 @@ async function loadStylistIntroHistory(){
     if(!box.isConnected)return; // המודל נסגר בינתיים
     if(!data.found)return;
     const dateStr=data.createdAt?new Date(data.createdAt).toLocaleDateString('he-IL'):'';
-    box.innerHTML=`<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text);line-height:1.5;margin-bottom:14px;text-align:right">
-      <strong>ההמלצה האחרונה שלך</strong>${dateStr?` (${dateStr})`:''}: ${escapeHtml(data.analysis?.explanation||'')}
+    // מציגים את שורות הפירוט הספציפיות (גזרה/צבע וכו') ולא רק את המשפט הכללי על מבנה הגוף —
+    // כדי שהתזכורת תשקף בדיוק מה שהתבקש/הומלץ בפעם הקודמת
+    const detailLines=buildStylistDetailLines(data.analysis);
+    const preview=detailLines.length?detailLines.slice(0,2).join('<br>'):escapeHtml(data.analysis?.explanation||'');
+    box.innerHTML=`<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:14px;text-align:right">
+      <div style="font-weight:700;margin-bottom:2px">ההמלצה האחרונה שלך${dateStr?` (${dateStr})`:''}</div>
+      ${preview}
     </div>`;
   }catch(e){console.error(e);}
 }
@@ -1626,46 +1670,19 @@ async function startStylistAnalysis(){
 
     // תוכן התוצאה — שורות אחידות וברורות, בלי תיבות/כותרות צבעוניות נפרדות
     const a=data.analysis||{};
-    const rec=a.recommendations||{};
-    const cg=a.colorGuidance||{};
     let html='';
     if(a.bodyShape) html+=`<div style="font-size:13px;color:#9ca3af;margin-bottom:8px">מבנה גוף: <strong>${a.bodyShape}</strong>${a.waistHeight?` · קו מותן: <strong>${a.waistHeight}</strong>`:''}</div>`;
     if(a.explanation) html+=`<div style="font-size:14px;color:var(--text);line-height:1.6;margin-bottom:14px">${a.explanation}</div>`;
 
-    const catLabels={dresses:'גיזרת שמלה מומלצת',skirts:'גיזרת חצאית מומלצת',tops:'גיזרת חולצה מומלצת'};
-    const detailLines=[];
-    Object.keys(catLabels).forEach(k=>{
-      if(rec[k]?.fits?.length){
-        let line=`<strong>${catLabels[k]}:</strong> ${rec[k].fits.join(', ')}`;
-        if(rec[k].style)line+=` (${rec[k].style})`;
-        if(rec[k].note)line+=` — ${rec[k].note}`;
-        detailLines.push(line);
-      }
-    });
-    if(a.lessRecommended) detailLines.push(`<strong>מה פחות יתאים:</strong> ${a.lessRecommended}`);
-    if(cg.text) detailLines.push(`<strong>גוון צבע מתאים:</strong> ${cg.text}`);
-    if(cg.pairsWith) detailLines.push(`<strong>משתלב עם:</strong> ${cg.pairsWith}`);
-
+    const detailLines=buildStylistDetailLines(a);
     if(detailLines.length){
       html+='<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">';
       detailLines.forEach(line=>{ html+=`<div style="font-size:13.5px;color:var(--text);line-height:1.6">${line}</div>`; });
       html+='</div>';
     }
 
-    // 3 המוצרים עם ההתאמה הכי גבוהה — מוצגים בבירור בסוף
-    if(data.topPicks?.length){
-      html+='<div style="font-size:12px;font-weight:700;color:#9ca3af;letter-spacing:.3px;margin-bottom:8px">✓ הכי מתאימים לך מהאתר</div>';
-      html+='<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px">';
-      data.topPicks.forEach(p=>{
-        const img=p.image_url||(p.images&&p.images[0])||'';
-        html+=`<div onclick="closeStylistModal();openProduct(${p.id})" style="flex:0 0 110px;cursor:pointer">
-          <div style="width:110px;height:146px;border-radius:10px;overflow:hidden;background:#f3f4f6">${img?`<img src="${escapeHtml(img)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`:''}</div>
-          <div style="font-size:11px;color:var(--text);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.title||'')}</div>
-          <div style="font-size:12px;font-weight:700;color:var(--text)">₪${parseFloat(p.price)||''}</div>
-        </div>`;
-      });
-      html+='</div>';
-    }
+    // 4 המוצרים עם ההתאמה הכי גבוהה — מוצגים בבירור בסוף
+    html+=buildStylistTopPicksHTML(data.topPicks,'closeStylistModal()');
     html+=`<div style="font-size:12px;color:#9ca3af">נותרו לך ${data.usageRemaining} שימושים השבוע</div>`;
     document.getElementById('stylistModalBody').innerHTML=html;
 
@@ -2955,6 +2972,12 @@ document.addEventListener('click', e => {
       let html = `<div style="color:#9ca3af;font-size:11px;margin-bottom:6px">${dateStr}</div>`;
       if (a.bodyShape) html += `<div style="color:#374151;margin-bottom:4px">מבנה גוף: <strong>${a.bodyShape}</strong></div>`;
       if (a.explanation) html += `<div style="color:#374151;line-height:1.6;margin-bottom:8px">${a.explanation}</div>`;
+      const detailLines = buildStylistDetailLines(a);
+      if (detailLines.length) {
+        html += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">';
+        detailLines.forEach(line => { html += `<div style="color:#374151;font-size:13px;line-height:1.5">${line}</div>`; });
+        html += '</div>';
+      }
       if (data.topPicks?.length) {
         html += '<div style="display:flex;gap:8px;overflow-x:auto">';
         data.topPicks.forEach(p => {
@@ -3542,7 +3565,12 @@ document.addEventListener('click', e => {
       sidebar.innerHTML = '';
       if (!ads || !ads.length) return;
 
-      const hasSidebar = window.innerWidth >= 1300;
+      // הסף הותאם ל-1024px (במקום 1300) כדי לחפוף לנקודת השבירה האמיתית של הגריד עצמו
+      // (ה-CSS כבר עובר ל-3 טורים מ-1200px ומטה) — כך שבלפטופים/מסכים בינוניים יוצג הלוח
+      // הרגיל בסייד-בר (מותאם לרוחב הפנוי בפועל), במקום באנר ברוחב מלא שנראה מתוח ולא
+      // פרופורציונלי במסך שהוא לא באמת ברוחב מובייל. לא נגעתי בעמודות הגריד עצמן (עדיין 4/3/2/1
+      // בדיוק כמו קודם) — רק בנקודה שבה מערכת המודעות עוברת בין מצב "באנר" למצב "סייד-בר".
+      const hasSidebar = window.innerWidth >= 1024;
 
       // ── אין מקום לסייד-בר (מתחת ל-1300px): מציגים banner מלא-רוחב בין שורות הגריד ──
       // זה כולל גם את הטווח הבינוני (1000-1300px, למשל טאבלטים/מחשבים עם חלון מוקטן)

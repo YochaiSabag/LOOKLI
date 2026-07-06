@@ -1857,6 +1857,30 @@ app.post("/api/sidebar-ads/:id/deactivate", adminAuth, async(req,res)=>{ await p
 // DELETE /api/sidebar-ads/:id
 app.delete("/api/sidebar-ads/:id", adminAuth, async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
 
+// GET /api/ad-pricing — ציבורי, לעמוד "פרסמו אצלנו" ולתצוגה בכל מקום שצריך
+app.get("/api/ad-pricing", async (req, res) => {
+  try {
+    const r = await pool.query("SELECT base_rates, duration_tiers, updated_at FROM ad_pricing_config WHERE id=1");
+    if (!r.rows.length) return res.status(404).json({ error: "לא נמצא תמחור" });
+    res.json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/ad-pricing — עריכה, רק לאדמין
+app.put("/api/ad-pricing", adminAuth, async (req, res) => {
+  try {
+    const { base_rates, duration_tiers } = req.body;
+    if (!base_rates || !duration_tiers) return res.status(400).json({ error: "חסרים נתונים" });
+    await pool.query(
+      `INSERT INTO ad_pricing_config (id, base_rates, duration_tiers, updated_at)
+       VALUES (1, $1, $2, NOW())
+       ON CONFLICT (id) DO UPDATE SET base_rates=$1, duration_tiers=$2, updated_at=NOW()`,
+      [JSON.stringify(base_rates), JSON.stringify(duration_tiers)]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Serve admin UI
 
 // ===== ADMIN AUTH MIDDLEWARE =====
@@ -1935,6 +1959,9 @@ async function login(){
 app.get("/admin", adminAuth, (req, res) => { res.redirect("/admin/sponsored"); });
 app.get("/admin/ads", adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin_ads.html'));
+});
+app.get("/admin/pricing", adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin_pricing.html'));
 });
 
 // GET /api/product-sizes — מחזיר מידות מוצר לפי URL (לממשק ההתראות)
@@ -4169,6 +4196,29 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS every_n INTEGER DEFAULT 6`);
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS display_target TEXT DEFAULT 'both'`);
     await pool.query(`ALTER TABLE sidebar_ads ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 10`);
+    // תמחור פרסום — שורה יחידה קבועה (id=1), ניתנת לעריכה מלאה דרך /admin/pricing.
+    // המחירים ההתחלתיים מבוססים על בנצ'מרק שוק לאתרים נישתיים קטנים/בצמיחה (לא אתרי ענק) —
+    // ניתן ועדיף לכוונן אותם בפועל לפי הביקוש וההמרה בפועל.
+    await pool.query(`CREATE TABLE IF NOT EXISTS ad_pricing_config (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      base_rates JSONB NOT NULL,
+      duration_tiers JSONB NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`
+      INSERT INTO ad_pricing_config (id, base_rates, duration_tiers)
+      VALUES (1, $1, $2)
+      ON CONFLICT (id) DO NOTHING`,
+      [
+        JSON.stringify({ single: 25, double: 45, triple: 65, mobile_banner: 35 }),
+        JSON.stringify([
+          { days: 7,  label: 'שבוע',    discount: 0 },
+          { days: 14, label: 'שבועיים', discount: 10 },
+          { days: 30, label: 'חודש',    discount: 20 },
+          { days: 90, label: '3 חודשים', discount: 35 },
+        ]),
+      ]
+    );
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LOOKLI — תמחור פרסום</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f13;--surface:#18181f;--surface2:#22222c;--border:#2e2e3a;
+  --accent:#a855f7;--accent2:#ec4899;--text:#f1f0f5;--muted:#6b6b80;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;
+}
+html{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif}
+body{padding:0}
+
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar-logo{font-weight:900;font-size:20px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar-sep{width:1px;height:20px;background:var(--border)}
+.topbar-title{font-size:14px;color:var(--muted);font-weight:500}
+.topbar-nav{display:flex;gap:8px;margin-right:auto}
+.nav-link{padding:6px 14px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;border:1px solid transparent;transition:all .15s}
+.nav-link:hover{color:var(--text);border-color:var(--border)}
+.nav-link.active{background:rgba(168,85,247,.15);color:var(--accent);border-color:rgba(168,85,247,.3)}
+
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:24px 28px;max-width:1300px;margin:0 auto}
+@media(max-width:960px){.layout{grid-template-columns:1fr}}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px}
+.panel-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-weight:700;font-size:15px}
+.panel-body{padding:18px 20px}
+
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.field input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:'Heebo',sans-serif;outline:none;transition:border-color .15s;direction:ltr;text-align:right;width:100%}
+.field input:focus{border-color:var(--accent)}
+.field-hint{font-size:11px;color:var(--muted);margin-top:3px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+.tier-row{display:grid;grid-template-columns:70px 1fr 90px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.tier-row:last-child{border-bottom:none}
+.tier-days{font-weight:800;font-size:15px;color:var(--text)}
+.tier-label{font-size:13px;color:var(--muted)}
+.tier-discount-input{display:flex;align-items:center;gap:4px}
+.tier-discount-input input{width:60px;text-align:center}
+.tier-discount-input span{font-size:12px;color:var(--muted)}
+
+/* Price table */
+.price-table{width:100%;border-collapse:collapse;margin-top:4px}
+.price-table th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:9px 8px;border-bottom:1px solid var(--border);text-align:center;font-weight:600}
+.price-table th:first-child{text-align:right}
+.price-table td{padding:11px 8px;border-bottom:1px solid var(--border);font-size:14px;text-align:center;font-weight:700}
+.price-table td:first-child{text-align:right;font-weight:600;color:var(--muted)}
+.price-table tr:last-child td{border-bottom:none}
+.price-table .save-tag{font-size:10px;color:var(--green);font-weight:600;display:block;margin-top:1px}
+
+.btn{padding:11px 20px;border-radius:8px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+.note-box{background:var(--surface2);border-radius:10px;padding:14px 16px;font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+.note-box strong{color:var(--text)}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 20px;font-size:13px;font-weight:600;color:var(--text);opacity:0;transition:all .3s;z-index:999;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:var(--green);color:var(--green)}
+#toast.error{border-color:var(--red);color:var(--red)}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-logo">LOOKLI</span>
+  <span class="topbar-sep"></span>
+  <span class="topbar-title">תמחור פרסום</span>
+  <div class="topbar-nav">
+    <a href="/admin/analytics" class="nav-link">📊 אנליטיקס</a>
+    <a href="/admin/sponsored" class="nav-link">🎯 ממומן</a>
+    <a href="/admin/ads" class="nav-link">📋 מודעות</a>
+    <a href="/admin/pricing" class="nav-link active">תמחור פרסום</a>
+    <a href="/advertise.html" class="nav-link" target="_blank">עמוד פרסום ציבורי</a>
+    <a href="/" class="nav-link" target="_blank">🌐 אתר</a>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- RIGHT: EDIT FORM -->
+  <div>
+    <div class="note-box">
+      <strong>איך זה עובד:</strong> המחיר הסופי לכל גודל לוח ולכל משך פרסום מחושב אוטומטית: <strong>מחיר יומי × מספר ימים × (100% פחות ההנחה של אותה תקופה)</strong>. שני השדות למטה הם המקור היחיד לאמת — התצוגה המקדימה מימין וגם עמוד "פרסמו אצלנו" הציבורי מתעדכנים אוטומטית לפי מה שתשמרי כאן.
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">מחיר יומי לפי גודל לוח (₪)</span></div>
+      <div class="panel-body">
+        <div class="field-row">
+          <div class="field">
+            <label>לוח רגיל (180×180)</label>
+            <input type="number" id="rSingle" min="0" step="0.5"/>
+          </div>
+          <div class="field">
+            <label>לוח כפול (180×370)</label>
+            <input type="number" id="rDouble" min="0" step="0.5"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>לוח תלת (180×560)</label>
+            <input type="number" id="rTriple" min="0" step="0.5"/>
+          </div>
+          <div class="field">
+            <label>Banner מובייל (מלא-רוחב)</label>
+            <input type="number" id="rMobile" min="0" step="0.5"/>
+          </div>
+        </div>
+        <div class="field-hint">כל מחיר הוא ₪ ליום בודד, לפני הנחת משך הפרסום.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">תקופות פרסום והנחות</span></div>
+      <div class="panel-body" id="tiersBody">
+        <!-- נבנה דינמית -->
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="saveBtn" onclick="savePricing()">שמור שינויים</button>
+  </div>
+
+  <!-- LEFT: LIVE PREVIEW -->
+  <div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">תצוגה מקדימה — בדיוק כמו שיוצג ללקוחות</span></div>
+      <div class="panel-body">
+        <table class="price-table" id="previewTable"></table>
+      </div>
+    </div>
+    <div class="note-box">
+      המחירים ההתחלתיים חושבו לפי בנצ'מרק שוק לאתרים נישתיים קטנים-בינוניים (לא אתרי ענק) — נקודת התחלה סבירה. מומלץ לכוונן בהדרגה לפי הביקוש בפועל: אם לוחות נמכרים מהר — אפשר להעלות; אם אין ביקוש — אפשר להוריד.
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+let currentConfig = null;
+
+const sizeLabels = { single: 'לוח רגיל', double: 'לוח כפול', triple: 'לוח תלת', mobile_banner: 'Banner מובייל' };
+
+async function loadPricing() {
+  try {
+    const res = await fetch('/api/ad-pricing');
+    currentConfig = await res.json();
+  } catch(e) {
+    currentConfig = {
+      base_rates: { single: 25, double: 45, triple: 65, mobile_banner: 35 },
+      duration_tiers: [
+        { days: 7, label: 'שבוע', discount: 0 },
+        { days: 14, label: 'שבועיים', discount: 10 },
+        { days: 30, label: 'חודש', discount: 20 },
+        { days: 90, label: '3 חודשים', discount: 35 },
+      ],
+    };
+  }
+  const r = currentConfig.base_rates;
+  document.getElementById('rSingle').value = r.single;
+  document.getElementById('rDouble').value = r.double;
+  document.getElementById('rTriple').value = r.triple;
+  document.getElementById('rMobile').value = r.mobile_banner;
+  renderTiers();
+  renderPreview();
+}
+
+function renderTiers() {
+  const body = document.getElementById('tiersBody');
+  body.innerHTML = currentConfig.duration_tiers.map((t, i) => `
+    <div class="tier-row">
+      <div class="tier-days">${t.days} ימים</div>
+      <div class="tier-label">${t.label}</div>
+      <div class="tier-discount-input">
+        <input type="number" min="0" max="90" value="${t.discount}" oninput="onTierChange(${i}, this.value)"/>
+        <span>% הנחה</span>
+      </div>
+    </div>`).join('');
+}
+
+function onTierChange(i, val) {
+  currentConfig.duration_tiers[i].discount = parseInt(val) || 0;
+  renderPreview();
+}
+function onRateChange() {
+  currentConfig.base_rates = {
+    single: parseFloat(document.getElementById('rSingle').value) || 0,
+    double: parseFloat(document.getElementById('rDouble').value) || 0,
+    triple: parseFloat(document.getElementById('rTriple').value) || 0,
+    mobile_banner: parseFloat(document.getElementById('rMobile').value) || 0,
+  };
+  renderPreview();
+}
+
+function calcPrice(dailyRate, days, discountPct) {
+  return Math.round(dailyRate * days * (1 - discountPct / 100));
+}
+
+function renderPreview() {
+  const rates = currentConfig.base_rates;
+  const tiers = currentConfig.duration_tiers;
+  let html = '<thead><tr><th>גודל לוח</th>' + tiers.map(t => `<th>${t.label}<br>(${t.days} ימים)</th>`).join('') + '</tr></thead><tbody>';
+  Object.keys(sizeLabels).forEach(key => {
+    html += `<tr><td>${sizeLabels[key]}</td>`;
+    tiers.forEach(t => {
+      const price = calcPrice(rates[key] || 0, t.days, t.discount);
+      html += `<td>₪${price}${t.discount > 0 ? `<span class="save-tag">חסכון ${t.discount}%</span>` : ''}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  document.getElementById('previewTable').innerHTML = html;
+}
+
+async function savePricing() {
+  onRateChange();
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const res = await fetch('/api/ad-pricing', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentConfig),
+    });
+    if (!res.ok) throw new Error();
+    showToast('נשמר בהצלחה', 'success');
+  } catch(e) {
+    showToast('שגיאה בשמירה', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'שמור שינויים';
+  }
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 2800);
+}
+
+// Init
+loadPricing();
+['rSingle','rDouble','rTriple','rMobile'].forEach(id => {
+  document.getElementById(id).addEventListener('input', onRateChange);
+});
+</script>
+</body>
+</html>

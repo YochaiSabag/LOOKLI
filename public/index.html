@@ -352,8 +352,7 @@
     .sort-item.active{background:linear-gradient(135deg,#fce8f3,#f8e0ef);color:var(--accent);font-weight:700}
     
     /* Ads sidebar */
-    .ads-sidebar{width:200px;flex-shrink:0;padding:16px 10px;display:none;position:sticky;top:136px;height:fit-content;max-height:calc(100vh - 150px);overflow-y:auto;scrollbar-width:none}
-    .ads-sidebar::-webkit-scrollbar{display:none}
+    .ads-sidebar{width:200px;flex-shrink:0;padding:16px 10px;display:none;position:sticky;bottom:16px;height:fit-content}
     @media(min-width:1024px){.ads-sidebar{display:flex;flex-direction:column;gap:10px}}
     /* גדלי יחידות פרסום — רוחב 180px קבוע */
     .adunit{width:180px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s;flex-shrink:0;position:relative;display:block}
@@ -369,7 +368,7 @@
     /* Product Grid - 4 columns */
     .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
     @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
-    @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:680px){.grid{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:500px){.grid{grid-template-columns:1fr}}
     
     /* Product Card */
@@ -1067,6 +1066,7 @@
         <h4>לחנויות</h4>
         <a href="/contact.html?type=store">הצטרפות לאתר</a>
         <a href="/contact.html?type=update">עדכון פרטים</a>
+        <a href="/advertise.html">פרסמו אצלנו</a>
       </div>
       <!-- עמודה 4: newsletter (שמאל) -->
       <div class="footer-section footer-nl">

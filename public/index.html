@@ -1066,7 +1066,6 @@
         <h4>לחנויות</h4>
         <a href="/contact.html?type=store">הצטרפות לאתר</a>
         <a href="/contact.html?type=update">עדכון פרטים</a>
-        <a href="/advertise.html">פרסמו אצלנו</a>
       </div>
       <!-- עמודה 4: newsletter (שמאל) -->
       <div class="footer-section footer-nl">
@@ -2722,7 +2721,6 @@ document.addEventListener('click', e => {
       <div class="auth-modal-head">
         <h2 id="authModalTitle">ברוכה הבאה ל-LOOKLI</h2>
         <p id="authModalSub">שמרי מוצרים אהובים וגשי אליהם בכל זמן</p>
-        <p id="authModalReasonNote" style="display:none;font-size:12.5px;color:var(--accent);font-weight:700;margin-top:6px"></p>
       </div>
       <div class="auth-modal-body">
         <div class="auth-tabs" id="authTabsRow">
@@ -2943,14 +2941,11 @@ document.addEventListener('click', e => {
     switchAuthTab('login');
     document.getElementById('authModalBg').classList.add('open');
     clearAuthMessages();
-    const note = document.getElementById('authModalReasonNote');
-    if (note) {
-      const reasonText = reason === 'stylist' ? 'הסטייליסטית האישית ניתנת למשתמשות רשומות (ללא עלות)'
-        : reason === 'image-search' ? 'חיפוש לפי תמונה ניתן למשתמשות רשומות (ללא עלות)'
-        : '';
-      note.textContent = reasonText;
-      note.style.display = reasonText ? 'block' : 'none';
-    }
+    // כותרת-המשנה משקפת את הסיבה האמיתית לפתיחת המודל (במקום משפט כללי לא-קשור + הערה נפרדת בצבע לא קריא)
+    const subText = reason === 'stylist' ? 'הסטייליסטית האישית ניתנת למשתמשות רשומות (ללא עלות)'
+      : reason === 'image-search' ? 'חיפוש לפי תמונה ניתן למשתמשות רשומות (ללא עלות)'
+      : 'שמרי מוצרים אהובים וגשי אליהם בכל זמן';
+    document.getElementById('authModalSub').textContent = subText;
   }
 
   function openProfilePanel() {

@@ -75,7 +75,7 @@
     .section li{font-size:15px;line-height:1.9;color:var(--text)}
 
     /* Ad format cards */
-    .formats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
+    .formats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;margin-top:8px}
     @media(max-width:768px){.formats{grid-template-columns:repeat(2,1fr)}}
     .format-card{border:1px solid var(--border);border-radius:10px;padding:18px 14px;text-align:center}
     .format-swatch{border:2px solid var(--accent-dark);border-radius:6px;margin:0 auto 12px;background:#fdf5f9}
@@ -167,7 +167,7 @@
         <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
         גדלי לוחות
       </h2>
-      <p>ארבעה פורמטים, בהתאם למקום שבו הלוח מוצג ולתקציב שלכם:</p>
+      <p>חמישה פורמטים, בהתאם למקום שבו הלוח מוצג ולתקציב שלכם:</p>
       <div class="formats">
         <div class="format-card">
           <div class="format-swatch" style="width:60px;height:60px"></div>
@@ -189,7 +189,13 @@
           <div class="format-name">Banner מובייל</div>
           <div class="format-dim">מלא-רוחב, 120px גובה</div>
         </div>
+        <div class="format-card">
+          <div class="format-swatch" style="width:60px;height:60px;border-style:dashed"></div>
+          <div class="format-name">מוצר ממומן</div>
+          <div class="format-dim">בתוך תוצאות חיפוש</div>
+        </div>
       </div>
+      <p style="font-size:13px;color:var(--muted);margin-top:14px">"מוצר ממומן" הוא לא לוח נפרד — זה מוצר אחד שלכם, משולב ישירות בתוך תוצאות החיפוש הרלוונטיות (מסומן בבירור כממומן), במקום להיות בפינת מסך נפרדת. זה בדרך כלל הפורמט עם הכי הרבה תשומת לב, כי הוא מופיע בדיוק כשמישהי כבר מחפשת בגד דומה.</p>
     </div>
 
     <div class="section">
@@ -264,7 +270,7 @@
   </footer>
 
   <script>
-    const sizeLabels = { single: 'לוח רגיל (180×180)', double: 'לוח כפול (180×370)', triple: 'לוח תלת (180×560)', mobile_banner: 'Banner מובייל' };
+    const sizeLabels = { single: 'לוח רגיל (180×180)', double: 'לוח כפול (180×370)', triple: 'לוח תלת (180×560)', mobile_banner: 'Banner מובייל', sponsored_product: 'מוצר ממומן' };
 
     function calcPrice(dailyRate, days, discountPct) {
       return Math.round(dailyRate * days * (1 - discountPct / 100));

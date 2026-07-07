@@ -223,7 +223,7 @@
           </div>
           <div class="field">
             <label>ימים בתוקף</label>
-            <input type="number" id="fDays" value="30" min="0" placeholder="30 (0=ללא תפוגה)"/>
+            <input type="number" id="fDays" value="30" min="0" placeholder="30 (0=ללא תפוגה)" oninput="updateSuggestedPrice()"/>
           </div>
         </div>
 
@@ -256,6 +256,7 @@
           <div class="field">
             <label>מחיר ששולם (₪)</label>
             <input type="number" id="fPaid" min="0" placeholder="150"/>
+            <div class="url-hint" id="suggestedPriceHint"></div>
           </div>
           <div class="field">
             <label>הערות פנימיות</label>
@@ -543,9 +544,28 @@ function showToast(msg, type='') {
   setTimeout(() => t.className = '', 2800);
 }
 
+// ─── מחיר מוצע — נשלף מאותה מערכת תמחור מרכזית כמו לוחות הפרסום ───
+let sponsoredDailyRate = null;
+async function loadSuggestedPricing() {
+  try {
+    const res = await fetch('/api/ad-pricing');
+    const cfg = await res.json();
+    sponsoredDailyRate = cfg.base_rates?.sponsored_product || null;
+    updateSuggestedPrice();
+  } catch(e) { /* אם התמחור לא זמין, פשוט לא מציגים רמז */ }
+}
+function updateSuggestedPrice() {
+  const hint = document.getElementById('suggestedPriceHint');
+  if (!hint || !sponsoredDailyRate) return;
+  const days = parseInt(document.getElementById('fDays').value) || 0;
+  if (days <= 0) { hint.textContent = ''; return; }
+  hint.textContent = `מחיר מוצע ל-${days} ימים: ₪${Math.round(sponsoredDailyRate * days)} (לפי /admin/pricing)`;
+}
+
 // ─── Init ─────────────────────────────────────────────────
 updateWeightDisplay();
 loadAds();
+loadSuggestedPricing();
 </script>
 </body>
 </html>

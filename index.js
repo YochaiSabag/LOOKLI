@@ -4210,7 +4210,7 @@ app.listen(PORT, async () => {
       VALUES (1, $1, $2)
       ON CONFLICT (id) DO NOTHING`,
       [
-        JSON.stringify({ single: 25, double: 45, triple: 65, mobile_banner: 35 }),
+        JSON.stringify({ single: 25, double: 45, triple: 65, mobile_banner: 35, sponsored_product: 40 }),
         JSON.stringify([
           { days: 7,  label: 'שבוע',    discount: 0 },
           { days: 14, label: 'שבועיים', discount: 10 },
@@ -4219,6 +4219,12 @@ app.listen(PORT, async () => {
         ]),
       ]
     );
+    // אם השורה כבר קיימת משימוש קודם (לפני שנוסף מוצר ממומן) — מוסיפים לה רק את המפתח החדש,
+    // בלי לדרוס מחירים אחרים שכבר נערכו ידנית דרך /admin/pricing
+    await pool.query(`
+      UPDATE ad_pricing_config
+      SET base_rates = base_rates || '{"sponsored_product": 40}'::jsonb
+      WHERE id = 1 AND NOT (base_rates ? 'sponsored_product')`);
     await pool.query(`ALTER TABLE sponsored_products ADD COLUMN IF NOT EXISTS show_rate INTEGER DEFAULT 100`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);

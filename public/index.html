@@ -474,7 +474,7 @@
     footer{background:#3a3a3a;color:#fff;margin-top:40px}
     .footer-inner{max-width:var(--container);margin:0 auto;padding:48px 28px 36px;display:grid;grid-template-columns:1fr 1fr 1fr 1.7fr;gap:36px;align-items:start}
     @media(max-width:1000px){.footer-inner{grid-template-columns:1fr 1fr;gap:28px}}
-    @media(max-width:560px){.footer-inner{grid-template-columns:1fr;gap:22px}}
+    @media(max-width:560px){.footer-inner{grid-template-columns:1fr;gap:22px}.footer-nl{order:-1}}
     .footer-section h4{font-size:12px;font-weight:700;margin:0 0 14px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px}
     .footer-section a{display:block;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;margin-bottom:9px;transition:color .15s}
     .footer-section a:hover{color:#fff}
@@ -2722,7 +2722,8 @@ document.addEventListener('click', e => {
       <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="סגור">✕</button>
       <div class="auth-modal-head">
         <h2 id="authModalTitle">ברוכה הבאה ל-LOOKLI</h2>
-        <p id="authModalSub">שמרי מוצרים אהובים וגשי אליהם בכל זמן</p>
+        <p id="authModalSub">שמרי פריטים שאהבת וקבלי התראה כשהמחיר יורד</p>
+        <a href="https://whatsapp.com/channel/0029VbCt98aHbFVCsegwyV2c" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:12px;color:rgba(255,255,255,.75);text-decoration:underline">הצטרפו לערוץ הוואטסאפ שלנו</a>
       </div>
       <div class="auth-modal-body">
         <div class="auth-tabs" id="authTabsRow">
@@ -2749,7 +2750,6 @@ document.addEventListener('click', e => {
           </label>
           <button class="auth-submit" id="loginBtn" onclick="doLogin()">התחברות</button>
         </div>
-        </div>
         <!-- Register form -->
         <div id="registerForm" style="display:none">
           <div id="googleRegisterBtn" style="display:flex;justify-content:center;margin-bottom:16px"></div>
@@ -2771,7 +2771,6 @@ document.addEventListener('click', e => {
             <span>אני מאשר/ת קבלת עדכונים, מבצעים וחדשות אופנה מ-LOOKLI לכתובת המייל שלי. ניתן לבטל בכל עת. <span style="color:#ef4444">*</span></span>
           </label>
           <button class="auth-submit" id="registerBtn" onclick="doRegister()" disabled style="opacity:.45;cursor:not-allowed">יצירת חשבון</button>
-        </div>
         </div>
         <!-- Profile (when logged in) -->
         <div id="profileForm" style="display:none">
@@ -2946,7 +2945,7 @@ document.addEventListener('click', e => {
     // כותרת-המשנה משקפת את הסיבה האמיתית לפתיחת המודל (במקום משפט כללי לא-קשור + הערה נפרדת בצבע לא קריא)
     const subText = reason === 'stylist' ? 'הסטייליסטית האישית ניתנת למשתמשות רשומות (ללא עלות)'
       : reason === 'image-search' ? 'חיפוש לפי תמונה ניתן למשתמשות רשומות (ללא עלות)'
-      : 'שמרי מוצרים אהובים וגשי אליהם בכל זמן';
+      : 'שמרי פריטים שאהבת וקבלי התראה כשהמחיר יורד';
     document.getElementById('authModalSub').textContent = subText;
   }
 

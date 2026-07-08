@@ -20,7 +20,7 @@ console.log('🚀 LICHI Scraper - WooCommerce Store');
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -43,8 +43,8 @@ async function getAllProductUrls(page) {
 
   for (let p = 1; p <= MAX_PAGES; p++) {
     const url = p === 1
-      ? 'https://lichi-shop.com/shop/'
-      : `https://lichi-shop.com/shop/page/${p}/`;
+      ? 'https://lichi-shop.com/shop-2/'
+      : `https://lichi-shop.com/shop-2/page/${p}/`;
     try {
       console.log(`  → עמוד ${p}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -627,6 +627,13 @@ try {
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+
+  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
+  if (fail > urls.length * 0.5 && urls.length > 10) {
+    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+  } else {
+    await reportScraperFinished(db, 'LICHI', urls);
+  }
   
   if (unknownColors.size > 0) {
     console.log(`\n${'='.repeat(50)}`);

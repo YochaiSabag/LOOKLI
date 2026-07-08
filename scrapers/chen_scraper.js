@@ -20,7 +20,7 @@ console.log('🚀 Chen Fashion Scraper');
 // טעינת קונפיג מ-DB (צבעים, קטגוריות, סגנונות וכו')
 // ======================================================================
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 
 // ======================================================================
 // מיפוי מידות — ייחודי לחן (מספרים → S/M/L)
@@ -456,6 +456,13 @@ try {
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+
+  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
+  if (fail > urls.length * 0.5 && urls.length > 10) {
+    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+  } else {
+    await reportScraperFinished(db, 'CHEN', urls);
+  }
   await runHealthCheck(ok, fail);
 
 } finally {

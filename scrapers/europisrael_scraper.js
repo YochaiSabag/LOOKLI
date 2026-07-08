@@ -16,7 +16,7 @@ await db.connect();
 console.log('🚀 EuropIsrael Scraper');
 
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 
 const STORE = 'EUROPISRAEL';
 const BASE  = 'https://europisrael.com';
@@ -289,6 +289,13 @@ try {
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+
+  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
+  if (fail > urls.length * 0.5 && urls.length > 10) {
+    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+  } else {
+    await reportScraperFinished(db, 'EUROPISRAEL', urls);
+  }
   await runHealthCheck();
 
 } finally {

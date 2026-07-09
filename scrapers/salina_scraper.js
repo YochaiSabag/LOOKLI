@@ -68,7 +68,7 @@ async function getAllProductUrls(page) {
       });
 
       if (postIds.length === 0) {
-        console.log(`    ⏹ אין מוצרים — עוצר`);
+        console.log(`    ⏹ עמוד ריק — עוצר`);
         break;
       }
 
@@ -91,12 +91,6 @@ async function getAllProductUrls(page) {
       }
 
       console.log(`    ✓ סה"כ: ${allUrls.size}`);
-
-      // אם אין עמוד הבא — עצור
-      const hasNext = await page.evaluate((p) => {
-        return !!document.querySelector(`.page-numbers a[href*="/page/${p+1}/"], .next.page-numbers`);
-      }, p);
-      if (!hasNext) break;
 
     } catch(e) {
       console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);

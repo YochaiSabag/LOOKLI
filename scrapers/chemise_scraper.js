@@ -122,27 +122,22 @@ async function getAllProductUrls(page) {
   if (allUrls.size === 0) {
     console.log(`  🌐 Browser fallback...`);
     const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
-    const categories = [
-      'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/',
-      'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/',
-    ];
-    for (const base of categories) {
-      for (let p = 1; p <= MAX_PAGES; p++) {
-        const url = p === 1 ? base : `${base}page/${p}/`;
-        try {
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-          await page.waitForTimeout(1500);
-          const urls = await page.evaluate(() =>
-            [...document.querySelectorAll('a[href*="/product/"]')]
-              .map(a => a.href)
-              .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
-              .filter((v, i, a) => a.indexOf(v) === i)
-          );
-          if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
-          urls.forEach(u => allUrls.add(u));
-          console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
-        } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
-      }
+    const base = 'https://chemise.co.il/%d7%97%d7%a0%d7%95%d7%aa/'; // חנות — כל המוצרים
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      const url = p === 1 ? base : `${base}page/${p}/`;
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForTimeout(1500);
+        const urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href)
+            .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
+        urls.forEach(u => allUrls.add(u));
+        console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
+      } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
     }
   }
 

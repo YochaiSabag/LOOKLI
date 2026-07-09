@@ -25,7 +25,8 @@
   <meta name="twitter:description" content="הכירי את LOOKLI – מנוע החיפוש החכם לאופנה צנועה. איך זה עובד, מה היתרונות, ואיך חנויות מצטרפות למאגר."/>
   <meta name="twitter:image" content="https://lookli.co.il/lookli-logo.png"/>
 
-  <link rel="icon" href="/favicon.ico"/>
+  <link rel="icon" type="image/png" href="/favicon.png"/>
+  <link rel="shortcut icon" href="/favicon.png"/>
   <link rel="alternate" hreflang="he-il" href="https://lookli.co.il/about.html"/>
 
   <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@context": "https://schema.org", "@type": "Organization", "name": "LOOKLI", "url": "https://lookli.co.il", "logo": "https://lookli.co.il/lookli-logo.png", "contactPoint": [{"@type": "ContactPoint", "contactType": "customer support", "email": "lookli2015@gmail.com", "availableLanguage": ["he", "en"]}]}, {"@context": "https://schema.org", "@type": "WebSite", "name": "LOOKLI", "url": "https://lookli.co.il", "potentialAction": {"@type": "SearchAction", "target": "https://lookli.co.il/?q={search_term_string}", "query-input": "required name=search_term_string"}}, {"@type": "WebPage", "url": "https://lookli.co.il/about.html", "name": "אודות LOOKLI | איך זה עובד ולמה בנינו את זה", "inLanguage": "he-IL", "dateModified": "2026-02-21"}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "האם הרכישה מתבצעת באתר LOOKLI?", "acceptedAnswer": {"@type": "Answer", "text": "לא, LOOKLI הוא מנוע חיפוש בלבד. כשאת מוצאת מוצר שמעניין אותך, את מועברת ישירות לאתר של החנות המקורית לביצוע הרכישה."}}, {"@type": "Question", "name": "האם המידע על המוצרים מעודכן?", "acceptedAnswer": {"@type": "Answer", "text": "אנחנו מעדכנים את המידע באופן תדיר, אבל תמיד מומלץ לבדוק את המחיר והזמינות באתר החנות עצמה לפני הרכישה."}}, {"@type": "Question", "name": "איך החנות שלי יכולה להצטרף?", "acceptedAnswer": {"@type": "Answer", "text": "נשמח לשמוע ממך! פני אלינו דרך דף \"צור קשר\" ונחזור אליך בהקדם עם כל הפרטים."}}, {"@type": "Question", "name": "מצאתי טעות במידע על מוצר, מה עושים?", "acceptedAnswer": {"@type": "Answer", "text": "תודה שהבחנת! אנא דווחי לנו דרך דף \"צור קשר\" ונתקן בהקדם."}}, {"@type": "Question", "name": "האם השימוש באתר חינמי?", "acceptedAnswer": {"@type": "Answer", "text": "כן! LOOKLI הוא שירות חינמי לחלוטין למשתמשות."}}]}]}</script>
@@ -119,6 +120,20 @@
     .footer-brand{font-weight:900;font-size:24px;margin-bottom:12px}
     .footer-desc{font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;margin:0}
     .footer-bottom{border-top:1px solid rgba(255,255,255,.1);text-align:center;padding:20px 24px;font-size:12px;color:rgba(255,255,255,.5)}
+
+    /* Newsletter בתוך הפוטר */
+    .footer-nl-title{font-size:13px;font-weight:700;color:rgba(255,255,255,.85);margin-bottom:5px;line-height:1.3}
+    .footer-nl-sub{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.5}
+    .footer-nl-form{display:flex;flex-direction:column;gap:8px}
+    .footer-nl-input{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:9px;color:#fff;padding:11px 13px;font-size:14px;font-family:inherit;outline:none;direction:rtl;width:100%;transition:border-color .15s}
+    .footer-nl-input:focus{border-color:rgba(168,85,247,.7);background:rgba(255,255,255,.13)}
+    .footer-nl-input::placeholder{color:rgba(255,255,255,.35)}
+    .footer-nl-btn{background:#a855f7;color:#fff;border:none;border-radius:9px;padding:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;width:100%;letter-spacing:.3px}
+    .footer-nl-btn:hover{opacity:.9}
+    .footer-nl-msg{font-size:12px;color:rgba(255,255,255,.6);min-height:14px;margin-top:2px}
+    .footer-nl-note{font-size:11px;color:rgba(255,255,255,.4);margin-top:10px}
+    .whatsapp-channel-link{display:none}
+    @media(max-width:768px){.whatsapp-channel-link{display:block}}
     
     .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s}
     .whatsapp-btn:hover{transform:scale(1.1)}
@@ -250,6 +265,8 @@
         <a href="/">דף הבית</a>
         <a href="/about.html">אודות</a>
         <a href="/contact.html">צור קשר</a>
+        <a href="/contact.html?type=bug">דיווח על בעיה</a>
+        <a href="/about.html#faq">שאלות נפוצות</a>
       </div>
       <div class="footer-section">
         <h4>לחנויות</h4>
@@ -257,14 +274,43 @@
         <a href="/contact.html?type=update">עדכון פרטים</a>
       </div>
       <div class="footer-section">
-        <h4>עזרה</h4>
-        <a href="/contact.html?type=bug">דיווח על בעיה</a>
-        <a href="/about.html#faq">שאלות נפוצות</a>
+        <h4>עדכונים</h4>
+        <div class="footer-nl-title">הישארי בעניינים</div>
+        <div class="footer-nl-sub">מבצעים, קולקציות חדשות וטרנדים — ישירות למייל</div>
+        <div class="footer-nl-form">
+          <input type="email" id="nlEmail" class="footer-nl-input" placeholder="המייל שלך"/>
+          <button onclick="subscribeNewsletter()" class="footer-nl-btn">הרשמי</button>
+        </div>
+        <div id="nlMsg" class="footer-nl-msg"></div>
+        <a href="https://whatsapp.com/channel/0029VbCt98aHbFVCsegwyV2c" target="_blank" rel="noopener" class="whatsapp-channel-link" style="margin-top:10px;background:#25D366;color:#fff;text-align:center;border-radius:9px;padding:11px;font-size:14px;font-weight:700;text-decoration:none;letter-spacing:.3px">הצטרפו לערוץ הוואטסאפ שלנו</a>
+        <div class="footer-nl-note">ניתן לבטל הרשמה בכל עת • ללא ספאם</div>
       </div>
     </div>
     <div class="footer-bottom">
       <span>© 2025 LOOKLI - כל הזכויות שמורות</span>
     </div>
   </footer>
+<script>
+async function subscribeNewsletter() {
+  const email = document.getElementById('nlEmail').value.trim();
+  const msg = document.getElementById('nlMsg');
+  if (!email || !email.includes('@')) { msg.textContent = 'אנא הכנס/י כתובת מייל תקינה'; return; }
+  msg.textContent = '...';
+  try {
+    const res = await fetch('/api/newsletter/subscribe', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, source: 'footer' })
+    });
+    const d = await res.json();
+    if (res.ok) {
+      msg.textContent = '🎉 נרשמת בהצלחה!';
+      document.getElementById('nlEmail').value = '';
+    } else {
+      msg.textContent = d.error || 'שגיאה, נסי שוב';
+    }
+  } catch(e) { msg.textContent = 'שגיאת חיבור'; }
+}
+</script>
 </body>
 </html>

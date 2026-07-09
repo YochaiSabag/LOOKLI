@@ -71,7 +71,7 @@ console.log('🚀 Chemise Scraper');
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -92,6 +92,7 @@ function normalizeSize(s) {
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
+  let apiIncomplete = false; // true אם ה-API נעצר בגלל שגיאה/חסימה (לא כי הגיע לסוף הקטלוג בפועל)
 
   // ── שיטה 1: WooCommerce REST API ─────────────────────────────────────
   {
@@ -105,44 +106,49 @@ async function getAllProductUrls(page) {
           headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
           signal: AbortSignal.timeout(20000),
         });
-        if (!r.ok) { console.log(`    ✗ API ${r.status}`); break; }
+        if (!r.ok) {
+          const bodySnippet = await r.text().catch(() => '');
+          console.log(`    ✗ API ${r.status} בעמוד ${page_num} — ${bodySnippet.substring(0, 120)}`);
+          apiIncomplete = true; // עצירה לא-נקייה — ייתכן שיש עוד מוצרים שלא נאספו
+          break;
+        }
         const items = await r.json();
-        if (!items?.length) break;
+        if (!items?.length) break; // עמוד ריק אמיתי = סוף הקטלוג, תקין
         items.forEach(p => p.permalink && allUrls.add(p.permalink));
         total += items.length;
         console.log(`    page ${page_num}: ${items.length} (סה"כ: ${allUrls.size})`);
-        if (items.length < 100) break;
+        if (items.length < 100) break; // פחות מ-100 = בטוח סוף הקטלוג
         page_num++;
-      } catch(e) { console.log(`    ✗ API: ${e.message}`); break; }
+      } catch(e) {
+        console.log(`    ✗ API: ${e.message} (עמוד ${page_num})`);
+        apiIncomplete = true;
+        break;
+      }
     }
-    if (allUrls.size > 0) console.log(`  ✅ API: ${allUrls.size} מוצרים`);
+    if (allUrls.size > 0) console.log(`  ✅ API: ${allUrls.size} מוצרים${apiIncomplete ? ' (ייתכן חלקי — עוצר לא נקי)' : ''}`);
   }
 
-  // ── שיטה 3: Browser (fallback אחרון) ─────────────────────────────────
-  if (allUrls.size === 0) {
+  // ── שיטה 3: Browser (fallback) — רץ גם אם ה-API לא מצא כלום, וגם אם נעצר חלקית ──
+  if (allUrls.size === 0 || apiIncomplete) {
+    if (apiIncomplete && allUrls.size > 0) console.log(`  ⚠️ ה-API נעצר באמצע — מריץ גם גיבוי דפדפן כדי לוודא שלא חסרים מוצרים`);
     console.log(`  🌐 Browser fallback...`);
     const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
-    const categories = [
-      'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/',
-      'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/',
-    ];
-    for (const base of categories) {
-      for (let p = 1; p <= MAX_PAGES; p++) {
-        const url = p === 1 ? base : `${base}page/${p}/`;
-        try {
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-          await page.waitForTimeout(1500);
-          const urls = await page.evaluate(() =>
-            [...document.querySelectorAll('a[href*="/product/"]')]
-              .map(a => a.href)
-              .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
-              .filter((v, i, a) => a.indexOf(v) === i)
-          );
-          if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
-          urls.forEach(u => allUrls.add(u));
-          console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
-        } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
-      }
+    const base = 'https://chemise.co.il/%d7%97%d7%a0%d7%95%d7%aa/'; // חנות — כל המוצרים
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      const url = p === 1 ? base : `${base}page/${p}/`;
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForTimeout(1500);
+        const urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href)
+            .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
+        urls.forEach(u => allUrls.add(u));
+        console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
+      } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
     }
   }
 
@@ -507,9 +513,19 @@ async function scrapeProduct(page, url) {
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
 
     // תמונות — מעלה ל-Cloudinary (URL קבוע, לא תלוי ב-Railway IP)
-    // SKIP_IMAGE_UPLOAD=true מדלג לגמרי (למשל אצל נטפרי חוסם) — התמונות הקיימות ב-DB לא יימחקו (מוגן ב-saveProduct)
+    // אם למוצר כבר יש תמונות שמורות מהרצה קודמת — לא מנסים להעלות שוב (חוסך זמן, חשוב במיוחד אצל נטפרי)
+    // SKIP_IMAGE_UPLOAD=true מדלג לגמרי גם על מוצרים חדשים — התמונות הקיימות ב-DB לא יימחקו (מוגן ב-saveProduct)
     let finalImages = [];
-    if (process.env.SKIP_IMAGE_UPLOAD === 'true') {
+    let existingImages = [];
+    try {
+      const existing = await db.query('SELECT images FROM products WHERE source_url=$1', [url]);
+      existingImages = existing.rows[0]?.images || [];
+    } catch(_) {}
+
+    if (existingImages.length > 0) {
+      console.log(`    📸 כבר יש ${existingImages.length} תמונות שמורות — מדלג על העלאה`);
+      finalImages = existingImages;
+    } else if (process.env.SKIP_IMAGE_UPLOAD === 'true') {
       console.log(`    📸 דילוג על העלאת תמונות (SKIP_IMAGE_UPLOAD)`);
     } else {
       console.log(`    📸 מעלה ${Math.min(data.images.length, 6)} תמונות ל-Cloudinary...`);
@@ -655,6 +671,14 @@ try {
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+
+  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
+  if (fail > urls.length * 0.5 && urls.length > 10) {
+    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+  } else {
+    await reportScraperFinished(db, 'CHEMISE', urls);
+  }
+
   await runHealthCheck(ok, fail);
   
 } finally {

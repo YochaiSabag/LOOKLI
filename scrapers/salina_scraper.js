@@ -73,6 +73,7 @@ async function getAllProductUrls(page) {
       }
 
       console.log(`    📦 נמצאו ${postIds.length} post IDs — שולף URLs...`);
+      const sizeBefore = allUrls.size;
 
       // שלוף URL לכל post ID דרך WP REST API
       for (const id of postIds) {
@@ -91,6 +92,11 @@ async function getAllProductUrls(page) {
       }
 
       console.log(`    ✓ סה"כ: ${allUrls.size}`);
+
+      if (allUrls.size === sizeBefore) {
+        console.log(`    ⏹ שום URL חדש לא נוסף — כנראה הגענו לסוף העימוד האמיתי, עוצר`);
+        break;
+      }
 
     } catch(e) {
       console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);

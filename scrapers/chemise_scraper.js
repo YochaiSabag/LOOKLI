@@ -459,25 +459,50 @@ async function scrapeProduct(page, url) {
         }
       }
     } else {
-      // שיטה 2: לחץ כל צבע ב-Playwright וקרא מידות זמינות
-      console.log(`    ⚠️ אין JSON - משתמש ב-swatches`);
+      // שיטה 2: לחץ כל שילוב צבע+מידה בפועל ב-Playwright, ובדוק מלאי אמיתי אחרי כל לחיצה
+      // (בלי JSON, WooCommerce לא מסמן מראש אילו מידות זמינות — צריך לבחור צבע+מידה יחד ולבדוק בפועל)
+      console.log(`    ⚠️ אין JSON - לוחץ על כל שילוב צבע+מידה בפועל (${data.rawColors.length} צבעים)`);
       console.log(`    🔍 rawColors names: ${data.rawColors.map(c=>c.name+'('+(c.disabled?'dis':'ok')+')').join(', ')}`);
       const colorSelQ = '.color-variable-items-wrapper li, [data-attribute_name*="color"] li, [data-attribute_name*="צבע"] li';
       const sizeSelQ  = '.size-variable-items-wrapper li, [data-attribute_name*="size"] li, [data-attribute_name*="מידה"] li, [data-attribute_name*="מידות"] li';
       const colorEls = await page.$$(colorSelQ);
+      const MAX_COMBOS = 80; // רשת ביטחון מפני מוצרים עם כמות וריאציות חריגה
+      let comboCount = 0;
       for (const el of colorEls) {
         const colorName = await el.evaluate(e =>
           e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || ''
         );
         if (!colorName) continue;
         await el.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(500);
-        const sizeNames = await page.evaluate((sel) =>
-          [...document.querySelectorAll(sel)]
-            .filter(s => !s.classList.contains('disabled') && !s.classList.contains('out-of-stock'))
-            .map(s => s.getAttribute('data-title') || s.getAttribute('title') || s.getAttribute('data-value') || ''),
-          sizeSelQ
-        );
+        await page.waitForTimeout(400);
+
+        const sizeEls = await page.$$(sizeSelQ);
+        const inStockSizeNames = [];
+        for (const sizeEl of sizeEls) {
+          if (comboCount++ > MAX_COMBOS) break;
+          const sizeName = await sizeEl.evaluate(e =>
+            e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || ''
+          );
+          if (!sizeName) continue;
+          await sizeEl.click({ force: true }).catch(() => {});
+          await page.waitForTimeout(600); // המתנה ל-AJAX של WooCommerce שיעדכן מלאי
+
+          // מלאי אמיתי: בודקים אם כפתור "הוספה לסל" פעיל (לא disabled) — האינדיקציה האמינה ביותר
+          const isAvailable = await page.evaluate(() => {
+            const btn = document.querySelector('.single_add_to_cart_button');
+            const wrap = document.querySelector('.woocommerce-variation-add-to-cart');
+            if (!btn) return false;
+            const disabledByClass = btn.classList.contains('disabled') || btn.classList.contains('wc-variation-is-unavailable');
+            const disabledByWrap = wrap?.classList.contains('woocommerce-variation-add-to-cart-disabled');
+            const stockText = document.querySelector('.woocommerce-variation-availability .stock')?.textContent || '';
+            const outOfStockText = stockText.includes('אזל') || stockText.toLowerCase().includes('out of stock');
+            return !disabledByClass && !disabledByWrap && !outOfStockText;
+          });
+          if (comboCount > MAX_COMBOS) break;
+          if (isAvailable) inStockSizeNames.push(sizeName);
+        }
+        if (comboCount > MAX_COMBOS) { console.log(`    ⏹ MAX_COMBOS הגיע — עוצר`); }
+
         const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
         const _n = normalizeColor(clean, clean);
         let normColor = (_n && _n !== 'אחר') ? _n : getOtherColor();
@@ -488,10 +513,16 @@ async function scrapeProduct(page, url) {
             normColor = withLabel;
           }
         }
-        availableColors.add(normColor);
-        const flatSizes = [...new Set(sizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
-        colorSizesMap[normColor] = flatSizes;
-        flatSizes.forEach(s => availableSizes.add(s));
+        const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
+        if (flatSizes.length > 0) {
+          availableColors.add(normColor);
+          colorSizesMap[normColor] = flatSizes;
+          flatSizes.forEach(s => availableSizes.add(s));
+          console.log(`      ✓ ${normColor}: ${flatSizes.join('/')}`);
+        } else {
+          console.log(`      ✗ ${normColor}: אין מידות במלאי — מדולג`);
+        }
+        if (comboCount > MAX_COMBOS) break;
       }
     } // סוף else swatches
     const uniqueColors = [...availableColors];

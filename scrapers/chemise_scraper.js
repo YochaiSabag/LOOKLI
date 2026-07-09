@@ -71,7 +71,7 @@ console.log('🚀 Chemise Scraper');
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -122,22 +122,27 @@ async function getAllProductUrls(page) {
   if (allUrls.size === 0) {
     console.log(`  🌐 Browser fallback...`);
     const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
-    const base = 'https://chemise.co.il/%d7%97%d7%a0%d7%95%d7%aa/'; // חנות — כל המוצרים
-    for (let p = 1; p <= MAX_PAGES; p++) {
-      const url = p === 1 ? base : `${base}page/${p}/`;
-      try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        await page.waitForTimeout(1500);
-        const urls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href)
-            .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
-        urls.forEach(u => allUrls.add(u));
-        console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
-      } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
+    const categories = [
+      'https://chemise.co.il/product-category/%d7%a0%d7%a9%d7%99%d7%9d/',
+      'https://chemise.co.il/product-category/new-%d7%a0%d7%a9%d7%99%d7%9d/',
+    ];
+    for (const base of categories) {
+      for (let p = 1; p <= MAX_PAGES; p++) {
+        const url = p === 1 ? base : `${base}page/${p}/`;
+        try {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+          await page.waitForTimeout(1500);
+          const urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href)
+              .filter(h => h.includes('chemise.co.il/product/') && !h.includes('/product-category/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls.length === 0) { console.log(`    ⏹ עמוד ריק`); break; }
+          urls.forEach(u => allUrls.add(u));
+          console.log(`    page ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
+        } catch(e) { console.log(`    ✗ ${e.message.substring(0,50)}`); break; }
+      }
     }
   }
 
@@ -502,11 +507,16 @@ async function scrapeProduct(page, url) {
     console.log(`    📁 ${category || '-'} | סגנון: ${style || '-'} | גיזרה: ${fit || '-'} | בד: ${fabric || '-'}`);
 
     // תמונות — מעלה ל-Cloudinary (URL קבוע, לא תלוי ב-Railway IP)
-    console.log(`    📸 מעלה ${Math.min(data.images.length, 6)} תמונות ל-Cloudinary...`);
-    const finalImages = [];
-    for (const imgUrl of data.images.slice(0, 6)) {
-      const cdnUrl = await uploadToCloudinary(imgUrl);
-      if (cdnUrl) finalImages.push(cdnUrl);
+    // SKIP_IMAGE_UPLOAD=true מדלג לגמרי (למשל אצל נטפרי חוסם) — התמונות הקיימות ב-DB לא יימחקו (מוגן ב-saveProduct)
+    let finalImages = [];
+    if (process.env.SKIP_IMAGE_UPLOAD === 'true') {
+      console.log(`    📸 דילוג על העלאת תמונות (SKIP_IMAGE_UPLOAD)`);
+    } else {
+      console.log(`    📸 מעלה ${Math.min(data.images.length, 6)} תמונות ל-Cloudinary...`);
+      for (const imgUrl of data.images.slice(0, 6)) {
+        const cdnUrl = await uploadToCloudinary(imgUrl);
+        if (cdnUrl) finalImages.push(cdnUrl);
+      }
     }
 
     return {
@@ -549,8 +559,8 @@ async function saveProduct(product) {
          title          = EXCLUDED.title,
          price          = EXCLUDED.price,
          original_price = EXCLUDED.original_price,
-         image_url      = EXCLUDED.image_url,
-         images         = EXCLUDED.images,
+         image_url      = CASE WHEN cardinality(EXCLUDED.images) > 0 THEN EXCLUDED.image_url ELSE products.image_url END,
+         images         = CASE WHEN cardinality(EXCLUDED.images) > 0 THEN EXCLUDED.images    ELSE products.images    END,
          sizes          = EXCLUDED.sizes,
          color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
          colors         = EXCLUDED.colors,
@@ -645,13 +655,6 @@ try {
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
-
-  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
-  if (fail > urls.length * 0.5 && urls.length > 10) {
-    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
-  } else {
-    await reportScraperFinished(db, 'CHEMISE', urls);
-  }
   await runHealthCheck(ok, fail);
   
 } finally {

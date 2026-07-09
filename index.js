@@ -81,7 +81,7 @@ app.use('/api/', (req, res, next) => {
 });
 
 // ===== SEO helpers (robots.txt + sitemap.xml) =====
-const SITE_URL = (process.env.SITE_URL || "https://www.lookli.co.il").replace('://lookli.co.il', '://www.lookli.co.il');
+const SITE_URL = process.env.SITE_URL || "https://lookli.co.il";
 
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
@@ -239,8 +239,9 @@ app.get("/sitemap.xml", async (req, res) => {
 
     const staticUrls = [
       { loc: `${base}/`, priority: '1.0', changefreq: 'daily' },
-      { loc: `${base}/about.html`, priority: '0.5', changefreq: 'monthly' },
-      { loc: `${base}/contact.html`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${base}/about`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${base}/contact`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${base}/advertise`, priority: '0.5', changefreq: 'monthly' },
     ];
 
     const productUrls = products.rows.map(p => {
@@ -273,6 +274,21 @@ ${allUrls.map(u => `  <url>
     res.status(500).send('Error generating sitemap');
   }
 });
+
+// עמודים סטטיים — URL נקי בלי .html
+app.get("/about", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "about.html"));
+});
+app.get("/contact", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "contact.html"));
+});
+app.get("/advertise", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "advertise.html"));
+});
+// הפניות 301 מהכתובות הישנות עם .html — לשמירה על SEO וקישורים קיימים
+app.get("/about.html", (req, res) => res.redirect(301, "/about"));
+app.get("/contact.html", (req, res) => res.redirect(301, "/contact"));
+app.get("/advertise.html", (req, res) => res.redirect(301, "/advertise"));
 
 app.use(express.static(path.join(__dirname, "public"), {
   maxAge: '7d',        // תמונות, CSS, JS — cache שבוע
@@ -310,7 +326,7 @@ app.get("/product/:slug", async (req, res) => {
     if (!product) return res.sendFile(path.join(__dirname, "public", "index.html"));
 
     // בנה HTML עם OG tags מלאים
-    const base = process.env.SITE_URL || 'https://www.lookli.co.il';
+    const base = process.env.SITE_URL || 'https://lookli.co.il';
     const title = product.title || 'מוצר';
     const desc = product.description || `${title} ב-${product.store} — ₪${product.price}`;
     const img = (product.images?.[0]) || product.image_url || '';
@@ -2280,7 +2296,7 @@ app.get('/unsubscribe', async (req, res) => {
       a{display:inline-block;padding:12px 28px;background:#c48cb3;color:#fff;border-radius:24px;text-decoration:none;font-weight:700}</style>
       </head><body><div class="box"><h2>✓ הוסרת בהצלחה</h2>
       <p>כתובת המייל <strong>${email}</strong> הוסרה מרשימת התפוצה של LOOKLI.</p>
-      <a href="https://www.lookli.co.il">חזרה לאתר</a></div></body></html>`);
+      <a href="https://lookli.co.il">חזרה לאתר</a></div></body></html>`);
   } catch(e) { res.status(500).send('שגיאה — נסה שוב'); }
 });
 
@@ -3209,7 +3225,7 @@ const STORE_NAMES = {
   'AVIVIT':  'אביבית וייצמן',
 };
 
-const SITE_BASE = (process.env.SITE_URL || 'https://www.lookli.co.il').replace('://lookli.co.il', '://www.lookli.co.il');
+const SITE_BASE = process.env.SITE_URL || 'https://lookli.co.il';
 
 // בנה HTML email
 function buildNewProductsEmail(storeGroups) {
@@ -3315,7 +3331,7 @@ function unsubscribeToken(email) {
 
 async function sendNewProductsEmail(toEmails, subject, htmlTemplate) {
   const RESEND_KEY = process.env.RESEND_API_KEY;
-  const SITE = process.env.SITE_URL || 'https://www.lookli.co.il';
+  const SITE = process.env.SITE_URL || 'https://lookli.co.il';
   if (!RESEND_KEY) throw new Error('חסר RESEND_API_KEY');
 
   const FROM = 'LOOKLI <info@lookli.co.il>';

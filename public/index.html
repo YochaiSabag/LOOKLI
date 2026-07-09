@@ -745,8 +745,8 @@
       </a>
       <nav class="header-nav">
         <a href="/">דף הבית</a>
-        <a href="/about.html">אודות</a>
-        <a href="/contact.html">צור קשר</a>
+        <a href="/about">אודות</a>
+        <a href="/contact">צור קשר</a>
       </nav>
       <div class="header-auth">
         <button class="auth-btn" id="authNavBtn" onclick="openAuthModal()">
@@ -1058,17 +1058,17 @@
       <div class="footer-section">
         <h4>ניווט</h4>
         <a href="/">דף הבית</a>
-        <a href="/about.html">אודות</a>
-        <a href="/contact.html">צור קשר</a>
-        <a href="/contact.html?type=bug">דיווח על בעיה</a>
-        <a href="/about.html#faq">שאלות נפוצות</a>
+        <a href="/about">אודות</a>
+        <a href="/contact">צור קשר</a>
+        <a href="/contact?type=bug">דיווח על בעיה</a>
+        <a href="/about#faq">שאלות נפוצות</a>
       </div>
       <!-- עמודה 3: לחנויות -->
       <div class="footer-section">
         <h4>לחנויות</h4>
-        <a href="/contact.html?type=store">הצטרפות לאתר</a>
-        <a href="/contact.html?type=update">עדכון פרטים</a>
-        <a href="/advertise.html">פרסמו אצלנו</a>
+        <a href="/contact?type=store">הצטרפות לאתר</a>
+        <a href="/contact?type=update">עדכון פרטים</a>
+        <a href="/advertise">פרסמו אצלנו</a>
       </div>
       <!-- עמודה 4: newsletter (שמאל) -->
       <div class="footer-section footer-nl">
@@ -1332,8 +1332,8 @@ function toggleMobileNav(){
     menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);visibility:hidden;transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
     menu.innerHTML = `
       <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">דף הבית</a>
-      <a href="/about.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">אודות</a>
-      <a href="/contact.html" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">צור קשר</a>
+      <a href="/about" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">אודות</a>
+      <a href="/contact" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">צור קשר</a>
     `;
     document.body.appendChild(menu);
   }
@@ -2314,6 +2314,22 @@ window.addEventListener('popstate',e=>{
 
 document.getElementById("q").addEventListener("input",handleSearchInput);
 document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")runAISearch()});
+
+// תמיכה בהגעה מעמודים אחרים (אודות/צור קשר) עם פעולה מבוקשת ב-URL
+(function(){
+  const params = new URLSearchParams(location.search);
+  const q = params.get('q');
+  if (q) {
+    const input = document.getElementById('q');
+    if (input) { input.value = q; window.addEventListener('DOMContentLoaded', () => runAISearch()); }
+  }
+  if (params.get('openAuth') === '1') {
+    window.addEventListener('DOMContentLoaded', () => { if (typeof openAuthModal === 'function') openAuthModal(); });
+  }
+  if (params.get('openStylist') === '1') {
+    window.addEventListener('DOMContentLoaded', () => { if (typeof openStylistUpload === 'function') openStylistUpload(); });
+  }
+})();
 
 // ===== Typewriter placeholder =====
 (function(){
@@ -3608,7 +3624,7 @@ document.addEventListener('click', e => {
       // (שומר על הרוחב הקבוע של הסייד-בר בלי לגעת בגריד, והופך מלאי פרסום פנוי להזדמנות)
       if (!desktopAds.length) {
         const placeholder = document.createElement('a');
-        placeholder.href = '/contact.html';
+        placeholder.href = '/contact';
         placeholder.className = 'adunit adunit-single';
         placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;text-align:center;background:#fafafa;border:1.5px dashed #e5e7eb;color:#9ca3af;font-size:12px;padding:10px;line-height:1.6';
         placeholder.innerHTML = 'מקום פנוי לפרסום<br><strong style="color:#374151">לפרטים — צרו קשר</strong>';

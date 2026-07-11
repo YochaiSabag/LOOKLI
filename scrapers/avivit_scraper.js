@@ -18,7 +18,7 @@ console.log('🚀 Avivit Weizman Scraper');
 
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, normalizeColorFromTitle, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
+const { normalizeColor, normalizeColorFromTitle, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
@@ -42,51 +42,64 @@ async function getAllProductUrls(page) {
   const allUrls = new Set();
 
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+  const categories = [
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%91%d7%99%d7%91-26/', label: 'קולקציית אביב 26', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/sale/', label: 'sale', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/basic/', label: 'basic', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa-%d7%9c%d7%97%d7%92/', label: 'שמלות לחג', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a0%d7%a2%d7%a8%d7%95%d7%aa/', label: 'נערות', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a1%d7%98%d7%99%d7%9d/', label: 'סטים', maxPages: MAX_PAGES },
+    { base: 'https://avivit-weizman.co.il/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%90%d7%99%d7%a8%d7%95%d7%a2%d7%99%d7%9d/', label: 'קולקציית אירועים', maxPages: MAX_PAGES },
+  ];
 
-  for (let p = 1; p <= MAX_PAGES; p++) {
-    const url = p === 1 ? 'https://avivit-weizman.co.il/shop/' : `https://avivit-weizman.co.il/shop/page/${p}/`;
-    try {
-      console.log(`  → page ${p}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(4000);
+  for (const cat of categories) {
+    console.log(`  📁 [${cat.label}]`);
 
-      // בדוק אם Cloudflare חוסם
-      const pageTitle = await page.title();
-      console.log(`    📄 כותרת: ${pageTitle.substring(0,60)}`);
-      if (pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('checking')) {
-        console.log(`    🚫 Cloudflare חוסם — מחכה...`);
-        await page.waitForTimeout(8000);
-      }
+    for (let p = 1; p <= cat.maxPages; p++) {
+      const url = p === 1 ? cat.base : `${cat.base}page/${p}/`;
+      try {
+        console.log(`  → page ${p}`);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(4000);
+        
+        // בדוק אם Cloudflare חוסם
+        const pageTitle = await page.title();
+        console.log(`    📄 כותרת: ${pageTitle.substring(0,60)}`);
+        if (pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('checking')) {
+          console.log(`    🚫 Cloudflare חוסם — מחכה...`);
+          await page.waitForTimeout(8000);
+        }
 
-      // גלילה למטה — האתר טוען עוד מוצרים בגלילה
-      let lastCount = 0;
-      for (let scroll = 0; scroll < 8; scroll++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(1500);
-        const count = await page.evaluate(() =>
-          document.querySelectorAll('a[href*="/product/"]').length
+        // גלילה למטה — האתר טוען עוד מוצרים בגלילה
+        let lastCount = 0;
+        for (let scroll = 0; scroll < 8; scroll++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1500);
+          const count = await page.evaluate(() =>
+            document.querySelectorAll('a[href*="/product/"]').length
+          );
+          if (count === lastCount) break;
+          lastCount = count;
+        }
+
+        const urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('avivit-weizman.co.il/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
         );
-        if (count === lastCount) break;
-        lastCount = count;
+
+        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק - עוצר`); break; }
+
+        const before = allUrls.size;
+        urls.forEach(u => allUrls.add(u));
+        console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+
+        if (allUrls.size === before && p > 1) break;
+      } catch (e) {
+        console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
+        break;
       }
-
-      const urls = await page.evaluate(() =>
-        [...document.querySelectorAll('a[href*="/product/"]')]
-          .map(a => a.href.split('?')[0])
-          .filter(h => h.includes('avivit-weizman.co.il/product/'))
-          .filter((v, i, a) => a.indexOf(v) === i)
-      );
-
-      if (urls.length === 0) { console.log(`    ⏹ עמוד ריק - עוצר`); break; }
-
-      const before = allUrls.size;
-      urls.forEach(u => allUrls.add(u));
-      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-
-      if (allUrls.size === before && p > 1) break;
-    } catch (e) {
-      console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
-      break;
     }
   }
 
@@ -346,8 +359,7 @@ async function scrapeProduct(page, url) {
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
-      console.log(`  ⏭️ דלג - אין מידות`);
-      return null;
+      console.log(`  ⚠️ אין מידות במלאי כרגע — שומר בכל זאת עם רשימת מידות ריקה`);
     }
 
     // משלוח
@@ -546,13 +558,6 @@ try {
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
-
-  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
-  if (fail > urls.length * 0.5 && urls.length > 10) {
-    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
-  } else {
-    await reportScraperFinished(db, 'AVIVIT', urls);
-  }
   await runHealthCheck(ok, fail);
 
 } finally {

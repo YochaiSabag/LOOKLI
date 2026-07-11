@@ -20,7 +20,7 @@ console.log('🚀 Rare Scraper');
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -214,8 +214,7 @@ async function scrapeProduct(page, url) {
 
     // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
-      console.log(`  ⏭️ דלג - אין מידות`);
-      return null;
+      console.log(`  ⚠️ אין מידות במלאי כרגע — שומר בכל זאת עם רשימת מידות ריקה`);
     }
 
     // חילוץ צבע מהכותרת
@@ -356,13 +355,6 @@ try {
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
-
-  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
-  if (fail > urls.length * 0.5 && urls.length > 10) {
-    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
-  } else {
-    await reportScraperFinished(db, 'RARE', urls);
-  }
   await runHealthCheck(ok, fail);
 
 } finally {

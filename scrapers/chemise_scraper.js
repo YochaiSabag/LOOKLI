@@ -89,7 +89,15 @@ function normalizeSize(s) {
 
 
 
+let TEST_MODE_ACTIVE = false; // מתעדכן אוטומטית אם מצב הבדיקה למטה פעיל
+
 async function getAllProductUrls(page) {
+  // ===== TEST MODE =====
+  // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
+  // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
+  // TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%95%d7%92%d7%95/'];
+  // ===== END TEST MODE =====
+
   console.log('\n📂 איסוף קישורים...\n');
   const allUrls = new Set();
   let apiIncomplete = false; // true אם ה-API נעצר בגלל שגיאה/חסימה (לא כי הגיע לסוף הקטלוג בפועל)
@@ -535,8 +543,7 @@ async function scrapeProduct(page, url) {
     const mainColor = uniqueColors[0] || null;
 
     if (uniqueSizes.length === 0) {
-      console.log(`  ✗ אין מידות במלאי — ${data.title.substring(0, 35)}`);
-      return null;
+      console.log(`  ⚠️ אין מידות במלאי כרגע — שומר בכל זאת עם רשימת מידות ריקה: ${data.title.substring(0, 35)}`);
     }
 
     console.log(`  ✓ ${data.title.substring(0, 40)}`);
@@ -704,7 +711,9 @@ try {
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
 
   // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
-  if (fail > urls.length * 0.5 && urls.length > 10) {
+  if (TEST_MODE_ACTIVE) {
+    console.log(`🧪 TEST MODE פעיל — דילוג על reportScraperFinished (לא לדווח על מוצרים "לא נמצאו" מריצת בדיקה חלקית)`);
+  } else if (fail > urls.length * 0.5 && urls.length > 10) {
     console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
   } else {
     await reportScraperFinished(db, 'CHEMISE', urls);

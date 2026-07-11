@@ -20,7 +20,7 @@ console.log('🚀 MYME Scraper — myme.co.il');
 // טעינת קונפיג
 // ======================================================================
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
 // ======================================================================
 // המרת מידות EU
@@ -152,7 +152,7 @@ async function scrapeProduct(page, url) {
     const sizes    = [...new Set(data.sizes.flatMap(s => normalizeSize(s)))];
     const allSizes = [...new Set(data.allSizes.flatMap(s => normalizeSize(s)))];
     if (!allSizes.length) { console.log(`  ⏭ מדלג — אין מידות כלל`); return null; }
-    if (!sizes.length) { console.log(`  ⏭ מדלג — כל המידות אזלו`); return null; }
+    if (!sizes.length) { console.log(`  ⚠️ כל המידות אזלו כרגע — שומר בכל זאת עם רשימת מידות ריקה`); }
 
     // צבע — מתוך הכותרת
     const color = normalizeColor(data.title, data.title);
@@ -275,13 +275,6 @@ try {
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
-
-  // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
-  if (fail > urls.length * 0.5 && urls.length > 10) {
-    console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
-  } else {
-    await reportScraperFinished(db, 'MYME', urls);
-  }
   await runHealthCheck(ok, fail);
 
 } finally {

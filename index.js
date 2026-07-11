@@ -1,5 +1,6 @@
 console.log("BOOT DEBUG ROUTE VERSION 1");
 import express from "express";
+import compression from "compression";
 import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -13,6 +14,7 @@ const __dirname = path.dirname(__filename);
 const { Pool } = pkg;
 const app = express();
 app.set('trust proxy', 1); // Railway רץ מאחורי proxy
+app.use(compression()); // gzip לכל התגובות — מקטין את גודל ההעברה משמעותית (HTML/CSS/JS/JSON)
 
 // Google Sign In — דורש COOP מסוים
 app.use((req, res, next) => {
@@ -434,9 +436,19 @@ function calculateShipping(store, price) {
   return { cost: isFree ? 0 : info.cost, isFree, threshold: info.threshold };
 }
 
+// קאש פשוט בזיכרון למצב ברירת המחדל של /api/filters (בלי שום פילטר נבחר) —
+// זה המקרה הנפוץ ביותר (רץ כמעט בכל טעינת עמוד), ומתעדכן מעצמו כל 3 דקות
+let filtersDefaultCache = null;
+let filtersDefaultCacheTime = 0;
+const FILTERS_CACHE_TTL_MS = 3 * 60 * 1000;
+
 app.get("/api/filters", async (req, res) => {
   try {
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
+    const isDefaultState = !store && !category && !color && !size && !style && !fit && !fabric && !pattern && !design;
+    if (isDefaultState && filtersDefaultCache && (Date.now() - filtersDefaultCacheTime < FILTERS_CACHE_TTL_MS)) {
+      return res.json(filtersDefaultCache);
+    }
     let baseWhere = '(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)';
     const baseParams = [];
     let paramIndex = 1;
@@ -541,7 +553,7 @@ app.get("/api/filters", async (req, res) => {
       const bi = sizeOrder.indexOf(b.toUpperCase());
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
-    res.json({
+    const responseData = {
       stores: storesRes.rows.map(r => r.store).filter(Boolean),
       sizes: uniqueSizes,
       colors: colorsRes.rows.map(r => r.color).filter(c => c && validColorSet.has(c)),
@@ -553,7 +565,12 @@ app.get("/api/filters", async (req, res) => {
       fabrics:    filterByCfg(fabricsRes.rows,     'fabric',   'fabric'),
       designs: designRes.rows.map(r => r.detail).filter(Boolean),
       maxPrice: Math.ceil(parseFloat(maxPriceRes.rows[0]?.max_price) || 500)
-    });
+    };
+    if (isDefaultState) {
+      filtersDefaultCache = responseData;
+      filtersDefaultCacheTime = Date.now();
+    }
+    res.json(responseData);
   } catch (err) {
     console.error("filters error:", err.message);
     res.status(500).json({ error: "DB error" });
@@ -4198,6 +4215,28 @@ app.listen(PORT, async () => {
       clicked_at TIMESTAMP DEFAULT NOW()
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at DESC)`);
+
+    // ── אינדקסים לביצועים על טבלת products (חיפוש/סינון איטי בלי זה) ──
+    try {
+      // אינדקס חלקי — רוב השאילתות מסננות תמיד banned=false/hidden_stale=false
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_visible ON products(id) WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_store ON products(store)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_color ON products(color)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_style ON products(style)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_fit ON products(fit)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_fabric ON products(fabric)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_pattern ON products(pattern)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_price ON products(price)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_colors_gin ON products USING GIN(colors)`);
+      // pg_trgm — מאיץ באופן דרמטי חיפוש title ILIKE '%...%' (בלי זה זו סריקה מלאה בכל חיפוש טקסט חופשי)
+      await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON products USING GIN(title gin_trgm_ops)`);
+      console.log('✅ אינדקסי products מוכנים');
+    } catch(e) {
+      console.log('⚠️ יצירת אינדקסי products נכשלה (לא קריטי, השרת ממשיך):', e.message.substring(0,100));
+    }
+
     // טבלת טוקני תצוגה זמניים
     await pool.query(`CREATE TABLE IF NOT EXISTS preview_tokens (
       token VARCHAR(64) PRIMARY KEY,

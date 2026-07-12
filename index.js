@@ -716,6 +716,25 @@ app.get("/api/products", async (req, res) => {
       }
     }
     if (store) { sql += ` AND store = $${i++}`; params.push(store); }
+
+    // בדיקת התאמת צבע+מידה ב-SQL (לא ב-JS אחרי השליפה) — הכרחי כדי שLIMIT/OFFSET יהיו מדויקים
+    if (color && size) {
+      const LIGHT_COLORS2 = ['אבן', 'לבן', 'שמנת', 'תכלת', 'צהוב', 'אפרסק', 'מנטה'];
+      let colorsForCS = color.split(',').filter(Boolean);
+      if (colorsForCS.includes('בהיר')) {
+        colorsForCS = [...new Set([...colorsForCS.filter(c => c !== 'בהיר'), ...LIGHT_COLORS2])];
+      }
+      const sizesForCS = size.split(',').filter(Boolean);
+      const allExpandedSizesCS = [];
+      sizesForCS.forEach(s => expandSize(s).forEach(es => { if (!allExpandedSizesCS.includes(es)) allExpandedSizesCS.push(es); }));
+      sql += ` AND (
+        color_sizes IS NULL OR color_sizes = '{}'::jsonb OR EXISTS (
+          SELECT 1 FROM jsonb_object_keys(color_sizes) AS ck
+          WHERE ck = ANY($${i}::text[]) AND color_sizes -> ck ?| $${i+1}::text[]
+        )
+      )`;
+      params.push(colorsForCS, allExpandedSizesCS); i += 2;
+    }
     if (style) { 
       const styles = style.split(',').filter(Boolean);
       // מיפוי ערכי תצוגה מאוחדים לערכי DB אמיתיים (אותה לוגיקה גם לבחירה בודדת וגם למרובה)
@@ -818,6 +837,10 @@ app.get("/api/products", async (req, res) => {
     const aliasMatchQ = q ? SEARCH_ALIASES[q.toLowerCase().trim()] : null;
     const isAliasMatch = aliasMatchQ || aliasColor;
 
+    // סה"כ תוצאות (לפני LIMIT/OFFSET) — לעימוד אמיתי בפרונט
+    const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
     if (sort === 'price_asc') {
     } else if (sort === 'price_desc') {
       sql += ` ORDER BY price DESC`;
@@ -830,33 +853,20 @@ app.get("/api/products", async (req, res) => {
     } else {
       sql += ` ORDER BY (id % 7), id DESC`;
     }
-    sql += ` LIMIT 5000`;
+
+    // עימוד אמיתי — limit/offset מהפרונט, עם הגבלת ביטחון (מקסימום 100 בבקשה אחת)
+    const reqLimit = Math.min(parseInt(req.query.limit) || 60, 100);
+    const reqOffset = Math.max(parseInt(req.query.offset) || 0, 0);
+    sql += ` LIMIT $${i} OFFSET $${i+1}`;
+    params.push(reqLimit, reqOffset); i += 2;
 
     const result = await pool.query(sql, params);
     let rows = result.rows;
-    
-    // סינון color+size ב-JS: אם שניהם צוינו, נבדוק ב-color_sizes שהצבע זמין במידה
-    if (color && size) {
-      const sizeList = size.split(',').filter(Boolean);
-      const allExpandedSizes = [];
-      sizeList.forEach(s => expandSize(s).forEach(es => { if (!allExpandedSizes.includes(es)) allExpandedSizes.push(es); }));
-      const colorList = color.split(',').filter(Boolean);
-      rows = rows.filter(p => {
-        if (!p.color_sizes) return true; // אין מידע - מציג
-        try {
-          const cs = typeof p.color_sizes === 'string' ? JSON.parse(p.color_sizes) : p.color_sizes;
-          if (!cs || Object.keys(cs).length === 0) return true;
-          // Check if ANY selected color has ANY selected size
-          return colorList.some(c => {
-            const colorSizes = cs[c];
-            if (!colorSizes) return false;
-            return allExpandedSizes.some(sz => colorSizes.includes(sz));
-          });
-        } catch(e) { return true; }
-      });
-    }
-    
-    res.json(rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+
+    res.json({
+      results: rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })),
+      total
+    });
   } catch (err) {
     console.error("products error:", err.message);
     res.status(500).json({ error: "DB error" });
@@ -4232,6 +4242,11 @@ app.listen(PORT, async () => {
       // pg_trgm — מאיץ באופן דרמטי חיפוש title ILIKE '%...%' (בלי זה זו סריקה מלאה בכל חיפוש טקסט חופשי)
       await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON products USING GIN(title gin_trgm_ops)`);
+      // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);
+      // מעדכן את סטטיסטיקות התכנון של Postgres מיד, כדי שהאינדקסים החדשים ינוצלו כבר מההרצה הראשונה
+      await pool.query(`ANALYZE products`);
+      await pool.query(`ANALYZE clicks`);
       console.log('✅ אינדקסי products מוכנים');
     } catch(e) {
       console.log('⚠️ יצירת אינדקסי products נכשלה (לא קריטי, השרת ממשיך):', e.message.substring(0,100));

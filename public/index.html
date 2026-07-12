@@ -1112,6 +1112,7 @@ function handleImgError(img){
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
 let currentPage=1,itemsPerPage=isMobile?12:28,allProducts=[],isLoading=false;
+let paginationMode='client', totalResults=0, lastSearchParams=null; // 'server' = עימוד אמיתי מה-DB (חיפוש רגיל), 'client' = כל התוצאות כבר בזיכרון (AI/תמונה)
 
 // show_rate: session-based counter (10% = פעם מכל 10 כניסות)
 const _sessionCounter = (() => {
@@ -1447,7 +1448,7 @@ async function searchByImage(event){
     if(analysis.pattern)activePattern=analysis.pattern;
     renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
     updateActiveFiltersBar();
-    allProducts=data.results;currentPage=1;renderPage();
+    paginationMode='client';allProducts=data.results;currentPage=1;renderPage();
     document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (חיפוש תמונה)`;
   }catch(e){console.error(e);alert('שגיאה בחיפוש תמונה');runRegularSearch();}
   finally{
@@ -1693,7 +1694,7 @@ async function startStylistAnalysis(){
     document.getElementById('stylistModalBody').innerHTML=html;
 
     resetAllFiltersQuietly();
-    allProducts=data.results;currentPage=1;renderPage();
+    paginationMode='client';allProducts=data.results;currentPage=1;renderPage();
     document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (סטייליסטית AI)`;
   }catch(e){console.error(e);closeStylistModal();alert('שגיאה בניתוח התמונה');}
 }
@@ -1724,7 +1725,7 @@ async function runAISearch(){
     // רענון כל הפילטרים ויזואלית
     renderColorGrid();renderCategoryBoxes();renderSizeBoxes();renderStyleBoxes();renderFitBoxes();renderFabricBoxes();renderPatternBoxes();renderDesignBoxes();
     updateActiveFiltersBar();
-    allProducts=data.results;currentPage=1;renderPage();
+    paginationMode='client';allProducts=data.results;currentPage=1;renderPage();
     document.getElementById("metaToolbar").textContent=`${data.count} תוצאות`;
     previousSearchQuery=q;
   }catch(e){console.error(e);alert("שגיאה בחיפוש")}
@@ -1759,7 +1760,12 @@ async function runRegularSearch(){
   const sliderMax=document.getElementById("priceRange").max;
   if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
   if(window._sortVal&&window._sortVal!=='new')params.set("sort",window._sortVal);
-  
+
+  paginationMode='server';
+  lastSearchParams = new URLSearchParams(params); // בסיס ל-loadMore, בלי limit/offset (יתווספו שם)
+  params.set("limit", itemsPerPage);
+  params.set("offset", "0");
+
   const cacheKey = params.toString();
   if (!window._productCache) window._productCache = {};
   
@@ -1775,9 +1781,10 @@ async function runRegularSearch(){
     if (keys.length > 10) delete window._productCache[keys[0]];
   }
   
-  allProducts = (window._sortVal === 'price_asc' || window._sortVal === 'price_desc' || window._sortVal === 'discount') ? data : interleaveByStore(data);
+  totalResults = data.total || 0;
+  allProducts = (window._sortVal === 'price_asc' || window._sortVal === 'price_desc' || window._sortVal === 'discount') ? data.results : interleaveByStore(data.results);
   currentPage=1;renderPage();
-  document.getElementById("metaToolbar").textContent=`${data.length} מוצרים`;
+  document.getElementById("metaToolbar").textContent=`${totalResults} מוצרים`;
     updateSeoMeta(document.getElementById("q").value.trim());
     loadSponsored(document.getElementById('q').value.trim());
 }
@@ -1793,12 +1800,31 @@ function renderPage(){
   const active = getActiveProducts();
   const end = currentPage*itemsPerPage;
   renderProducts(active.slice(0,end), false);
-  updateLoadMoreButtonFiltered(active.length);
+  updateLoadMoreButtonFiltered(paginationMode==='server' ? totalResults : active.length);
   setTimeout(loadSidebarAds, 100); // עדכן מודעות לפי מוצרים נוכחיים
 }
 
-function loadMore(){
+async function loadMore(){
   if(isLoading)return;
+  if(paginationMode==='server'){
+    if(allProducts.length>=totalResults)return;
+    isLoading=true;
+    try{
+      const p=new URLSearchParams(lastSearchParams);
+      p.set('offset', allProducts.length);
+      p.set('limit', itemsPerPage);
+      const res=await fetch("/api/products?"+p);
+      const data=await res.json();
+      const newBatch=(window._sortVal==='price_asc'||window._sortVal==='price_desc'||window._sortVal==='discount')?data.results:interleaveByStore(data.results);
+      allProducts=allProducts.concat(newBatch);
+      totalResults=data.total;
+      currentPage++;
+      renderProducts(newBatch, true);
+      updateLoadMoreButtonFiltered(totalResults);
+    }catch(e){console.error(e);}
+    finally{isLoading=false;}
+    return;
+  }
   currentPage++;
   const active = getActiveProducts();
   const start=(currentPage-1)*itemsPerPage;

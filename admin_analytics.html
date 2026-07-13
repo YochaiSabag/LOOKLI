@@ -140,11 +140,14 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   </div>
 
   <div class="toolbar">
-    <select class="period-sel" id="periodSel" onchange="loadData()">
+    <select class="period-sel" id="periodSel" onchange="onPeriodChange()">
       <option value="7">7 ימים</option>
       <option value="28" selected>28 ימים</option>
       <option value="90">90 ימים</option>
+      <option value="custom">מתאריך מסוים…</option>
     </select>
+    <input type="date" id="sinceInput" style="display:none" onchange="onSinceChange()"/>
+    <button class="refresh-btn" onclick="setSinceToday()" title="הצג נתונים רק החל מהיום">מהיום והלאה</button>
     <span class="badge">● GA4 + DB</span>
     <button class="refresh-btn" onclick="loadData()">↻ רענן</button>
   </div>
@@ -160,22 +163,54 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 let _data = null;
 let prodLimit = 20;
 
+// ── טווח תאריכים: או "days" רגיל, או "since" (תאריך התחלה מפורש) — נשמר כברירת מחדל ──
+function getSince() { return localStorage.getItem('analytics_since') || ''; }
+function setSince(dateStr) {
+  if (dateStr) localStorage.setItem('analytics_since', dateStr);
+  else localStorage.removeItem('analytics_since');
+}
+function setSinceToday() {
+  const today = new Date().toISOString().slice(0,10);
+  setSince(today);
+  document.getElementById('periodSel').value = 'custom';
+  document.getElementById('sinceInput').style.display = 'inline-block';
+  document.getElementById('sinceInput').value = today;
+  loadData();
+}
+function onPeriodChange() {
+  const val = document.getElementById('periodSel').value;
+  if (val === 'custom') {
+    document.getElementById('sinceInput').style.display = 'inline-block';
+    if (!getSince()) { document.getElementById('sinceInput').value = new Date().toISOString().slice(0,10); }
+  } else {
+    document.getElementById('sinceInput').style.display = 'none';
+    setSince(null);
+  }
+  loadData();
+}
+function onSinceChange() {
+  setSince(document.getElementById('sinceInput').value);
+  loadData();
+}
+
 async function loadData() {
+  const since = getSince();
   const days = document.getElementById('periodSel').value;
   prodLimit = 20;
   document.getElementById('content').innerHTML = `<div class="loading"><div class="spinner"></div><div>טוען נתונים...</div></div>`;
   try {
-    const res = await fetch(`/api/analytics?days=${days}`);
+    const url = since ? `/api/analytics?since=${since}` : `/api/analytics?days=${days}`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(await res.text());
     _data = await res.json();
-    render(_data, parseInt(days));
+    render(_data, since ? `מתאריך ${since}` : `ב-${days} ימים אחרונים`);
   } catch(e) {
     document.getElementById('content').innerHTML =
       `<div class="error-msg">שגיאה: ${esc(e.message)}<br><small>ודא שה-Service Account מחובר ל-GA4</small></div>`;
   }
 }
 
-function render(data, days) {
+function render(data, periodLabel) {
   const { totals, daily, stores, topProducts, devices } = data;
   const totalDev = Object.values(devices||{}).reduce((a,b)=>a+b,0) || 1;
   const mobile  = devices?.mobile  || 0;
@@ -191,7 +226,7 @@ function render(data, days) {
         <div class="kpi-glow" style="background:var(--accent)"></div>
         <div class="kpi-label">כניסות לאתר</div>
         <div class="kpi-value" style="color:var(--accent)">${fmt(totals.sessions)}</div>
-        <div class="kpi-sub">ב-${days} ימים אחרונים</div>
+        <div class="kpi-sub">${periodLabel}</div>
       </div>
       <div class="kpi">
         <div class="kpi-glow" style="background:var(--green)"></div>
@@ -363,6 +398,15 @@ function fmt(n) { return n ? Number(n).toLocaleString('he-IL') : '0'; }
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function pct(v,t) { return t ? Math.round(v/t*100) : 0; }
 
+// שחזור בחירת תאריך קודמת (אם הוגדרה) בטעינת הדף
+(function initSince(){
+  const s = getSince();
+  if (s) {
+    document.getElementById('periodSel').value = 'custom';
+    document.getElementById('sinceInput').style.display = 'inline-block';
+    document.getElementById('sinceInput').value = s;
+  }
+})();
 loadData();
 </script>
 </body>

@@ -858,7 +858,12 @@ app.get("/api/products", async (req, res) => {
     }
 
     // עימוד אמיתי — limit/offset מהפרונט, עם הגבלת ביטחון (מקסימום 100 בבקשה אחת)
-    const reqLimit = Math.min(parseInt(req.query.limit) || 60, 100);
+    // אדמין מאומת (admsess תקין) מקבל תקרת limit גבוהה יותר — כלי ניהול צריכים לראות הרבה מוצרים בבת אחת
+    const cookies = req.headers.cookie || '';
+    const cookieMatch = cookies.match(/admsess=([a-f0-9]+)/);
+    const isAdmin = cookieMatch && cookieMatch[1] === makeAdminCookieToken();
+    const maxAllowedLimit = isAdmin ? 3000 : 100;
+    const reqLimit = Math.min(parseInt(req.query.limit) || 60, maxAllowedLimit);
     const reqOffset = Math.max(parseInt(req.query.offset) || 0, 0);
     sql += ` LIMIT $${i} OFFSET $${i+1}`;
     params.push(reqLimit, reqOffset); i += 2;
@@ -2645,7 +2650,10 @@ async function ga4Query(token, body) {
 app.get('/api/analytics', adminAuth, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 28;
-    const dateRange = [{ startDate: `${days}daysAgo`, endDate: 'today' }];
+    const since = /^\d{4}-\d{2}-\d{2}$/.test(req.query.since || '') ? req.query.since : null;
+    const dateRange = [since
+      ? { startDate: since, endDate: 'today' }
+      : { startDate: `${days}daysAgo`, endDate: 'today' }];
     const token = await getGA4Token();
 
     const [overview, daily, outbound, deviceData] = await Promise.all([
@@ -2726,10 +2734,12 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
     // DB clicks — המקור האמין (מה שנרשם אצלנו)
     let dbStoreClicks = [], dbTopProducts = [], dbDailyClicks = [];
     try {
+      const sinceClause = since ? `clicked_at >= $1::date` : `clicked_at >= NOW() - INTERVAL '${days} days'`;
+      const sinceParams = since ? [since] : [];
       const [storeRes, prodRes, dailyClicksRes] = await Promise.all([
-        pool.query(`SELECT store, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY store ORDER BY clicks DESC`),
-        pool.query(`SELECT c.product_id, c.product_title, c.store, c.source_url, COUNT(*) as clicks, p.image_url FROM clicks c LEFT JOIN products p ON p.id=c.product_id WHERE c.clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY c.product_id, c.product_title, c.store, c.source_url, p.image_url ORDER BY clicks DESC LIMIT 50`),
-        pool.query(`SELECT DATE(clicked_at) as day, COUNT(*) as clicks FROM clicks WHERE clicked_at >= NOW() - INTERVAL '${days} days' GROUP BY DATE(clicked_at) ORDER BY day`)
+        pool.query(`SELECT store, COUNT(*) as clicks FROM clicks WHERE ${sinceClause} GROUP BY store ORDER BY clicks DESC`, sinceParams),
+        pool.query(`SELECT c.product_id, c.product_title, c.store, c.source_url, COUNT(*) as clicks, p.image_url FROM clicks c LEFT JOIN products p ON p.id=c.product_id WHERE ${sinceClause} GROUP BY c.product_id, c.product_title, c.store, c.source_url, p.image_url ORDER BY clicks DESC LIMIT 50`, sinceParams),
+        pool.query(`SELECT DATE(clicked_at) as day, COUNT(*) as clicks FROM clicks WHERE ${sinceClause} GROUP BY DATE(clicked_at) ORDER BY day`, sinceParams)
       ]);
       dbStoreClicks = storeRes.rows.map(r => ({ name: r.store, clicks: parseInt(r.clicks) }));
       dbTopProducts = prodRes.rows.map(r => ({ id: r.product_id, title: r.product_title, store: r.store, url: r.source_url, image: r.image_url, clicks: parseInt(r.clicks) }));

@@ -13,6 +13,13 @@ const __dirname = path.dirname(__filename);
 
 const { Pool } = pkg;
 const app = express();
+
+// escape בטוח לטקסט המוזרק ל-HTML גולמי (כותרות/תיאורי מוצרים שמקורם בסריקה חיצונית — לא סומכים על התוכן)
+function escapeHtmlAttr(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 app.set('trust proxy', 1); // Railway רץ מאחורי proxy
 app.use(compression()); // gzip לכל התגובות — מקטין את גודל ההעברה משמעותית (HTML/CSS/JS/JSON)
 
@@ -89,6 +96,8 @@ app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
   res.send(`User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin
 Sitemap: ${SITE_URL}/sitemap.xml
 `);
 });
@@ -239,7 +248,11 @@ app.get("/sitemap.xml", async (req, res) => {
   try {
     const base = process.env.SITE_URL || 'https://lookli.co.il';
     const products = await pool.query(
-      `SELECT id, title, last_seen FROM products WHERE title IS NOT NULL ORDER BY last_seen DESC`
+      `SELECT id, title, last_seen FROM products
+       WHERE title IS NOT NULL
+         AND (banned IS NULL OR banned = false)
+         AND (hidden_stale IS NULL OR hidden_stale = false)
+       ORDER BY last_seen DESC`
     );
 
     const staticUrls = [
@@ -328,6 +341,8 @@ app.get("/product/:slug", async (req, res) => {
       product = r.rows[0];
     }
 
+    if (product && (product.banned || product.hidden_stale)) product = null;
+
     if (!product) return res.sendFile(path.join(__dirname, "public", "index.html"));
 
     // בנה HTML עם OG tags מלאים
@@ -344,17 +359,27 @@ app.get("/product/:slug", async (req, res) => {
     let indexHtml = fs.readFileSync(path.join(__dirname, "public", "index.html"), 'utf8');
     indexHtml = indexHtml.replace(
       '</head>',
-      `<meta property="og:title" content="${title} – LOOKLI"/>
-<meta property="og:description" content="${desc.substring(0,200)}"/>
-<meta property="og:image" content="${img}"/>
-<meta property="og:url" content="${url}"/>
+      `<meta property="og:title" content="${escapeHtmlAttr(title)} – LOOKLI"/>
+<meta property="og:description" content="${escapeHtmlAttr(desc.substring(0,200))}"/>
+<meta property="og:image" content="${escapeHtmlAttr(img)}"/>
+<meta property="og:url" content="${escapeHtmlAttr(url)}"/>
 <meta property="og:type" content="product"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="${title} – LOOKLI"/>
-<meta name="twitter:image" content="${img}"/>
-<title>${title} – LOOKLI</title>
+<meta name="twitter:title" content="${escapeHtmlAttr(title)} – LOOKLI"/>
+<meta name="twitter:image" content="${escapeHtmlAttr(img)}"/>
+<title>${escapeHtmlAttr(title)} – LOOKLI</title>
 </head>`
     );
+    // תוכן אמיתי הנקרא בגוף ה-HTML הגולמי (לא רק meta tags) — כדי שגוגל יראה תוכן ממשי בלי להסתמך על ריצת JS.
+    // ממוקם ממש לפני סגירת body כדי לא להפריע ויזואלית לתצוגה האינטראקטיבית הרגילה של הדף.
+    const ssrBlock = `
+<div id="ssr-product-seo" style="max-width:800px;margin:40px auto;padding:0 20px;">
+  <h1>${escapeHtmlAttr(title)}</h1>
+  ${img ? `<img src="${escapeHtmlAttr(img)}" alt="${escapeHtmlAttr(title)}" style="max-width:100%;height:auto;border-radius:8px;"/>` : ''}
+  <p>${escapeHtmlAttr(desc)}</p>
+  <p>מחיר: ₪${product.price || ''}${product.store ? ` | חנות: ${escapeHtmlAttr(product.store)}` : ''}</p>
+</div>`;
+    indexHtml = indexHtml.replace('</body>', `${ssrBlock}\n</body>`);
     res.send(indexHtml);
   } catch(err) {
     res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -888,7 +913,7 @@ app.get("/api/product/slug/:slug", async (req, res) => {
     // נסה קודם לפי ID אם ה-slug הוא מספר
     if (/^\d+$/.test(slug)) {
       const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [parseInt(slug)]);
-      if (result.rows.length) {
+      if (result.rows.length && !result.rows[0].banned && !result.rows[0].hidden_stale) {
         const product = result.rows[0];
         product.shipping = calculateShipping(product.store, product.price);
         return res.json(product);
@@ -902,6 +927,7 @@ app.get("/api/product/slug/:slug", async (req, res) => {
     );
     if (!all.rows.length) return res.status(404).json({ error: "Not found" });
     const product = all.rows[0];
+    if (product.banned || product.hidden_stale) return res.status(404).json({ error: "Not found" });
     product.shipping = calculateShipping(product.store, product.price);
     res.json(product);
   } catch (err) {
@@ -917,6 +943,7 @@ app.get("/api/product/:id", async (req, res) => {
     const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [id]);
     if (!result.rows.length) return res.status(404).json({ error: "Not found" });
     const product = result.rows[0];
+    if (product.banned || product.hidden_stale) return res.status(404).json({ error: "Not found" });
     product.shipping = calculateShipping(product.store, product.price);
     res.json(product);
   } catch (err) {

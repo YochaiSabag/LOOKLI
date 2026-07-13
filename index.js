@@ -117,6 +117,9 @@ const useSSL = connStr.includes("proxy.rlwy.net") || connStr.includes("rlwy.net"
 const pool = new Pool({
   connectionString: connStr,
   ssl: useSSL ? { rejectUnauthorized: false } : undefined,
+  max: 20,                       // ברירת המחדל של pg היא רק 10 — זה היה יכול לגרום לתורים תחת עומס
+  idleTimeoutMillis: 30000,      // משחרר חיבורים לא פעילים חזרה למאגר אחרי 30 שניות
+  connectionTimeoutMillis: 5000, // אם ה-pool מלא, נכשל מהר (5 שניות) במקום להיתקע לנצח
 });
 
 app.use(express.json({ limit: '5mb' }));
@@ -887,7 +890,6 @@ app.get("/api/product/slug/:slug", async (req, res) => {
       }
     }
     // חפש לפי slug — השווה את ה-title מנורמל
-    const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [0]); // placeholder
     // חיפוש אמיתי — title → slug
     const all = await pool.query(
       `SELECT * FROM products WHERE lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')) = $1 LIMIT 1`,
@@ -4242,6 +4244,8 @@ app.listen(PORT, async () => {
       // pg_trgm — מאיץ באופן דרמטי חיפוש title ILIKE '%...%' (בלי זה זו סריקה מלאה בכל חיפוש טקסט חופשי)
       await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON products USING GIN(title gin_trgm_ops)`);
+      // אינדקס פונקציונלי לחיפוש מוצר לפי slug (כתובת URL) — משמש בכל טעינת עמוד מוצר
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_slug ON products (lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')))`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);
       // מעדכן את סטטיסטיקות התכנון של Postgres מיד, כדי שהאינדקסים החדשים ינוצלו כבר מההרצה הראשונה

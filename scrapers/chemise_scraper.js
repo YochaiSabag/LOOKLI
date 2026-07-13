@@ -34,6 +34,8 @@ async function uploadToCloudinary(imageUrl) {
       folder: 'lookli/chemise',
       fetch_format: 'auto',
       quality: 'auto',
+      width: 800,
+      crop: 'limit', // לא מגדיל תמונות קטנות, רק מצמצם גדולות מ-800px רוחב
     });
     return result.secure_url;
   } catch(e) {

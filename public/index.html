@@ -1126,6 +1126,10 @@
       <span style="font-size:10px">אתר חיפוש והשוואה בלבד. הרכישה מתבצעת ישירות מול החנות המקורית.</span>
       &nbsp;|&nbsp;
       <span style="font-size:10px">Designed by <a href="https://www.magnific.com" target="_blank" rel="noopener" style="color:rgba(255,255,255,.45);text-decoration:underline">Magnific</a></span>
+      <p style="font-size:10px;color:rgba(255,255,255,.35);max-width:900px;margin:10px auto 0;line-height:1.5">
+        LOOKLI הוא מנוע חיפוש ואיסוף מוצרים לאופנה נשית צנועה, המרכז במקום אחד עשרות מותגים וחנויות אופנה חרדית מובילות בישראל.
+        באתר ניתן לסנן ולהשוות מוצרים לפי מידה, צבע, מחיר וסוג בד, ולקבל התראות על ירידות מחיר ועל חזרת מידות למלאי — הכל בלי לגלוש בין עשרות אתרים בנפרד.
+      </p>
     </div>
   </footer>
 
@@ -4087,7 +4091,7 @@ function acceptCookies(){
      =================================================================== -->
 <script>
 const JOINPOPUP_CONFIG = {
-  delayMs: 25000,                     // כמה זמן לחכות לפני שהפופאפ מופיע (40 שניות)
+  delayMs: 40000,                     // כמה זמן לחכות לפני שהפופאפ מופיע (40 שניות)
   daysBeforeShowAgain: 14,             // אחרי שמישהי סוגרת/מצטרפת, לא להציג לה שוב במשך כמה ימים
   headlinePlain: 'את לא מפספסת את',    // חלק רגיל של הכותרת
   headlineAccent: 'המבצע הבא',            // חלק מודגש בצבע (החלק השני של הכותרת)
@@ -4118,7 +4122,7 @@ const JOINPOPUP_CONFIG = {
     el.id = 'joinpopupEl';
     el.innerHTML = `
       <div class="joinpopup-top">
-        <img src="/lookli-logo.png" alt="LOOKLI"/>
+        <img src="/lookli-logo.png" alt="LOOKLI" onerror="this.style.display='none'"/>
         <button class="joinpopup-close" onclick="dismissJoinPopup()" aria-label="סגירה">✕</button>
       </div>
       <div class="joinpopup-body">
@@ -4156,7 +4160,7 @@ const JOINPOPUP_CONFIG = {
      =================================================================== -->
 <script>
 const EMAILPOPUP_CONFIG = {
-  delayMs: 25000,                     // כמה זמן לחכות לפני שהפופאפ מופיע
+  delayMs: 40000,                     // כמה זמן לחכות לפני שהפופאפ מופיע
   daysBeforeShowAgain: 14,             // אחרי כמה ימים להראות שוב למי שסגרה/נרשמה
   headlinePlain: 'רוצה להיות הראשונה',    // חלק רגיל של הכותרת
   headlineAccent: 'לדעת?',                // חלק מודגש בצבע
@@ -4189,7 +4193,7 @@ const EMAILPOPUP_CONFIG = {
     el.id = 'emailpopupEl';
     el.innerHTML = `
       <div class="emailpopup-top">
-        <img src="/lookli-logo.png" alt="LOOKLI"/>
+        <img src="/lookli-logo.png" alt="LOOKLI" onerror="this.style.display='none'"/>
         <button class="emailpopup-close" onclick="dismissEmailPopup()" aria-label="סגירה">✕</button>
       </div>
       <div class="emailpopup-body">

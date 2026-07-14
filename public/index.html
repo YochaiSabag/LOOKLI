@@ -1152,6 +1152,7 @@ function handleImgError(img){
 
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
+const DEBUG_IMAGES = new URLSearchParams(location.search).get('debugImages') === '1';
 let currentPage=1,itemsPerPage=isMobile?18:42,allProducts=[],isLoading=false;
 let paginationMode='client', totalResults=0, lastSearchParams=null; // 'server' = עימוד אמיתי מה-DB (חיפוש רגיל), 'client' = כל התוצאות כבר בזיכרון (AI/תמונה)
 
@@ -1801,6 +1802,7 @@ async function runRegularSearch(){
   const sliderMax=document.getElementById("priceRange").max;
   if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
   if(window._sortVal&&window._sortVal!=='new')params.set("sort",window._sortVal);
+  if(localStorage.getItem('validImageOnly')==='1')params.set("validImageOnly","1");
 
   paginationMode='server';
   lastSearchParams = new URLSearchParams(params); // בסיס ל-loadMore, בלי limit/offset (יתווספו שם)
@@ -1958,7 +1960,11 @@ function renderProducts(products,append=false){
       const logoHTML = logoSrc ? `<div class="card-logo" data-store="${store}" data-tooltip="${storeDisplayNames[store]||store}" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
       const isSaved = savedUrls.has(p.source_url||'');
       const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
-      grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+      const debugBadge = DEBUG_IMAGES
+        ? `<div style="position:absolute;top:0;left:0;right:0;z-index:50;text-align:center;font-size:11px;font-weight:800;padding:3px;color:#fff;background:${p.has_valid_image===false?'#dc2626':'#16a34a'}">${p.has_valid_image===false?'❌ מסומן חסום':'✅ מסומן תקין'} (ID:${p.id})</div>`
+        : '';
+      const debugBorder = DEBUG_IMAGES ? `border:4px solid ${p.has_valid_image===false?'#dc2626':'#16a34a'};` : '';
+      grid.innerHTML+=`<div class="card" style="${debugBorder}position:relative" onclick="${DEBUG_IMAGES?'':'openProduct('+p.id+')'}"><div class="img-wrap">${debugBadge}${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
       {const c=grid.lastElementChild?.querySelector('.carousel');if(c)initCarouselSwipe(c);}
       cardIndex++;
     }

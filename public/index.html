@@ -1152,7 +1152,7 @@ function handleImgError(img){
 
 let debounceTimer=null,modalImages=[],modalImageIndex=0,previousSearchQuery="";
 const isMobile = window.innerWidth < 640;
-let currentPage=1,itemsPerPage=isMobile?12:28,allProducts=[],isLoading=false;
+let currentPage=1,itemsPerPage=isMobile?18:42,allProducts=[],isLoading=false;
 let paginationMode='client', totalResults=0, lastSearchParams=null; // 'server' = עימוד אמיתי מה-DB (חיפוש רגיל), 'client' = כל התוצאות כבר בזיכרון (AI/תמונה)
 
 // show_rate: session-based counter (10% = פעם מכל 10 כניסות)
@@ -1905,57 +1905,68 @@ function renderProducts(products,append=false){
   if(!append)grid.innerHTML="";
   if(!products?.length&&!append){grid.innerHTML='<div class="empty">לא נמצאו תוצאות</div>';return}
   let cardIndex = append ? grid.children.length : 0;
-  
-  for(const p of products){
-    const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
-    const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
-    const thumbImages = images.map(thumbUrl); // גודל מצומצם לכרטיסיות
-    const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
-    const sizes=(p.sizes||[]).map(formatSize);
-    const originalPrice=parseFloat(p.original_price)||0;
-    const currentPrice=parseFloat(p.price)||0;
-    const isOnSale=originalPrice>0&&originalPrice>currentPrice;
-    const disc=calcDiscount(currentPrice,originalPrice);
-    
-    let carouselHTML='';
-    if(images.length>1){
-      const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" ${si===0&&cardIndex<4?'fetchpriority="high"':'loading="lazy"'} ${si===0?'onload="checkNetfreeBlock(this)" onerror="handleImgError(this)"':''}>\u200B</div>`).join('');
-      const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
-      carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
-    }else if(images.length===1){
-      carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this)">`;
-    }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
-    
-    let colorDotsHTML='';
-    if(colors.length>0){
-      colorDotsHTML='<div class="card-colors">';
-      colors.slice(0,3).forEach(c=>{const hex=getColorHex(c);const isDark=c==='שחור'||['#000000','#0a0a0a','#111111'].includes(hex.toLowerCase());colorDotsHTML+=`<span class="card-color" style="background:${hex};${isDark?'box-shadow:0 0 0 1.5px #aaa inset;':''}" title="${escapeHtml(c)}"></span>`});
-      if(colors.length>3)colorDotsHTML+=`<span class="card-color-more">+${colors.length-3}</span>`;
-      colorDotsHTML+='</div>';
+
+  const RENDER_CHUNK_SIZE = 8; // כמה כרטיסים בונים בכל "נשימה" של הדפדפן
+  let idx = 0;
+
+  function renderChunk(){
+    const chunkEnd = Math.min(idx + RENDER_CHUNK_SIZE, products.length);
+    for(; idx < chunkEnd; idx++){
+      const p = products[idx];
+      const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
+      const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
+      const thumbImages = images.map(thumbUrl); // גודל מצומצם לכרטיסיות
+      const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
+      const sizes=(p.sizes||[]).map(formatSize);
+      const originalPrice=parseFloat(p.original_price)||0;
+      const currentPrice=parseFloat(p.price)||0;
+      const isOnSale=originalPrice>0&&originalPrice>currentPrice;
+      const disc=calcDiscount(currentPrice,originalPrice);
+
+      let carouselHTML='';
+      if(images.length>1){
+        const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" ${si===0&&cardIndex<4?'fetchpriority="high"':'loading="lazy"'} ${si===0?'onload="checkNetfreeBlock(this)" onerror="handleImgError(this)"':''}>\u200B</div>`).join('');
+        const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
+        carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
+      }else if(images.length===1){
+        carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this)">`;
+      }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
+
+      let colorDotsHTML='';
+      if(colors.length>0){
+        colorDotsHTML='<div class="card-colors">';
+        colors.slice(0,3).forEach(c=>{const hex=getColorHex(c);const isDark=c==='שחור'||['#000000','#0a0a0a','#111111'].includes(hex.toLowerCase());colorDotsHTML+=`<span class="card-color" style="background:${hex};${isDark?'box-shadow:0 0 0 1.5px #aaa inset;':''}" title="${escapeHtml(c)}"></span>`});
+        if(colors.length>3)colorDotsHTML+=`<span class="card-color-more">+${colors.length-3}</span>`;
+        colorDotsHTML+='</div>';
+      }
+
+      const saleBadgeHTML=isOnSale?`<div class="sale-badge">${disc}%-</div>`:'';
+      const priceHTML=isOnSale?`<div class="price-wrap"><div class="price sale">₪${currentPrice}</div><div class="price-original">₪${originalPrice}</div></div>`:`<div class="price">${currentPrice?'₪'+currentPrice:''}</div>`;
+
+      let shippingBadgeHTML='';
+      if(p.shipping){
+        if(p.shipping.isFree){shippingBadgeHTML=`<span class="shipping-badge free">משלוח חינם</span>`}
+        else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
+      }
+
+      const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
+      const localLogoStores = new Set(['CHEN', 'ORDMAN']); // רק חנויות עם לוגו מקומי ידוע
+      const localLogo = localLogoStores.has(store) ? `/${store.toLowerCase()}-logo.png` : null;
+      const fallbackLogo = storeLogos[store] || '';
+      const logoSrc = localLogo || fallbackLogo;
+      const storeDisplayNames={'LEAA':'Ladies'};
+      const logoHTML = logoSrc ? `<div class="card-logo" data-store="${store}" data-tooltip="${storeDisplayNames[store]||store}" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
+      const isSaved = savedUrls.has(p.source_url||'');
+      const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
+      grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+      {const c=grid.lastElementChild?.querySelector('.carousel');if(c)initCarouselSwipe(c);}
+      cardIndex++;
     }
-    
-    const saleBadgeHTML=isOnSale?`<div class="sale-badge">${disc}%-</div>`:'';
-    const priceHTML=isOnSale?`<div class="price-wrap"><div class="price sale">₪${currentPrice}</div><div class="price-original">₪${originalPrice}</div></div>`:`<div class="price">${currentPrice?'₪'+currentPrice:''}</div>`;
-    
-    let shippingBadgeHTML='';
-    if(p.shipping){
-      if(p.shipping.isFree){shippingBadgeHTML=`<span class="shipping-badge free">משלוח חינם</span>`}
-      else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
+    if(idx < products.length){
+      requestAnimationFrame(renderChunk); // ממשיכים בקבוצה הבאה ב"נשימה" הבאה של הדפדפן, בלי לחסום
     }
-    
-    const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
-    const localLogoStores = new Set(['CHEN', 'ORDMAN']); // רק חנויות עם לוגו מקומי ידוע
-    const localLogo = localLogoStores.has(store) ? `/${store.toLowerCase()}-logo.png` : null;
-    const fallbackLogo = storeLogos[store] || '';
-    const logoSrc = localLogo || fallbackLogo;
-    const storeDisplayNames={'LEAA':'Ladies'};
-    const logoHTML = logoSrc ? `<div class="card-logo" data-store="${store}" data-tooltip="${storeDisplayNames[store]||store}" ${logoBgClass}><img src="${logoSrc}" alt="${store}"${localLogo ? ` onerror="this.src='${fallbackLogo}'"` : ''}></div>` : '';
-    const isSaved = savedUrls.has(p.source_url||'');
-    const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
-    grid.innerHTML+=`<div class="card" onclick="openProduct(${p.id})"><div class="img-wrap">${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
-    {const c=grid.lastElementChild?.querySelector('.carousel');if(c)initCarouselSwipe(c);}
-    cardIndex++;
   }
+  renderChunk();
 }
 
 function carouselNav(btn,dir){

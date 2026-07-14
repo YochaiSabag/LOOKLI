@@ -744,6 +744,8 @@ app.get("/api/products", async (req, res) => {
       }
     }
     if (store) { sql += ` AND store = $${i++}`; params.push(store); }
+    if (req.query.safeImages === '1') { sql += ` AND has_valid_image = true`; }
+    if (req.query.validImageOnly === '1') { sql += ` AND has_valid_image IS NOT false`; }
 
     // בדיקת התאמת צבע+מידה ב-SQL (לא ב-JS אחרי השליפה) — הכרחי כדי שLIMIT/OFFSET יהיו מדויקים
     if (color && size) {
@@ -4283,6 +4285,12 @@ app.listen(PORT, async () => {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON products USING GIN(title gin_trgm_ops)`);
       // אינדקס פונקציונלי לחיפוש מוצר לפי slug (כתובת URL) — משמש בכל טעינת עמוד מוצר
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_slug ON products (lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')))`);
+      // עמודה לזיהוי מוצרים עם תמונות חסומות (נטפרי) - מתעדכנת ע"י סקריפט בדיקה נפרד שרץ מרשת בלי נטפרי
+      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS has_valid_image BOOLEAN DEFAULT true`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image)`);
+      // עמודה לזיהוי מוצרים עם תמונות חסומות (נטפרי) — מתעדכנת ע"י scrapers/check_netfree_images.js
+      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS has_valid_image BOOLEAN DEFAULT true`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image) WHERE has_valid_image = false`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);
       // מעדכן את סטטיסטיקות התכנון של Postgres מיד, כדי שהאינדקסים החדשים ינוצלו כבר מההרצה הראשונה

@@ -555,12 +555,16 @@ async function scrapeProduct(page, url) {
     // תמונות — מעלה ל-Cloudinary (URL קבוע, לא תלוי ב-Railway IP)
     // אם למוצר כבר יש תמונות שמורות מהרצה קודמת — לא מנסים להעלות שוב (חוסך זמן, חשוב במיוחד אצל נטפרי)
     // SKIP_IMAGE_UPLOAD=true מדלג לגמרי גם על מוצרים חדשים — התמונות הקיימות ב-DB לא יימחקו (מוגן ב-saveProduct)
+    // FORCE_REIMAGE=true עוקף את הבדיקה לגמרי ומעלה מחדש הכל, גם אם כבר יש תמונות — לשימוש חד-פעמי בלבד
+    // (למשל אחרי הרצה שגויה מרשת עם נטפרי) — להסיר את המשתנה אחרי שסיימת!
     let finalImages = [];
     let existingImages = [];
-    try {
-      const existing = await db.query('SELECT images FROM products WHERE source_url=$1', [url]);
-      existingImages = existing.rows[0]?.images || [];
-    } catch(_) {}
+    if (process.env.FORCE_REIMAGE !== 'true') {
+      try {
+        const existing = await db.query('SELECT images FROM products WHERE source_url=$1', [url]);
+        existingImages = existing.rows[0]?.images || [];
+      } catch(_) {}
+    }
 
     if (existingImages.length > 0) {
       console.log(`    📸 כבר יש ${existingImages.length} תמונות שמורות — מדלג על העלאה`);
@@ -568,6 +572,7 @@ async function scrapeProduct(page, url) {
     } else if (process.env.SKIP_IMAGE_UPLOAD === 'true') {
       console.log(`    📸 דילוג על העלאת תמונות (SKIP_IMAGE_UPLOAD)`);
     } else {
+      if (process.env.FORCE_REIMAGE === 'true') console.log(`    🔁 FORCE_REIMAGE פעיל — מעלה מחדש ומחליף תמונות קיימות`);
       console.log(`    📸 מעלה ${Math.min(data.images.length, 6)} תמונות ל-Cloudinary...`);
       for (const imgUrl of data.images.slice(0, 6)) {
         const cdnUrl = await uploadToCloudinary(imgUrl);

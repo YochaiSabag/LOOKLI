@@ -3,7 +3,7 @@
 // בדיקה מהירה על כמה URLs בודדים — לפני שמריצים את הבדיקה המלאה על כל המוצרים.
 // הרצה:  node scrapers/test_image_check.js "URL1" "URL2" ...
 
-const MIN_VALID_BYTES = 15000;
+const MIN_VALID_BYTES = 8500;
 
 async function checkImageUrl(url) {
   try {

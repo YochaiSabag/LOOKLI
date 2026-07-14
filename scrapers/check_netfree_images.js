@@ -13,7 +13,7 @@ import 'dotenv/config';
 import pkg from 'pg';
 const { Client } = pkg;
 
-const MIN_VALID_BYTES = 35000; // מתחת לזה = כנראה חסום (תמונת מוצר אמיתית תמיד גדולה בהרבה)
+const MIN_VALID_BYTES = 8500; // מתחת לזה = כנראה חסום (תמונת מוצר אמיתית תמיד גדולה בהרבה)
 const CONCURRENCY = 5;        // כמה תמונות בודקים במקביל
 const storeFilter = process.argv[2] || null;
 

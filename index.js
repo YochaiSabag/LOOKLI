@@ -2676,6 +2676,119 @@ async function ga4Query(token, body) {
   return res.json();
 }
 
+// ── סקירת תמונות ידנית (מסך admin_image_review) ──
+app.get('/api/admin/image-review', adminAuth, async (req, res) => {
+  try {
+    const store = req.query.store || null;
+    const onlyUnreviewed = req.query.onlyUnreviewed === '1';
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const limit = Math.min(parseInt(req.query.limit) || 40, 100);
+    let sql = `SELECT id, title, store, images, image_url, has_valid_image, reviewed_at FROM products WHERE (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)`;
+    const params = [];
+    if (store) { params.push(store); sql += ` AND store = $${params.length}`; }
+    if (onlyUnreviewed) { sql += ` AND reviewed_at IS NULL`; }
+    sql += ` ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`;
+    const result = await pool.query(sql, params);
+    const countSql = `SELECT COUNT(*) AS total FROM products WHERE (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)${store ? ' AND store=$1' : ''}${onlyUnreviewed ? (store ? ' AND reviewed_at IS NULL' : ' AND reviewed_at IS NULL') : ''}`;
+    const countResult = await pool.query(countSql, store ? [store] : []);
+    res.json({ results: result.rows, total: parseInt(countResult.rows[0]?.total || 0) });
+  } catch (err) {
+    console.error('image-review error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/admin/image-review/mark', adminAuth, async (req, res) => {
+  try {
+    const { ids, valid } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids חסר' });
+    await pool.query(
+      `UPDATE products SET has_valid_image=$1, reviewed_at=NOW() WHERE id = ANY($2::int[])`,
+      [!!valid, ids]
+    );
+    res.json({ updated: ids.length });
+  } catch (err) {
+    console.error('image-review mark error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// דיווח פסיבי על סטטוס תמונה (תקינה/חסומה) — נקרא אוטומטית תוך כדי גלישה רגילה באתר, בלי אימות
+app.post('/api/report-image-status', async (req, res) => {
+  try {
+    const { productId, imageUrl, valid, totalImages } = req.body;
+    if (!productId || !imageUrl) return res.status(400).json({ error: 'חסרים פרטים' });
+
+    const current = await pool.query(`SELECT image_check_results FROM products WHERE id=$1`, [productId]);
+    if (!current.rows.length) return res.status(404).json({ error: 'not found' });
+
+    const results = current.rows[0].image_check_results || {};
+    // ברגע שתמונה דווחה תקינה פעם אחת — נשארת תקינה תמיד (לא דורסים true בחזרה ל-false מדיווח מאוחר)
+    if (!(results[imageUrl] === true)) results[imageUrl] = !!valid;
+
+    const checkedCount = Object.keys(results).length;
+    const anyValid = Object.values(results).some(v => v === true);
+    const allChecked = totalImages ? checkedCount >= totalImages : false;
+
+    let hasValidImage = null; // null = עדיין לא מספיק מידע כדי לקבוע
+    if (anyValid) hasValidImage = true;
+    else if (allChecked) hasValidImage = false;
+
+    if (hasValidImage !== null) {
+      const validUrls = Object.keys(results).filter(u => results[u] === true);
+      await pool.query(
+        `UPDATE products SET image_check_results=$1, valid_image_urls=$2, has_valid_image=$3, reviewed_at=NOW() WHERE id=$4`,
+        [JSON.stringify(results), validUrls, hasValidImage, productId]
+      );
+    } else {
+      await pool.query(`UPDATE products SET image_check_results=$1 WHERE id=$2`, [JSON.stringify(results), productId]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('report-image-status error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// ── כלי סקירת תמונות ידני (מוצרים עם תמונות חסומות/מפוקסלות מנטפרי) ──
+app.get('/api/admin/image-review', adminAuth, async (req, res) => {
+  try {
+    const store = req.query.store || null;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+    let sql = `SELECT id, title, store, image_url, images FROM products
+               WHERE reviewed_at IS NULL AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)`;
+    const params = [];
+    if (store) { sql += ` AND store = $1`; params.push(store); }
+    sql += ` ORDER BY id DESC LIMIT $${params.length+1}`;
+    params.push(limit);
+    const { rows } = await pool.query(sql, params);
+    const totalLeft = await pool.query(
+      `SELECT COUNT(*) c FROM products WHERE reviewed_at IS NULL AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)${store ? ' AND store=$1' : ''}`,
+      store ? [store] : []
+    );
+    res.json({ products: rows, remaining: parseInt(totalLeft.rows[0].c) });
+  } catch (err) {
+    console.error('image-review GET error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/admin/image-review', adminAuth, async (req, res) => {
+  try {
+    const { id, validUrls } = req.body;
+    if (!id) return res.status(400).json({ error: 'חסר id' });
+    const urls = Array.isArray(validUrls) ? validUrls : [];
+    await pool.query(
+      `UPDATE products SET valid_image_urls=$1, has_valid_image=$2, reviewed_at=NOW() WHERE id=$3`,
+      [urls, urls.length > 0, id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('image-review POST error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
 app.get('/api/analytics', adminAuth, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 28;
@@ -2800,6 +2913,7 @@ app.get('/admin/analytics', adminAuth, (req, res) => res.sendFile(path.join(__di
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
+app.get('/admin/image-review', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_image_review.html')));
 
 // ===== TASKS API =====
 app.get('/api/admin/tasks-data', adminAuth, async (req, res) => {
@@ -4285,11 +4399,15 @@ app.listen(PORT, async () => {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON products USING GIN(title gin_trgm_ops)`);
       // אינדקס פונקציונלי לחיפוש מוצר לפי slug (כתובת URL) — משמש בכל טעינת עמוד מוצר
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_slug ON products (lower(regexp_replace(title, '[^\\u05D0-\\u05EAa-zA-Z0-9]+', '-', 'g')))`);
-      // עמודה לזיהוי מוצרים עם תמונות חסומות (נטפרי) - מתעדכנת ע"י סקריפט בדיקה נפרד שרץ מרשת בלי נטפרי
+      // עמודות לזיהוי/סקירת מוצרים עם תמונות חסומות (נטפרי):
+      // has_valid_image - סופי, true אם יש לפחות תמונה תקינה אחת
+      // reviewed_at - מתי נסקר ידנית (NULL = עוד לא נסקר בכלי הסקירה)
+      // valid_image_urls - אילו תמונות ספציפיות סומנו כתקינות בסקירה הידנית
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS has_valid_image BOOLEAN DEFAULT true`);
-      await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image)`);
-      // עמודה לזיהוי מוצרים עם תמונות חסומות (נטפרי) — מתעדכנת ע"י scrapers/check_netfree_images.js
-      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS has_valid_image BOOLEAN DEFAULT true`);
+      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP DEFAULT NULL`);
+      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS valid_image_urls TEXT[] DEFAULT NULL`);
+      // מעקב פסיבי: אילו תמונות נבדקו בפועל בדפדפן של גולשות (תקין/חסום), נאסף אוטומטית תוך כדי גלישה רגילה
+      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_check_results JSONB DEFAULT '{}'::jsonb`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image) WHERE has_valid_image = false`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);

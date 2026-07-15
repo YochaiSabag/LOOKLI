@@ -1,20 +1,18 @@
 // scrapers/check_netfree_images.js
 //
-// סקריפט עצמאי — לא נוגע בשום סקרייפר קיים.
-// מריצים אותו ממחשב עם נטפרי (או כל רשת חוסמת אחרת). הוא עובר על כל התמונות
-// של כל המוצרים, בודק אם התמונה נחסמה (קובץ קטן מדי / לא תמונה בכלל),
-// ומעדכן את העמודה has_valid_image ב-DB: true אם יש למוצר לפחות תמונה אחת תקינה,
-// false אם כל התמונות שלו חסומות.
+// גרסה עם Playwright (דפדפן אמיתי) — אתרים רבים חוסמים בקשות "יבשות" (fetch) כי הן
+// לא נראות כמו דפדפן אמיתי. עם Playwright זה בדיוק אותו דבר שהסקרייפרים שלך כבר עושים.
 //
 // הרצה:  node scrapers/check_netfree_images.js
-// אפשר גם להריץ רק על חנות מסוימת:  node scrapers/check_netfree_images.js CHEMISE
+// רק חנות מסוימת:  node scrapers/check_netfree_images.js CHEMISE
 
 import 'dotenv/config';
+import { chromium } from 'playwright';
 import pkg from 'pg';
 const { Client } = pkg;
 
-const MIN_VALID_BYTES = 8500; // מתחת לזה = כנראה חסום (תמונת מוצר אמיתית תמיד גדולה בהרבה)
-const CONCURRENCY = 5;        // כמה תמונות בודקים במקביל
+const MIN_VALID_BYTES = 15000; // עדכני לפי מה שלמדתם מ-analyze_image_sizes.js
+const CONCURRENCY = 4; // כמה עמודי דפדפן פתוחים במקביל
 const storeFilter = process.argv[2] || null;
 
 const db = new Client({
@@ -22,29 +20,26 @@ const db = new Client({
   ssl: { rejectUnauthorized: false },
 });
 
-async function checkImageUrl(url) {
+async function checkImageUrl(page, url) {
   if (!url) return false;
   try {
-    const resp = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!resp.ok) return false;
-    const contentType = resp.headers.get('content-type') || '';
-    if (!contentType.startsWith('image/')) return false; // חזר HTML/שגיאה במקום תמונה = בוודאות חסום
-    const buf = await resp.arrayBuffer();
-    return buf.byteLength >= MIN_VALID_BYTES;
+    const response = await page.goto(url, { timeout: 20000, waitUntil: 'commit' });
+    if (!response || !response.ok()) return false;
+    const contentType = response.headers()['content-type'] || '';
+    if (!contentType.startsWith('image/')) return false;
+    const buf = await response.body();
+    return buf.length >= MIN_VALID_BYTES;
   } catch (e) {
-    return false; // timeout/שגיאת רשת — לא סומכים, מסמנים כלא-תקין (עדיף לפספס מוצר מאשר להראות תמונה חסומה)
+    return false;
   }
 }
 
-async function processProduct(p) {
+async function processProduct(page, p) {
   const images = (p.images?.length ? p.images : (p.image_url ? [p.image_url] : []));
   if (!images.length) return { id: p.id, valid: false };
   for (const img of images) {
-    const ok = await checkImageUrl(img);
-    if (ok) return { id: p.id, valid: true }; // מספיקה תמונה אחת תקינה
+    const ok = await checkImageUrl(page, img);
+    if (ok) return { id: p.id, valid: true };
   }
   return { id: p.id, valid: false };
 }
@@ -59,21 +54,25 @@ async function run() {
   const { rows } = await db.query(sql, storeFilter ? [storeFilter] : []);
   console.log(`📦 סה"כ ${rows.length} מוצרים לבדיקה\n`);
 
+  const browser = await chromium.launch({ headless: true });
   let checked = 0, validCount = 0, blockedCount = 0;
   const queue = [...rows];
 
   async function worker() {
+    const page = await browser.newPage();
     while (queue.length) {
       const p = queue.shift();
-      const result = await processProduct(p);
+      const result = await processProduct(page, p);
       await db.query('UPDATE products SET has_valid_image=$1 WHERE id=$2', [result.valid, result.id]);
       checked++;
       if (result.valid) validCount++; else blockedCount++;
       if (checked % 25 === 0) console.log(`  ...${checked}/${rows.length} (תקינים: ${validCount}, חסומים: ${blockedCount})`);
     }
+    await page.close();
   }
 
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  await browser.close();
 
   console.log(`\n${'='.repeat(50)}`);
   console.log(`🏁 סיום: ${validCount} תקינים | ${blockedCount} חסומים (מתוך ${rows.length})`);

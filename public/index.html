@@ -1927,11 +1927,11 @@ function renderProducts(products,append=false){
 
       let carouselHTML='';
       if(images.length>1){
-        const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" ${si===0&&cardIndex<4?'fetchpriority="high"':'loading="lazy"'} ${si===0?'onload="checkNetfreeBlock(this)" onerror="handleImgError(this)"':''}>\u200B</div>`).join('');
+        const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" data-orig="${escapeHtml(images[si]||img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" ${si===0&&cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this);reportImageError(this)">\u200B</div>`).join('');
         const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
         carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
       }else if(images.length===1){
-        carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this)">`;
+        carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" data-orig="${escapeHtml(images[0]||thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this);reportImageError(this)">`;
       }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
 
       let colorDotsHTML='';
@@ -1964,7 +1964,7 @@ function renderProducts(products,append=false){
         ? `<div style="position:absolute;top:0;left:0;right:0;z-index:50;text-align:center;font-size:11px;font-weight:800;padding:3px;color:#fff;background:${p.has_valid_image===false?'#dc2626':'#16a34a'}">${p.has_valid_image===false?'❌ מסומן חסום':'✅ מסומן תקין'} (ID:${p.id})</div>`
         : '';
       const debugBorder = DEBUG_IMAGES ? `border:4px solid ${p.has_valid_image===false?'#dc2626':'#16a34a'};` : '';
-      grid.innerHTML+=`<div class="card" style="${debugBorder}position:relative" onclick="${DEBUG_IMAGES?'':'openProduct('+p.id+')'}"><div class="img-wrap">${debugBadge}${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
+      grid.innerHTML+=`<div class="card" data-pid="${p.id}" data-total-imgs="${images.length||1}" style="${debugBorder}position:relative" onclick="${DEBUG_IMAGES?'':'openProduct('+p.id+')'}"><div class="img-wrap">${debugBadge}${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
       {const c=grid.lastElementChild?.querySelector('.carousel');if(c)initCarouselSwipe(c);}
       cardIndex++;
     }
@@ -3505,6 +3505,21 @@ document.addEventListener('click', e => {
   
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
 
+  // דיווח שקט לשרת על סטטוס תמונה - נצבר לאורך זמן, לא חוסם כלום, לא רואים את זה בכלל
+  function reportImageStatus(imgEl, valid) {
+    try {
+      const card = imgEl.closest('.card');
+      const pid = card?.dataset.pid;
+      const origUrl = imgEl.dataset.orig || imgEl.src;
+      if (!pid) return;
+      const total = parseInt(card.dataset.totalImgs || '1');
+      const payload = JSON.stringify({ productId: pid, imageUrl: origUrl, valid, totalImages: total });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/report-image-status', new Blob([payload], { type: 'application/json' }));
+      }
+    } catch(e) {}
+  }
+
   // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
   function checkNetfreeBlock(imgEl) {
     const card = imgEl.closest('.card');
@@ -3513,12 +3528,14 @@ document.addEventListener('click', e => {
     // תמונות proxy שלנו (/ic?u=) — תמיד אמיתיות, אין צורך לבדוק
     if (imgEl.src.includes('/ic?')) {
       card.dataset.imgOk = '1';
+      reportImageStatus(imgEl, true);
       return;
     }
 
     // שיטה 1: naturalWidth קטן = חסום
     if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) {
       if (activeNetfree) card.style.display = 'none';
+      reportImageStatus(imgEl, false);
       return;
     }
 
@@ -3531,10 +3548,12 @@ document.addEventListener('click', e => {
         if (size > 0 && size < 60000) {
           // פחות מ-60KB = תמונת חסימה
           if (activeNetfree) card.style.display = 'none';
+          reportImageStatus(imgEl, false);
           return;
         }
         if (size >= 60000) {
           card.dataset.imgOk = '1';
+          reportImageStatus(imgEl, true);
           return;
         }
       }
@@ -3550,14 +3569,21 @@ document.addEventListener('click', e => {
       for (let i = 4; i < d.length; i += 4) {
         if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
           card.dataset.imgOk = '1';
+          reportImageStatus(imgEl, true);
           return;
         }
       }
       if (activeNetfree) card.style.display = 'none';
+      reportImageStatus(imgEl, false);
     } catch(e) {
       // CORS — לא יכולים לבדוק, נניח פתוחה
       card.dataset.imgOk = '1';
     }
+  }
+
+  // תמונה שנכשלה בטעינה לגמרי (404/רשת) — מדווחים גם כאן
+  function reportImageError(imgEl) {
+    try { reportImageStatus(imgEl, false); } catch(e) {}
   }
 
 

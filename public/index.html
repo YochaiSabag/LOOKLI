@@ -976,6 +976,10 @@
     <main class="main">
       <div class="toolbar">
         <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;margin-inline-start:8px;user-select:none">
+          <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle()" style="cursor:pointer"/>
+          🖼️ הסתירי מוצרים עם תמונות חסומות
+        </label>
         <div class="sort-wrap" id="sortWrap">
           <button class="sort-btn" id="sortBtn" onclick="toggleSortMenu()">
             <span id="sortLabel">חדש → ישן</span>
@@ -1798,6 +1802,7 @@ async function runRegularSearch(){
   if(activePattern)params.set("pattern",activePattern);
   if(activeDesign)params.set("design",activeDesign);
   if(activeDiscount)params.set("minDiscount",activeDiscount);
+  if(localStorage.getItem('safeImagesMode')==='1')params.set("safeImages","1");
   const maxPrice=document.getElementById("priceRange").value;
   const sliderMax=document.getElementById("priceRange").max;
   if(maxPrice&&parseInt(maxPrice)<parseInt(sliderMax))params.set("maxPrice",maxPrice);
@@ -3505,6 +3510,16 @@ document.addEventListener('click', e => {
   
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
 
+  function onSafeImagesToggle(){
+    const on = document.getElementById('safeImagesToggle').checked;
+    localStorage.setItem('safeImagesMode', on ? '1' : '0');
+    runRegularSearch();
+  }
+  (function initSafeImagesToggle(){
+    const cb = document.getElementById('safeImagesToggle');
+    if (cb) cb.checked = localStorage.getItem('safeImagesMode') === '1';
+  })();
+
   // דיווח שקט לשרת על סטטוס תמונה - נצבר לאורך זמן, לא חוסם כלום, לא רואים את זה בכלל
   function reportImageStatus(imgEl, valid) {
     try {
@@ -3539,25 +3554,8 @@ document.addEventListener('click', e => {
       return;
     }
 
-    // שיטה 2: Performance API — בודק גודל אמיתי שהדפדפן הוריד
-    // תמונת נטפרי חסומה = כמה KB בלבד, תמונת מוצר = 30KB+
-    try {
-      const entries = performance.getEntriesByName(imgEl.src, 'resource');
-      if (entries.length > 0) {
-        const size = entries[entries.length - 1].encodedBodySize || entries[entries.length - 1].transferSize || 0;
-        if (size > 0 && size < 60000) {
-          // פחות מ-60KB = תמונת חסימה
-          if (activeNetfree) card.style.display = 'none';
-          reportImageStatus(imgEl, false);
-          return;
-        }
-        if (size >= 60000) {
-          card.dataset.imgOk = '1';
-          reportImageStatus(imgEl, true);
-          return;
-        }
-      }
-    } catch(e) {}
+    // שיטה 2 בוטלה — סף KB קבוע (60KB) לא מדויק כי חנויות שונות דוחסות תמונות אמיתיות בגדלים שונים מאוד
+    // (נמצאו חנויות עם תמונה תקינה של 11KB וחנויות עם 140KB) — נשארים רק על רוחב+צבע (לא תלויי-חנות)
 
     // שיטה 3: fallback — canvas לתמונות אחידות (solid color)
     try {

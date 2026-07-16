@@ -1,4 +1,5 @@
 console.log("BOOT DEBUG ROUTE VERSION 1");
+import 'dotenv/config';
 import express from "express";
 import compression from "compression";
 import pkg from "pg";

@@ -1815,15 +1815,17 @@ async function runRegularSearch(){
   params.set("offset", "0");
 
   const cacheKey = params.toString();
+  const CACHE_TTL_MS = 2 * 60 * 1000; // 2 דקות - אחרי זה תמיד שולפים מחדש מהשרת
   if (!window._productCache) window._productCache = {};
   
   let data;
-  if (window._productCache[cacheKey]) {
-    data = window._productCache[cacheKey];
+  const cached = window._productCache[cacheKey];
+  if (cached && (Date.now() - cached.ts < CACHE_TTL_MS)) {
+    data = cached.data;
   } else {
     const res = await fetch("/api/products?" + params);
     data = await res.json();
-    window._productCache[cacheKey] = data;
+    window._productCache[cacheKey] = { data, ts: Date.now() };
     // ניקוי cache אם גדל מדי (מעל 10 entries)
     const keys = Object.keys(window._productCache);
     if (keys.length > 10) delete window._productCache[keys[0]];
@@ -3526,7 +3528,6 @@ document.addEventListener('click', e => {
       const card = imgEl.closest('.card');
       const pid = card?.dataset.pid;
       const origUrl = imgEl.dataset.orig || imgEl.src;
-      console.log(`%c[בדיקת תמונה] מוצר ${pid}: ${valid ? '✅ תקין' : '❌ חסום'}`, valid?'color:green':'color:red', origUrl);
       if (!pid) return;
       const total = parseInt(card.dataset.totalImgs || '1');
       const payload = JSON.stringify({ productId: pid, imageUrl: origUrl, valid, totalImages: total });
@@ -3548,17 +3549,17 @@ document.addEventListener('click', e => {
       return;
     }
 
-    // שיטה 1: naturalWidth קטן = חסום
-    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) {
+    // שיטה 1: רוחב קטן מדי = חסום. תמונת מוצר אמיתית תמיד גדולה בהרבה מ-150px.
+    // (הועלה מ-20px ל-150px — 20 היה נמוך מדי לתפוס תמונות חסימה בגודל בינוני)
+    if (imgEl.naturalWidth < 150 || imgEl.naturalHeight < 150) {
       if (activeNetfree) card.style.display = 'none';
       reportImageStatus(imgEl, false);
       return;
     }
 
-    // שיטה 2 בוטלה — סף KB קבוע (60KB) לא מדויק כי חנויות שונות דוחסות תמונות אמיתיות בגדלים שונים מאוד
-    // (נמצאו חנויות עם תמונה תקינה של 11KB וחנויות עם 140KB) — נשארים רק על רוחב+צבע (לא תלויי-חנות)
-
-    // שיטה 3: fallback — canvas לתמונות אחידות (solid color)
+    // שיטה 2: בדיקת אחידות צבע — בונוס בלבד, לא ברירת מחדל.
+    // רוב התמונות שלנו מדומיינים חיצוניים, אז CORS חוסם את זה כמעט תמיד —
+    // כשזה קורה, סומכים על כך שהרוחב כבר עבר בהצלחה למעלה (שיטה 1), לא מניחים "תקין" סתם.
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 10; canvas.height = 10;
@@ -3572,11 +3573,13 @@ document.addEventListener('click', e => {
           return;
         }
       }
+      // עברה את בדיקת הרוחב אבל צבע אחיד לגמרי — עדיין חשודה
       if (activeNetfree) card.style.display = 'none';
       reportImageStatus(imgEl, false);
     } catch(e) {
-      // CORS — לא יכולים לבדוק, נניח פתוחה
+      // CORS חסם את בדיקת הצבע — סומכים על בדיקת הרוחב שכבר עברה בהצלחה
       card.dataset.imgOk = '1';
+      reportImageStatus(imgEl, true);
     }
   }
 

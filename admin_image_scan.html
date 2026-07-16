@@ -98,19 +98,23 @@ function checkImageValidity(img) {
   });
 
   function evaluate(imgEl) {
-    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) return false;
+    // בדיקת ממדים — עובדת תמיד, לא תלויה ב-CORS. תמונת מוצר אמיתית תמיד גדולה מזה.
+    if (imgEl.naturalWidth < 150 || imgEl.naturalHeight < 150) return false;
+
+    // בדיקת אחידות צבע — בונוס בלבד. אם CORS חוסם את זה (רוב התמונות שלנו, כי הן מדומיינים חיצוניים),
+    // מסתמכים על בדיקת הממדים שכבר עברה בהצלחה למעלה, לא מניחים "תקין" סתם כי לא הצלחנו לבדוק.
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 10; canvas.height = 10;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(imgEl, 0, 0, 10, 10);
-      const d = ctx.getImageData(0, 0, 10, 10).data;
+      const d = ctx.getImageData(0, 0, 10, 10).data; // זורק שגיאה אם CORS חוסם
       for (let i = 4; i < d.length; i += 4) {
         if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) return true;
       }
-      return false; // תמונה אחידה לגמרי = חשוד כחסום
+      return false; // עברה את בדיקת הממדים אבל צבע אחיד לגמרי — עדיין חשודה
     } catch(e) {
-      return true; // CORS - לא יכולים לבדוק, מניחים תקין
+      return true; // CORS חסם את בדיקת הצבע — סומכים על בדיקת הממדים שכבר עברה
     }
   }
 }

@@ -161,8 +161,12 @@ async function startScan() {
 
   while (running) {
     const res = await fetch('/api/admin/image-review?limit=15', { credentials: 'include' });
-    if (!res.ok) { log('שגיאת התחברות — עצרתי', 'blocked'); break; }
+    if (!res.ok) { log(`שגיאת HTTP ${res.status} — עצרתי`, 'blocked'); break; }
     const data = await res.json();
+    if (!data || !Array.isArray(data.products)) {
+      log('⚠️ תשובה לא צפויה מהשרת: ' + JSON.stringify(data).substring(0,200), 'blocked');
+      break;
+    }
     if (totalAtStart === null) totalAtStart = data.remaining + 0; // הערכה ראשונית
 
     if (!data.products.length) {

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>סריקת תמונות אוטומטית — LOOKLI Admin</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; background:#f4f2f0; color:#333; padding:24px; max-width:700px; margin:0 auto; }
+  h1 { font-size:20px; color:#4A2F3D; margin-bottom:6px; }
+  .sub { font-size:13px; color:#7A4A63; margin-bottom:24px; line-height:1.6; }
+
+  .box { background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.06); padding:24px; margin-bottom:16px; }
+
+  .btn { padding:14px 30px; border-radius:10px; border:none; font-size:15px; font-weight:700; cursor:pointer; }
+  .btn-start { background:#c48cb3; color:#fff; }
+  .btn-start:hover { background:#a86e94; }
+  .btn-start:disabled { background:#ddd; cursor:not-allowed; }
+  .btn-stop { background:#dc2626; color:#fff; }
+
+  .progress-wrap { margin-top:20px; }
+  .progress-bar-bg { width:100%; height:18px; background:#eee; border-radius:10px; overflow:hidden; }
+  .progress-bar-fill { height:100%; background:linear-gradient(90deg,#c48cb3,#e0a1c0); width:0%; transition:width .3s; }
+  .progress-text { font-size:13px; color:#666; margin-top:8px; display:flex; justify-content:space-between; }
+
+  .stats { display:flex; gap:12px; margin-top:16px; }
+  .stat { flex:1; text-align:center; background:#faf7f8; border-radius:10px; padding:12px; }
+  .stat-num { font-size:22px; font-weight:800; }
+  .stat-num.valid { color:#16a34a; }
+  .stat-num.blocked { color:#dc2626; }
+  .stat-num.pending { color:#999; }
+  .stat-label { font-size:11px; color:#888; margin-top:4px; }
+
+  .log { margin-top:16px; max-height:220px; overflow-y:auto; font-size:12px; background:#fafafa; border-radius:8px; padding:10px; font-family:monospace; direction:ltr; text-align:left; }
+  .log-line { padding:2px 0; }
+  .log-line.blocked { color:#dc2626; }
+  .log-line.valid { color:#16a34a; }
+
+  .warn { background:#fff8e6; border:1px solid #f0d888; border-radius:10px; padding:14px; font-size:13px; color:#8a6d1a; margin-bottom:16px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+  <h1>🔍 סריקת תמונות אוטומטית</h1>
+  <div class="sub">
+    עובר שיטתית על כל המוצרים שעדיין לא נבדקו, בדפדפן האמיתי שלך (עם נטפרי, אם דלוק) — לא בוט חיצוני, אז לא נתקל בחסימות.
+    כל תמונה נבדקת ומדווחת לשרת בדיוק כמו בגלישה רגילה באתר. השאירי את הטאב הזה פתוח עד שהסריקה מסתיימת.
+  </div>
+
+  <div class="warn">⚠️ אל תסגרי/תרעני את הטאב הזה באמצע — הסריקה תיעצר. אפשר להשאיר אותו פתוח ברקע ולהמשיך לעבוד בטאבים אחרים.</div>
+
+  <div class="box">
+    <button class="btn btn-start" id="startBtn" onclick="startScan()">▶️ התחלת סריקה</button>
+    <button class="btn btn-stop" id="stopBtn" onclick="stopScan()" style="display:none">⏹ עצירה</button>
+
+    <div class="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-text">
+        <span id="progressText">טרם התחיל</span>
+        <span id="remainingText"></span>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-num pending" id="statChecked">0</div><div class="stat-label">מוצרים נסרקו</div></div>
+      <div class="stat"><div class="stat-num valid" id="statValid">0</div><div class="stat-label">✅ תקינים</div></div>
+      <div class="stat"><div class="stat-num blocked" id="statBlocked">0</div><div class="stat-label">❌ חסומים</div></div>
+    </div>
+
+    <div class="log" id="logBox"></div>
+  </div>
+
+<script>
+let running = false;
+let totalChecked = 0, totalValid = 0, totalBlocked = 0, totalAtStart = null;
+
+function log(msg, cls) {
+  const box = document.getElementById('logBox');
+  const line = document.createElement('div');
+  line.className = 'log-line' + (cls ? ' ' + cls : '');
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  while (box.children.length > 300) box.removeChild(box.firstChild); // לא לתת ל-DOM לתפוח
+}
+
+function updateStats() {
+  document.getElementById('statChecked').textContent = totalChecked;
+  document.getElementById('statValid').textContent = totalValid;
+  document.getElementById('statBlocked').textContent = totalBlocked;
+}
+
+// אותה לוגיקת זיהוי בדיוק כמו checkNetfreeBlock באתר עצמו
+function checkImageValidity(img) {
+  return new Promise((resolve) => {
+    if (img.complete) return resolve(evaluate(img));
+    img.onload = () => resolve(evaluate(img));
+    img.onerror = () => resolve(false);
+  });
+
+  function evaluate(imgEl) {
+    if (imgEl.naturalWidth > 0 && imgEl.naturalWidth < 20) return false;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 10; canvas.height = 10;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, 10, 10);
+      const d = ctx.getImageData(0, 0, 10, 10).data;
+      for (let i = 4; i < d.length; i += 4) {
+        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) return true;
+      }
+      return false; // תמונה אחידה לגמרי = חשוד כחסום
+    } catch(e) {
+      return true; // CORS - לא יכולים לבדוק, מניחים תקין
+    }
+  }
+}
+
+async function reportStatus(productId, imageUrl, valid, totalImages) {
+  try {
+    await fetch('/api/report-image-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, imageUrl, valid, totalImages }),
+    });
+  } catch(e) {}
+}
+
+async function scanProduct(p) {
+  const images = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
+  if (!images.length) { log(`מוצר ${p.id}: אין תמונות בכלל`, 'blocked'); return; }
+
+  let anyValid = false;
+  for (const url of images) {
+    if (!running) break;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+    const valid = await Promise.race([
+      checkImageValidity(img),
+      new Promise(r => setTimeout(() => r(false), 12000)), // timeout
+    ]);
+    await reportStatus(p.id, url, valid, images.length);
+    if (valid) { anyValid = true; break; } // מספיקה תמונה אחת תקינה, לא צריך לבדוק את השאר
+  }
+
+  totalChecked++;
+  if (anyValid) totalValid++; else totalBlocked++;
+  log(`מוצר ${p.id} (${p.store}): ${anyValid ? '✅ תקין' : '❌ חסום'} — ${escapeShort(p.title)}`, anyValid ? 'valid' : 'blocked');
+  updateStats();
+}
+
+function escapeShort(s) {
+  return (s || '').substring(0, 40);
+}
+
+async function startScan() {
+  running = true;
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = 'inline-block';
+  log('🚀 מתחילה סריקה...');
+
+  while (running) {
+    const res = await fetch('/api/admin/image-review?limit=15', { credentials: 'include' });
+    if (!res.ok) { log('שגיאת התחברות — עצרתי', 'blocked'); break; }
+    const data = await res.json();
+    if (totalAtStart === null) totalAtStart = data.remaining + 0; // הערכה ראשונית
+
+    if (!data.products.length) {
+      log('🎉 סיימנו! אין עוד מוצרים לבדיקה.');
+      document.getElementById('progressText').textContent = 'הושלם!';
+      break;
+    }
+
+    document.getElementById('remainingText').textContent = `נותרו כ-${data.remaining}`;
+    for (const p of data.products) {
+      if (!running) break;
+      await scanProduct(p);
+      const pct = totalAtStart ? Math.min(100, Math.round((totalChecked / totalAtStart) * 100)) : 0;
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressText').textContent = `${totalChecked} נסרקו`;
+    }
+  }
+
+  running = false;
+  document.getElementById('startBtn').style.display = 'inline-block';
+  document.getElementById('startBtn').textContent = '▶️ המשך סריקה';
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+function stopScan() {
+  running = false;
+  log('⏸ הסריקה נעצרה ידנית. אפשר להמשיך בכל זמן.');
+}
+</script>
+</body>
+</html>

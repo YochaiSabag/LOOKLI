@@ -2914,6 +2914,7 @@ app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirnam
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
 app.get('/admin/image-review', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_image_review.html')));
+app.get('/admin/image-scan', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_image_scan.html')));
 
 // ===== TASKS API =====
 app.get('/api/admin/tasks-data', adminAuth, async (req, res) => {

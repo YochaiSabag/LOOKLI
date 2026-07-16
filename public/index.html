@@ -3526,6 +3526,7 @@ document.addEventListener('click', e => {
       const card = imgEl.closest('.card');
       const pid = card?.dataset.pid;
       const origUrl = imgEl.dataset.orig || imgEl.src;
+      console.log(`%c[בדיקת תמונה] מוצר ${pid}: ${valid ? '✅ תקין' : '❌ חסום'}`, valid?'color:green':'color:red', origUrl);
       if (!pid) return;
       const total = parseInt(card.dataset.totalImgs || '1');
       const payload = JSON.stringify({ productId: pid, imageUrl: origUrl, valid, totalImages: total });

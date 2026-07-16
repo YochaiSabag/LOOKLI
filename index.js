@@ -2677,43 +2677,6 @@ async function ga4Query(token, body) {
   return res.json();
 }
 
-// ── סקירת תמונות ידנית (מסך admin_image_review) ──
-app.get('/api/admin/image-review', adminAuth, async (req, res) => {
-  try {
-    const store = req.query.store || null;
-    const onlyUnreviewed = req.query.onlyUnreviewed === '1';
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-    const limit = Math.min(parseInt(req.query.limit) || 40, 100);
-    let sql = `SELECT id, title, store, images, image_url, has_valid_image, reviewed_at FROM products WHERE (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)`;
-    const params = [];
-    if (store) { params.push(store); sql += ` AND store = $${params.length}`; }
-    if (onlyUnreviewed) { sql += ` AND reviewed_at IS NULL`; }
-    sql += ` ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`;
-    const result = await pool.query(sql, params);
-    const countSql = `SELECT COUNT(*) AS total FROM products WHERE (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)${store ? ' AND store=$1' : ''}${onlyUnreviewed ? (store ? ' AND reviewed_at IS NULL' : ' AND reviewed_at IS NULL') : ''}`;
-    const countResult = await pool.query(countSql, store ? [store] : []);
-    res.json({ results: result.rows, total: parseInt(countResult.rows[0]?.total || 0) });
-  } catch (err) {
-    console.error('image-review error:', err.message);
-    res.status(500).json({ error: 'DB error' });
-  }
-});
-
-app.post('/api/admin/image-review/mark', adminAuth, async (req, res) => {
-  try {
-    const { ids, valid } = req.body;
-    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids חסר' });
-    await pool.query(
-      `UPDATE products SET has_valid_image=$1, reviewed_at=NOW() WHERE id = ANY($2::int[])`,
-      [!!valid, ids]
-    );
-    res.json({ updated: ids.length });
-  } catch (err) {
-    console.error('image-review mark error:', err.message);
-    res.status(500).json({ error: 'DB error' });
-  }
-});
-
 // דיווח פסיבי על סטטוס תמונה (תקינה/חסומה) — נקרא אוטומטית תוך כדי גלישה רגילה באתר, בלי אימות
 app.post('/api/report-image-status', async (req, res) => {
   try {

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>סקירת תמונות — LOOKLI Admin</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; background:#f4f2f0; color:#333; padding:20px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+  h1 { font-size:20px; color:#4A2F3D; }
+  .remaining { font-size:14px; color:#7A4A63; font-weight:700; background:#fdf0f7; padding:8px 16px; border-radius:20px; }
+  select { padding:8px 14px; border-radius:8px; border:1px solid #ddd; font-size:14px; }
+
+  .card { background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.06); padding:16px; margin-bottom:16px; }
+  .card-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .card-title { font-size:15px; font-weight:700; color:#333; max-width:70%; }
+  .card-store { font-size:12px; color:#999; background:#f2f2f2; padding:3px 10px; border-radius:12px; }
+
+  .thumbs-scroll { display:flex; gap:10px; overflow-x:auto; padding-bottom:8px; }
+  .thumb-wrap { position:relative; flex:0 0 auto; width:110px; height:140px; border-radius:10px; overflow:hidden;
+    border:4px solid #e5e5e5; cursor:pointer; transition:border-color .15s; background:#f8f8f8; }
+  .thumb-wrap.selected { border-color:#16a34a; }
+  .thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+  .thumb-check { position:absolute; top:4px; left:4px; width:24px; height:24px; border-radius:50%;
+    background:#16a34a; color:#fff; display:none; align-items:center; justify-content:center; font-size:14px; font-weight:800; }
+  .thumb-wrap.selected .thumb-check { display:flex; }
+  .thumb-num { position:absolute; bottom:4px; right:4px; background:rgba(0,0,0,.55); color:#fff; font-size:10px; padding:1px 6px; border-radius:8px; }
+
+  .card-actions { display:flex; gap:10px; margin-top:14px; }
+  .btn { padding:10px 18px; border-radius:8px; border:none; font-size:13px; font-weight:700; cursor:pointer; }
+  .btn-save { background:#c48cb3; color:#fff; }
+  .btn-save:hover { background:#a86e94; }
+  .btn-none { background:#f2f2f2; color:#666; }
+  .btn-none:hover { background:#e5e5e5; }
+  .saved-tag { font-size:12px; color:#16a34a; font-weight:700; align-self:center; }
+
+  .empty-state { text-align:center; padding:60px 20px; color:#888; }
+  .load-more { display:block; margin:20px auto; padding:12px 30px; border-radius:10px; border:none; background:#4A2F3D; color:#fff; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>🖼️ סקירת תמונות (נטפרי/חסימות)</h1>
+    <select id="storeFilter" onchange="reset()">
+      <option value="">כל החנויות</option>
+      <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+      <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+      <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+      <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+    </select>
+    <div class="remaining" id="remainingBox">טוען...</div>
+  </div>
+
+  <div style="font-size:13px;color:#7A4A63;margin-bottom:16px;line-height:1.6">
+    לחצי על כל תמונה <b>פתוחה/תקינה</b> (מסומנת בעיגול ירוק ✓). תמונות שלא תלחצי עליהן ייחשבו חסומות. אפשר לבטל בחירה בלחיצה חוזרת.
+    אם <b>אין אף תמונה תקינה</b> — לחצי על "אין תמונה תקינה בכלל".
+  </div>
+
+  <div id="cardsContainer"></div>
+  <div id="emptyState" class="empty-state" style="display:none">🎉 אין עוד מוצרים לסקירה (בסינון הנוכחי)</div>
+  <button id="loadMoreBtn" class="load-more" style="display:none" onclick="loadBatch()">טעני עוד</button>
+
+<script>
+let remaining = 0;
+
+function reset() {
+  document.getElementById('cardsContainer').innerHTML = '';
+  document.getElementById('emptyState').style.display = 'none';
+  loadBatch();
+}
+
+async function loadBatch() {
+  const store = document.getElementById('storeFilter').value;
+  const params = new URLSearchParams({ limit: 20 });
+  if (store) params.set('store', store);
+  document.getElementById('loadMoreBtn').style.display = 'none';
+  const res = await fetch('/api/admin/image-review?' + params, { credentials: 'include' });
+  if (!res.ok) { document.getElementById('remainingBox').textContent = 'שגיאת התחברות'; return; }
+  const data = await res.json();
+  remaining = data.remaining;
+  document.getElementById('remainingBox').textContent = `נותרו לסקירה: ${remaining}`;
+
+  if (!data.products.length) {
+    if (!document.getElementById('cardsContainer').children.length) {
+      document.getElementById('emptyState').style.display = 'block';
+    }
+    return;
+  }
+  data.products.forEach(renderCard);
+  if (data.products.length >= 20) document.getElementById('loadMoreBtn').style.display = 'block';
+}
+
+function renderCard(p) {
+  const images = (p.images && p.images.length) ? p.images.slice(0,6) : (p.image_url ? [p.image_url] : []);
+  const container = document.getElementById('cardsContainer');
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'card-' + p.id;
+
+  const thumbsHTML = images.map((img, i) => `
+    <div class="thumb-wrap" data-url="${img.replace(/"/g,'&quot;')}" onclick="toggleThumb(this)">
+      <img src="${img}" loading="lazy" onerror="this.parentElement.style.opacity='0.3'"/>
+      <div class="thumb-check">✓</div>
+      <div class="thumb-num">${i+1}</div>
+    </div>`).join('');
+
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-title">${escapeHtml(p.title || '(ללא כותרת)')}</div>
+      <div class="card-store">${p.store || ''}</div>
+    </div>
+    <div class="thumbs-scroll">${thumbsHTML || '<div style="color:#999;font-size:13px">אין תמונות בכלל</div>'}</div>
+    <div class="card-actions">
+      <button class="btn btn-save" onclick="saveCard(${p.id})">💾 שמירה</button>
+      <button class="btn btn-none" onclick="markNoneValid(${p.id})">❌ אין תמונה תקינה בכלל</button>
+      <span class="saved-tag" id="saved-${p.id}"></span>
+    </div>`;
+  container.appendChild(card);
+}
+
+function toggleThumb(el) {
+  el.classList.toggle('selected');
+}
+
+async function saveCard(id) {
+  const card = document.getElementById('card-' + id);
+  const selected = [...card.querySelectorAll('.thumb-wrap.selected')].map(el => el.dataset.url);
+  await submitReview(id, selected);
+}
+
+async function markNoneValid(id) {
+  await submitReview(id, []);
+}
+
+async function submitReview(id, validUrls) {
+  const tag = document.getElementById('saved-' + id);
+  tag.textContent = 'שומר...';
+  try {
+    await fetch('/api/admin/image-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id, validUrls })
+    });
+    const card = document.getElementById('card-' + id);
+    card.style.transition = 'opacity .3s';
+    card.style.opacity = '0';
+    setTimeout(() => card.remove(), 300);
+    remaining = Math.max(0, remaining - 1);
+    document.getElementById('remainingBox').textContent = `נותרו לסקירה: ${remaining}`;
+    if (!document.getElementById('cardsContainer').children.length) loadBatch();
+  } catch (e) {
+    tag.textContent = 'שגיאה, נסי שוב';
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+loadBatch();
+</script>
+</body>
+</html>

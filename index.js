@@ -2727,13 +2727,12 @@ app.post('/api/report-image-status', async (req, res) => {
     // ברגע שתמונה דווחה תקינה פעם אחת — נשארת תקינה תמיד (לא דורסים true בחזרה ל-false מדיווח מאוחר)
     if (!(results[imageUrl] === true)) results[imageUrl] = !!valid;
 
-    const checkedCount = Object.keys(results).length;
     const anyValid = Object.values(results).some(v => v === true);
-    const allChecked = totalImages ? checkedCount >= totalImages : false;
+    const anyChecked = Object.keys(results).length > 0;
 
-    let hasValidImage = null; // null = עדיין לא מספיק מידע כדי לקבוע
-    if (anyValid) hasValidImage = true;
-    else if (allChecked) hasValidImage = false;
+    // תקין ברגע שיש דיווח תקין אחד. חסום ברגע שיש דיווח כלשהו ואף אחד מהם לא תקין
+    // (לא מחכים שכל התמונות ייבדקו - זה כמעט אף פעם לא קורה, כי משתמשות לא גוללות את כל הקרוסלה)
+    const hasValidImage = anyValid ? true : (anyChecked ? false : null);
 
     if (hasValidImage !== null) {
       const validUrls = Object.keys(results).filter(u => results[u] === true);

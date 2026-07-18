@@ -1148,8 +1148,8 @@ function handleImgError(img){
   if(w&&!w.querySelector('.img-err')){
     var d=document.createElement('div');
     d.className='img-err';
-    d.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#d9b8d0;font-size:36px';
-    d.textContent='👗';
+    d.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#b8a3ae;font-size:13px;gap:6px;background:#f7f2f4';
+    d.innerHTML='<span style="font-size:26px">🚫</span><span>תמונה לא זמינה כרגע</span>';
     w.appendChild(d);
   }
 }
@@ -3538,7 +3538,12 @@ document.addEventListener('click', e => {
   }
 
   // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
+  // כבוי בכוונה: יש עכשיו כלי סריקה ייעודי (admin_image_scan.html) שעושה את הבדיקה הזו הרבה יותר יסודי.
+  // גלישה רגילה של משתמשות לא צריכה לשאת בעלות הביצועים של בדיקת כל תמונה (canvas + sendBeacon).
+  const PASSIVE_IMAGE_CHECK_ENABLED = false;
+
   function checkNetfreeBlock(imgEl) {
+    if (!PASSIVE_IMAGE_CHECK_ENABLED) return;
     const card = imgEl.closest('.card');
     if (!card) return;
 
@@ -3585,6 +3590,7 @@ document.addEventListener('click', e => {
 
   // תמונה שנכשלה בטעינה לגמרי (404/רשת) — מדווחים גם כאן
   function reportImageError(imgEl) {
+    if (!PASSIVE_IMAGE_CHECK_ENABLED) return;
     try { reportImageStatus(imgEl, false); } catch(e) {}
   }
 

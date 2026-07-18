@@ -126,12 +126,16 @@ function toggleThumb(el) {
 
 async function saveCard(id) {
   const card = document.getElementById('card-' + id);
-  const selected = [...card.querySelectorAll('.thumb-wrap.selected')].map(el => el.dataset.url);
-  await submitReview(id, selected, card.dataset.store);
+  const all = [...card.querySelectorAll('.thumb-wrap')];
+  const selected = all.filter(el => el.classList.contains('selected')).map(el => el.dataset.url);
+  const unselected = all.filter(el => !el.classList.contains('selected')).map(el => el.dataset.url);
+  await submitReview(id, selected, unselected, card.dataset.store);
 }
 
 async function markNoneValid(id) {
-  await submitReview(id, [], document.getElementById('card-' + id)?.dataset.store);
+  const card = document.getElementById('card-' + id);
+  const allUrls = [...card.querySelectorAll('.thumb-wrap')].map(el => el.dataset.url);
+  await submitReview(id, [], allUrls, card?.dataset.store);
 }
 
 async function measureSizeKB(url) {
@@ -143,22 +147,27 @@ async function measureSizeKB(url) {
   } catch(e) { return null; }
 }
 
-async function submitReview(id, validUrls, store) {
+async function submitReview(id, validUrls, blockedUrls, store) {
   const tag = document.getElementById('saved-' + id);
   tag.textContent = 'שומר...';
   try {
-    // מודדת בפועל (בדפדפן שלך, עם נטפרי) את גודל כל תמונה שסומנה תקינה - מזין את הלמידה של החנות
+    // מודדת בפועל (בדפדפן שלך, עם נטפרי) את גודל כל תמונה - גם תקינות וגם חסומות - מזין את הלמידה של החנות משני הכיוונים
     const validSizes = [];
     for (const url of validUrls) {
       const kb = await measureSizeKB(url);
       if (kb !== null) validSizes.push({ url, sizeKB: kb });
+    }
+    const blockedSizes = [];
+    for (const url of (blockedUrls || [])) {
+      const kb = await measureSizeKB(url);
+      if (kb !== null) blockedSizes.push({ url, sizeKB: kb });
     }
 
     await fetch('/api/admin/image-review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ id, validUrls, validSizes, store })
+      body: JSON.stringify({ id, validUrls, validSizes, blockedSizes, store })
     });
     const card = document.getElementById('card-' + id);
     card.style.transition = 'opacity .3s';

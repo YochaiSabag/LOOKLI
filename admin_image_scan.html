@@ -176,14 +176,15 @@ async function getStoreThreshold(store) {
       const res = await fetch('/api/store-image-baseline?store=' + encodeURIComponent(store));
       storeBaselineCache[store] = await res.json();
     } catch(e) {
-      storeBaselineCache[store] = { avgSizeKb: 0, sampleCount: 0 };
+      storeBaselineCache[store] = { avgSizeKb: 0, sampleCount: 0, maxBlockedSizeKb: 0, blockedSampleCount: 0 };
     }
   }
   const b = storeBaselineCache[store];
-  // אם יש מספיק דגימות (5+) לחנות הזו - סף דינמי: 30% מהגודל הממוצע שלה.
-  // אחרת (חנות חדשה/עוד לא נאספו מספיק נתונים) - נופלים חזרה לסף גלובלי בטוח.
-  if (b.sampleCount >= 5) return Math.max(8, b.avgSizeKb * 0.3);
-  return 18;
+  let threshold = 18; // ברירת מחדל גלובלית בטוחה
+  if (b.sampleCount >= 5) threshold = Math.max(threshold, b.avgSizeKb * 0.3);
+  // תמיד נשארים מעל הגודל הכי גדול שידוע לנו בוודאות שהוא חסום - הסיגנל הכי אמין שיש
+  if (b.blockedSampleCount >= 1) threshold = Math.max(threshold, b.maxBlockedSizeKb * 1.3);
+  return threshold;
 }
 
 async function reportStatus(productId, imageUrl, valid, totalImages, store, sizeKB) {
@@ -236,11 +237,6 @@ async function seedExample(isValid) {
   if (!store) { resultBox.textContent = 'בחרי קודם חנות'; return; }
   if (!url) { resultBox.textContent = 'תדביקי כתובת תמונה'; return; }
 
-  if (!isValid) {
-    resultBox.textContent = '📝 נרשם כדוגמה חסומה (לתיעוד שלך — האלגוריתם כרגע לומד רק מדוגמאות פתוחות).';
-    return;
-  }
-
   resultBox.textContent = '🔎 מודדת את התמונה...';
   try {
     const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
@@ -252,12 +248,16 @@ async function seedExample(isValid) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ store, sizeKB: kb }),
+      body: JSON.stringify({ store, sizeKB: kb, valid: isValid }),
     });
     if (!res.ok) throw new Error('שגיאה בשמירה');
     const data = await res.json();
-    storeBaselineCache[store] = { avgSizeKb: data.avgSizeKb, sampleCount: data.sampleCount }; // מרענן קאש מקומי
-    resultBox.innerHTML = `✅ נלמד! ${kb.toFixed(1)}KB. הבייסליין של ${store} עכשיו: ${data.avgSizeKb.toFixed(1)}KB ממוצע (מתוך ${data.sampleCount} דגימות)`;
+    storeBaselineCache[store] = data; // מרענן קאש מקומי
+    if (isValid) {
+      resultBox.innerHTML = `✅ נלמד! ${kb.toFixed(1)}KB. ממוצע תקין ב-${store}: ${data.avgSizeKb.toFixed(1)}KB (${data.sampleCount} דגימות)`;
+    } else {
+      resultBox.innerHTML = `❌ נלמד! ${kb.toFixed(1)}KB. הגודל החסום הגדול ביותר הידוע ב-${store}: ${data.maxBlockedSizeKb.toFixed(1)}KB (${data.blockedSampleCount} דגימות)`;
+    }
     document.getElementById('seedUrlInput').value = '';
   } catch (e) {
     resultBox.textContent = '⚠️ ' + e.message;

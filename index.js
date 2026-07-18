@@ -2727,6 +2727,17 @@ app.post('/api/report-image-status', async (req, res) => {
           updated_at = NOW()
       `, [store, sizeKB]);
     }
+    // למידה גם מהצד השני: תמונה שידוע שהיא חסומה - עוקבים אחרי הגודל הגדול ביותר שראינו, כדי שהסף תמיד יהיה מעליו
+    if (!valid && store && typeof sizeKB === 'number' && sizeKB > 0) {
+      await pool.query(`
+        INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
+        VALUES ($1, $2, 1, NOW())
+        ON CONFLICT (store) DO UPDATE SET
+          max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
+          blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
+          updated_at = NOW()
+      `, [store, sizeKB]);
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error('report-image-status error:', err.message);
@@ -2737,18 +2748,36 @@ app.post('/api/report-image-status', async (req, res) => {
 // הזנה ידנית של דוגמת תמונה תקינה לבייסליין החנות - לביוטסטראפ מהיר של הלמידה
 app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
   try {
-    const { store, sizeKB } = req.body;
+    const { store, sizeKB, valid } = req.body;
     if (!store || typeof sizeKB !== 'number' || sizeKB <= 0) return res.status(400).json({ error: 'חסרים store/sizeKB תקינים' });
-    await pool.query(`
-      INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
-      VALUES ($1, $2, 1, NOW())
-      ON CONFLICT (store) DO UPDATE SET
-        avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
-        sample_count = store_image_baseline.sample_count + 1,
-        updated_at = NOW()
-    `, [store, sizeKB]);
-    const updated = await pool.query(`SELECT avg_size_kb, sample_count FROM store_image_baseline WHERE store=$1`, [store]);
-    res.json({ ok: true, avgSizeKb: parseFloat(updated.rows[0].avg_size_kb), sampleCount: updated.rows[0].sample_count });
+    if (valid === false) {
+      await pool.query(`
+        INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
+        VALUES ($1, $2, 1, NOW())
+        ON CONFLICT (store) DO UPDATE SET
+          max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
+          blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
+          updated_at = NOW()
+      `, [store, sizeKB]);
+    } else {
+      await pool.query(`
+        INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
+        VALUES ($1, $2, 1, NOW())
+        ON CONFLICT (store) DO UPDATE SET
+          avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
+          sample_count = store_image_baseline.sample_count + 1,
+          updated_at = NOW()
+      `, [store, sizeKB]);
+    }
+    const updated = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    const r = updated.rows[0];
+    res.json({
+      ok: true,
+      avgSizeKb: parseFloat(r.avg_size_kb),
+      sampleCount: r.sample_count,
+      maxBlockedSizeKb: parseFloat(r.max_blocked_size_kb || 0),
+      blockedSampleCount: r.blocked_sample_count || 0,
+    });
   } catch (err) {
     console.error('seed-baseline error:', err.message);
     res.status(500).json({ error: 'DB error' });
@@ -2760,9 +2789,15 @@ app.get('/api/store-image-baseline', async (req, res) => {
   try {
     const store = req.query.store;
     if (!store) return res.status(400).json({ error: 'חסר store' });
-    const result = await pool.query(`SELECT avg_size_kb, sample_count FROM store_image_baseline WHERE store=$1`, [store]);
-    if (!result.rows.length) return res.json({ avgSizeKb: 0, sampleCount: 0 });
-    res.json({ avgSizeKb: parseFloat(result.rows[0].avg_size_kb), sampleCount: result.rows[0].sample_count });
+    const result = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    if (!result.rows.length) return res.json({ avgSizeKb: 0, sampleCount: 0, maxBlockedSizeKb: 0, blockedSampleCount: 0 });
+    const r = result.rows[0];
+    res.json({
+      avgSizeKb: parseFloat(r.avg_size_kb),
+      sampleCount: r.sample_count,
+      maxBlockedSizeKb: parseFloat(r.max_blocked_size_kb || 0),
+      blockedSampleCount: r.blocked_sample_count || 0,
+    });
   } catch (err) {
     console.error('store-image-baseline error:', err.message);
     res.status(500).json({ error: 'DB error' });
@@ -2794,7 +2829,7 @@ app.get('/api/admin/image-review', adminAuth, async (req, res) => {
 
 app.post('/api/admin/image-review', adminAuth, async (req, res) => {
   try {
-    const { id, validUrls, validSizes, store } = req.body; // validSizes: [{url, sizeKB}] אופציונלי - להזנת הבייסליין
+    const { id, validUrls, validSizes, blockedSizes, store } = req.body; // [{url, sizeKB}] אופציונלי - להזנת הבייסליין
     if (!id) return res.status(400).json({ error: 'חסר id' });
     const urls = Array.isArray(validUrls) ? validUrls : [];
     await pool.query(
@@ -2812,6 +2847,21 @@ app.post('/api/admin/image-review', adminAuth, async (req, res) => {
             ON CONFLICT (store) DO UPDATE SET
               avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
               sample_count = store_image_baseline.sample_count + 1,
+              updated_at = NOW()
+          `, [store, item.sizeKB]);
+        }
+      }
+    }
+    // ומזין גם מהתמונות שסומנו כחסומות (לא נבחרו) - עוקבים אחרי הגודל הגדול ביותר החסום הידוע
+    if (store && Array.isArray(blockedSizes)) {
+      for (const item of blockedSizes) {
+        if (item && typeof item.sizeKB === 'number' && item.sizeKB > 0) {
+          await pool.query(`
+            INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
+            VALUES ($1, $2, 1, NOW())
+            ON CONFLICT (store) DO UPDATE SET
+              max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
+              blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
               updated_at = NOW()
           `, [store, item.sizeKB]);
         }
@@ -4450,8 +4500,12 @@ app.listen(PORT, async () => {
         store TEXT PRIMARY KEY,
         avg_size_kb NUMERIC DEFAULT 0,
         sample_count INTEGER DEFAULT 0,
+        max_blocked_size_kb NUMERIC DEFAULT 0,
+        blocked_sample_count INTEGER DEFAULT 0,
         updated_at TIMESTAMP DEFAULT NOW()
       )`);
+      await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS max_blocked_size_kb NUMERIC DEFAULT 0`);
+      await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS blocked_sample_count INTEGER DEFAULT 0`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image) WHERE has_valid_image = false`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);

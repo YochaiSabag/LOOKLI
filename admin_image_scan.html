@@ -46,7 +46,45 @@
     כל תמונה נבדקת ומדווחת לשרת בדיוק כמו בגלישה רגילה באתר. השאירי את הטאב הזה פתוח עד שהסריקה מסתיימת.
   </div>
 
+  <div style="margin-bottom:16px">
+    <label style="font-size:13px;color:#7A4A63;font-weight:700;margin-left:8px">בדיקה ממוקדת (לדוגמית):</label>
+    <select id="storeFilter" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
+      <option value="">כל החנויות</option>
+      <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+      <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+      <option selected>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+      <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+    </select>
+  </div>
+
   <div class="warn">⚠️ אל תסגרי/תרעני את הטאב הזה באמצע — הסריקה תיעצר. אפשר להשאיר אותו פתוח ברקע ולהמשיך לעבוד בטאבים אחרים.</div>
+
+  <div class="box" style="margin-bottom:20px">
+    <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">📚 הזנת דוגמה ידנית ללמידה</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">מוצאת בעצמך תמונה שאת בטוחה שהיא פתוחה או חסומה? תזיני אותה — זה עוזר למערכת "להכיר" חנות מהר יותר, במיוחד בהתחלה.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="seedStore" style="padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px">
+        <option value="">בחרי חנות</option>
+        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+      </select>
+      <input type="text" id="seedUrlInput" placeholder="כתובת URL של התמונה" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px" />
+      <button class="btn" style="background:#16a34a;color:#fff" onclick="seedExample(true)">✅ פתוחה — למד מזה</button>
+      <button class="btn" style="background:#dc2626;color:#fff" onclick="seedExample(false)">❌ חסומה</button>
+    </div>
+    <div id="seedResult" style="margin-top:10px;font-size:13px"></div>
+  </div>
+
+  <div class="box" style="margin-bottom:20px">
+    <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:10px">🔬 בדיקת מוצר בודד (לבדיקות/דוגמיות)</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="singleUrlInput" placeholder="הדביקי כתובת URL של מוצר (מהחנות המקורית) או מספר ID" style="flex:1;padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px" />
+      <button class="btn btn-start" style="padding:10px 20px" onclick="testSingleProduct()">בדיקה</button>
+    </div>
+    <div id="singleResult" style="margin-top:10px;font-size:13px"></div>
+  </div>
 
   <div class="box">
     <button class="btn btn-start" id="startBtn" onclick="startScan()">▶️ התחלת סריקה</button>
@@ -89,42 +127,71 @@ function updateStats() {
   document.getElementById('statBlocked').textContent = totalBlocked;
 }
 
-// אותה לוגיקת זיהוי בדיוק כמו checkNetfreeBlock באתר עצמו
-function checkImageValidity(img) {
+// זיהוי משופר: ממדים (מסנן ראשוני מהיר) + גודל קובץ אמיתי מול הבייסליין הדינמי של החנות
+function checkImageValidity(img, threshold) {
   return new Promise((resolve) => {
     if (img.complete) return resolve(evaluate(img));
     img.onload = () => resolve(evaluate(img));
-    img.onerror = () => resolve(false);
+    img.onerror = () => resolve({ valid: false, sizeKB: null });
   });
 
-  function evaluate(imgEl) {
-    // בדיקת ממדים — עובדת תמיד, לא תלויה ב-CORS. תמונת מוצר אמיתית תמיד גדולה מזה.
-    if (imgEl.naturalWidth < 150 || imgEl.naturalHeight < 150) return false;
+  async function evaluate(imgEl) {
+    // שלב 1: ממדים — מסנן מהיר לפוסלים ברורים (תמונות זעירות)
+    if (imgEl.naturalWidth < 150 || imgEl.naturalHeight < 150) return { valid: false, sizeKB: null };
 
-    // בדיקת אחידות צבע — בונוס בלבד. אם CORS חוסם את זה (רוב התמונות שלנו, כי הן מדומיינים חיצוניים),
-    // מסתמכים על בדיקת הממדים שכבר עברה בהצלחה למעלה, לא מניחים "תקין" סתם כי לא הצלחנו לבדוק.
+    // שלב 2: גודל קובץ אמיתי מול הסף הדינמי (מבוסס בייסליין החנות, או ברירת מחדל אם עוד אין מספיק נתונים)
+    try {
+      const resp = await fetch(imgEl.src, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const kb = blob.size / 1024;
+        return { valid: kb >= threshold, sizeKB: kb };
+      }
+    } catch(e) {
+      // fetch נכשל (CORS/רשת) - לא הצלחנו לבדוק גודל, סומכים על בדיקת הממדים שכבר עברה
+    }
+
+    // שלב 3 (fallback אחרון): אחידות צבע דרך canvas, רק אם שלב 2 לא הכריע
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 10; canvas.height = 10;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(imgEl, 0, 0, 10, 10);
-      const d = ctx.getImageData(0, 0, 10, 10).data; // זורק שגיאה אם CORS חוסם
+      const d = ctx.getImageData(0, 0, 10, 10).data;
       for (let i = 4; i < d.length; i += 4) {
-        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) return true;
+        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) return { valid: true, sizeKB: null };
       }
-      return false; // עברה את בדיקת הממדים אבל צבע אחיד לגמרי — עדיין חשודה
+      return { valid: false, sizeKB: null };
     } catch(e) {
-      return true; // CORS חסם את בדיקת הצבע — סומכים על בדיקת הממדים שכבר עברה
+      return { valid: true, sizeKB: null }; // שום שיטה לא הצליחה לבדוק - סומכים על הממדים (שכבר עברו בשלב 1)
     }
   }
 }
 
-async function reportStatus(productId, imageUrl, valid, totalImages) {
+const storeBaselineCache = {}; // {STORE: {avgSizeKb, sampleCount}} - נשלף פעם אחת לכל חנות בסשן
+
+async function getStoreThreshold(store) {
+  if (!storeBaselineCache[store]) {
+    try {
+      const res = await fetch('/api/store-image-baseline?store=' + encodeURIComponent(store));
+      storeBaselineCache[store] = await res.json();
+    } catch(e) {
+      storeBaselineCache[store] = { avgSizeKb: 0, sampleCount: 0 };
+    }
+  }
+  const b = storeBaselineCache[store];
+  // אם יש מספיק דגימות (5+) לחנות הזו - סף דינמי: 30% מהגודל הממוצע שלה.
+  // אחרת (חנות חדשה/עוד לא נאספו מספיק נתונים) - נופלים חזרה לסף גלובלי בטוח.
+  if (b.sampleCount >= 5) return Math.max(8, b.avgSizeKb * 0.3);
+  return 18;
+}
+
+async function reportStatus(productId, imageUrl, valid, totalImages, store, sizeKB) {
   try {
     await fetch('/api/report-image-status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId, imageUrl, valid, totalImages }),
+      body: JSON.stringify({ productId, imageUrl, valid, totalImages, store, sizeKB }),
     });
   } catch(e) {}
 }
@@ -133,18 +200,23 @@ async function scanProduct(p) {
   const images = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
   if (!images.length) { log(`מוצר ${p.id}: אין תמונות בכלל`, 'blocked'); return; }
 
+  const threshold = await getStoreThreshold(p.store);
   let anyValid = false;
   for (const url of images) {
     if (!running) break;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = url;
-    const valid = await Promise.race([
-      checkImageValidity(img),
-      new Promise(r => setTimeout(() => r(false), 12000)), // timeout
+    const result = await Promise.race([
+      checkImageValidity(img, threshold),
+      new Promise(r => setTimeout(() => r({ valid: false, sizeKB: null }), 12000)), // timeout
     ]);
-    await reportStatus(p.id, url, valid, images.length);
-    if (valid) { anyValid = true; break; } // מספיקה תמונה אחת תקינה, לא צריך לבדוק את השאר
+    await reportStatus(p.id, url, result.valid, images.length, p.store, result.sizeKB);
+    if (result.valid) {
+      anyValid = true;
+      if (storeBaselineCache[p.store]) storeBaselineCache[p.store].sampleCount++; // עדכון מקומי גס, למנוע קריאות מיותרות
+      break; // מספיקה תמונה אחת תקינה, לא צריך לבדוק את השאר
+    }
   }
 
   totalChecked++;
@@ -157,6 +229,81 @@ function escapeShort(s) {
   return (s || '').substring(0, 40);
 }
 
+async function seedExample(isValid) {
+  const store = document.getElementById('seedStore').value;
+  const url = document.getElementById('seedUrlInput').value.trim();
+  const resultBox = document.getElementById('seedResult');
+  if (!store) { resultBox.textContent = 'בחרי קודם חנות'; return; }
+  if (!url) { resultBox.textContent = 'תדביקי כתובת תמונה'; return; }
+
+  if (!isValid) {
+    resultBox.textContent = '📝 נרשם כדוגמה חסומה (לתיעוד שלך — האלגוריתם כרגע לומד רק מדוגמאות פתוחות).';
+    return;
+  }
+
+  resultBox.textContent = '🔎 מודדת את התמונה...';
+  try {
+    const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) throw new Error('לא הצלחתי להוריד את התמונה (HTTP ' + resp.status + ')');
+    const blob = await resp.blob();
+    const kb = blob.size / 1024;
+
+    const res = await fetch('/api/admin/seed-baseline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ store, sizeKB: kb }),
+    });
+    if (!res.ok) throw new Error('שגיאה בשמירה');
+    const data = await res.json();
+    storeBaselineCache[store] = { avgSizeKb: data.avgSizeKb, sampleCount: data.sampleCount }; // מרענן קאש מקומי
+    resultBox.innerHTML = `✅ נלמד! ${kb.toFixed(1)}KB. הבייסליין של ${store} עכשיו: ${data.avgSizeKb.toFixed(1)}KB ממוצע (מתוך ${data.sampleCount} דגימות)`;
+    document.getElementById('seedUrlInput').value = '';
+  } catch (e) {
+    resultBox.textContent = '⚠️ ' + e.message;
+  }
+}
+
+async function testSingleProduct() {
+  const input = document.getElementById('singleUrlInput').value.trim();
+  const resultBox = document.getElementById('singleResult');
+  if (!input) { resultBox.textContent = 'תדביקי קודם URL או ID'; return; }
+  resultBox.textContent = '🔎 מחפשת את המוצר...';
+
+  try {
+    let p;
+    if (/^\d+$/.test(input)) {
+      const res = await fetch('/api/product/' + input);
+      if (!res.ok) throw new Error('מוצר לא נמצא לפי ID');
+      p = await res.json();
+    } else {
+      const res = await fetch('/api/product-by-url?url=' + encodeURIComponent(input), { credentials: 'include' });
+      if (!res.ok) throw new Error('מוצר לא נמצא לפי URL (בדקי שזו כתובת מהחנות המקורית, לא מ-lookli)');
+      p = await res.json();
+    }
+
+    const images = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
+    resultBox.innerHTML = `<b>${escapeShort(p.title)}</b> (${p.store}, ID ${p.id}) — ${images.length} תמונות. בודקת...`;
+
+    const threshold = await getStoreThreshold(p.store);
+    let lines = [];
+    for (const url of images) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+      const result = await Promise.race([
+        checkImageValidity(img, threshold),
+        new Promise(r => setTimeout(() => r({ valid: false, sizeKB: null }), 12000)),
+      ]);
+      const sizeTxt = result.sizeKB !== null ? ` (${result.sizeKB.toFixed(1)}KB, סף: ${threshold.toFixed(1)}KB)` : ' (לא נמדד גודל)';
+      lines.push(`${result.valid ? '✅' : '❌'} ${url.substring(0,70)}${sizeTxt}`);
+    }
+    resultBox.innerHTML = `<b>${escapeShort(p.title)}</b> (${p.store}, ID ${p.id})<br>` + lines.map(l => `<div style="font-family:monospace;font-size:11px;margin-top:4px">${l}</div>`).join('');
+  } catch (e) {
+    resultBox.textContent = '⚠️ ' + e.message;
+  }
+}
+
 async function startScan() {
   running = true;
   document.getElementById('startBtn').style.display = 'none';
@@ -164,7 +311,9 @@ async function startScan() {
   log('🚀 מתחילה סריקה...');
 
   while (running) {
-    const res = await fetch('/api/admin/image-review?limit=15', { credentials: 'include' });
+    const storeParam = document.getElementById('storeFilter').value;
+    const url = '/api/admin/image-review?limit=15' + (storeParam ? '&store=' + encodeURIComponent(storeParam) : '');
+    const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) { log(`שגיאת HTTP ${res.status} — עצרתי`, 'blocked'); break; }
     const data = await res.json();
     if (!data || !Array.isArray(data.products)) {
@@ -186,6 +335,7 @@ async function startScan() {
       const pct = totalAtStart ? Math.min(100, Math.round((totalChecked / totalAtStart) * 100)) : 0;
       document.getElementById('progressFill').style.width = pct + '%';
       document.getElementById('progressText').textContent = `${totalChecked} נסרקו`;
+      await new Promise(r => setTimeout(r, 600)); // השהיה בין מוצר למוצר - לא להעמיס על השרת
     }
   }
 

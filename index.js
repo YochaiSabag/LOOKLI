@@ -671,7 +671,7 @@ async function loadSearchAliases() {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
     const params = [];
     let i = 1;
 
@@ -899,8 +899,17 @@ app.get("/api/products", async (req, res) => {
     const result = await pool.query(sql, params);
     let rows = result.rows;
 
+    const wantSafeImages = req.query.safeImages === '1';
     res.json({
-      results: rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })),
+      results: rows.map(p => {
+        const out = { ...p, shipping: calculateShipping(p.store, p.price) };
+        if (wantSafeImages && Array.isArray(p.valid_image_urls) && p.valid_image_urls.length > 0) {
+          out.images = p.valid_image_urls;
+          out.image_url = p.valid_image_urls[0];
+        }
+        delete out.valid_image_urls; // לא צריך לשלוח את זה ללקוח, כבר הוחל
+        return out;
+      }),
       total
     });
   } catch (err) {
@@ -2102,7 +2111,7 @@ app.get("/api/product-by-url", adminAuth, async (req, res) => {
     const url = (req.query.url || '').trim().replace(/\/+$/, '');
     if (!url) return res.status(400).json({ error: 'חסר url' });
     const r = await pool.query(
-      `SELECT id, title, store, price, image_url, sizes FROM products
+      `SELECT id, title, store, price, image_url, images, sizes FROM products
        WHERE source_url = $1 OR source_url LIKE $2 LIMIT 1`,
       [url, url + '%']
     );
@@ -2680,7 +2689,7 @@ async function ga4Query(token, body) {
 // דיווח פסיבי על סטטוס תמונה (תקינה/חסומה) — נקרא אוטומטית תוך כדי גלישה רגילה באתר, בלי אימות
 app.post('/api/report-image-status', async (req, res) => {
   try {
-    const { productId, imageUrl, valid, totalImages } = req.body;
+    const { productId, imageUrl, valid, totalImages, store, sizeKB } = req.body;
     if (!productId || !imageUrl) return res.status(400).json({ error: 'חסרים פרטים' });
 
     const current = await pool.query(`SELECT image_check_results FROM products WHERE id=$1`, [productId]);
@@ -2706,9 +2715,56 @@ app.post('/api/report-image-status', async (req, res) => {
     } else {
       await pool.query(`UPDATE products SET image_check_results=$1 WHERE id=$2`, [JSON.stringify(results), productId]);
     }
+
+    // למידת הבייסליין: כשיש תמונה שאושרה תקינה + נמדד גודלה, מעדכנים את הממוצע הרץ של החנות
+    if (valid && store && typeof sizeKB === 'number' && sizeKB > 0) {
+      await pool.query(`
+        INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
+        VALUES ($1, $2, 1, NOW())
+        ON CONFLICT (store) DO UPDATE SET
+          avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
+          sample_count = store_image_baseline.sample_count + 1,
+          updated_at = NOW()
+      `, [store, sizeKB]);
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error('report-image-status error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// הזנה ידנית של דוגמת תמונה תקינה לבייסליין החנות - לביוטסטראפ מהיר של הלמידה
+app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
+  try {
+    const { store, sizeKB } = req.body;
+    if (!store || typeof sizeKB !== 'number' || sizeKB <= 0) return res.status(400).json({ error: 'חסרים store/sizeKB תקינים' });
+    await pool.query(`
+      INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
+      VALUES ($1, $2, 1, NOW())
+      ON CONFLICT (store) DO UPDATE SET
+        avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
+        sample_count = store_image_baseline.sample_count + 1,
+        updated_at = NOW()
+    `, [store, sizeKB]);
+    const updated = await pool.query(`SELECT avg_size_kb, sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    res.json({ ok: true, avgSizeKb: parseFloat(updated.rows[0].avg_size_kb), sampleCount: updated.rows[0].sample_count });
+  } catch (err) {
+    console.error('seed-baseline error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// שליפת הבייסליין הנלמד של חנות - כמה KB שוקלת בממוצע תמונה תקינה בה
+app.get('/api/store-image-baseline', async (req, res) => {
+  try {
+    const store = req.query.store;
+    if (!store) return res.status(400).json({ error: 'חסר store' });
+    const result = await pool.query(`SELECT avg_size_kb, sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    if (!result.rows.length) return res.json({ avgSizeKb: 0, sampleCount: 0 });
+    res.json({ avgSizeKb: parseFloat(result.rows[0].avg_size_kb), sampleCount: result.rows[0].sample_count });
+  } catch (err) {
+    console.error('store-image-baseline error:', err.message);
     res.status(500).json({ error: 'DB error' });
   }
 });
@@ -2738,13 +2794,29 @@ app.get('/api/admin/image-review', adminAuth, async (req, res) => {
 
 app.post('/api/admin/image-review', adminAuth, async (req, res) => {
   try {
-    const { id, validUrls } = req.body;
+    const { id, validUrls, validSizes, store } = req.body; // validSizes: [{url, sizeKB}] אופציונלי - להזנת הבייסליין
     if (!id) return res.status(400).json({ error: 'חסר id' });
     const urls = Array.isArray(validUrls) ? validUrls : [];
     await pool.query(
       `UPDATE products SET valid_image_urls=$1, has_valid_image=$2, reviewed_at=NOW() WHERE id=$3`,
       [urls, urls.length > 0, id]
     );
+
+    // מזין את הבייסליין הלומד של החנות מכל תמונה תקינה שנמדד גודלה בפועל
+    if (store && Array.isArray(validSizes)) {
+      for (const item of validSizes) {
+        if (item && typeof item.sizeKB === 'number' && item.sizeKB > 0) {
+          await pool.query(`
+            INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
+            VALUES ($1, $2, 1, NOW())
+            ON CONFLICT (store) DO UPDATE SET
+              avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
+              sample_count = store_image_baseline.sample_count + 1,
+              updated_at = NOW()
+          `, [store, item.sizeKB]);
+        }
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error('image-review POST error:', err.message);
@@ -4372,6 +4444,14 @@ app.listen(PORT, async () => {
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS valid_image_urls TEXT[] DEFAULT NULL`);
       // מעקב פסיבי: אילו תמונות נבדקו בפועל בדפדפן של גולשות (תקין/חסום), נאסף אוטומטית תוך כדי גלישה רגילה
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_check_results JSONB DEFAULT '{}'::jsonb`);
+      // "פרופיל" לומד-מעצמו לכל חנות: הגודל הממוצע (KB) של תמונות שכבר אושרו כתקינות בה.
+      // כך במקום סף קבוע אחד לכולם, כל חנות מושווית לעצמה — לא צריך לעדכן ידנית כשמצטרפת חנות חדשה.
+      await pool.query(`CREATE TABLE IF NOT EXISTS store_image_baseline (
+        store TEXT PRIMARY KEY,
+        avg_size_kb NUMERIC DEFAULT 0,
+        sample_count INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image) WHERE has_valid_image = false`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);

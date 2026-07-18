@@ -97,6 +97,7 @@ function renderCard(p) {
   const card = document.createElement('div');
   card.className = 'card';
   card.id = 'card-' + p.id;
+  card.dataset.store = p.store || '';
 
   const thumbsHTML = images.map((img, i) => `
     <div class="thumb-wrap" data-url="${img.replace(/"/g,'&quot;')}" onclick="toggleThumb(this)">
@@ -126,22 +127,38 @@ function toggleThumb(el) {
 async function saveCard(id) {
   const card = document.getElementById('card-' + id);
   const selected = [...card.querySelectorAll('.thumb-wrap.selected')].map(el => el.dataset.url);
-  await submitReview(id, selected);
+  await submitReview(id, selected, card.dataset.store);
 }
 
 async function markNoneValid(id) {
-  await submitReview(id, []);
+  await submitReview(id, [], document.getElementById('card-' + id)?.dataset.store);
 }
 
-async function submitReview(id, validUrls) {
+async function measureSizeKB(url) {
+  try {
+    const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return blob.size / 1024;
+  } catch(e) { return null; }
+}
+
+async function submitReview(id, validUrls, store) {
   const tag = document.getElementById('saved-' + id);
   tag.textContent = 'שומר...';
   try {
+    // מודדת בפועל (בדפדפן שלך, עם נטפרי) את גודל כל תמונה שסומנה תקינה - מזין את הלמידה של החנות
+    const validSizes = [];
+    for (const url of validUrls) {
+      const kb = await measureSizeKB(url);
+      if (kb !== null) validSizes.push({ url, sizeKB: kb });
+    }
+
     await fetch('/api/admin/image-review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ id, validUrls })
+      body: JSON.stringify({ id, validUrls, validSizes, store })
     });
     const card = document.getElementById('card-' + id);
     card.style.transition = 'opacity .3s';

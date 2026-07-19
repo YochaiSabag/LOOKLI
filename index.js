@@ -2747,47 +2747,102 @@ app.post('/api/report-image-status', async (req, res) => {
 
 // הזנה ידנית של דוגמת תמונה תקינה לבייסליין החנות - לביוטסטראפ מהיר של הלמידה
 // ניסיוני: הזנת דוגמה של זמן טעינה (ms) - סיגנל חלופי לחנויות שבהן CORS חוסם מדידת גודל קובץ
-app.post('/api/admin/seed-timing', adminAuth, async (req, res) => {
+// שליפת היסטוריית בדיקות (להשוואה) - אופציונלי לפי חנות
+app.get('/api/admin/image-check-log', adminAuth, async (req, res) => {
   try {
-    const { store, loadMs, valid } = req.body;
-    if (!store || typeof loadMs !== 'number' || loadMs <= 0) return res.status(400).json({ error: 'חסרים store/loadMs תקינים' });
-    if (valid === false) {
-      await pool.query(`
-        INSERT INTO store_image_baseline (store, avg_blocked_load_ms, blocked_load_sample_count, updated_at)
-        VALUES ($1, $2, 1, NOW())
-        ON CONFLICT (store) DO UPDATE SET
-          avg_blocked_load_ms = (store_image_baseline.avg_blocked_load_ms * store_image_baseline.blocked_load_sample_count + $2) / (store_image_baseline.blocked_load_sample_count + 1),
-          blocked_load_sample_count = store_image_baseline.blocked_load_sample_count + 1,
-          updated_at = NOW()
-      `, [store, loadMs]);
-    } else {
-      await pool.query(`
-        INSERT INTO store_image_baseline (store, avg_load_ms, load_sample_count, updated_at)
-        VALUES ($1, $2, 1, NOW())
-        ON CONFLICT (store) DO UPDATE SET
-          avg_load_ms = (store_image_baseline.avg_load_ms * store_image_baseline.load_sample_count + $2) / (store_image_baseline.load_sample_count + 1),
-          load_sample_count = store_image_baseline.load_sample_count + 1,
-          updated_at = NOW()
-      `, [store, loadMs]);
+    const store = req.query.store || null;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 300);
+    let sql = `SELECT store, image_url, action_type, valid, value, created_at FROM image_check_log`;
+    const params = [];
+    if (store) { sql += ` WHERE store = $1`; params.push(store); }
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+    const { rows } = await pool.query(sql, params);
+    res.json({ log: rows });
+  } catch (err) {
+    console.error('image-check-log error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// גלריית תמונות שטוחה (לא לפי מוצר) - לממשק סימון מהיר בבחירה מרובה
+app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
+  try {
+    const store = req.query.store;
+    const limit = Math.min(parseInt(req.query.limit) || 80, 200);
+    if (!store) return res.status(400).json({ error: 'חסר store' });
+    const { rows } = await pool.query(
+      `SELECT id, images, image_url FROM products
+       WHERE store = $1 AND reviewed_at IS NULL
+         AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)
+       ORDER BY id DESC LIMIT 60`,
+      [store]
+    );
+    const flat = [];
+    for (const p of rows) {
+      const imgs = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
+      for (const url of imgs.slice(0, 4)) { // עד 4 תמונות למוצר, כדי לקבל מגוון מוצרים ולא רק מוצר אחד עם 6 תמונות
+        flat.push({ productId: p.id, url });
+        if (flat.length >= limit) break;
+      }
+      if (flat.length >= limit) break;
     }
-    const r = await pool.query(`SELECT avg_load_ms, load_sample_count, avg_blocked_load_ms, blocked_load_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
-    const row = r.rows[0];
+    res.json({ images: flat });
+  } catch (err) {
+    console.error('image-gallery error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// סימון מרובה בבת אחת - מזין את הבייסליין (גודל) מכמה תמונות שנבחרו יחד, ורושם היסטוריה לכל אחת
+app.post('/api/admin/bulk-seed-baseline', adminAuth, async (req, res) => {
+  try {
+    const { store, valid, sizes } = req.body; // sizes: [{url, sizeKB}]
+    if (!store || !Array.isArray(sizes) || !sizes.length) return res.status(400).json({ error: 'חסרים store/sizes' });
+    for (const item of sizes) {
+      if (!item || typeof item.sizeKB !== 'number' || item.sizeKB <= 0) continue;
+      if (valid === false) {
+        await pool.query(`
+          INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
+          VALUES ($1, $2, 1, NOW())
+          ON CONFLICT (store) DO UPDATE SET
+            max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
+            blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
+            updated_at = NOW()
+        `, [store, item.sizeKB]);
+      } else {
+        await pool.query(`
+          INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
+          VALUES ($1, $2, 1, NOW())
+          ON CONFLICT (store) DO UPDATE SET
+            avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
+            sample_count = store_image_baseline.sample_count + 1,
+            updated_at = NOW()
+        `, [store, item.sizeKB]);
+      }
+      await pool.query(
+        `INSERT INTO image_check_log (store, image_url, action_type, valid, value) VALUES ($1,$2,'size',$3,$4)`,
+        [store, item.url, !!valid, item.sizeKB]
+      );
+    }
+    const r = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    const row = r.rows[0] || {};
     res.json({
       ok: true,
-      avgLoadMs: parseFloat(row.avg_load_ms || 0),
-      loadSampleCount: row.load_sample_count || 0,
-      avgBlockedLoadMs: parseFloat(row.avg_blocked_load_ms || 0),
-      blockedLoadSampleCount: row.blocked_load_sample_count || 0,
+      avgSizeKb: parseFloat(row.avg_size_kb || 0),
+      sampleCount: row.sample_count || 0,
+      maxBlockedSizeKb: parseFloat(row.max_blocked_size_kb || 0),
+      blockedSampleCount: row.blocked_sample_count || 0,
     });
   } catch (err) {
-    console.error('seed-timing error:', err.message);
+    console.error('bulk-seed-baseline error:', err.message);
     res.status(500).json({ error: 'DB error' });
   }
 });
 
 app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
   try {
-    const { store, sizeKB, valid } = req.body;
+    const { store, sizeKB, valid, url } = req.body;
     if (!store || typeof sizeKB !== 'number' || sizeKB <= 0) return res.status(400).json({ error: 'חסרים store/sizeKB תקינים' });
     if (valid === false) {
       await pool.query(`
@@ -2808,6 +2863,10 @@ app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
           updated_at = NOW()
       `, [store, sizeKB]);
     }
+    await pool.query(
+      `INSERT INTO image_check_log (store, image_url, action_type, valid, value) VALUES ($1,$2,'size',$3,$4)`,
+      [store, url || null, !!valid, sizeKB]
+    );
     const updated = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
     const r = updated.rows[0];
     res.json({
@@ -4568,6 +4627,16 @@ app.listen(PORT, async () => {
       await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS load_sample_count INTEGER DEFAULT 0`);
       await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS avg_blocked_load_ms NUMERIC DEFAULT 0`);
       await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS blocked_load_sample_count INTEGER DEFAULT 0`);
+      // היסטוריית כל בדיקה ידנית שנעשתה (הזנת דוגמה/תזמון/בדיקת מוצר) - כדי לחזור ולהשוות
+      await pool.query(`CREATE TABLE IF NOT EXISTS image_check_log (
+        id SERIAL PRIMARY KEY,
+        store TEXT,
+        image_url TEXT,
+        action_type TEXT,
+        valid BOOLEAN,
+        value NUMERIC,
+        created_at TIMESTAMP DEFAULT NOW()
+      )`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image) WHERE has_valid_image = false`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);

@@ -36,6 +36,16 @@
   .log-line.valid { color:#16a34a; }
 
   .warn { background:#fff8e6; border:1px solid #f0d888; border-radius:10px; padding:14px; font-size:13px; color:#8a6d1a; margin-bottom:16px; line-height:1.6; }
+
+  .gallery-thumb { position:relative; width:64px; height:84px; border-radius:8px; overflow:hidden; cursor:pointer;
+    border:3px solid #e5e5e5; transition:border-color .1s; flex-shrink:0; }
+  .gallery-thumb.selected { border-color:#7c3aed; box-shadow:0 0 0 2px rgba(124,58,237,.3); }
+  .gallery-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .gallery-thumb .zoom-link { position:absolute; top:2px; left:2px; background:rgba(0,0,0,.55); color:#fff; border-radius:4px;
+    width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:10px; text-decoration:none; z-index:2; }
+  .gallery-thumb .sel-check { position:absolute; bottom:2px; right:2px; width:16px; height:16px; border-radius:50%;
+    background:#7c3aed; color:#fff; display:none; align-items:center; justify-content:center; font-size:10px; font-weight:800; }
+  .gallery-thumb.selected .sel-check { display:flex; }
 </style>
 </head>
 <body>
@@ -76,40 +86,31 @@
     <div id="historyTable" style="max-height:300px;overflow-y:auto;font-size:11.5px;font-family:monospace"></div>
   </div>
 
-  <div class="box" style="margin-bottom:20px;border:2px dashed #f0a020">
-    <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">⏱️ ניסוי: זיהוי לפי זמן טעינה (לחנויות עם CORS חסום)</div>
-    <div style="font-size:12px;color:#888;margin-bottom:10px">מדביקים כמה תמונות שאת בטוחה לגבי הסטטוס שלהן, ובודקים אם יש הבדל עקבי בזמן הטעינה בין פתוחות לחסומות.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <select id="timingStore" style="padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px">
-        <option value="">בחרי חנות</option>
-        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-      </select>
-      <input type="text" id="timingUrlInput" placeholder="כתובת URL של התמונה" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px" />
-      <button class="btn" style="background:#16a34a;color:#fff" onclick="testTiming(true)">✅ ידוע כפתוחה</button>
-      <button class="btn" style="background:#dc2626;color:#fff" onclick="testTiming(false)">❌ ידוע כחסומה</button>
-    </div>
-    <div id="timingResult" style="font-size:13px"></div>
-  </div>
-
   <div class="box" style="margin-bottom:20px">
-    <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">📚 הזנת דוגמה ידנית ללמידה</div>
-    <div style="font-size:12px;color:#888;margin-bottom:10px">מוצאת בעצמך תמונה שאת בטוחה שהיא פתוחה או חסומה? תזיני אותה — זה עוזר למערכת "להכיר" חנות מהר יותר, במיוחד בהתחלה.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <select id="seedStore" style="padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px">
-        <option value="">בחרי חנות</option>
-        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-      </select>
-      <input type="text" id="seedUrlInput" placeholder="כתובת URL של התמונה" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px" />
-      <button class="btn" style="background:#16a34a;color:#fff" onclick="seedExample(true)">✅ פתוחה — למד מזה</button>
-      <button class="btn" style="background:#dc2626;color:#fff" onclick="seedExample(false)">❌ חסומה</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:14px;font-weight:700;color:#4A2F3D">🖼️ גלריית סימון מהיר (חנויות עם CORS חסום)</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="galleryStore" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;font-size:13px">
+          <option value="">בחרי חנות</option>
+          <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+          <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+          <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+          <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+        </select>
+        <button class="btn" style="padding:8px 16px;font-size:13px;background:#4A2F3D;color:#fff" onclick="loadGallery()">טעני תמונות</button>
+      </div>
     </div>
-    <div id="seedResult" style="margin-top:10px;font-size:13px"></div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">
+      לוחצים על תמונות כדי לבחור אותן (מסגרת סגולה = נבחרה), ואז מסמנים את כולן יחד כתקינות/חסומות. לחיצה על 🔍 בפינת כל תמונה פותחת אותה בגודל מלא.
+    </div>
+    <div id="galleryGrid" style="display:flex;flex-wrap:wrap;gap:8px;max-height:420px;overflow-y:auto;padding:4px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
+      <span id="gallerySelCount" style="font-size:13px;font-weight:700;color:#4A2F3D">0 נבחרו</span>
+      <button class="btn" style="background:#16a34a;color:#fff;padding:8px 16px;font-size:13px" onclick="bulkMarkGallery(true)">✅ סמן הנבחרות כתקינות</button>
+      <button class="btn" style="background:#dc2626;color:#fff;padding:8px 16px;font-size:13px" onclick="bulkMarkGallery(false)">❌ סמן הנבחרות כחסומות</button>
+      <button class="btn" style="background:#eee;color:#333;padding:8px 16px;font-size:13px" onclick="clearGallerySelection()">נקה בחירה</button>
+    </div>
+    <div id="galleryMsg" style="margin-top:8px;font-size:13px"></div>
   </div>
 
   <div class="box" style="margin-bottom:20px">
@@ -273,18 +274,6 @@ function escapeShort(s) {
   return (s || '').substring(0, 40);
 }
 
-async function measureReferenceMs() {
-  // מודדת זמן טעינה של תמונה קבועה ונייטרלית (הלוגו שלנו) - כדי לנטרל את מהירות הרשת הנוכחית
-  const t0 = performance.now();
-  const img = new Image();
-  img.src = '/lookli-logo.png?_t=' + Date.now();
-  return new Promise((resolve) => {
-    img.onload = () => resolve(performance.now() - t0);
-    img.onerror = () => resolve(performance.now() - t0);
-    setTimeout(() => resolve(200), 5000); // ברירת מחדל סבירה אם גם זה נכשל
-  });
-}
-
 async function loadHistory() {
   const store = document.getElementById('historyStoreFilter').value;
   const box = document.getElementById('historyTable');
@@ -297,7 +286,7 @@ async function loadHistory() {
     if (!data.log || !data.log.length) { box.textContent = 'אין עדיין היסטוריה.'; return; }
     box.innerHTML = data.log.map(row => {
       const t = new Date(row.created_at).toLocaleString('he-IL', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
-      const typeLabel = row.action_type === 'timing' ? `יחס תזמון: פי ${parseFloat(row.value).toFixed(2)}` : `גודל: ${parseFloat(row.value).toFixed(1)}KB`;
+      const typeLabel = `גודל: ${parseFloat(row.value).toFixed(1)}KB`;
       const validLabel = row.valid ? '✅' : '❌';
       const urlShort = row.image_url ? row.image_url.substring(0,50) : '(ללא URL)';
       return `<div style="padding:4px 0;border-bottom:1px solid #eee">${t} | <b>${row.store}</b> | ${validLabel} ${typeLabel} | <span style="color:#999">${urlShort}</span></div>`;
@@ -307,78 +296,96 @@ async function loadHistory() {
   }
 }
 
-async function testTiming(isKnownValid) {
-  const store = document.getElementById('timingStore').value;
-  const url = document.getElementById('timingUrlInput').value.trim();
-  const resultBox = document.getElementById('timingResult');
-  if (!store) { resultBox.textContent = 'בחרי קודם חנות'; return; }
-  if (!url) { resultBox.textContent = 'תדביקי כתובת תמונה'; return; }
+// ===== גלריית סימון מהיר - בחירה מרובה של תמונות קטנות =====
+let galleryImages = []; // [{productId, url}]
+let gallerySelected = new Set();
 
-  resultBox.textContent = '⏱️ מודדת זמן טעינה (כולל נקודת ייחוס)...';
-
-  // מודדים את שתיהן קרוב ככל האפשר בזמן, כדי שתנאי הרשת יהיו זהים לשתיהן
-  const t0 = performance.now();
-  const img = new Image();
-  img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-  const rawLoadMs = await new Promise((resolve) => {
-    img.onload = () => resolve(performance.now() - t0);
-    img.onerror = () => resolve(performance.now() - t0);
-    setTimeout(() => resolve(null), 15000);
-  });
-  if (rawLoadMs === null) { resultBox.textContent = '⚠️ טיים-אאוט, לא נמדד'; return; }
-
-  const refMs = await measureReferenceMs();
-  const relativeRatio = rawLoadMs / Math.max(refMs, 1); // יחס: פי כמה איטי יותר מנקודת הייחוס
-
+async function loadGallery() {
+  const store = document.getElementById('galleryStore').value;
+  const grid = document.getElementById('galleryGrid');
+  const msg = document.getElementById('galleryMsg');
+  msg.textContent = '';
+  if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
+  grid.innerHTML = '<div style="color:#888;font-size:13px">טוענת תמונות...</div>';
+  gallerySelected.clear();
+  updateGallerySelCount();
   try {
-    const res = await fetch('/api/admin/seed-timing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ store, loadMs: relativeRatio, valid: isKnownValid, url }), // שולחים את היחס, לא את הזמן הגולמי
-    });
+    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=80', { credentials: 'include' });
     const data = await res.json();
-    const gap = data.loadSampleCount > 0 && data.blockedLoadSampleCount > 0
-      ? `<br><b>פער נוכחי (ביחידות "פי כמה מהייחוס"):</b> פתוחות פי ${data.avgLoadMs.toFixed(2)} | חסומות פי ${data.avgBlockedLoadMs.toFixed(2)}`
-      : '';
-    resultBox.innerHTML = `נמדד: ${rawLoadMs.toFixed(0)}ms גולמי, ייחוס: ${refMs.toFixed(0)}ms → <b>יחס: פי ${relativeRatio.toFixed(2)}</b> (${isKnownValid?'✅ פתוחה':'❌ חסומה'})${gap}`;
-    document.getElementById('timingUrlInput').value = ''; loadHistory();
+    galleryImages = data.images || [];
+    if (!galleryImages.length) { grid.innerHTML = '<div style="color:#888;font-size:13px">אין עוד תמונות לא-נסקרות בחנות זו 🎉</div>'; return; }
+    renderGallery();
   } catch(e) {
-    resultBox.textContent = '⚠️ שגיאה בשמירה: ' + e.message;
+    grid.innerHTML = '<div style="color:#dc2626;font-size:13px">⚠️ שגיאה בטעינה</div>';
   }
 }
 
-async function seedExample(isValid) {
-  const store = document.getElementById('seedStore').value;
-  const url = document.getElementById('seedUrlInput').value.trim();
-  const resultBox = document.getElementById('seedResult');
-  if (!store) { resultBox.textContent = 'בחרי קודם חנות'; return; }
-  if (!url) { resultBox.textContent = 'תדביקי כתובת תמונה'; return; }
+function renderGallery() {
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = galleryImages.map((item, i) => `
+    <div class="gallery-thumb${gallerySelected.has(i)?' selected':''}" id="gthumb-${i}" onclick="toggleGalleryItem(${i})">
+      <img src="${item.url}" loading="lazy" onerror="this.style.opacity='0.2'"/>
+      <a class="zoom-link" href="${item.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔍</a>
+      <div class="sel-check">✓</div>
+    </div>`).join('');
+}
 
-  resultBox.textContent = '🔎 מודדת את התמונה...';
+function toggleGalleryItem(i) {
+  if (gallerySelected.has(i)) gallerySelected.delete(i); else gallerySelected.add(i);
+  document.getElementById('gthumb-'+i)?.classList.toggle('selected');
+  updateGallerySelCount();
+}
+
+function clearGallerySelection() {
+  gallerySelected.clear();
+  renderGallery();
+  updateGallerySelCount();
+}
+
+function updateGallerySelCount() {
+  document.getElementById('gallerySelCount').textContent = gallerySelected.size + ' נבחרו';
+}
+
+async function bulkMarkGallery(isValid) {
+  const store = document.getElementById('galleryStore').value;
+  const msg = document.getElementById('galleryMsg');
+  if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
+  if (!gallerySelected.size) { msg.textContent = 'לא נבחרו תמונות'; return; }
+
+  const indices = [...gallerySelected];
+  msg.textContent = `מודדת ${indices.length} תמונות...`;
+  const sizes = [];
+  for (const i of indices) {
+    const url = galleryImages[i]?.url;
+    if (!url) continue;
+    try {
+      const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        sizes.push({ url, sizeKB: blob.size / 1024 });
+      }
+    } catch(e) {}
+  }
+  if (!sizes.length) { msg.textContent = '⚠️ לא הצלחתי למדוד אף תמונה מהנבחרות (CORS?) — אין מה ללמוד מהן'; return; }
+
   try {
-    const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error('לא הצלחתי להוריד את התמונה (HTTP ' + resp.status + ')');
-    const blob = await resp.blob();
-    const kb = blob.size / 1024;
-
-    const res = await fetch('/api/admin/seed-baseline', {
+    const res = await fetch('/api/admin/bulk-seed-baseline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ store, sizeKB: kb, valid: isValid, url }),
+      body: JSON.stringify({ store, valid: isValid, sizes }),
     });
-    if (!res.ok) throw new Error('שגיאה בשמירה');
     const data = await res.json();
-    storeBaselineCache[store] = data; // מרענן קאש מקומי
-    if (isValid) {
-      resultBox.innerHTML = `✅ נלמד! ${kb.toFixed(1)}KB. ממוצע תקין ב-${store}: ${data.avgSizeKb.toFixed(1)}KB (${data.sampleCount} דגימות)`;
-    } else {
-      resultBox.innerHTML = `❌ נלמד! ${kb.toFixed(1)}KB. הגודל החסום הגדול ביותר הידוע ב-${store}: ${data.maxBlockedSizeKb.toFixed(1)}KB (${data.blockedSampleCount} דגימות)`;
-    }
-    document.getElementById('seedUrlInput').value = ''; loadHistory();
-  } catch (e) {
-    resultBox.textContent = '⚠️ ' + e.message;
+    storeBaselineCache[store] = data;
+    msg.innerHTML = `✅ נלמד מ-${sizes.length} תמונות (${isValid?'תקינות':'חסומות'})! ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB | מקסימום חסום ידוע: ${data.maxBlockedSizeKb.toFixed(1)}KB`;
+    // מסירים מהגלריה את מה שסומן, כדי לא לסמן פעמיים
+    galleryImages = galleryImages.filter((_, i) => !gallerySelected.has(i));
+    gallerySelected.clear();
+    renderGallery();
+    updateGallerySelCount();
+    loadHistory();
+  } catch(e) {
+    msg.textContent = '⚠️ שגיאה בשמירה';
   }
 }
 
@@ -414,24 +421,7 @@ async function testSingleProduct() {
         checkImageValidity(img, threshold),
         new Promise(r => setTimeout(() => r({ valid: false, sizeKB: null }), 12000)),
       ]);
-
-      // מדידת זמן טעינה יחסי (אותה שיטה כמו בניסוי) - מוצג לצד הגודל להשוואה
-      let loadRatio = null;
-      try {
-        const t0 = performance.now();
-        const timingImg = new Image();
-        timingImg.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-        const rawMs = await Promise.race([
-          new Promise((resolve) => { timingImg.onload = () => resolve(performance.now() - t0); timingImg.onerror = () => resolve(performance.now() - t0); }),
-          new Promise(r => setTimeout(() => r(null), 8000)),
-        ]);
-        if (rawMs !== null) {
-          const refMs = await measureReferenceMs();
-          loadRatio = rawMs / Math.max(refMs, 1);
-        }
-      } catch(e) {}
-
-      items.push({ url, sizeKB: result.sizeKB, valid: result.valid, loadRatio });
+      items.push({ url, sizeKB: result.sizeKB, valid: result.valid });
     }
     lastTestProduct = { id: p.id, store: p.store, items };
     renderTestResult(threshold);
@@ -444,15 +434,13 @@ function renderTestResult(threshold) {
   const resultBox = document.getElementById('singleResult');
   const { id, store, items } = lastTestProduct;
   const rows = items.map((it, i) => {
-    const sizeTxt = it.sizeKB !== null ? `${it.sizeKB.toFixed(1)}KB` : 'גודל: לא נמדד (CORS)';
-    const timingTxt = it.loadRatio !== null ? `⏱️ פי ${it.loadRatio.toFixed(2)}` : '⏱️ לא נמדד';
+    const sizeTxt = it.sizeKB !== null ? `${it.sizeKB.toFixed(1)}KB` : 'לא נמדד (CORS)';
     return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11.5px">
       <a href="${it.url}" target="_blank" rel="noopener" title="פתיחה בגודל מלא בלשונית חדשה">
         <img src="${it.url}" style="width:50px;height:66px;object-fit:cover;border-radius:6px;border:2px solid ${it.valid?'#16a34a':'#dc2626'};cursor:pointer;flex-shrink:0" onerror="this.style.opacity='0.3'"/>
       </a>
       <button onclick="toggleTestItem(${i})" style="border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;background:${it.valid?'#16a34a':'#dc2626'};color:#fff;flex-shrink:0">${it.valid?'✅ תקין':'❌ חסום'}</button>
       <span style="font-family:monospace;flex-shrink:0">${sizeTxt}</span>
-      <span style="font-family:monospace;flex-shrink:0;color:#f0a020">${timingTxt}</span>
       <span style="color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.url.substring(0,50)}</span>
     </div>`;
   }).join('');

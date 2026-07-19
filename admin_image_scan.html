@@ -59,6 +59,24 @@
 
   <div class="warn">⚠️ אל תסגרי/תרעני את הטאב הזה באמצע — הסריקה תיעצר. אפשר להשאיר אותו פתוח ברקע ולהמשיך לעבוד בטאבים אחרים.</div>
 
+  <div class="box" style="margin-bottom:20px;border:2px dashed #f0a020">
+    <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">⏱️ ניסוי: זיהוי לפי זמן טעינה (לחנויות עם CORS חסום)</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">מדביקים כמה תמונות שאת בטוחה לגבי הסטטוס שלהן, ובודקים אם יש הבדל עקבי בזמן הטעינה בין פתוחות לחסומות.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <select id="timingStore" style="padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px">
+        <option value="">בחרי חנות</option>
+        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+      </select>
+      <input type="text" id="timingUrlInput" placeholder="כתובת URL של התמונה" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:13px" />
+      <button class="btn" style="background:#16a34a;color:#fff" onclick="testTiming(true)">✅ ידוע כפתוחה</button>
+      <button class="btn" style="background:#dc2626;color:#fff" onclick="testTiming(false)">❌ ידוע כחסומה</button>
+    </div>
+    <div id="timingResult" style="font-size:13px"></div>
+  </div>
+
   <div class="box" style="margin-bottom:20px">
     <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">📚 הזנת דוגמה ידנית ללמידה</div>
     <div style="font-size:12px;color:#888;margin-bottom:10px">מוצאת בעצמך תמונה שאת בטוחה שהיא פתוחה או חסומה? תזיני אותה — זה עוזר למערכת "להכיר" חנות מהר יותר, במיוחד בהתחלה.</div>
@@ -236,6 +254,44 @@ async function scanProduct(p) {
 
 function escapeShort(s) {
   return (s || '').substring(0, 40);
+}
+
+async function testTiming(isKnownValid) {
+  const store = document.getElementById('timingStore').value;
+  const url = document.getElementById('timingUrlInput').value.trim();
+  const resultBox = document.getElementById('timingResult');
+  if (!store) { resultBox.textContent = 'בחרי קודם חנות'; return; }
+  if (!url) { resultBox.textContent = 'תדביקי כתובת תמונה'; return; }
+
+  resultBox.textContent = '⏱️ מודדת זמן טעינה...';
+  const t0 = performance.now();
+  const img = new Image();
+  img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now(); // שובר cache כדי למדוד טעינה אמיתית
+
+  const loadMs = await new Promise((resolve) => {
+    img.onload = () => resolve(performance.now() - t0);
+    img.onerror = () => resolve(performance.now() - t0); // גם כישלון הוא נתון זמן רלוונטי
+    setTimeout(() => resolve(null), 15000);
+  });
+
+  if (loadMs === null) { resultBox.textContent = '⚠️ טיים-אאוט, לא נמדד'; return; }
+
+  try {
+    const res = await fetch('/api/admin/seed-timing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ store, loadMs, valid: isKnownValid }),
+    });
+    const data = await res.json();
+    const gap = data.loadSampleCount > 0 && data.blockedLoadSampleCount > 0
+      ? `<br><b>פער נוכחי:</b> פתוחות ${data.avgLoadMs.toFixed(0)}ms ממוצע | חסומות ${data.avgBlockedLoadMs.toFixed(0)}ms ממוצע`
+      : '';
+    resultBox.innerHTML = `נמדד: <b>${loadMs.toFixed(0)}ms</b> (${isKnownValid?'✅ פתוחה':'❌ חסומה'})${gap}`;
+    document.getElementById('timingUrlInput').value = '';
+  } catch(e) {
+    resultBox.textContent = '⚠️ שגיאה בשמירה: ' + e.message;
+  }
 }
 
 async function seedExample(isValid) {

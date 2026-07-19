@@ -411,7 +411,7 @@ async function loadPresets() {
 
 async function loadProducts() {
   try {
-    const r = await fetch('/api/products?limit=2000&sort=newest', { credentials: 'include' });
+    const r = await fetch('/api/products?limit=20000&sort=newest', { credentials: 'include' });
     const data = await r.json();
     allProducts = Array.isArray(data) ? data : (data.results || data.products || []);
     applyFilter();

@@ -890,7 +890,7 @@ app.get("/api/products", async (req, res) => {
     const cookies = req.headers.cookie || '';
     const cookieMatch = cookies.match(/admsess=([a-f0-9]+)/);
     const isAdmin = cookieMatch && cookieMatch[1] === makeAdminCookieToken();
-    const maxAllowedLimit = isAdmin ? 3000 : 100;
+    const maxAllowedLimit = isAdmin ? 20000 : 100;
     const reqLimit = Math.min(parseInt(req.query.limit) || 60, maxAllowedLimit);
     const reqOffset = Math.max(parseInt(req.query.offset) || 0, 0);
     sql += ` LIMIT $${i} OFFSET $${i+1}`;
@@ -2746,6 +2746,45 @@ app.post('/api/report-image-status', async (req, res) => {
 });
 
 // הזנה ידנית של דוגמת תמונה תקינה לבייסליין החנות - לביוטסטראפ מהיר של הלמידה
+// ניסיוני: הזנת דוגמה של זמן טעינה (ms) - סיגנל חלופי לחנויות שבהן CORS חוסם מדידת גודל קובץ
+app.post('/api/admin/seed-timing', adminAuth, async (req, res) => {
+  try {
+    const { store, loadMs, valid } = req.body;
+    if (!store || typeof loadMs !== 'number' || loadMs <= 0) return res.status(400).json({ error: 'חסרים store/loadMs תקינים' });
+    if (valid === false) {
+      await pool.query(`
+        INSERT INTO store_image_baseline (store, avg_blocked_load_ms, blocked_load_sample_count, updated_at)
+        VALUES ($1, $2, 1, NOW())
+        ON CONFLICT (store) DO UPDATE SET
+          avg_blocked_load_ms = (store_image_baseline.avg_blocked_load_ms * store_image_baseline.blocked_load_sample_count + $2) / (store_image_baseline.blocked_load_sample_count + 1),
+          blocked_load_sample_count = store_image_baseline.blocked_load_sample_count + 1,
+          updated_at = NOW()
+      `, [store, loadMs]);
+    } else {
+      await pool.query(`
+        INSERT INTO store_image_baseline (store, avg_load_ms, load_sample_count, updated_at)
+        VALUES ($1, $2, 1, NOW())
+        ON CONFLICT (store) DO UPDATE SET
+          avg_load_ms = (store_image_baseline.avg_load_ms * store_image_baseline.load_sample_count + $2) / (store_image_baseline.load_sample_count + 1),
+          load_sample_count = store_image_baseline.load_sample_count + 1,
+          updated_at = NOW()
+      `, [store, loadMs]);
+    }
+    const r = await pool.query(`SELECT avg_load_ms, load_sample_count, avg_blocked_load_ms, blocked_load_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    const row = r.rows[0];
+    res.json({
+      ok: true,
+      avgLoadMs: parseFloat(row.avg_load_ms || 0),
+      loadSampleCount: row.load_sample_count || 0,
+      avgBlockedLoadMs: parseFloat(row.avg_blocked_load_ms || 0),
+      blockedLoadSampleCount: row.blocked_load_sample_count || 0,
+    });
+  } catch (err) {
+    console.error('seed-timing error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
 app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
   try {
     const { store, sizeKB, valid } = req.body;
@@ -2789,14 +2828,18 @@ app.get('/api/store-image-baseline', async (req, res) => {
   try {
     const store = req.query.store;
     if (!store) return res.status(400).json({ error: 'חסר store' });
-    const result = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
-    if (!result.rows.length) return res.json({ avgSizeKb: 0, sampleCount: 0, maxBlockedSizeKb: 0, blockedSampleCount: 0 });
+    const result = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count, avg_load_ms, load_sample_count, avg_blocked_load_ms, blocked_load_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
+    if (!result.rows.length) return res.json({ avgSizeKb: 0, sampleCount: 0, maxBlockedSizeKb: 0, blockedSampleCount: 0, avgLoadMs: 0, loadSampleCount: 0, avgBlockedLoadMs: 0, blockedLoadSampleCount: 0 });
     const r = result.rows[0];
     res.json({
       avgSizeKb: parseFloat(r.avg_size_kb),
       sampleCount: r.sample_count,
       maxBlockedSizeKb: parseFloat(r.max_blocked_size_kb || 0),
       blockedSampleCount: r.blocked_sample_count || 0,
+      avgLoadMs: parseFloat(r.avg_load_ms || 0),
+      loadSampleCount: r.load_sample_count || 0,
+      avgBlockedLoadMs: parseFloat(r.avg_blocked_load_ms || 0),
+      blockedLoadSampleCount: r.blocked_load_sample_count || 0,
     });
   } catch (err) {
     console.error('store-image-baseline error:', err.message);
@@ -4520,6 +4563,11 @@ app.listen(PORT, async () => {
       )`);
       await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS max_blocked_size_kb NUMERIC DEFAULT 0`);
       await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS blocked_sample_count INTEGER DEFAULT 0`);
+      // ניסיוני: למידה לפי זמן טעינה (ms) - סיגנל שנגיש גם כש-CORS חוסם מדידת גודל קובץ
+      await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS avg_load_ms NUMERIC DEFAULT 0`);
+      await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS load_sample_count INTEGER DEFAULT 0`);
+      await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS avg_blocked_load_ms NUMERIC DEFAULT 0`);
+      await pool.query(`ALTER TABLE store_image_baseline ADD COLUMN IF NOT EXISTS blocked_load_sample_count INTEGER DEFAULT 0`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_valid_image ON products(has_valid_image) WHERE has_valid_image = false`);
       // אינדקס למיון לפי פופולריות (ממיין לפי ספירת קליקים לכל מוצר)
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_clicks_source_url ON clicks(source_url)`);

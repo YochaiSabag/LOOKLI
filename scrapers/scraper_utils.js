@@ -227,6 +227,23 @@ export async function loadScraperConfig(db) {
       });
     },
 
+    // מזהה פריטי ילדים לפי מידות מספריות גולמיות (לפני מיפוי לאותיות):
+    // מידות מבוגרים (בחלק מהחנויות): 1,2,3,4,5,6 → S/M/L/XL/XXL/XXXL
+    // מידות ילדים (גיל): 7,8,9,10,12,14,16... — לא ממופות למידות מבוגרים
+    // מקבל מערך של label-ים גולמיים (כמו שהם מופיעים באתר, לפני נירמול)
+    isKidsSizeOnly(rawSizeLabels) {
+      if (!rawSizeLabels || !rawSizeLabels.length) return false;
+      const nums = rawSizeLabels
+        .map(s => (s || '').toString().trim())
+        .filter(s => /^\d{1,2}$/.test(s))
+        .map(s => parseInt(s, 10));
+      if (!nums.length) return false;
+      const hasKidsNum = nums.some(n => n >= 7 && n <= 16);
+      const hasAdultNum = nums.some(n => n >= 1 && n <= 6);
+      // רק אם יש מידת-ילדים ואין אף מידת-מבוגרים באותו מוצר — כדי לא לפגוע בטעות במוצר מעורב
+      return hasKidsNum && !hasAdultNum;
+    },
+
     detectCategory(title) {
       if (!title) return null;
       const t = title.toLowerCase();

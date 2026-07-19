@@ -73,7 +73,7 @@ console.log('🚀 Chemise Scraper');
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, isKidsSizeOnly, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -385,7 +385,15 @@ async function scrapeProduct(page, url) {
     
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (!data.price) console.log(`    ⚠️ מחיר 0 — בדוק HTML מחיר`);
-    
+
+    // דילוג על פריטי ילדים — מזוהים לפי מידות מספריות גולמיות (7,8,9,10,12,14...)
+    // בניגוד למידות מבוגרים באותה חנות (1,2,3,4,5,6)
+    const rawSizeLabelsForKidsCheck = (data.rawSizes || []).map(s => s.name);
+    if (isKidsSizeOnly(rawSizeLabelsForKidsCheck)) {
+      console.log(`  ⏭️ מדלג (מידות ילדים: ${rawSizeLabelsForKidsCheck.join(',')}): ${data.title.substring(0, 40)}`);
+      return null;
+    }
+
     const style = detectStyle(data.title, data.description);
     const fit = detectFit(data.title, data.description);
     const category = detectCategory(data.title);

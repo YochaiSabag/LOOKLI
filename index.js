@@ -2766,20 +2766,26 @@ app.get('/api/admin/image-check-log', adminAuth, async (req, res) => {
 });
 
 // גלריית תמונות שטוחה (לא לפי מוצר) - לממשק סימון מהיר בבחירה מרובה
+// תומך בדפדוף: offset (כמה מוצרים לדלג מההתחלה) — כדי לטעון "עוד תמונות" אחרי באצ' ראשון
 app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
   try {
     const store = req.query.store;
-    const limit = Math.min(parseInt(req.query.limit) || 80, 200);
+    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     if (!store) return res.status(400).json({ error: 'חסר store' });
+    // שולפים מספיק מוצרים כדי למלא את מכסת התמונות (עד 4 תמונות למוצר) — עם רשת ביטחון (offset+limit) למוצרים בלי תמונות בכלל
+    const productLimit = Math.min(limit + 40, 500);
     const { rows } = await pool.query(
       `SELECT id, images, image_url FROM products
        WHERE store = $1 AND reviewed_at IS NULL
          AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)
-       ORDER BY id DESC LIMIT 60`,
-      [store]
+       ORDER BY id DESC LIMIT $2 OFFSET $3`,
+      [store, productLimit, offset]
     );
     const flat = [];
+    let consumedProducts = 0;
     for (const p of rows) {
+      consumedProducts++;
       const imgs = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
       for (const url of imgs.slice(0, 4)) { // עד 4 תמונות למוצר, כדי לקבל מגוון מוצרים ולא רק מוצר אחד עם 6 תמונות
         flat.push({ productId: p.id, url });
@@ -2787,7 +2793,10 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
       }
       if (flat.length >= limit) break;
     }
-    res.json({ images: flat });
+    // אם עדיין לא הגענו למכסה אחרי כל המוצרים שנשלפו — יש עוד רק אם השלפנו בדיוק את הכמות המקסימלית (סימן שיש עוד)
+    const hasMore = flat.length >= limit || rows.length === productLimit;
+    const nextOffset = offset + consumedProducts;
+    res.json({ images: flat, nextOffset, hasMore });
   } catch (err) {
     console.error('image-gallery error:', err.message);
     res.status(500).json({ error: 'DB error' });

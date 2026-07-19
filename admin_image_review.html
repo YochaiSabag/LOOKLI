@@ -72,6 +72,9 @@
       לוחצים על תמונות כדי לבחור אותן (מסגרת סגולה = נבחרה), ואז מסמנים את כולן יחד. 🔍 בפינת כל תמונה פותח אותה בגודל מלא בלשונית חדשה.
     </div>
     <div id="galleryGrid" style="display:flex;flex-wrap:wrap;gap:10px;min-height:100px"></div>
+    <div style="text-align:center;margin-top:14px">
+      <button id="galleryLoadMoreBtn" class="btn" style="display:none;background:#4A2F3D;color:#fff;padding:10px 24px" onclick="loadMoreGalleryImages()">טעני עוד תמונות</button>
+    </div>
     <div style="display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap">
       <span id="gallerySelCount" style="font-size:14px;font-weight:700;color:#4A2F3D">0 נבחרו</span>
       <button class="btn" style="background:#16a34a;color:#fff" onclick="bulkMarkGallery(true)">✅ סמן הנבחרות כתקינות</button>
@@ -115,6 +118,9 @@ function switchTab(tab) {
 
 let galleryImages = [];
 let gallerySelected = new Set();
+let galleryOffset = 0;
+let galleryHasMore = false;
+let galleryStoreLoaded = null;
 
 async function loadGallery() {
   const store = document.getElementById('galleryStore').value;
@@ -124,15 +130,44 @@ async function loadGallery() {
   if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
   grid.innerHTML = '<div style="color:#888;font-size:13px">טוענת תמונות...</div>';
   gallerySelected.clear();
+  galleryImages = [];
+  galleryOffset = 0;
+  galleryStoreLoaded = store;
   updateGallerySelCount();
   try {
-    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=120', { credentials: 'include' });
+    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=200&offset=0', { credentials: 'include' });
     const data = await res.json();
     galleryImages = data.images || [];
-    if (!galleryImages.length) { grid.innerHTML = '<div style="color:#888;font-size:13px">אין עוד תמונות לא-נסקרות בחנות זו 🎉</div>'; return; }
+    galleryOffset = data.nextOffset || 0;
+    galleryHasMore = !!data.hasMore;
+    if (!galleryImages.length) { grid.innerHTML = '<div style="color:#888;font-size:13px">אין עוד תמונות לא-נסקרות בחנות זו 🎉</div>'; document.getElementById('galleryLoadMoreBtn').style.display = 'none'; return; }
     renderGallery();
   } catch(e) {
     grid.innerHTML = '<div style="color:#dc2626;font-size:13px">⚠️ שגיאה בטעינה</div>';
+  }
+}
+
+async function loadMoreGalleryImages() {
+  const store = galleryStoreLoaded;
+  const msg = document.getElementById('galleryMsg');
+  const btn = document.getElementById('galleryLoadMoreBtn');
+  if (!store) return;
+  btn.disabled = true;
+  btn.textContent = 'טוענת...';
+  try {
+    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=200&offset=' + galleryOffset, { credentials: 'include' });
+    const data = await res.json();
+    const newImages = data.images || [];
+    galleryImages = galleryImages.concat(newImages);
+    galleryOffset = data.nextOffset || galleryOffset;
+    galleryHasMore = !!data.hasMore;
+    if (!newImages.length) { galleryHasMore = false; msg.textContent = 'זהו, אין עוד תמונות לא-נסקרות בחנות זו 🎉'; }
+    renderGallery();
+  } catch(e) {
+    msg.textContent = '⚠️ שגיאה בטעינת עוד תמונות';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'טעני עוד תמונות';
   }
 }
 
@@ -144,6 +179,8 @@ function renderGallery() {
       <a class="zoom-link" href="${item.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔍</a>
       <div class="sel-check">✓</div>
     </div>`).join('');
+  const loadMoreBtn = document.getElementById('galleryLoadMoreBtn');
+  loadMoreBtn.style.display = galleryHasMore ? 'inline-block' : 'none';
 }
 
 function toggleGalleryItem(i) {

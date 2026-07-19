@@ -2965,18 +2965,19 @@ app.get('/api/store-image-baseline', async (req, res) => {
 // ── כלי סקירת תמונות ידני (מוצרים עם תמונות חסומות/מפוקסלות מנטפרי) ──
 app.get('/api/admin/image-review', adminAuth, async (req, res) => {
   try {
-    const store = req.query.store || null;
+    // תומך גם בחנות בודדת וגם ברשימה מופרדת בפסיקים (קבוצת חנויות)
+    const storeList = req.query.store ? req.query.store.split(',').map(s => s.trim()).filter(Boolean) : [];
     const limit = Math.min(parseInt(req.query.limit) || 30, 100);
     let sql = `SELECT id, title, store, image_url, images FROM products
                WHERE reviewed_at IS NULL AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)`;
     const params = [];
-    if (store) { sql += ` AND store = $1`; params.push(store); }
+    if (storeList.length) { sql += ` AND store = ANY($1::text[])`; params.push(storeList); }
     sql += ` ORDER BY id DESC LIMIT $${params.length+1}`;
     params.push(limit);
     const { rows } = await pool.query(sql, params);
     const totalLeft = await pool.query(
-      `SELECT COUNT(*) c FROM products WHERE reviewed_at IS NULL AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)${store ? ' AND store=$1' : ''}`,
-      store ? [store] : []
+      `SELECT COUNT(*) c FROM products WHERE reviewed_at IS NULL AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)${storeList.length ? ' AND store = ANY($1::text[])' : ''}`,
+      storeList.length ? [storeList] : []
     );
     res.json({ products: rows, remaining: parseInt(totalLeft.rows[0].c) });
   } catch (err) {

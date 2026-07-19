@@ -46,15 +46,21 @@
     כל תמונה נבדקת ומדווחת לשרת בדיוק כמו בגלישה רגילה באתר. השאירי את הטאב הזה פתוח עד שהסריקה מסתיימת.
   </div>
 
-  <div style="margin-bottom:16px">
-    <label style="font-size:13px;color:#7A4A63;font-weight:700;margin-left:8px">בדיקה ממוקדת (לדוגמית):</label>
-    <select id="storeFilter" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
-      <option value="">כל החנויות</option>
-      <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-      <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-      <option selected>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-      <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-    </select>
+  <div class="box" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:14px;font-weight:700;color:#4A2F3D">🎯 חנויות לסריקה</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="savedGroupSelect" onchange="applySavedGroup()" style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;font-size:12px">
+          <option value="">— קבוצה שמורה —</option>
+        </select>
+        <button class="btn" style="padding:6px 12px;font-size:12px;background:#c48cb3;color:#fff" onclick="saveCurrentGroup()">💾 שמור קבוצה</button>
+        <button class="btn" style="padding:6px 12px;font-size:12px;background:#eee;color:#666" onclick="deleteSavedGroup()">🗑️ מחק קבוצה</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#7A4A63;margin-bottom:10px">
+      סמני חנויות ספציפיות (למשל: רק חנויות שנותנות גודל תמונה תקין ובלי חסימות), ולחצי "שמור קבוצה" כדי לחסוך את הבחירה החוזרת בפעם הבאה. בלי שום סימון = כל החנויות.
+    </div>
+    <div id="storeCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px 16px"></div>
   </div>
 
   <div class="warn">⚠️ אל תסגרי/תרעני את הטאב הזה באמצע — הסריקה תיעצר. אפשר להשאיר אותו פתוח ברקע ולהמשיך לעבוד בטאבים אחרים.</div>
@@ -114,6 +120,69 @@
 <script>
 let running = false;
 let totalChecked = 0, totalValid = 0, totalBlocked = 0, totalAtStart = null;
+
+const ALL_STORES = ['AVIVIT','AVIYAH','CHEMISE','CHEN','EUROPISRAEL','LEAA','LICHI','MEKIMI','MIMA','MODA','MYME','ORDMAN','RARE','SALINA','SHEBELLO','ST-FASHION'];
+const GROUPS_KEY = 'imageScanStoreGroups'; // { groupName: ['MIMA','RARE',...] }
+
+function getSelectedStores() {
+  return [...document.querySelectorAll('#storeCheckboxes input[type=checkbox]:checked')].map(cb => cb.value);
+}
+
+function renderStoreCheckboxes(preSelected) {
+  const wrap = document.getElementById('storeCheckboxes');
+  wrap.innerHTML = ALL_STORES.map(s => `
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:#4A2F3D;cursor:pointer">
+      <input type="checkbox" value="${s}" ${preSelected && preSelected.includes(s) ? 'checked' : ''}> ${s}
+    </label>`).join('');
+}
+
+function loadGroups() {
+  try { return JSON.parse(localStorage.getItem(GROUPS_KEY) || '{}'); } catch(e) { return {}; }
+}
+
+function saveGroups(groups) {
+  localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+}
+
+function renderGroupsDropdown() {
+  const groups = loadGroups();
+  const sel = document.getElementById('savedGroupSelect');
+  const names = Object.keys(groups);
+  sel.innerHTML = '<option value="">— קבוצה שמורה —</option>' +
+    names.map(n => `<option value="${n}">${n} (${groups[n].length} חנויות)</option>`).join('');
+}
+
+function applySavedGroup() {
+  const name = document.getElementById('savedGroupSelect').value;
+  if (!name) return;
+  const groups = loadGroups();
+  renderStoreCheckboxes(groups[name] || []);
+}
+
+function saveCurrentGroup() {
+  const selected = getSelectedStores();
+  if (!selected.length) { alert('סמני קודם לפחות חנות אחת'); return; }
+  const name = prompt('שם לקבוצה החדשה:');
+  if (!name) return;
+  const groups = loadGroups();
+  groups[name] = selected;
+  saveGroups(groups);
+  renderGroupsDropdown();
+  document.getElementById('savedGroupSelect').value = name;
+}
+
+function deleteSavedGroup() {
+  const name = document.getElementById('savedGroupSelect').value;
+  if (!name) { alert('בחרי קודם קבוצה שמורה למחיקה'); return; }
+  if (!confirm(`למחוק את הקבוצה "${name}"?`)) return;
+  const groups = loadGroups();
+  delete groups[name];
+  saveGroups(groups);
+  renderGroupsDropdown();
+}
+
+renderStoreCheckboxes();
+renderGroupsDropdown();
 
 function log(msg, cls) {
   const box = document.getElementById('logBox');
@@ -368,7 +437,8 @@ async function startScan() {
   log('🚀 מתחילה סריקה...');
 
   while (running) {
-    const storeParam = document.getElementById('storeFilter').value;
+    const selectedStores = getSelectedStores();
+    const storeParam = selectedStores.join(',');
     const url = '/api/admin/image-review?limit=15' + (storeParam ? '&store=' + encodeURIComponent(storeParam) : '');
     const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) { log(`שגיאת HTTP ${res.status} — עצרתי`, 'blocked'); break; }

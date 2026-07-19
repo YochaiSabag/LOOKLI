@@ -250,6 +250,11 @@
       .main{padding:16px}
       .toolbar{margin-bottom:12px}
       .meta{font-size:13px}
+      .toolbar-right-group{gap:10px}
+      .filter-toggle-label{font-size:11.5px;gap:6px}
+      .ios-switch{width:38px;height:22px}
+      .ios-switch .ios-slider::before{height:16px;width:16px;right:3px;top:3px}
+      .ios-switch input:checked + .ios-slider::before{transform:translateX(-16px)}
       
       .grid{grid-template-columns:repeat(2,1fr);gap:10px}
       .card{border-radius:4px}
@@ -302,6 +307,15 @@
     .main{flex:1;padding:20px 24px;min-height:60vh}
     .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
     .meta{color:var(--muted);font-size:14px;font-weight:700}
+    .toolbar-right-group{display:flex;align-items:center;gap:16px}
+    /* מתג בסגנון iOS (בלוטוס וכו') - עיגול שזז הצידה */
+    .ios-switch{position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0}
+    .ios-switch input{position:absolute;opacity:0;width:0;height:0}
+    .ios-switch .ios-slider{position:absolute;inset:0;background:#d9d9d9;transition:background .25s ease;border-radius:999px;cursor:pointer}
+    .ios-switch .ios-slider::before{content:"";position:absolute;height:20px;width:20px;right:3px;top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .25s ease}
+    .ios-switch input:checked + .ios-slider{background:var(--accent)}
+    .ios-switch input:checked + .ios-slider::before{transform:translateX(-18px)}
+    .filter-toggle-label{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;color:var(--text);cursor:pointer;user-select:none}
     /* Custom sort dropdown */
     .sort-wrap{position:relative;display:inline-block;user-select:none}
     .sort-btn{
@@ -976,20 +990,25 @@
     <main class="main">
       <div class="toolbar">
         <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;margin-inline-start:8px;user-select:none">
-          <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle()" style="cursor:pointer"/>
-          🖼️ הסתירי מוצרים עם תמונות חסומות
-        </label>
-        <div class="sort-wrap" id="sortWrap">
-          <button class="sort-btn" id="sortBtn" onclick="toggleSortMenu()">
-            <span id="sortLabel">חדש → ישן</span>
-            <span class="sort-arrow"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
-          </button>
-          <div class="sort-menu" id="sortMenu">
-            <div class="sort-item active" data-val="new" onclick="selectSort('new','חדש → ישן',this)">חדש → ישן</div>
-            <div class="sort-item" data-val="popular" onclick="selectSort('popular','פופולרי',this)">פופולרי</div>
-            <div class="sort-item" data-val="price_asc" onclick="selectSort('price_asc','מחיר ↑',this)">מחיר ↑</div>
-            <div class="sort-item" data-val="price_desc" onclick="selectSort('price_desc','מחיר ↓',this)">מחיר ↓</div>
+        <div class="toolbar-right-group">
+          <label class="filter-toggle-label">
+            לאתר מסונן
+            <span class="ios-switch">
+              <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle()"/>
+              <span class="ios-slider"></span>
+            </span>
+          </label>
+          <div class="sort-wrap" id="sortWrap">
+            <button class="sort-btn" id="sortBtn" onclick="toggleSortMenu()">
+              <span id="sortLabel">חדש → ישן</span>
+              <span class="sort-arrow"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="sort-menu" id="sortMenu">
+              <div class="sort-item active" data-val="new" onclick="selectSort('new','חדש → ישן',this)">חדש → ישן</div>
+              <div class="sort-item" data-val="popular" onclick="selectSort('popular','פופולרי',this)">פופולרי</div>
+              <div class="sort-item" data-val="price_asc" onclick="selectSort('price_asc','מחיר ↑',this)">מחיר ↑</div>
+              <div class="sort-item" data-val="price_desc" onclick="selectSort('price_desc','מחיר ↓',this)">מחיר ↓</div>
+            </div>
           </div>
         </div>
       </div>

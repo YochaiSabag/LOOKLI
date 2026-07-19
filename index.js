@@ -2894,6 +2894,43 @@ app.post('/api/admin/bulk-seed-baseline', adminAuth, async (req, res) => {
   }
 });
 
+// קביעת תמונה ראשית ידנית למוצר — אך ורק במצב אתר מסונן (הצג רק תמונות פתוחות).
+// מעדכן valid_image_urls (לא image_url/images הרגילים) - כך שגלישה רגילה באתר לא מושפעת בכלל,
+// ורק מי שגולש עם הסינון הפעיל (safeImages=1) יראה את התמונה הזו ראשונה.
+// שדה זה לא נוגע בו אף סקרייפר, אז הבחירה נשארת גם אחרי סריקות עתידיות.
+app.post('/api/admin/set-main-image', adminAuth, async (req, res) => {
+  try {
+    const { items } = req.body; // [{productId, url}]
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'חסר items' });
+
+    // אם נבחרו כמה תמונות מאותו מוצר בטעות — לוקחים רק את הראשונה עבור כל productId
+    const byProduct = new Map();
+    for (const it of items) {
+      if (!it || !it.productId || !it.url) continue;
+      if (!byProduct.has(it.productId)) byProduct.set(it.productId, it.url);
+    }
+
+    let updated = 0;
+    for (const [productId, url] of byProduct) {
+      const { rows } = await pool.query('SELECT valid_image_urls FROM products WHERE id = $1', [productId]);
+      if (!rows.length) continue;
+      const currentValid = rows[0].valid_image_urls || [];
+      // מזיזים את ה-URL הנבחר לראש הרשימה (מוסיפים אם עוד לא שם), שאר התמונות התקינות נשארות אחריה
+      const rest = currentValid.filter(u => u !== url);
+      const newValidUrls = [url, ...rest];
+      await pool.query(
+        `UPDATE products SET valid_image_urls = $1, has_valid_image = true WHERE id = $2`,
+        [newValidUrls, productId]
+      );
+      updated++;
+    }
+    res.json({ ok: true, updated });
+  } catch (err) {
+    console.error('set-main-image error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
 app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
   try {
     const { store, sizeKB, valid, url } = req.body;

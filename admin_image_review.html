@@ -90,6 +90,7 @@
       <span id="gallerySelCount" style="font-size:14px;font-weight:700;color:#4A2F3D">0 נבחרו</span>
       <button class="btn" style="background:#16a34a;color:#fff" onclick="bulkMarkGallery(true)">✅ סמן הנבחרות כתקינות</button>
       <button class="btn" style="background:#dc2626;color:#fff" onclick="bulkMarkGallery(false)">❌ סמן הנבחרות כחסומות</button>
+      <button class="btn" style="background:#eab308;color:#fff" onclick="setSelectedAsMainImage()">🌟 סמן נבחרות כתמונה ראשית (במצב מסונן)</button>
       <button class="btn btn-none" onclick="clearGallerySelection()">נקה בחירה</button>
     </div>
     <div id="galleryMsg" style="margin-top:10px;font-size:13px"></div>
@@ -215,6 +216,36 @@ function toggleGalleryItem(i) {
   if (gallerySelected.has(i)) gallerySelected.delete(i); else gallerySelected.add(i);
   document.getElementById('gthumb-'+i)?.classList.toggle('selected');
   updateGallerySelCount();
+}
+
+async function setSelectedAsMainImage() {
+  const msg = document.getElementById('galleryMsg');
+  if (!gallerySelected.size) { msg.textContent = 'לא נבחרו תמונות'; return; }
+
+  const indices = [...gallerySelected];
+  const items = indices.map(i => ({ productId: galleryImages[i]?.productId, url: galleryImages[i]?.url })).filter(it => it.productId && it.url);
+
+  // בדיקה: אם נבחרו כמה תמונות מאותו מוצר, רק הראשונה תיקבע כראשית עבורו — מזהירים על כך
+  const seen = new Set();
+  let dupeWarning = false;
+  for (const it of items) {
+    if (seen.has(it.productId)) dupeWarning = true;
+    seen.add(it.productId);
+  }
+
+  msg.textContent = 'קובעת תמונה ראשית...';
+  try {
+    const res = await fetch('/api/admin/set-main-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ items }),
+    });
+    const data = await res.json();
+    msg.textContent = `🌟 ${data.updated} מוצרים עודכנו עם תמונה ראשית חדשה (רק במצב אתר מסונן — לא משפיע על גלישה רגילה)` + (dupeWarning ? ' — שימי לב: נבחרו כמה תמונות מאותו מוצר, נלקחה רק הראשונה מביניהן' : '') + '.';
+  } catch (e) {
+    msg.textContent = '⚠️ שגיאה בקביעת תמונה ראשית';
+  }
 }
 
 function clearGallerySelection() {

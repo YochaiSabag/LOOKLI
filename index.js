@@ -2803,14 +2803,18 @@ app.post('/api/admin/bulk-seed-baseline', adminAuth, async (req, res) => {
     let productsUpdated = 0;
     for (const [productId, urls] of Object.entries(byProduct)) {
       if (valid) {
-        // תקין: מוסיפים ל-valid_image_urls (בלי כפילויות), מסמנים תקין ונסקר
+        // תקין: מוסיפים ל-valid_image_urls בלי לשנות את הסדר הקיים (חשוב! אם כבר הוגדרה
+        // תמונה ראשית ידנית, לא רוצים לדרוס את המיקום שלה) - רק מצרפים תמונות חדשות שעוד לא שם
+        const { rows: existingRows } = await pool.query('SELECT valid_image_urls FROM products WHERE id=$1', [productId]);
+        const existing = existingRows[0]?.valid_image_urls || [];
+        const merged = existing.concat(urls.filter(u => !existing.includes(u)));
         await pool.query(`
           UPDATE products
-          SET valid_image_urls = (SELECT ARRAY(SELECT DISTINCT unnest(COALESCE(valid_image_urls, ARRAY[]::text[]) || $1::text[]))),
+          SET valid_image_urls = $1,
               has_valid_image = true,
               reviewed_at = NOW()
           WHERE id = $2
-        `, [urls, productId]);
+        `, [merged, productId]);
       } else {
         // חסום: מסמנים כנסקר תמיד; has_valid_image=false רק אם לא כבר אושר תקין קודם (לא דורסים אישור קודם בטעות)
         await pool.query(`
@@ -2990,7 +2994,16 @@ app.post('/api/admin/image-review', adminAuth, async (req, res) => {
   try {
     const { id, validUrls, validSizes, blockedSizes, store } = req.body; // [{url, sizeKB}] אופציונלי - להזנת הבייסליין
     if (!id) return res.status(400).json({ error: 'חסר id' });
-    const urls = Array.isArray(validUrls) ? validUrls : [];
+    let urls = Array.isArray(validUrls) ? validUrls : [];
+
+    // שומרים על תמונה ראשית שהוגדרה ידנית (set-main-image) - אם היא עדיין בין התמונות התקינות
+    // שהסריקה האוטומטית מצאה, מחזירים אותה לראש הרשימה במקום לתת לסדר של הסריקה לדרוס אותה
+    const { rows: existingRows } = await pool.query('SELECT valid_image_urls FROM products WHERE id=$1', [id]);
+    const existingFirst = existingRows[0]?.valid_image_urls?.[0];
+    if (existingFirst && urls.includes(existingFirst)) {
+      urls = [existingFirst, ...urls.filter(u => u !== existingFirst)];
+    }
+
     await pool.query(
       `UPDATE products SET valid_image_urls=$1, has_valid_image=$2, reviewed_at=NOW() WHERE id=$3`,
       [urls, urls.length > 0, id]

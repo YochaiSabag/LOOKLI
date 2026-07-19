@@ -2687,64 +2687,6 @@ async function ga4Query(token, body) {
 }
 
 // דיווח פסיבי על סטטוס תמונה (תקינה/חסומה) — נקרא אוטומטית תוך כדי גלישה רגילה באתר, בלי אימות
-app.post('/api/report-image-status', async (req, res) => {
-  try {
-    const { productId, imageUrl, valid, totalImages, store, sizeKB } = req.body;
-    if (!productId || !imageUrl) return res.status(400).json({ error: 'חסרים פרטים' });
-
-    const current = await pool.query(`SELECT image_check_results FROM products WHERE id=$1`, [productId]);
-    if (!current.rows.length) return res.status(404).json({ error: 'not found' });
-
-    const results = current.rows[0].image_check_results || {};
-    // ברגע שתמונה דווחה תקינה פעם אחת — נשארת תקינה תמיד (לא דורסים true בחזרה ל-false מדיווח מאוחר)
-    if (!(results[imageUrl] === true)) results[imageUrl] = !!valid;
-
-    const anyValid = Object.values(results).some(v => v === true);
-    const anyChecked = Object.keys(results).length > 0;
-
-    // תקין ברגע שיש דיווח תקין אחד. חסום ברגע שיש דיווח כלשהו ואף אחד מהם לא תקין
-    // (לא מחכים שכל התמונות ייבדקו - זה כמעט אף פעם לא קורה, כי משתמשות לא גוללות את כל הקרוסלה)
-    const hasValidImage = anyValid ? true : (anyChecked ? false : null);
-
-    if (hasValidImage !== null) {
-      const validUrls = Object.keys(results).filter(u => results[u] === true);
-      await pool.query(
-        `UPDATE products SET image_check_results=$1, valid_image_urls=$2, has_valid_image=$3, reviewed_at=NOW() WHERE id=$4`,
-        [JSON.stringify(results), validUrls, hasValidImage, productId]
-      );
-    } else {
-      await pool.query(`UPDATE products SET image_check_results=$1 WHERE id=$2`, [JSON.stringify(results), productId]);
-    }
-
-    // למידת הבייסליין: כשיש תמונה שאושרה תקינה + נמדד גודלה, מעדכנים את הממוצע הרץ של החנות
-    if (valid && store && typeof sizeKB === 'number' && sizeKB > 0) {
-      await pool.query(`
-        INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
-        VALUES ($1, $2, 1, NOW())
-        ON CONFLICT (store) DO UPDATE SET
-          avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
-          sample_count = store_image_baseline.sample_count + 1,
-          updated_at = NOW()
-      `, [store, sizeKB]);
-    }
-    // למידה גם מהצד השני: תמונה שידוע שהיא חסומה - עוקבים אחרי הגודל הגדול ביותר שראינו, כדי שהסף תמיד יהיה מעליו
-    if (!valid && store && typeof sizeKB === 'number' && sizeKB > 0) {
-      await pool.query(`
-        INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
-        VALUES ($1, $2, 1, NOW())
-        ON CONFLICT (store) DO UPDATE SET
-          max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
-          blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
-          updated_at = NOW()
-      `, [store, sizeKB]);
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('report-image-status error:', err.message);
-    res.status(500).json({ error: 'DB error' });
-  }
-});
-
 // הזנה ידנית של דוגמת תמונה תקינה לבייסליין החנות - לביוטסטראפ מהיר של הלמידה
 // ניסיוני: הזנת דוגמה של זמן טעינה (ms) - סיגנל חלופי לחנויות שבהן CORS חוסם מדידת גודל קובץ
 // שליפת היסטוריית בדיקות (להשוואה) - אופציונלי לפי חנות
@@ -2771,7 +2713,10 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
   try {
     const store = req.query.store;
     const limit = Math.min(parseInt(req.query.limit) || 200, 500);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    // דפדוף לפי ID (לא לפי מיקום/OFFSET) — כדי שדיווחים פסיביים מגולשות עם הסינון פעיל,
+    // וגם מוצרים חדשים שנכנסים מהסקרייפרים, לא יזיזו את "המקום" באמצע שהיא עוברת עליו
+    // ויגרמו לדילוג על מוצרים או להצגה כפולה שלהם.
+    const beforeId = req.query.beforeId ? parseInt(req.query.beforeId) : null;
     if (!store) return res.status(400).json({ error: 'חסר store' });
     // שולפים מספיק מוצרים כדי למלא את מכסת התמונות — עם רשת ביטחון (limit+40) למוצרים בלי תמונות בכלל
     const productLimit = Math.min(limit + 40, 500);
@@ -2779,14 +2724,17 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
       `SELECT id, images, image_url FROM products
        WHERE store = $1 AND reviewed_at IS NULL
          AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)
-       ORDER BY id DESC LIMIT $2 OFFSET $3`,
-      [store, productLimit, offset]
+         AND ($3::int IS NULL OR id < $3::int)
+       ORDER BY id DESC LIMIT $2`,
+      [store, productLimit, beforeId]
     );
     const flat = [];
     const seenUrls = new Set(); // מונע הצגת אותה תמונה פעמיים (אם שני מוצרים חולקים תמונה זהה, או שהיא מופיעה פעמיים במערך)
     let consumedProducts = 0;
+    let lastConsumedId = beforeId;
     for (const p of rows) {
       consumedProducts++;
+      lastConsumedId = p.id;
       const imgs = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
       for (const url of imgs) { // כל התמונות של המוצר — לא רק 4 ראשונות
         if (!url || seenUrls.has(url)) continue;
@@ -2798,8 +2746,7 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
     }
     // אם עדיין לא הגענו למכסה אחרי כל המוצרים שנשלפו — יש עוד רק אם השלפנו בדיוק את הכמות המקסימלית (סימן שיש עוד)
     const hasMore = flat.length >= limit || rows.length === productLimit;
-    const nextOffset = offset + consumedProducts;
-    res.json({ images: flat, nextOffset, hasMore });
+    res.json({ images: flat, nextBeforeId: lastConsumedId, hasMore });
   } catch (err) {
     console.error('image-gallery error:', err.message);
     res.status(500).json({ error: 'DB error' });

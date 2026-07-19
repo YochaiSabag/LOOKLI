@@ -130,7 +130,7 @@ function switchTab(tab) {
 
 let galleryImages = [];
 let gallerySelected = new Set();
-let galleryOffset = 0;
+let galleryBeforeId = null;
 let galleryHasMore = false;
 let galleryStoreLoaded = null;
 let galleryBatchLimit = 200;
@@ -144,15 +144,15 @@ async function loadGallery() {
   grid.innerHTML = '<div style="color:#888;font-size:13px">טוענת תמונות...</div>';
   gallerySelected.clear();
   galleryImages = [];
-  galleryOffset = 0;
+  galleryBeforeId = null;
   galleryStoreLoaded = store;
   galleryBatchLimit = parseInt(document.getElementById('galleryBatchSize').value) || 200;
   updateGallerySelCount();
   try {
-    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=' + galleryBatchLimit + '&offset=0', { credentials: 'include' });
+    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=' + galleryBatchLimit, { credentials: 'include' });
     const data = await res.json();
     galleryImages = data.images || [];
-    galleryOffset = data.nextOffset || 0;
+    galleryBeforeId = data.nextBeforeId ?? null;
     galleryHasMore = !!data.hasMore;
     if (!galleryImages.length) { grid.innerHTML = '<div style="color:#888;font-size:13px">אין עוד תמונות לא-נסקרות בחנות זו 🎉</div>'; document.getElementById('galleryLoadMoreBtn').style.display = 'none'; return; }
     renderGallery();
@@ -181,12 +181,13 @@ async function loadMoreGalleryImages() {
     // ממשיכים אוטומטית לבאצ' הבא במקום לעצור בטעות, עד 5 ניסיונות
     while (galleryHasMore && totalNew === 0 && attempts < 5) {
       attempts++;
-      const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=' + galleryBatchLimit + '&offset=' + galleryOffset, { credentials: 'include' });
+      const beforeParam = galleryBeforeId != null ? '&beforeId=' + galleryBeforeId : '';
+      const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=' + galleryBatchLimit + beforeParam, { credentials: 'include' });
       const data = await res.json();
       const existingUrls = new Set(galleryImages.map(it => it.url));
       const newImages = (data.images || []).filter(it => !existingUrls.has(it.url));
       galleryImages = galleryImages.concat(newImages);
-      galleryOffset = data.nextOffset || galleryOffset;
+      galleryBeforeId = data.nextBeforeId ?? galleryBeforeId;
       galleryHasMore = !!data.hasMore;
       totalNew += newImages.length;
     }

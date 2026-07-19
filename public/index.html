@@ -1159,7 +1159,6 @@
 <script>
 let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",activeDiscount="",activeFabric="",activePattern="",activeSize="",activeDesign="";
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
-const activeNetfree=false;
 function handleImgError(img){
   console.warn('[IMG FAIL]', img.src);
   img.style.display='none';
@@ -1953,11 +1952,11 @@ function renderProducts(products,append=false){
 
       let carouselHTML='';
       if(images.length>1){
-        const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" data-orig="${escapeHtml(images[si]||img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" ${si===0&&cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this);reportImageError(this)">\u200B</div>`).join('');
+        const slides=thumbImages.slice(0,6).map((img,si)=>`<div class="carousel-slide"><img src="${escapeHtml(img)}" data-orig="${escapeHtml(images[si]||img)}" alt="${escapeHtml(p.title||'')} - תמונה ${si+1}" ${si===0&&cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onerror="handleImgError(this)">\u200B</div>`).join('');
         const dots=thumbImages.slice(0,6).map((_,i)=>`<span class="carousel-dot${i===0?' active':''}" onclick="event.stopPropagation();goToSlide(this,${i})"></span>`).join('');
         carouselHTML=`<div class="carousel" data-index="0"><div class="carousel-inner">${slides}</div><div class="carousel-dots">${dots}</div><button class="carousel-nav carousel-prev" onclick="event.stopPropagation();carouselNav(this,-1)" aria-label="הקודם">‹</button><button class="carousel-nav carousel-next" onclick="event.stopPropagation();carouselNav(this,1)" aria-label="הבא">›</button></div>`;
       }else if(images.length===1){
-        carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" data-orig="${escapeHtml(images[0]||thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onload="checkNetfreeBlock(this)" onerror="handleImgError(this);reportImageError(this)">`;
+        carouselHTML=`<img src="${escapeHtml(thumbImages[0])}" data-orig="${escapeHtml(images[0]||thumbImages[0])}" alt="${escapeHtml((p.title||'')+' - '+(p.store||'')+' | LOOKLI')}" width="300" height="400" style="width:100%;height:100%;object-fit:cover" ${cardIndex<4?'fetchpriority="high"':'loading="lazy"'} onerror="handleImgError(this)">`;
       }else{carouselHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ccc;font-size:12px">אין תמונה</div>`}
 
       let colorDotsHTML='';
@@ -3530,6 +3529,9 @@ document.addEventListener('click', e => {
   }
   
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
+  // בדיקת תמונות מבוססת-משתמשות הוסרה לגמרי (הוסכם: אין דיווח מגלישה רגילה).
+  // הבדיקה היחידה נעשית ידנית ע"י מנהלת האתר דרך admin_image_scan.html, ומשפיעה
+  // על התצוגה רק כשהסינון פעיל (safeImages=1), בצד השרת ב-/api/products.
 
   function onSafeImagesToggle(){
     const on = document.getElementById('safeImagesToggle').checked;
@@ -3541,77 +3543,7 @@ document.addEventListener('click', e => {
     if (cb) cb.checked = localStorage.getItem('safeImagesMode') === '1';
   })();
 
-  // דיווח שקט לשרת על סטטוס תמונה - נצבר לאורך זמן, לא חוסם כלום, לא רואים את זה בכלל
-  function reportImageStatus(imgEl, valid) {
-    try {
-      const card = imgEl.closest('.card');
-      const pid = card?.dataset.pid;
-      const origUrl = imgEl.dataset.orig || imgEl.src;
-      if (!pid) return;
-      const total = parseInt(card.dataset.totalImgs || '1');
-      const payload = JSON.stringify({ productId: pid, imageUrl: origUrl, valid, totalImages: total });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/report-image-status', new Blob([payload], { type: 'application/json' }));
-      }
-    } catch(e) {}
-  }
-
-  // כשתמונה נטענה בהצלחה ואינה חסומה — מסמנים את הכרטיסייה כ"פתוחה"
-  // כבוי בכוונה: יש עכשיו כלי סריקה ייעודי (admin_image_scan.html) שעושה את הבדיקה הזו הרבה יותר יסודי.
-  // גלישה רגילה של משתמשות לא צריכה לשאת בעלות הביצועים של בדיקת כל תמונה (canvas + sendBeacon).
-  const PASSIVE_IMAGE_CHECK_ENABLED = false;
-
-  function checkNetfreeBlock(imgEl) {
-    if (!PASSIVE_IMAGE_CHECK_ENABLED) return;
-    const card = imgEl.closest('.card');
-    if (!card) return;
-
-    // תמונות proxy שלנו (/ic?u=) — תמיד אמיתיות, אין צורך לבדוק
-    if (imgEl.src.includes('/ic?')) {
-      card.dataset.imgOk = '1';
-      reportImageStatus(imgEl, true);
-      return;
-    }
-
-    // שיטה 1: רוחב קטן מדי = חסום. תמונת מוצר אמיתית תמיד גדולה בהרבה מ-150px.
-    // (הועלה מ-20px ל-150px — 20 היה נמוך מדי לתפוס תמונות חסימה בגודל בינוני)
-    if (imgEl.naturalWidth < 150 || imgEl.naturalHeight < 150) {
-      if (activeNetfree) card.style.display = 'none';
-      reportImageStatus(imgEl, false);
-      return;
-    }
-
-    // שיטה 2: בדיקת אחידות צבע — בונוס בלבד, לא ברירת מחדל.
-    // רוב התמונות שלנו מדומיינים חיצוניים, אז CORS חוסם את זה כמעט תמיד —
-    // כשזה קורה, סומכים על כך שהרוחב כבר עבר בהצלחה למעלה (שיטה 1), לא מניחים "תקין" סתם.
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 10; canvas.height = 10;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(imgEl, 0, 0, 10, 10);
-      const d = ctx.getImageData(0, 0, 10, 10).data;
-      for (let i = 4; i < d.length; i += 4) {
-        if (Math.abs(d[i]-d[0])>15 || Math.abs(d[i+1]-d[1])>15 || Math.abs(d[i+2]-d[2])>15) {
-          card.dataset.imgOk = '1';
-          reportImageStatus(imgEl, true);
-          return;
-        }
-      }
-      // עברה את בדיקת הרוחב אבל צבע אחיד לגמרי — עדיין חשודה
-      if (activeNetfree) card.style.display = 'none';
-      reportImageStatus(imgEl, false);
-    } catch(e) {
-      // CORS חסם את בדיקת הצבע — סומכים על בדיקת הרוחב שכבר עברה בהצלחה
-      card.dataset.imgOk = '1';
-      reportImageStatus(imgEl, true);
-    }
-  }
-
-  // תמונה שנכשלה בטעינה לגמרי (404/רשת) — מדווחים גם כאן
-  function reportImageError(imgEl) {
-    if (!PASSIVE_IMAGE_CHECK_ENABLED) return;
-    try { reportImageStatus(imgEl, false); } catch(e) {}
-  }
+  // תמונה שנכשלה בטעינה לגמרי (404/רשת) — הצגת הפולבק הוויזואלי (הדיווח לשרת הוסר)
 
 
 

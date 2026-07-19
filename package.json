@@ -20,6 +20,7 @@
     "scrape:mima": "node ./scrapers/mima_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:aviyah": "node ./scrapers/aviyah_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:chemise": "node ./scrapers/chemise_scraper.js && node ./check_alerts.js && node ./health_check.js",
+    "cleanup:chemise-kids": "node ./scrapers/chemise_kids_cleanup.js",
     "scrape:chen": "node ./scrapers/chen_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:ordman": "node ./scrapers/ordman_scraper.js && node ./check_alerts.js && node ./health_check.js",
     "scrape:rare": "node ./scrapers/rare_scraper.js && node ./check_alerts.js && node ./health_check.js",

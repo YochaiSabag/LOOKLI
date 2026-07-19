@@ -2773,7 +2773,7 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 200, 500);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     if (!store) return res.status(400).json({ error: 'חסר store' });
-    // שולפים מספיק מוצרים כדי למלא את מכסת התמונות (עד 4 תמונות למוצר) — עם רשת ביטחון (offset+limit) למוצרים בלי תמונות בכלל
+    // שולפים מספיק מוצרים כדי למלא את מכסת התמונות — עם רשת ביטחון (limit+40) למוצרים בלי תמונות בכלל
     const productLimit = Math.min(limit + 40, 500);
     const { rows } = await pool.query(
       `SELECT id, images, image_url FROM products
@@ -2783,11 +2783,14 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
       [store, productLimit, offset]
     );
     const flat = [];
+    const seenUrls = new Set(); // מונע הצגת אותה תמונה פעמיים (אם שני מוצרים חולקים תמונה זהה, או שהיא מופיעה פעמיים במערך)
     let consumedProducts = 0;
     for (const p of rows) {
       consumedProducts++;
       const imgs = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
-      for (const url of imgs.slice(0, 4)) { // עד 4 תמונות למוצר, כדי לקבל מגוון מוצרים ולא רק מוצר אחד עם 6 תמונות
+      for (const url of imgs) { // כל התמונות של המוצר — לא רק 4 ראשונות
+        if (!url || seenUrls.has(url)) continue;
+        seenUrls.add(url);
         flat.push({ productId: p.id, url });
         if (flat.length >= limit) break;
       }

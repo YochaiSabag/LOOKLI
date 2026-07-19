@@ -228,8 +228,10 @@ export async function loadScraperConfig(db) {
     },
 
     // מזהה פריטי ילדים לפי מידות מספריות גולמיות (לפני מיפוי לאותיות):
-    // מידות מבוגרים (בחלק מהחנויות): 1,2,3,4,5,6 → S/M/L/XL/XXL/XXXL
-    // מידות ילדים (גיל): 7,8,9,10,12,14,16... — לא ממופות למידות מבוגרים
+    // מידות מבוגרים בחלק מהחנויות (כמו שמיז) הן אך ורק 0-6 (עד 7 ערכים אפשריים בסה"כ) → S/M/L/XL/XXL/XXXL
+    // מידות ילדים (גיל): 7,8,9,10,12,14,16,18... — כל מספר 7 ומעלה הוא סימן חד-משמעי למידת ילדים,
+    // גם אם המוצר מכיל גם מידות קטנות יותר (למשל טבלת מידות-גיל רציפה 4,5,6,7,8,9,10,12,14,16,18 —
+    // זו עדיין מוצר ילדים/נוער, לא מוצר מבוגרים עם מידה "נוספת" במקרה)
     // מקבל מערך של label-ים גולמיים (כמו שהם מופיעים באתר, לפני נירמול)
     isKidsSizeOnly(rawSizeLabels) {
       if (!rawSizeLabels || !rawSizeLabels.length) return false;
@@ -238,10 +240,7 @@ export async function loadScraperConfig(db) {
         .filter(s => /^\d{1,2}$/.test(s))
         .map(s => parseInt(s, 10));
       if (!nums.length) return false;
-      const hasKidsNum = nums.some(n => n >= 7 && n <= 16);
-      const hasAdultNum = nums.some(n => n >= 1 && n <= 6);
-      // רק אם יש מידת-ילדים ואין אף מידת-מבוגרים באותו מוצר — כדי לא לפגוע בטעות במוצר מעורב
-      return hasKidsNum && !hasAdultNum;
+      return nums.some(n => n >= 7 && n <= 20);
     },
 
     detectCategory(title) {

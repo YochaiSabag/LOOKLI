@@ -155,13 +155,22 @@ async function loadMoreGalleryImages() {
   btn.disabled = true;
   btn.textContent = 'טוענת...';
   try {
-    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=200&offset=' + galleryOffset, { credentials: 'include' });
-    const data = await res.json();
-    const newImages = data.images || [];
-    galleryImages = galleryImages.concat(newImages);
-    galleryOffset = data.nextOffset || galleryOffset;
-    galleryHasMore = !!data.hasMore;
-    if (!newImages.length) { galleryHasMore = false; msg.textContent = 'זהו, אין עוד תמונות לא-נסקרות בחנות זו 🎉'; }
+    let totalNew = 0;
+    let attempts = 0;
+    // לפעמים באצ' שלם יכול לצאת כולו כפילויות (למשל אם אותה תמונה כבר מוצגת ממוצר אחר) —
+    // ממשיכים אוטומטית לבאצ' הבא במקום לעצור בטעות, עד 5 ניסיונות
+    while (galleryHasMore && totalNew === 0 && attempts < 5) {
+      attempts++;
+      const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=200&offset=' + galleryOffset, { credentials: 'include' });
+      const data = await res.json();
+      const existingUrls = new Set(galleryImages.map(it => it.url));
+      const newImages = (data.images || []).filter(it => !existingUrls.has(it.url));
+      galleryImages = galleryImages.concat(newImages);
+      galleryOffset = data.nextOffset || galleryOffset;
+      galleryHasMore = !!data.hasMore;
+      totalNew += newImages.length;
+    }
+    if (totalNew === 0) msg.textContent = 'זהו, אין עוד תמונות לא-נסקרות בחנות זו 🎉';
     renderGallery();
   } catch(e) {
     msg.textContent = '⚠️ שגיאה בטעינת עוד תמונות';

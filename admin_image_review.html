@@ -260,7 +260,7 @@ async function bulkMarkGallery(isValid) {
         sizeKB = blob.size / 1024;
       }
     } catch(e) {}
-    items.push({ url, sizeKB });
+    items.push({ url, sizeKB, productId: galleryImages[i]?.productId });
   }
 
   try {

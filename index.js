@@ -2844,12 +2844,45 @@ app.post('/api/admin/bulk-seed-baseline', adminAuth, async (req, res) => {
         [store, item.url, !!valid, hasSize ? item.sizeKB : null]
       );
     }
+
+    // ── קריטי: מסמנים בפועל על המוצרים עצמם שהם נסקרו — אחרת reviewed_at נשאר ריק
+    // והם ממשיכים לחזור שוב ושוב בטעינות הבאות של הגלריה (בדיוק כמו בביקורת הידנית הרגילה) ──
+    const byProduct = {};
+    for (const item of sizes) {
+      if (!item || !item.url || !item.productId) continue;
+      if (!byProduct[item.productId]) byProduct[item.productId] = [];
+      byProduct[item.productId].push(item.url);
+    }
+    let productsUpdated = 0;
+    for (const [productId, urls] of Object.entries(byProduct)) {
+      if (valid) {
+        // תקין: מוסיפים ל-valid_image_urls (בלי כפילויות), מסמנים תקין ונסקר
+        await pool.query(`
+          UPDATE products
+          SET valid_image_urls = (SELECT ARRAY(SELECT DISTINCT unnest(COALESCE(valid_image_urls, ARRAY[]::text[]) || $1::text[]))),
+              has_valid_image = true,
+              reviewed_at = NOW()
+          WHERE id = $2
+        `, [urls, productId]);
+      } else {
+        // חסום: מסמנים כנסקר תמיד; has_valid_image=false רק אם לא כבר אושר תקין קודם (לא דורסים אישור קודם בטעות)
+        await pool.query(`
+          UPDATE products
+          SET has_valid_image = (has_valid_image IS TRUE),
+              reviewed_at = NOW()
+          WHERE id = $1
+        `, [productId]);
+      }
+      productsUpdated++;
+    }
+
     const r = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
     const row = r.rows[0] || {};
     res.json({
       ok: true,
       markedCount: sizes.length,
       learnedCount,
+      productsUpdated,
       avgSizeKb: parseFloat(row.avg_size_kb || 0),
       sampleCount: row.sample_count || 0,
       maxBlockedSizeKb: parseFloat(row.max_blocked_size_kb || 0),

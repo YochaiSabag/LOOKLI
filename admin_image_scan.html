@@ -59,6 +59,23 @@
 
   <div class="warn">⚠️ אל תסגרי/תרעני את הטאב הזה באמצע — הסריקה תיעצר. אפשר להשאיר אותו פתוח ברקע ולהמשיך לעבוד בטאבים אחרים.</div>
 
+  <div class="box" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:14px;font-weight:700;color:#4A2F3D">📜 היסטוריית בדיקות (להשוואה)</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="historyStoreFilter" onchange="loadHistory()" style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;font-size:12px">
+          <option value="">כל החנויות</option>
+          <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+          <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+          <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+          <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+        </select>
+        <button class="btn" style="padding:6px 14px;font-size:12px;background:#4A2F3D;color:#fff" onclick="loadHistory()">↻ רענון</button>
+      </div>
+    </div>
+    <div id="historyTable" style="max-height:300px;overflow-y:auto;font-size:11.5px;font-family:monospace"></div>
+  </div>
+
   <div class="box" style="margin-bottom:20px;border:2px dashed #f0a020">
     <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">⏱️ ניסוי: זיהוי לפי זמן טעינה (לחנויות עם CORS חסום)</div>
     <div style="font-size:12px;color:#888;margin-bottom:10px">מדביקים כמה תמונות שאת בטוחה לגבי הסטטוס שלהן, ובודקים אם יש הבדל עקבי בזמן הטעינה בין פתוחות לחסומות.</div>
@@ -256,6 +273,40 @@ function escapeShort(s) {
   return (s || '').substring(0, 40);
 }
 
+async function measureReferenceMs() {
+  // מודדת זמן טעינה של תמונה קבועה ונייטרלית (הלוגו שלנו) - כדי לנטרל את מהירות הרשת הנוכחית
+  const t0 = performance.now();
+  const img = new Image();
+  img.src = '/lookli-logo.png?_t=' + Date.now();
+  return new Promise((resolve) => {
+    img.onload = () => resolve(performance.now() - t0);
+    img.onerror = () => resolve(performance.now() - t0);
+    setTimeout(() => resolve(200), 5000); // ברירת מחדל סבירה אם גם זה נכשל
+  });
+}
+
+async function loadHistory() {
+  const store = document.getElementById('historyStoreFilter').value;
+  const box = document.getElementById('historyTable');
+  box.textContent = 'טוענת...';
+  try {
+    const params = new URLSearchParams({ limit: 100 });
+    if (store) params.set('store', store);
+    const res = await fetch('/api/admin/image-check-log?' + params, { credentials: 'include' });
+    const data = await res.json();
+    if (!data.log || !data.log.length) { box.textContent = 'אין עדיין היסטוריה.'; return; }
+    box.innerHTML = data.log.map(row => {
+      const t = new Date(row.created_at).toLocaleString('he-IL', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+      const typeLabel = row.action_type === 'timing' ? `יחס תזמון: פי ${parseFloat(row.value).toFixed(2)}` : `גודל: ${parseFloat(row.value).toFixed(1)}KB`;
+      const validLabel = row.valid ? '✅' : '❌';
+      const urlShort = row.image_url ? row.image_url.substring(0,50) : '(ללא URL)';
+      return `<div style="padding:4px 0;border-bottom:1px solid #eee">${t} | <b>${row.store}</b> | ${validLabel} ${typeLabel} | <span style="color:#999">${urlShort}</span></div>`;
+    }).join('');
+  } catch(e) {
+    box.textContent = '⚠️ שגיאה בטעינת היסטוריה';
+  }
+}
+
 async function testTiming(isKnownValid) {
   const store = document.getElementById('timingStore').value;
   const url = document.getElementById('timingUrlInput').value.trim();
@@ -263,32 +314,35 @@ async function testTiming(isKnownValid) {
   if (!store) { resultBox.textContent = 'בחרי קודם חנות'; return; }
   if (!url) { resultBox.textContent = 'תדביקי כתובת תמונה'; return; }
 
-  resultBox.textContent = '⏱️ מודדת זמן טעינה...';
+  resultBox.textContent = '⏱️ מודדת זמן טעינה (כולל נקודת ייחוס)...';
+
+  // מודדים את שתיהן קרוב ככל האפשר בזמן, כדי שתנאי הרשת יהיו זהים לשתיהן
   const t0 = performance.now();
   const img = new Image();
-  img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now(); // שובר cache כדי למדוד טעינה אמיתית
-
-  const loadMs = await new Promise((resolve) => {
+  img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  const rawLoadMs = await new Promise((resolve) => {
     img.onload = () => resolve(performance.now() - t0);
-    img.onerror = () => resolve(performance.now() - t0); // גם כישלון הוא נתון זמן רלוונטי
+    img.onerror = () => resolve(performance.now() - t0);
     setTimeout(() => resolve(null), 15000);
   });
+  if (rawLoadMs === null) { resultBox.textContent = '⚠️ טיים-אאוט, לא נמדד'; return; }
 
-  if (loadMs === null) { resultBox.textContent = '⚠️ טיים-אאוט, לא נמדד'; return; }
+  const refMs = await measureReferenceMs();
+  const relativeRatio = rawLoadMs / Math.max(refMs, 1); // יחס: פי כמה איטי יותר מנקודת הייחוס
 
   try {
     const res = await fetch('/api/admin/seed-timing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ store, loadMs, valid: isKnownValid }),
+      body: JSON.stringify({ store, loadMs: relativeRatio, valid: isKnownValid, url }), // שולחים את היחס, לא את הזמן הגולמי
     });
     const data = await res.json();
     const gap = data.loadSampleCount > 0 && data.blockedLoadSampleCount > 0
-      ? `<br><b>פער נוכחי:</b> פתוחות ${data.avgLoadMs.toFixed(0)}ms ממוצע | חסומות ${data.avgBlockedLoadMs.toFixed(0)}ms ממוצע`
+      ? `<br><b>פער נוכחי (ביחידות "פי כמה מהייחוס"):</b> פתוחות פי ${data.avgLoadMs.toFixed(2)} | חסומות פי ${data.avgBlockedLoadMs.toFixed(2)}`
       : '';
-    resultBox.innerHTML = `נמדד: <b>${loadMs.toFixed(0)}ms</b> (${isKnownValid?'✅ פתוחה':'❌ חסומה'})${gap}`;
-    document.getElementById('timingUrlInput').value = '';
+    resultBox.innerHTML = `נמדד: ${rawLoadMs.toFixed(0)}ms גולמי, ייחוס: ${refMs.toFixed(0)}ms → <b>יחס: פי ${relativeRatio.toFixed(2)}</b> (${isKnownValid?'✅ פתוחה':'❌ חסומה'})${gap}`;
+    document.getElementById('timingUrlInput').value = ''; loadHistory();
   } catch(e) {
     resultBox.textContent = '⚠️ שגיאה בשמירה: ' + e.message;
   }
@@ -312,7 +366,7 @@ async function seedExample(isValid) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ store, sizeKB: kb, valid: isValid }),
+      body: JSON.stringify({ store, sizeKB: kb, valid: isValid, url }),
     });
     if (!res.ok) throw new Error('שגיאה בשמירה');
     const data = await res.json();
@@ -322,7 +376,7 @@ async function seedExample(isValid) {
     } else {
       resultBox.innerHTML = `❌ נלמד! ${kb.toFixed(1)}KB. הגודל החסום הגדול ביותר הידוע ב-${store}: ${data.maxBlockedSizeKb.toFixed(1)}KB (${data.blockedSampleCount} דגימות)`;
     }
-    document.getElementById('seedUrlInput').value = '';
+    document.getElementById('seedUrlInput').value = ''; loadHistory();
   } catch (e) {
     resultBox.textContent = '⚠️ ' + e.message;
   }
@@ -374,14 +428,17 @@ function renderTestResult(threshold) {
   const { id, store, items } = lastTestProduct;
   const rows = items.map((it, i) => {
     const sizeTxt = it.sizeKB !== null ? `${it.sizeKB.toFixed(1)}KB` : 'לא נמדד';
-    return `<div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:11.5px">
-      <button onclick="toggleTestItem(${i})" style="border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;background:${it.valid?'#16a34a':'#dc2626'};color:#fff">${it.valid?'✅ תקין':'❌ חסום'}</button>
-      <span style="font-family:monospace">${sizeTxt}</span>
-      <span style="color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.url.substring(0,60)}</span>
+    return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11.5px">
+      <a href="${it.url}" target="_blank" rel="noopener" title="פתיחה בגודל מלא בלשונית חדשה">
+        <img src="${it.url}" style="width:50px;height:66px;object-fit:cover;border-radius:6px;border:2px solid ${it.valid?'#16a34a':'#dc2626'};cursor:pointer;flex-shrink:0" onerror="this.style.opacity='0.3'"/>
+      </a>
+      <button onclick="toggleTestItem(${i})" style="border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;background:${it.valid?'#16a34a':'#dc2626'};color:#fff;flex-shrink:0">${it.valid?'✅ תקין':'❌ חסום'}</button>
+      <span style="font-family:monospace;flex-shrink:0">${sizeTxt}</span>
+      <span style="color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.url.substring(0,50)}</span>
     </div>`;
   }).join('');
   resultBox.innerHTML = `
-    <div style="margin-bottom:6px">מוצר ${id} (${store}) — סף נוכחי: ${threshold.toFixed(1)}KB. <b>לחצי על תגית כדי לתקן אם המערכת טעתה:</b></div>
+    <div style="margin-bottom:6px">מוצר ${id} (${store}) — סף נוכחי: ${threshold.toFixed(1)}KB. <b>לחצי על התמונה לפתיחה מלאה, ועל התגית כדי לתקן אם המערכת טעתה:</b></div>
     ${rows}
     <button class="btn btn-start" style="margin-top:10px;padding:8px 18px" onclick="saveTestCorrections()">💾 שמירת התיקונים + למידה</button>
     <span id="testSaveMsg" style="margin-right:10px;font-size:12px;color:#16a34a"></span>
@@ -467,6 +524,8 @@ function stopScan() {
   running = false;
   log('⏸ הסריקה נעצרה ידנית. אפשר להמשיך בכל זמן.');
 }
+
+loadHistory();
 </script>
 </body>
 </html>

@@ -36,30 +36,172 @@
 
   .empty-state { text-align:center; padding:60px 20px; color:#888; }
   .load-more { display:block; margin:20px auto; padding:12px 30px; border-radius:10px; border:none; background:#4A2F3D; color:#fff; font-weight:700; cursor:pointer; }
+
+  .gallery-thumb { position:relative; width:72px; height:94px; border-radius:8px; overflow:hidden; cursor:pointer;
+    border:3px solid #e5e5e5; transition:border-color .1s; flex-shrink:0; }
+  .gallery-thumb.selected { border-color:#7c3aed; box-shadow:0 0 0 2px rgba(124,58,237,.3); }
+  .gallery-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .gallery-thumb .zoom-link { position:absolute; top:2px; left:2px; background:rgba(0,0,0,.55); color:#fff; border-radius:4px;
+    width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:11px; text-decoration:none; z-index:2; }
+  .gallery-thumb .sel-check { position:absolute; bottom:2px; right:2px; width:18px; height:18px; border-radius:50%;
+    background:#7c3aed; color:#fff; display:none; align-items:center; justify-content:center; font-size:11px; font-weight:800; }
+  .gallery-thumb.selected .sel-check { display:flex; }
+  .tab-btn { padding:8px 18px; border-radius:8px; border:1.5px solid #ddd; background:#fff; font-size:13px; font-weight:700; cursor:pointer; color:#666; }
+  .tab-btn.active { background:#4A2F3D; color:#fff; border-color:#4A2F3D; }
 </style>
 </head>
 <body>
 
-  <div class="topbar">
-    <h1>🖼️ סקירת תמונות (נטפרי/חסימות)</h1>
-    <select id="storeFilter" onchange="reset()">
-      <option value="">כל החנויות</option>
-      <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-      <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-      <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-      <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-    </select>
-    <div class="remaining" id="remainingBox">טוען...</div>
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="tab-btn active" id="tabGallery" onclick="switchTab('gallery')">🖼️ גלריית תמונות מהירה</button>
+    <button class="tab-btn" id="tabCards" onclick="switchTab('cards')">📇 לפי מוצר (מפורט)</button>
   </div>
 
-  <div style="font-size:13px;color:#7A4A63;margin-bottom:16px;line-height:1.6">
-    לחצי על כל תמונה <b>פתוחה/תקינה</b> (מסומנת בעיגול ירוק ✓). תמונות שלא תלחצי עליהן ייחשבו חסומות. אפשר לבטל בחירה בלחיצה חוזרת.
-    אם <b>אין אף תמונה תקינה</b> — לחצי על "אין תמונה תקינה בכלל".
+  <div id="galleryView">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <select id="galleryStore" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
+        <option value="">בחרי חנות</option>
+        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+      </select>
+      <button class="btn btn-save" onclick="loadGallery()">טעני תמונות</button>
+    </div>
+    <div style="font-size:13px;color:#7A4A63;margin-bottom:14px;line-height:1.6">
+      לוחצים על תמונות כדי לבחור אותן (מסגרת סגולה = נבחרה), ואז מסמנים את כולן יחד. 🔍 בפינת כל תמונה פותח אותה בגודל מלא בלשונית חדשה.
+    </div>
+    <div id="galleryGrid" style="display:flex;flex-wrap:wrap;gap:10px;min-height:100px"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap">
+      <span id="gallerySelCount" style="font-size:14px;font-weight:700;color:#4A2F3D">0 נבחרו</span>
+      <button class="btn" style="background:#16a34a;color:#fff" onclick="bulkMarkGallery(true)">✅ סמן הנבחרות כתקינות</button>
+      <button class="btn" style="background:#dc2626;color:#fff" onclick="bulkMarkGallery(false)">❌ סמן הנבחרות כחסומות</button>
+      <button class="btn btn-none" onclick="clearGallerySelection()">נקה בחירה</button>
+    </div>
+    <div id="galleryMsg" style="margin-top:10px;font-size:13px"></div>
   </div>
 
-  <div id="cardsContainer"></div>
-  <div id="emptyState" class="empty-state" style="display:none">🎉 אין עוד מוצרים לסקירה (בסינון הנוכחי)</div>
-  <button id="loadMoreBtn" class="load-more" style="display:none" onclick="loadBatch()">טעני עוד</button>
+  <div id="cardsView" style="display:none">
+    <div class="topbar">
+      <h1>🖼️ סקירה מפורטת לפי מוצר</h1>
+      <select id="storeFilter" onchange="reset()">
+        <option value="">כל החנויות</option>
+        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+      </select>
+      <div class="remaining" id="remainingBox">טוען...</div>
+    </div>
+
+    <div style="font-size:13px;color:#7A4A63;margin-bottom:16px;line-height:1.6">
+      לחצי על כל תמונה <b>פתוחה/תקינה</b> (מסומנת בעיגול ירוק ✓). תמונות שלא תלחצי עליהן ייחשבו חסומות. אפשר לבטל בחירה בלחיצה חוזרת.
+      אם <b>אין אף תמונה תקינה</b> — לחצי על "אין תמונה תקינה בכלל".
+    </div>
+
+    <div id="cardsContainer"></div>
+    <div id="emptyState" class="empty-state" style="display:none">🎉 אין עוד מוצרים לסקירה (בסינון הנוכחי)</div>
+    <button id="loadMoreBtn" class="load-more" style="display:none" onclick="loadBatch()">טעני עוד</button>
+  </div>
+
+<script>
+function switchTab(tab) {
+  document.getElementById('galleryView').style.display = tab === 'gallery' ? 'block' : 'none';
+  document.getElementById('cardsView').style.display = tab === 'cards' ? 'block' : 'none';
+  document.getElementById('tabGallery').classList.toggle('active', tab === 'gallery');
+  document.getElementById('tabCards').classList.toggle('active', tab === 'cards');
+  if (tab === 'cards' && !document.getElementById('cardsContainer').children.length) loadBatch();
+}
+
+let galleryImages = [];
+let gallerySelected = new Set();
+
+async function loadGallery() {
+  const store = document.getElementById('galleryStore').value;
+  const grid = document.getElementById('galleryGrid');
+  const msg = document.getElementById('galleryMsg');
+  msg.textContent = '';
+  if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
+  grid.innerHTML = '<div style="color:#888;font-size:13px">טוענת תמונות...</div>';
+  gallerySelected.clear();
+  updateGallerySelCount();
+  try {
+    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=120', { credentials: 'include' });
+    const data = await res.json();
+    galleryImages = data.images || [];
+    if (!galleryImages.length) { grid.innerHTML = '<div style="color:#888;font-size:13px">אין עוד תמונות לא-נסקרות בחנות זו 🎉</div>'; return; }
+    renderGallery();
+  } catch(e) {
+    grid.innerHTML = '<div style="color:#dc2626;font-size:13px">⚠️ שגיאה בטעינה</div>';
+  }
+}
+
+function renderGallery() {
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = galleryImages.map((item, i) => `
+    <div class="gallery-thumb${gallerySelected.has(i)?' selected':''}" id="gthumb-${i}" onclick="toggleGalleryItem(${i})">
+      <img src="${item.url}" loading="lazy" onerror="this.style.opacity='0.2'"/>
+      <a class="zoom-link" href="${item.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔍</a>
+      <div class="sel-check">✓</div>
+    </div>`).join('');
+}
+
+function toggleGalleryItem(i) {
+  if (gallerySelected.has(i)) gallerySelected.delete(i); else gallerySelected.add(i);
+  document.getElementById('gthumb-'+i)?.classList.toggle('selected');
+  updateGallerySelCount();
+}
+
+function clearGallerySelection() {
+  gallerySelected.clear();
+  renderGallery();
+  updateGallerySelCount();
+}
+
+function updateGallerySelCount() {
+  document.getElementById('gallerySelCount').textContent = gallerySelected.size + ' נבחרו';
+}
+
+async function bulkMarkGallery(isValid) {
+  const store = document.getElementById('galleryStore').value;
+  const msg = document.getElementById('galleryMsg');
+  if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
+  if (!gallerySelected.size) { msg.textContent = 'לא נבחרו תמונות'; return; }
+
+  const indices = [...gallerySelected];
+  msg.textContent = `מודדת ${indices.length} תמונות...`;
+  const sizes = [];
+  for (const i of indices) {
+    const url = galleryImages[i]?.url;
+    if (!url) continue;
+    try {
+      const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        sizes.push({ url, sizeKB: blob.size / 1024 });
+      }
+    } catch(e) {}
+  }
+  if (!sizes.length) { msg.textContent = '⚠️ לא הצלחתי למדוד אף תמונה מהנבחרות (CORS?) — אין מה ללמוד מהן'; return; }
+
+  try {
+    const res = await fetch('/api/admin/bulk-seed-baseline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ store, valid: isValid, sizes }),
+    });
+    const data = await res.json();
+    msg.innerHTML = `✅ נלמד מ-${sizes.length} תמונות (${isValid?'תקינות':'חסומות'})! ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB | מקסימום חסום ידוע: ${data.maxBlockedSizeKb.toFixed(1)}KB`;
+    galleryImages = galleryImages.filter((_, i) => !gallerySelected.has(i));
+    gallerySelected.clear();
+    renderGallery();
+    updateGallerySelCount();
+  } catch(e) {
+    msg.textContent = '⚠️ שגיאה בשמירה';
+  }
+}
+</script>
 
 <script>
 let remaining = 0;

@@ -36,16 +36,6 @@
   .log-line.valid { color:#16a34a; }
 
   .warn { background:#fff8e6; border:1px solid #f0d888; border-radius:10px; padding:14px; font-size:13px; color:#8a6d1a; margin-bottom:16px; line-height:1.6; }
-
-  .gallery-thumb { position:relative; width:64px; height:84px; border-radius:8px; overflow:hidden; cursor:pointer;
-    border:3px solid #e5e5e5; transition:border-color .1s; flex-shrink:0; }
-  .gallery-thumb.selected { border-color:#7c3aed; box-shadow:0 0 0 2px rgba(124,58,237,.3); }
-  .gallery-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-  .gallery-thumb .zoom-link { position:absolute; top:2px; left:2px; background:rgba(0,0,0,.55); color:#fff; border-radius:4px;
-    width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:10px; text-decoration:none; z-index:2; }
-  .gallery-thumb .sel-check { position:absolute; bottom:2px; right:2px; width:16px; height:16px; border-radius:50%;
-    background:#7c3aed; color:#fff; display:none; align-items:center; justify-content:center; font-size:10px; font-weight:800; }
-  .gallery-thumb.selected .sel-check { display:flex; }
 </style>
 </head>
 <body>
@@ -87,30 +77,8 @@
   </div>
 
   <div class="box" style="margin-bottom:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <div style="font-size:14px;font-weight:700;color:#4A2F3D">🖼️ גלריית סימון מהיר (חנויות עם CORS חסום)</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="galleryStore" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;font-size:13px">
-          <option value="">בחרי חנות</option>
-          <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-          <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-          <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-          <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-        </select>
-        <button class="btn" style="padding:8px 16px;font-size:13px;background:#4A2F3D;color:#fff" onclick="loadGallery()">טעני תמונות</button>
-      </div>
-    </div>
-    <div style="font-size:12px;color:#888;margin-bottom:10px">
-      לוחצים על תמונות כדי לבחור אותן (מסגרת סגולה = נבחרה), ואז מסמנים את כולן יחד כתקינות/חסומות. לחיצה על 🔍 בפינת כל תמונה פותחת אותה בגודל מלא.
-    </div>
-    <div id="galleryGrid" style="display:flex;flex-wrap:wrap;gap:8px;max-height:420px;overflow-y:auto;padding:4px"></div>
-    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
-      <span id="gallerySelCount" style="font-size:13px;font-weight:700;color:#4A2F3D">0 נבחרו</span>
-      <button class="btn" style="background:#16a34a;color:#fff;padding:8px 16px;font-size:13px" onclick="bulkMarkGallery(true)">✅ סמן הנבחרות כתקינות</button>
-      <button class="btn" style="background:#dc2626;color:#fff;padding:8px 16px;font-size:13px" onclick="bulkMarkGallery(false)">❌ סמן הנבחרות כחסומות</button>
-      <button class="btn" style="background:#eee;color:#333;padding:8px 16px;font-size:13px" onclick="clearGallerySelection()">נקה בחירה</button>
-    </div>
-    <div id="galleryMsg" style="margin-top:8px;font-size:13px"></div>
+    <div style="font-size:14px;font-weight:700;color:#4A2F3D;margin-bottom:6px">🖼️ סימון מהיר בבחירה מרובה</div>
+    <div style="font-size:13px;color:#7A4A63">הועבר לעמוד <a href="/admin/image-review" style="color:#c48cb3;font-weight:700">admin/image-review</a> — יש שם טאב "גלריית תמונות מהירה" ברוחב מלא.</div>
   </div>
 
   <div class="box" style="margin-bottom:20px">
@@ -293,99 +261,6 @@ async function loadHistory() {
     }).join('');
   } catch(e) {
     box.textContent = '⚠️ שגיאה בטעינת היסטוריה';
-  }
-}
-
-// ===== גלריית סימון מהיר - בחירה מרובה של תמונות קטנות =====
-let galleryImages = []; // [{productId, url}]
-let gallerySelected = new Set();
-
-async function loadGallery() {
-  const store = document.getElementById('galleryStore').value;
-  const grid = document.getElementById('galleryGrid');
-  const msg = document.getElementById('galleryMsg');
-  msg.textContent = '';
-  if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
-  grid.innerHTML = '<div style="color:#888;font-size:13px">טוענת תמונות...</div>';
-  gallerySelected.clear();
-  updateGallerySelCount();
-  try {
-    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=80', { credentials: 'include' });
-    const data = await res.json();
-    galleryImages = data.images || [];
-    if (!galleryImages.length) { grid.innerHTML = '<div style="color:#888;font-size:13px">אין עוד תמונות לא-נסקרות בחנות זו 🎉</div>'; return; }
-    renderGallery();
-  } catch(e) {
-    grid.innerHTML = '<div style="color:#dc2626;font-size:13px">⚠️ שגיאה בטעינה</div>';
-  }
-}
-
-function renderGallery() {
-  const grid = document.getElementById('galleryGrid');
-  grid.innerHTML = galleryImages.map((item, i) => `
-    <div class="gallery-thumb${gallerySelected.has(i)?' selected':''}" id="gthumb-${i}" onclick="toggleGalleryItem(${i})">
-      <img src="${item.url}" loading="lazy" onerror="this.style.opacity='0.2'"/>
-      <a class="zoom-link" href="${item.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔍</a>
-      <div class="sel-check">✓</div>
-    </div>`).join('');
-}
-
-function toggleGalleryItem(i) {
-  if (gallerySelected.has(i)) gallerySelected.delete(i); else gallerySelected.add(i);
-  document.getElementById('gthumb-'+i)?.classList.toggle('selected');
-  updateGallerySelCount();
-}
-
-function clearGallerySelection() {
-  gallerySelected.clear();
-  renderGallery();
-  updateGallerySelCount();
-}
-
-function updateGallerySelCount() {
-  document.getElementById('gallerySelCount').textContent = gallerySelected.size + ' נבחרו';
-}
-
-async function bulkMarkGallery(isValid) {
-  const store = document.getElementById('galleryStore').value;
-  const msg = document.getElementById('galleryMsg');
-  if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
-  if (!gallerySelected.size) { msg.textContent = 'לא נבחרו תמונות'; return; }
-
-  const indices = [...gallerySelected];
-  msg.textContent = `מודדת ${indices.length} תמונות...`;
-  const sizes = [];
-  for (const i of indices) {
-    const url = galleryImages[i]?.url;
-    if (!url) continue;
-    try {
-      const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-      if (resp.ok) {
-        const blob = await resp.blob();
-        sizes.push({ url, sizeKB: blob.size / 1024 });
-      }
-    } catch(e) {}
-  }
-  if (!sizes.length) { msg.textContent = '⚠️ לא הצלחתי למדוד אף תמונה מהנבחרות (CORS?) — אין מה ללמוד מהן'; return; }
-
-  try {
-    const res = await fetch('/api/admin/bulk-seed-baseline', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ store, valid: isValid, sizes }),
-    });
-    const data = await res.json();
-    storeBaselineCache[store] = data;
-    msg.innerHTML = `✅ נלמד מ-${sizes.length} תמונות (${isValid?'תקינות':'חסומות'})! ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB | מקסימום חסום ידוע: ${data.maxBlockedSizeKb.toFixed(1)}KB`;
-    // מסירים מהגלריה את מה שסומן, כדי לא לסמן פעמיים
-    galleryImages = galleryImages.filter((_, i) => !gallerySelected.has(i));
-    gallerySelected.clear();
-    renderGallery();
-    updateGallerySelCount();
-    loadHistory();
-  } catch(e) {
-    msg.textContent = '⚠️ שגיאה בשמירה';
   }
 }
 

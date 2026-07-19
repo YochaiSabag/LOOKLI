@@ -4281,6 +4281,20 @@ app.delete('/api/admin/products/:id', adminAuth, async (req, res) => {
   }
 });
 
+// הסרה מרובה לתמיד (בחר הכל -> הסר) - שאילתה אחת במקום לולאה של בקשות בודדות
+app.patch('/api/admin/ban-products', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids חסר' });
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT false`);
+    await pool.query(`UPDATE products SET banned=true WHERE id = ANY($1::int[])`, [ids]);
+    res.json({ ok: true, count: ids.length });
+  } catch(e) {
+    console.error('ban-products bulk error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/admin/scraper-config/:id', adminAuth, async (req, res) => {
   await pool.query(`DELETE FROM scraper_config WHERE id=$1`, [req.params.id]);
   await loadSearchAliases(); // רענון מיידי

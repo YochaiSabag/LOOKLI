@@ -309,6 +309,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="clear-btn" id="autoDetectBtn" style="border-color:#34d399;color:#34d399" onclick="autoDetectFromDescription()">🔍 זהה אוטומטית מהתיאור (נבחרים)</button>
       <button class="clear-btn" id="autoDetectAllBtn" style="border-color:#0ea5e9;color:#0ea5e9" onclick="autoDetectFromDescription(true)">🔍 זהה אוטומטית — על כל המוצרים המסוננים</button>
       <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
+      <button class="clear-btn" id="banSelectedBtn" style="border-color:#dc2626;color:#dc2626" onclick="banSelected()">🗑 הסר את הנבחרים לתמיד</button>
       <button class="clear-btn" id="clearFitsBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearFits()">נקה גיזרות לנבחרים</button>
       <button class="clear-btn" id="clearStylesBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearStyles()">נקה סגנונות לנבחרים</button>
       <button class="clear-btn" id="clearDesignBtn" style="display:none;border-color:#f87171;color:#f87171" onclick="clearDesign()">נקה עיצוב לנבחרים</button>
@@ -844,6 +845,35 @@ function updateApplyBtn() {
 }
 
 // ─── Apply tag ───
+async function banSelected() {
+  if (selected.size === 0) return;
+  if (!confirm(`להסיר ${selected.size} מוצרים לתמיד? הם לא יופיעו יותר באתר, בשום הרצה עתידית.`)) return;
+  const btn = document.getElementById('banSelectedBtn');
+  btn.textContent = '⏳ מסיר...';
+  btn.disabled = true;
+  try {
+    const ids = [...selected];
+    const r = await fetch('/api/admin/ban-products', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'שגיאה');
+    allProducts = allProducts.filter(p => !selected.has(p.id));
+    selected.clear();
+    applyFilter();
+    updateSelectionUI();
+    showToast(`✅ ${data.count} מוצרים הוסרו לתמיד`, 'success');
+  } catch(e) {
+    showToast('❌ שגיאה: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '🗑 הסר את הנבחרים לתמיד';
+    btn.disabled = false;
+  }
+}
+
 async function applyTag() {
   if (selected.size === 0 || !currentValue.trim()) return;
   const btn = document.getElementById('applyBtn');

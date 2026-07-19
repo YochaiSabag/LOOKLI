@@ -194,14 +194,27 @@ async function reportStatus(productId, imageUrl, valid, totalImages, store, size
 
 async function scanProduct(p) {
   const images = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
-  if (!images.length) { log(`מוצר ${p.id}: אין תמונות בכלל`, 'blocked'); return; }
+  if (!images.length) {
+    log(`מוצר ${p.id} (${p.store}): אין תמונות בכלל — מסמן כלא-תקין ויוצא מהתור`, 'blocked');
+    // חשוב: שומרים reviewed_at אחרת המוצר הזה יחזור שוב ושוב בכל באצ' לנצח בלי שום התקדמות
+    try {
+      await fetch('/api/admin/image-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id: p.id, validUrls: [] }),
+      });
+    } catch(e) {}
+    totalChecked++; totalBlocked++;
+    updateStats();
+    return;
+  }
 
   const threshold = await getStoreThreshold(p.store);
   let anyValid = false;
   for (const url of images) {
     if (!running) break;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     img.src = url;
     const result = await Promise.race([
       checkImageValidity(img, threshold),
@@ -286,8 +299,7 @@ async function testSingleProduct() {
     const items = [];
     for (const url of images) {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = url;
+        img.src = url;
       const result = await Promise.race([
         checkImageValidity(img, threshold),
         new Promise(r => setTimeout(() => r({ valid: false, sizeKB: null }), 12000)),

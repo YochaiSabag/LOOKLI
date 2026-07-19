@@ -59,17 +59,28 @@
 
   <div id="galleryView">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <select id="galleryStore" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
-        <option value="">בחרי חנות</option>
-        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-      </select>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="galleryStore" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
+          <option value="">בחרי חנות</option>
+          <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+          <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+          <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+          <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+        </select>
+        <select id="galleryBatchSize" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
+          <option value="100">100 תמונות</option>
+          <option value="200" selected>200 תמונות</option>
+          <option value="300">גם וגם (300)</option>
+        </select>
+      </div>
       <button class="btn btn-save" onclick="loadGallery()">טעני תמונות</button>
     </div>
     <div style="font-size:13px;color:#7A4A63;margin-bottom:14px;line-height:1.6">
       לוחצים על תמונות כדי לבחור אותן (מסגרת סגולה = נבחרה), ואז מסמנים את כולן יחד. 🔍 בפינת כל תמונה פותח אותה בגודל מלא בלשונית חדשה.
+      <b>"בחר הכל"</b> מסמן בבת אחת את כל התמונות שנטענו עד כה — שימושי כשברור שכל הקבוצה פתוחה/חסומה.
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">
+      <button class="btn" style="background:#7c3aed;color:#fff" onclick="selectAllGallery()">☑️ בחר הכל</button>
     </div>
     <div id="galleryGrid" style="display:flex;flex-wrap:wrap;gap:10px;min-height:100px"></div>
     <div style="text-align:center;margin-top:14px">
@@ -121,6 +132,7 @@ let gallerySelected = new Set();
 let galleryOffset = 0;
 let galleryHasMore = false;
 let galleryStoreLoaded = null;
+let galleryBatchLimit = 200;
 
 async function loadGallery() {
   const store = document.getElementById('galleryStore').value;
@@ -133,9 +145,10 @@ async function loadGallery() {
   galleryImages = [];
   galleryOffset = 0;
   galleryStoreLoaded = store;
+  galleryBatchLimit = parseInt(document.getElementById('galleryBatchSize').value) || 200;
   updateGallerySelCount();
   try {
-    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=200&offset=0', { credentials: 'include' });
+    const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=' + galleryBatchLimit + '&offset=0', { credentials: 'include' });
     const data = await res.json();
     galleryImages = data.images || [];
     galleryOffset = data.nextOffset || 0;
@@ -145,6 +158,12 @@ async function loadGallery() {
   } catch(e) {
     grid.innerHTML = '<div style="color:#dc2626;font-size:13px">⚠️ שגיאה בטעינה</div>';
   }
+}
+
+function selectAllGallery() {
+  gallerySelected = new Set(galleryImages.map((_, i) => i));
+  renderGallery();
+  updateGallerySelCount();
 }
 
 async function loadMoreGalleryImages() {
@@ -161,7 +180,7 @@ async function loadMoreGalleryImages() {
     // ממשיכים אוטומטית לבאצ' הבא במקום לעצור בטעות, עד 5 ניסיונות
     while (galleryHasMore && totalNew === 0 && attempts < 5) {
       attempts++;
-      const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=200&offset=' + galleryOffset, { credentials: 'include' });
+      const res = await fetch('/api/admin/image-gallery?store=' + encodeURIComponent(store) + '&limit=' + galleryBatchLimit + '&offset=' + galleryOffset, { credentials: 'include' });
       const data = await res.json();
       const existingUrls = new Set(galleryImages.map(it => it.url));
       const newImages = (data.images || []).filter(it => !existingUrls.has(it.url));

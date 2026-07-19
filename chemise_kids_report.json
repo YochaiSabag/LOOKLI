@@ -1,0 +1,2157 @@
+{
+  "checkedAt": "2026-07-19T12:34:39.860Z",
+  "deleted": false,
+  "kidsFound": [
+    {
+      "id": 3004,
+      "title": "חצאית פרחונית",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%a8%d7%97%d7%95%d7%a0%d7%99%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 41122,
+      "title": "חצאית פרחונית ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%a8%d7%97%d7%95%d7%a0%d7%99%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62471,
+      "title": "חצאית בלון תחרה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%91%d7%9c%d7%95%d7%9f-%d7%aa%d7%97%d7%a8%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62477,
+      "title": "שמלת ריב ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a8%d7%99%d7%91-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62478,
+      "title": "חצאית קומות שבת",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a7%d7%95%d7%9e%d7%95%d7%aa-%d7%a9%d7%91%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62479,
+      "title": "שמלת שבת ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa-2/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62488,
+      "title": "חצאית אורגנזה שבת",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%90%d7%95%d7%a8%d7%92%d7%a0%d7%96%d7%94-%d7%a9%d7%91%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62489,
+      "title": "חצאית גינס גומי בגב",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%92%d7%95%d7%9e%d7%99-%d7%91%d7%92%d7%91/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62490,
+      "title": "חצאית גינס דוגמא",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%93%d7%95%d7%92%d7%9e%d7%90/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62491,
+      "title": "חצאית פולו קפלים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%95%d7%9c%d7%95-%d7%a7%d7%a4%d7%9c%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62492,
+      "title": "חצאית פייטים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%99%d7%99%d7%98%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 62500,
+      "title": "חצאית אריג סריג סט",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%90%d7%a8%d7%99%d7%92-%d7%a1%d7%a8%d7%99%d7%92-%d7%a1%d7%98/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72811,
+      "title": "שמלת ג’ינס מכופתרת",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%9e%d7%9b%d7%95%d7%a4%d7%aa%d7%a8%d7%aa/",
+      "sizes": [
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72812,
+      "title": "סרפן ג’ינס",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%92%d7%99%d7%a0%d7%a1-2/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72813,
+      "title": "סרפן גי’נס",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%92%d7%99%d7%a0%d7%a1/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72814,
+      "title": "סרפן ילדות צבעוני",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%99%d7%9c%d7%93%d7%95%d7%aa-%d7%a6%d7%91%d7%a2%d7%95%d7%a0%d7%99/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72815,
+      "title": "שמלה פרחונית",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%94-%d7%a4%d7%a8%d7%97%d7%95%d7%a0%d7%99%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72816,
+      "title": "סרפן משובץ",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%9e%d7%a9%d7%95%d7%91%d7%a5/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72817,
+      "title": "שמלת שילוב אריג",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%99%d7%9c%d7%95%d7%91-%d7%90%d7%a8%d7%99%d7%92/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72818,
+      "title": "שמלת ילדות צווארון גדול",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa-%d7%a6%d7%95%d7%95%d7%90%d7%a8%d7%95%d7%9f-%d7%92%d7%93%d7%95%d7%9c/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72819,
+      "title": "סרפן פרחים בלון",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%a4%d7%a8%d7%97%d7%99%d7%9d-%d7%91%d7%9c%d7%95%d7%9f/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72820,
+      "title": "סט ילדות – חצאית",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%99%d7%9c%d7%93%d7%95%d7%aa-%d7%97%d7%a6%d7%90%d7%99%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "20",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72821,
+      "title": "סט ילדות – חולצה",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%99%d7%9c%d7%93%d7%95%d7%aa-%d7%97%d7%95%d7%9c%d7%a6%d7%94/",
+      "sizes": [
+        "XXL"
+      ],
+      "rawSizeLabels": [
+        "20",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72822,
+      "title": "חולצת פולו סרט",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a4%d7%95%d7%9c%d7%95-%d7%a1%d7%a8%d7%98/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72823,
+      "title": "חצאית פולו סרט",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%95%d7%9c%d7%95-%d7%a1%d7%a8%d7%98/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72824,
+      "title": "סט שילוב אריג – סריג",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a9%d7%99%d7%9c%d7%95%d7%91-%d7%90%d7%a8%d7%99%d7%92-%d7%a1%d7%a8%d7%99%d7%92/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72825,
+      "title": "סט פסים – חולצה",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a4%d7%a1%d7%99%d7%9d-%d7%97%d7%95%d7%9c%d7%a6%d7%94/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72826,
+      "title": "שמלת שבת עם צווארון",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%a2%d7%9d-%d7%a6%d7%95%d7%95%d7%90%d7%a8%d7%95%d7%9f/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72827,
+      "title": "שמלת שבת",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72829,
+      "title": "חצאית משובצת ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%9e%d7%a9%d7%95%d7%91%d7%a6%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72830,
+      "title": "חצאית ילדות מחויטת",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa-%d7%9e%d7%97%d7%95%d7%99%d7%98%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72831,
+      "title": "חצאית תחרה ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%aa%d7%97%d7%a8%d7%94-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXXL",
+        "XXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72832,
+      "title": "חצאית ג’ינס רקומה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%a8%d7%a7%d7%95%d7%9e%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72833,
+      "title": "חצאית סריג חלקים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%97%d7%9c%d7%a7%d7%99%d7%9d/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72834,
+      "title": "סט פסים – חצאית",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a4%d7%a1%d7%99%d7%9d-%d7%97%d7%a6%d7%90%d7%99%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72835,
+      "title": "חצאית פליסה שמיז",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%9c%d7%99%d7%a1%d7%94-%d7%a9%d7%9e%d7%99%d7%96-2/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72836,
+      "title": "חצאית קפלים וגומי",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a7%d7%a4%d7%9c%d7%99%d7%9d-%d7%95%d7%92%d7%95%d7%9e%d7%99/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72837,
+      "title": "חצאית קפלים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a7%d7%a4%d7%9c%d7%99%d7%9d/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72838,
+      "title": "חצאית סריג",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-2/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72839,
+      "title": "חצאית ג’ינס קפלים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%a7%d7%a4%d7%9c%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72840,
+      "title": "שמלת שבת קומות ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%a7%d7%95%d7%9e%d7%95%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72841,
+      "title": "שמלת שבת פרחונית",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%a4%d7%a8%d7%97%d7%95%d7%a0%d7%99%d7%aa/",
+      "sizes": [
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72842,
+      "title": "שמלת שבת תחרה ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%aa%d7%97%d7%a8%d7%94-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72856,
+      "title": "חצאית ג’ינס עם פרנזים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%a2%d7%9d-%d7%a4%d7%a8%d7%a0%d7%96%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72865,
+      "title": "חצאית שבת בלון",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a9%d7%91%d7%aa-%d7%91%d7%9c%d7%95%d7%9f/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72872,
+      "title": "סרפן ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%99%d7%9c%d7%93%d7%95%d7%aa-2/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72874,
+      "title": "סרפן שבת",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%a9%d7%91%d7%aa/",
+      "sizes": [
+        "XXXL",
+        "XXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72875,
+      "title": "שמלת שבת עם כיווצים",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%a2%d7%9d-%d7%9b%d7%99%d7%95%d7%95%d7%a6%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72876,
+      "title": "סרפן פרחוני שבת",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%a4%d7%9f-%d7%a4%d7%a8%d7%97%d7%95%d7%a0%d7%99-%d7%a9%d7%91%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72887,
+      "title": "חולצה שני צבעים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%a9%d7%a0%d7%99-%d7%a6%d7%91%d7%a2%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72888,
+      "title": "חולצות לייקרה 3/4-ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa-%d7%9c%d7%99%d7%99%d7%a7%d7%a8%d7%94-3-4-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72893,
+      "title": "חולצת לייקרה שרוול ארוך-ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%9c%d7%99%d7%99%d7%a7%d7%a8%d7%94-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72894,
+      "title": "חולצת צווארון לבנה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a6%d7%95%d7%95%d7%90%d7%a8%d7%95%d7%9f-%d7%9c%d7%91%d7%a0%d7%94/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72896,
+      "title": "חצאית ג’ינס וכיסים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%95%d7%9b%d7%99%d7%a1%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72897,
+      "title": "חולצה מכופתרת וקשירה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%9e%d7%9b%d7%95%d7%a4%d7%aa%d7%a8%d7%aa-%d7%95%d7%a7%d7%a9%d7%99%d7%a8%d7%94/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72898,
+      "title": "חולצה לבנה פפיונים בשרוול",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%9c%d7%91%d7%a0%d7%94-%d7%a4%d7%a4%d7%99%d7%95%d7%a0%d7%99%d7%9d-%d7%91%d7%a9%d7%a8%d7%95%d7%95%d7%9c/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72901,
+      "title": "חצאית סריג חלקה-מידות 4-12",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%97%d7%9c%d7%a7%d7%94-%d7%9e%d7%99%d7%93%d7%95%d7%aa-4-12/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72902,
+      "title": "חצאית פליסה שמיז מידות 4-10",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%9c%d7%99%d7%a1%d7%94-%d7%a9%d7%9e%d7%99%d7%96-%d7%9e%d7%99%d7%93%d7%95%d7%aa-4-10/",
+      "sizes": [
+        "XXL",
+        "XXXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72908,
+      "title": "פרחים ורוד כיסים",
+      "source_url": "https://chemise.co.il/product/%d7%a4%d7%a8%d7%97%d7%99%d7%9d-%d7%95%d7%a8%d7%95%d7%93-%d7%9b%d7%99%d7%a1%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72914,
+      "title": "שמלה כוכבים",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%94-%d7%9b%d7%95%d7%9b%d7%91%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72915,
+      "title": "שמלת פרחים עם חוט",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a4%d7%a8%d7%97%d7%99%d7%9d-%d7%a2%d7%9d-%d7%97%d7%95%d7%98/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 72917,
+      "title": "חצאית סקול פליסה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a1%d7%a7%d7%95%d7%9c-%d7%a4%d7%9c%d7%99%d7%a1%d7%94/",
+      "sizes": [
+        "XXL"
+      ],
+      "rawSizeLabels": [
+        "4",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 108706,
+      "title": "שמלה ג’יס פפיונים",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%94-%d7%92%d7%99%d7%a1-%d7%a4%d7%a4%d7%99%d7%95%d7%a0%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111820,
+      "title": "חולצת קשירה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a7%d7%a9%d7%99%d7%a8%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111821,
+      "title": "קפוצ’ון הדפס בלונים",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%94%d7%93%d7%a4%d7%a1-%d7%91%d7%9c%d7%95%d7%a0%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111822,
+      "title": "חולצת פסים בייסיק",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a4%d7%a1%d7%99%d7%9d-%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111823,
+      "title": "חולצת ריב",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a8%d7%99%d7%91/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111825,
+      "title": "חולצת SUMMER",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-summer/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111826,
+      "title": "חולצת פסים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a4%d7%a1%d7%99%d7%9d-2/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111827,
+      "title": "חולצת ריב פריל",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a8%d7%99%d7%91-%d7%a4%d7%a8%d7%99%d7%9c/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111828,
+      "title": "פשתן קשירה",
+      "source_url": "https://chemise.co.il/product/%d7%a4%d7%a9%d7%aa%d7%9f-%d7%a7%d7%a9%d7%99%d7%a8%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111831,
+      "title": "סט שבת נערות -חולצה",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a9%d7%91%d7%aa-%d7%a0%d7%a2%d7%a8%d7%95%d7%aa-%d7%97%d7%95%d7%9c%d7%a6%d7%94-2/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111832,
+      "title": "חצאית שבת נערות סט",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a9%d7%91%d7%aa-%d7%a0%d7%a2%d7%a8%d7%95%d7%aa-%d7%a1%d7%98/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111834,
+      "title": "קרדיגן שבת אבנים",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a8%d7%93%d7%99%d7%92%d7%9f-%d7%a9%d7%91%d7%aa-%d7%90%d7%91%d7%a0%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 111845,
+      "title": "סט פיקה ילדות – חצאית",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a4%d7%99%d7%a7%d7%94-%d7%99%d7%9c%d7%93%d7%95%d7%aa-%d7%97%d7%a6%d7%90%d7%99%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113725,
+      "title": "חולצה ג’ינס פפיון קשירה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%92%d7%99%d7%a0%d7%a1-%d7%a4%d7%a4%d7%99%d7%95%d7%9f-%d7%a7%d7%a9%d7%99%d7%a8%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113751,
+      "title": "קפוצון בייסיק לוגו",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%95%d7%92%d7%95/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113752,
+      "title": "קפוצון שילוב אריג",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%a9%d7%99%d7%9c%d7%95%d7%91-%d7%90%d7%a8%d7%99%d7%92/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113756,
+      "title": "חולצת פסים",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a4%d7%a1%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113758,
+      "title": "חולצת לוגו שרוול מכווץ",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%9c%d7%95%d7%92%d7%95-%d7%a9%d7%a8%d7%95%d7%95%d7%9c-%d7%9e%d7%9b%d7%95%d7%95%d7%a5/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113760,
+      "title": "סריג כפתורים בכתף",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%a4%d7%aa%d7%95%d7%a8%d7%99%d7%9d-%d7%91%d7%9b%d7%aa%d7%a3/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113761,
+      "title": "חולצת כיסH",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%9b%d7%99%d7%a1/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113763,
+      "title": "חולצת לוגו ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%9c%d7%95%d7%92%d7%95-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113765,
+      "title": "חולצת סריג פפיון",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%a4%d7%a4%d7%99%d7%95%d7%9f/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113766,
+      "title": "חולצת ריב פפיון",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a8%d7%99%d7%91-%d7%a4%d7%a4%d7%99%d7%95%d7%9f/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113767,
+      "title": "חולצת ריב מעטפת",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a8%d7%99%d7%91-%d7%9e%d7%a2%d7%98%d7%a4%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113768,
+      "title": "חולצה עם רקמת פפיון",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%a2%d7%9d-%d7%a8%d7%a7%d7%9e%d7%aa-%d7%a4%d7%a4%d7%99%d7%95%d7%9f/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113769,
+      "title": "חולצה עם כיתוב ריקמה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%a2%d7%9d-%d7%9b%d7%99%d7%aa%d7%95%d7%91-%d7%a8%d7%99%d7%a7%d7%9e%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113770,
+      "title": "קפוצון הדפס צדפים",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%94%d7%93%d7%a4%d7%a1-%d7%a6%d7%93%d7%a4%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113771,
+      "title": "קפוצ’ון הדפס סיליקון לב",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%94%d7%93%d7%a4%d7%a1-%d7%a1%d7%99%d7%9c%d7%99%d7%a7%d7%95%d7%9f-%d7%9c%d7%91/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113772,
+      "title": "חולצת ילדות 3/4",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa-3-4/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113773,
+      "title": "קרדיגן שבת ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a8%d7%93%d7%99%d7%92%d7%9f-%d7%a9%d7%91%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113774,
+      "title": "שמלת שבת ילדות",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%a9%d7%91%d7%aa-%d7%99%d7%9c%d7%93%d7%95%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113775,
+      "title": "חצאית יומיום לנערות",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%99%d7%95%d7%9e%d7%99%d7%95%d7%9d-%d7%9c%d7%a0%d7%a2%d7%a8%d7%95%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113790,
+      "title": "חצאית סריג חלקה-מידות 14-18",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%97%d7%9c%d7%a7%d7%94-%d7%9e%d7%99%d7%93%d7%95%d7%aa-14-18/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 113791,
+      "title": "סט שבת נערות – חצאית",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a9%d7%91%d7%aa-%d7%a0%d7%a2%d7%a8%d7%95%d7%aa-%d7%97%d7%95%d7%9c%d7%a6%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117604,
+      "title": "שבת נערות סט – חולצה",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%91%d7%aa-%d7%a0%d7%a2%d7%a8%d7%95%d7%aa-%d7%a1%d7%98-%d7%97%d7%a6%d7%90%d7%99%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117607,
+      "title": "חצאית תחרה שבת",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%aa%d7%97%d7%a8%d7%94-%d7%a9%d7%91%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117609,
+      "title": "נערות שחור לבן סט – חצאית",
+      "source_url": "https://chemise.co.il/product/%d7%a0%d7%a2%d7%a8%d7%95%d7%aa-%d7%a9%d7%97%d7%95%d7%a8-%d7%9c%d7%91%d7%9f-%d7%a1%d7%98-%d7%97%d7%a6%d7%90%d7%99%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117610,
+      "title": "חצאית פרחונית שבת",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%a8%d7%97%d7%95%d7%a0%d7%99%d7%aa-%d7%a9%d7%91%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117611,
+      "title": "חולצה פרינט סט",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%a4%d7%a8%d7%99%d7%a0%d7%98-%d7%a1%d7%98/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117645,
+      "title": "סט שבת נערות שחור לבן – חולצה",
+      "source_url": "https://chemise.co.il/product/%d7%a1%d7%98-%d7%a9%d7%91%d7%aa-%d7%a0%d7%a2%d7%a8%d7%95%d7%aa-%d7%a9%d7%97%d7%95%d7%a8-%d7%9c%d7%91%d7%9f-%d7%97%d7%95%d7%9c%d7%a6%d7%94/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "20",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117656,
+      "title": "קפוצ’ון הדפס תיק",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%94%d7%93%d7%a4%d7%a1-%d7%aa%d7%99%d7%a7/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117660,
+      "title": "קפוצון הדפס כיתוב",
+      "source_url": "https://chemise.co.il/product/%d7%a7%d7%a4%d7%95%d7%a6%d7%95%d7%9f-%d7%94%d7%93%d7%a4%d7%a1-%d7%9b%d7%99%d7%aa%d7%95%d7%91/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4-5",
+        "6-7",
+        "8-9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117670,
+      "title": "חולצת BE",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-be/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117687,
+      "title": "חצאית פליסה שמיז מידות 12-18",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%a4%d7%9c%d7%99%d7%a1%d7%94-%d7%a9%d7%9e%d7%99%d7%96-%d7%9e%d7%99%d7%93%d7%95%d7%aa-12-18/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117694,
+      "title": "פרחים ורוד",
+      "source_url": "https://chemise.co.il/product/%d7%a4%d7%a8%d7%97%d7%99%d7%9d-%d7%95%d7%a8%d7%95%d7%93/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117703,
+      "title": "שמלה פרחים",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%94-%d7%a4%d7%a8%d7%97%d7%99%d7%9d/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18"
+      ],
+      "excluded": false
+    },
+    {
+      "id": 117704,
+      "title": "שמלה צווארון תכלת",
+      "source_url": "https://chemise.co.il/product/%d7%a9%d7%9e%d7%9c%d7%94-%d7%a6%d7%95%d7%95%d7%90%d7%a8%d7%95%d7%9f-%d7%aa%d7%9b%d7%9c%d7%aa/",
+      "sizes": [],
+      "rawSizeLabels": [
+        "50",
+        "52",
+        "54",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "14",
+        "16",
+        "18",
+        "36",
+        "38",
+        "40",
+        "42",
+        "44",
+        "46",
+        "48"
+      ],
+      "excluded": false
+    }
+  ],
+  "notFound404": [
+    {
+      "id": 2956,
+      "title": "חולצה מכופתרת קשירה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%9e%d7%9b%d7%95%d7%a4%d7%aa%d7%a8%d7%aa-%d7%a7%d7%a9%d7%99%d7%a8%d7%94/",
+      "sizes": [
+        "XXL"
+      ]
+    },
+    {
+      "id": 2959,
+      "title": "חולצה מכופתרת תחרה",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%94-%d7%9e%d7%9b%d7%95%d7%a4%d7%aa%d7%a8%d7%aa-%d7%aa%d7%97%d7%a8%d7%94/",
+      "sizes": [
+        "XXL"
+      ]
+    },
+    {
+      "id": 2980,
+      "title": "חולצת ריב V",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a8%d7%99%d7%91-v/",
+      "sizes": []
+    },
+    {
+      "id": 15298,
+      "title": "חולצת לוגו שמיז",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%9c%d7%95%d7%92%d7%95-%d7%a9%d7%9e%d7%99%d7%96-2/",
+      "sizes": []
+    },
+    {
+      "id": 113764,
+      "title": "חולצת ג’ינס פריל",
+      "source_url": "https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%92%d7%99%d7%a0%d7%a1-%d7%a4%d7%a8%d7%99%d7%9c/",
+      "sizes": []
+    }
+  ]
+}

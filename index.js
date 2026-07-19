@@ -745,7 +745,7 @@ app.get("/api/products", async (req, res) => {
       }
     }
     if (store) { sql += ` AND store = $${i++}`; params.push(store); }
-    if (req.query.safeImages === '1') { sql += ` AND has_valid_image = true`; }
+    if (req.query.safeImages === '1') { sql += ` AND has_valid_image = true AND reviewed_at IS NOT NULL`; }
     if (req.query.validImageOnly === '1') { sql += ` AND has_valid_image IS NOT false`; }
 
     // בדיקת התאמת צבע+מידה ב-SQL (לא ב-JS אחרי השליפה) — הכרחי כדי שLIMIT/OFFSET יהיו מדויקים

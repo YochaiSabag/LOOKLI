@@ -1,6 +1,12 @@
 /**
  * chemise_kids_cleanup.js — בדיקה חד-פעמית של מוצרי CHEMISE הקיימים ב-DB
  *
+ * אופטימיזציה: נבדקים מול האתר החי רק מוצרים חשודים —
+ *   1) מידות ריקות לגמרי, או
+ *   2) מידות מוגבלות אך ורק ל-XXL/XXXL (בלי אף מידה קטנה מ-L) — כי אלה בדיוק המידות
+ *      שראשי מידות-ילדים "4" ו-"5" ממופות אליהן במקרה, בעוד ש-XS/S/M/L (מ-0/1/2/3)
+ *      לעולם לא מגיעות ממוצר ילדים. מוצר מבוגרים אמיתי עם טווח מידות רחב יותר מדולג.
+ *
  * הבעיה: המידות הגולמיות (7,8,9,10,12,14...) שמזהות בגדי ילדים אף פעם לא נשמרו ב-DB —
  * רק המידות המנורמלות (S/M/L וכו') נשמרות, וכשמידה לא מוכרת (כמו "7") היא פשוט נופלת
  * ונשארת רשימת מידות ריקה. אי אפשר להבדיל מה-DB בין "מוצר ילדים" ל"מוצר מבוגרים שאזל
@@ -14,8 +20,10 @@
  * הרצת מחיקה בפועל: CONFIRM_DELETE=true node ./scrapers/chemise_kids_cleanup.js
  *
  * הרצה:
- *   node ./scrapers/chemise_kids_cleanup.js                → תצוגה בלבד (בטוח)
- *   CONFIRM_DELETE=true node ./scrapers/chemise_kids_cleanup.js  → מוחק בפועל את מה שנמצא
+ *   node ./scrapers/chemise_kids_cleanup.js                      → בדיקה חיה מול האתר, תצוגה בלבד (בטוח)
+ *   CONFIRM_DELETE=true node ./scrapers/chemise_kids_cleanup.js  → בדיקה חיה מול האתר + מוחק בפועל
+ *   FROM_REPORT=true node ./scrapers/chemise_kids_cleanup.js     → בלי לגעת באתר כלל, תצוגה מהדוח השמור בלבד
+ *   FROM_REPORT=true CONFIRM_DELETE=true node ./scrapers/chemise_kids_cleanup.js → מוחק ישירות לפי הדוח השמור, מהיר, בלי סריקה מחדש
  */
 import 'dotenv/config';
 import { chromium } from 'playwright';
@@ -36,10 +44,52 @@ console.log(CONFIRM_DELETE
   ? '⚠️  מצב מחיקה בפועל פעיל (CONFIRM_DELETE=true) — פריטים שיזוהו כילדים יימחקו מה-DB!'
   : '👀 מצב תצוגה בלבד (dry run) — שום דבר לא יימחק. להרצת מחיקה בפועל: CONFIRM_DELETE=true');
 
-const { rows: products } = await db.query(
-  `SELECT id, title, source_url FROM products WHERE store = 'CHEMISE' ORDER BY id`
+// מוצרים שזוהו כילדים אבל הוחלט ידנית להשאיר (למשל: יש להם גם מידות מבוגרים אמיתיות באותו מוצר) —
+// הוסיפי/הסירי מספרי id כאן. אפשר גם לדרוס דרך משתנה סביבה: EXCLUDE_IDS=144,200 (מופרד בפסיקים)
+const EXCLUDED_IDS = (process.env.EXCLUDE_IDS
+  ? process.env.EXCLUDE_IDS.split(',').map(s => parseInt(s.trim())).filter(Boolean)
+  : [144]
 );
-console.log(`🔎 נבדקים ${products.length} מוצרי CHEMISE מול האתר החי...\n`);
+console.log(`🔒 מוחרגים ידנית (לא יימחקו גם אם יזוהו כילדים): ${EXCLUDED_IDS.join(', ') || 'אין'}\n`);
+
+// מצב מהיר: FROM_REPORT=true — מדלג לגמרי על הבדיקה החיה (בלי דפדפן, בלי כניסה לאתר),
+// ומוחק ישירות לפי chemise_kids_report.json שכבר נשמר מריצה קודמת. שימושי אחרי שכבר
+// עברת על הדוח ואישרת אותו, ורק רוצה להריץ את המחיקה עצמה בלי לחכות לסריקה מחדש.
+if (process.env.FROM_REPORT === 'true') {
+  const reportPath = './chemise_kids_report.json';
+  if (!fs.existsSync(reportPath)) {
+    console.log(`✗ לא נמצא קובץ דוח ב-${reportPath}. הריצי קודם בלי FROM_REPORT כדי ליצור אחד.`);
+    await db.end();
+    process.exit(1);
+  }
+  const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
+  const candidates = (report.kidsFound || []).filter(k => !EXCLUDED_IDS.includes(k.id));
+  const excludedFromReport = (report.kidsFound || []).filter(k => EXCLUDED_IDS.includes(k.id));
+  console.log(`📄 קורא מהדוח שנשמר ב-${new Date(report.checkedAt).toLocaleString('he-IL')}`);
+  console.log(`   ${candidates.length} מוצרים ${CONFIRM_DELETE ? 'יימחקו' : 'ימחקו אם תפעילי CONFIRM_DELETE'} | ${excludedFromReport.length} מוחרגים ידנית ולא ייגעו\n`);
+  for (const c of candidates) {
+    console.log(`  🧒 ${c.title?.substring(0, 50)} (id ${c.id})`);
+    if (CONFIRM_DELETE) {
+      await db.query('DELETE FROM products WHERE id = $1', [c.id]);
+      console.log(`      🗑️  נמחק`);
+    }
+  }
+  await db.end();
+  console.log(`\n📊 סיכום: ${candidates.length} ${CONFIRM_DELETE ? 'נמחקו' : 'מועמדים למחיקה (dry run — כלום לא נמחק)'}`);
+  process.exit(0);
+}
+
+const { rows: products } = await db.query(
+  `SELECT id, title, source_url, sizes FROM products
+   WHERE store = 'CHEMISE'
+     AND (
+       sizes IS NULL
+       OR cardinality(sizes) = 0
+       OR sizes <@ ARRAY['XXL','XXXL']::text[]
+     )
+   ORDER BY id`
+);
+console.log(`🔎 נבדקים ${products.length} מוצרי CHEMISE עם מידות ריקות/חשודות ב-DB מול האתר החי (מוצרים עם טווח מידות מבוגרים מלא כבר מדולגים אוטומטית)...\n`);
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
@@ -90,13 +140,17 @@ for (const p of products) {
     });
 
     const isKids = isKidsSizeOnly(rawSizeLabels);
-    console.log(`  [${checked}/${products.length}] ${isKids ? '🧒 ילדים' : '✓ תקין'} — מידות: [${rawSizeLabels.join(',') || '-'}] — ${p.title?.substring(0, 40)}`);
+    const isExcluded = EXCLUDED_IDS.includes(p.id);
+    const label = isKids ? (isExcluded ? '🧒 ילדים (אך מוחרג ידנית — לא ייגע)' : '🧒 ילדים') : '✓ תקין';
+    console.log(`  [${checked}/${products.length}] ${label} — מידות: [${rawSizeLabels.join(',') || '-'}] — ${p.title?.substring(0, 40)}`);
 
     if (isKids) {
-      kidsFound.push({ ...p, rawSizeLabels });
-      if (CONFIRM_DELETE) {
+      kidsFound.push({ ...p, rawSizeLabels, excluded: isExcluded });
+      if (CONFIRM_DELETE && !isExcluded) {
         await db.query('DELETE FROM products WHERE id = $1', [p.id]);
         console.log(`      🗑️  נמחק (id ${p.id})`);
+      } else if (CONFIRM_DELETE && isExcluded) {
+        console.log(`      🔒 הוחרג ידנית — לא נמחק (id ${p.id})`);
       }
     }
   } catch (e) {
@@ -111,7 +165,8 @@ await browser.close();
 await db.end();
 
 console.log(`\n${'─'.repeat(50)}`);
-console.log(`📊 סיכום: נבדקו ${checked} | זוהו כילדים ${kidsFound.length} | 404 ${notFound404.length} | שגיאות ${errors}`);
+const excludedCount = kidsFound.filter(k => k.excluded).length;
+console.log(`📊 סיכום: נבדקו ${checked} | זוהו כילדים ${kidsFound.length} (מתוכם הוחרגו ידנית ${excludedCount}) | 404 ${notFound404.length} | שגיאות ${errors}`);
 
 const reportPath = './chemise_kids_report.json';
 fs.writeFileSync(reportPath, JSON.stringify({ checkedAt: new Date().toISOString(), deleted: CONFIRM_DELETE, kidsFound, notFound404 }, null, 2), 'utf-8');

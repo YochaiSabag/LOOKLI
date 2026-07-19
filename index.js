@@ -2797,38 +2797,47 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
 // סימון מרובה בבת אחת - מזין את הבייסליין (גודל) מכמה תמונות שנבחרו יחד, ורושם היסטוריה לכל אחת
 app.post('/api/admin/bulk-seed-baseline', adminAuth, async (req, res) => {
   try {
-    const { store, valid, sizes } = req.body; // sizes: [{url, sizeKB}]
+    const { store, valid, sizes } = req.body; // sizes: [{url, sizeKB: number|null}]
     if (!store || !Array.isArray(sizes) || !sizes.length) return res.status(400).json({ error: 'חסרים store/sizes' });
+    let learnedCount = 0;
     for (const item of sizes) {
-      if (!item || typeof item.sizeKB !== 'number' || item.sizeKB <= 0) continue;
-      if (valid === false) {
-        await pool.query(`
-          INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
-          VALUES ($1, $2, 1, NOW())
-          ON CONFLICT (store) DO UPDATE SET
-            max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
-            blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
-            updated_at = NOW()
-        `, [store, item.sizeKB]);
-      } else {
-        await pool.query(`
-          INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
-          VALUES ($1, $2, 1, NOW())
-          ON CONFLICT (store) DO UPDATE SET
-            avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
-            sample_count = store_image_baseline.sample_count + 1,
-            updated_at = NOW()
-        `, [store, item.sizeKB]);
+      if (!item || !item.url) continue;
+      const hasSize = typeof item.sizeKB === 'number' && item.sizeKB > 0;
+      if (hasSize) {
+        learnedCount++;
+        if (valid === false) {
+          await pool.query(`
+            INSERT INTO store_image_baseline (store, max_blocked_size_kb, blocked_sample_count, updated_at)
+            VALUES ($1, $2, 1, NOW())
+            ON CONFLICT (store) DO UPDATE SET
+              max_blocked_size_kb = GREATEST(store_image_baseline.max_blocked_size_kb, $2),
+              blocked_sample_count = store_image_baseline.blocked_sample_count + 1,
+              updated_at = NOW()
+          `, [store, item.sizeKB]);
+        } else {
+          await pool.query(`
+            INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, updated_at)
+            VALUES ($1, $2, 1, NOW())
+            ON CONFLICT (store) DO UPDATE SET
+              avg_size_kb = (store_image_baseline.avg_size_kb * store_image_baseline.sample_count + $2) / (store_image_baseline.sample_count + 1),
+              sample_count = store_image_baseline.sample_count + 1,
+              updated_at = NOW()
+          `, [store, item.sizeKB]);
+        }
       }
+      // תמיד רושמים להיסטוריה ומסמנים כ"טופל", גם אם לא הצלחנו למדוד גודל (למשל CORS) —
+      // השיפוט הידני שלך תקף ומתועד גם בלי מספר KB, ולא צריך "להיעלם בשקט"
       await pool.query(
         `INSERT INTO image_check_log (store, image_url, action_type, valid, value) VALUES ($1,$2,'size',$3,$4)`,
-        [store, item.url, !!valid, item.sizeKB]
+        [store, item.url, !!valid, hasSize ? item.sizeKB : null]
       );
     }
     const r = await pool.query(`SELECT avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count FROM store_image_baseline WHERE store=$1`, [store]);
     const row = r.rows[0] || {};
     res.json({
       ok: true,
+      markedCount: sizes.length,
+      learnedCount,
       avgSizeKb: parseFloat(row.avg_size_kb || 0),
       sampleCount: row.sample_count || 0,
       maxBlockedSizeKb: parseFloat(row.max_blocked_size_kb || 0),
@@ -2883,6 +2892,24 @@ app.post('/api/admin/seed-baseline', adminAuth, async (req, res) => {
 });
 
 // שליפת הבייסליין הנלמד של חנות - כמה KB שוקלת בממוצע תמונה תקינה בה
+// שחזור מצב בייסליין (ביטול פעולת סימון מרובה אחרונה) - מקבל snapshot שנשמר לפני הפעולה
+app.post('/api/admin/restore-baseline', adminAuth, async (req, res) => {
+  try {
+    const { store, avgSizeKb, sampleCount, maxBlockedSizeKb, blockedSampleCount } = req.body;
+    if (!store) return res.status(400).json({ error: 'חסר store' });
+    await pool.query(`
+      INSERT INTO store_image_baseline (store, avg_size_kb, sample_count, max_blocked_size_kb, blocked_sample_count, updated_at)
+      VALUES ($1,$2,$3,$4,$5,NOW())
+      ON CONFLICT (store) DO UPDATE SET
+        avg_size_kb = $2, sample_count = $3, max_blocked_size_kb = $4, blocked_sample_count = $5, updated_at = NOW()
+    `, [store, avgSizeKb || 0, sampleCount || 0, maxBlockedSizeKb || 0, blockedSampleCount || 0]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('restore-baseline error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
 app.get('/api/store-image-baseline', async (req, res) => {
   try {
     const store = req.query.store;

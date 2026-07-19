@@ -162,6 +162,8 @@ function updateGallerySelCount() {
   document.getElementById('gallerySelCount').textContent = gallerySelected.size + ' נבחרו';
 }
 
+let lastBulkAction = null; // {store, removedItems, previousBaseline} - לביטול
+
 async function bulkMarkGallery(isValid) {
   const store = document.getElementById('galleryStore').value;
   const msg = document.getElementById('galleryMsg');
@@ -170,35 +172,76 @@ async function bulkMarkGallery(isValid) {
 
   const indices = [...gallerySelected];
   msg.textContent = `מודדת ${indices.length} תמונות...`;
-  const sizes = [];
+
+  // שומרים snapshot של הבייסליין לפני הפעולה, כדי שאפשר יהיה לבטל בדיוק
+  let previousBaseline = { avgSizeKb: 0, sampleCount: 0, maxBlockedSizeKb: 0, blockedSampleCount: 0 };
+  try {
+    const baseRes = await fetch('/api/store-image-baseline?store=' + encodeURIComponent(store));
+    previousBaseline = await baseRes.json();
+  } catch(e) {}
+
+  // בודקים כל תמונה שנבחרה - גם אם המדידה נכשלת (CORS), התמונה עדיין נספרת ומטופלת
+  const items = [];
+  const removedItems = [];
   for (const i of indices) {
     const url = galleryImages[i]?.url;
     if (!url) continue;
+    removedItems.push(galleryImages[i]);
+    let sizeKB = null;
     try {
       const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
       if (resp.ok) {
         const blob = await resp.blob();
-        sizes.push({ url, sizeKB: blob.size / 1024 });
+        sizeKB = blob.size / 1024;
       }
     } catch(e) {}
+    items.push({ url, sizeKB });
   }
-  if (!sizes.length) { msg.textContent = '⚠️ לא הצלחתי למדוד אף תמונה מהנבחרות (CORS?) — אין מה ללמוד מהן'; return; }
 
   try {
     const res = await fetch('/api/admin/bulk-seed-baseline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ store, valid: isValid, sizes }),
+      body: JSON.stringify({ store, valid: isValid, sizes: items }),
     });
     const data = await res.json();
-    msg.innerHTML = `✅ נלמד מ-${sizes.length} תמונות (${isValid?'תקינות':'חסומות'})! ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB | מקסימום חסום ידוע: ${data.maxBlockedSizeKb.toFixed(1)}KB`;
+    const learnedTxt = data.learnedCount > 0
+      ? ` (${data.learnedCount} מתוכן גם הזינו למידה — ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB, מקסימום חסום: ${data.maxBlockedSizeKb.toFixed(1)}KB)`
+      : ' (לא הצלחתי למדוד גודל לאף אחת — CORS כנראה — אבל הסימון שלך נשמר ותועד)';
+    msg.innerHTML = `✅ ${data.markedCount} תמונות סומנו כ${isValid?'תקינות':'חסומות'}${learnedTxt} — <button onclick="undoLastBulkAction()" style="background:none;border:none;color:#7c3aed;text-decoration:underline;cursor:pointer;font-size:13px;font-weight:700">↩️ בטל פעולה זו</button>`;
+
+    lastBulkAction = { store, removedItems, previousBaseline };
     galleryImages = galleryImages.filter((_, i) => !gallerySelected.has(i));
     gallerySelected.clear();
     renderGallery();
     updateGallerySelCount();
   } catch(e) {
     msg.textContent = '⚠️ שגיאה בשמירה';
+  }
+}
+
+async function undoLastBulkAction() {
+  const msg = document.getElementById('galleryMsg');
+  if (!lastBulkAction) { msg.textContent = 'אין פעולה לבטל'; return; }
+  const { store, removedItems, previousBaseline } = lastBulkAction;
+  msg.textContent = 'מבטלת...';
+  try {
+    await fetch('/api/admin/restore-baseline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ store, ...previousBaseline }),
+    });
+    // מחזירים את התמונות לתחילת הגלריה (רק אם עדיין אותה חנות מוצגת)
+    if (document.getElementById('galleryStore').value === store) {
+      galleryImages = [...removedItems, ...galleryImages];
+      renderGallery();
+    }
+    msg.innerHTML = `↩️ הפעולה בוטלה — ${removedItems.length} תמונות חזרו לגלריה, והבייסליין שוחזר.`;
+    lastBulkAction = null;
+  } catch(e) {
+    msg.textContent = '⚠️ שגיאה בביטול';
   }
 }
 </script>

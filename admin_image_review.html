@@ -88,8 +88,9 @@
     </div>
     <div style="display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap">
       <span id="gallerySelCount" style="font-size:14px;font-weight:700;color:#4A2F3D">0 נבחרו</span>
-      <button class="btn" style="background:#16a34a;color:#fff" onclick="bulkMarkGallery(true)">✅ סמן הנבחרות כתקינות</button>
-      <button class="btn" style="background:#dc2626;color:#fff" onclick="bulkMarkGallery(false)">❌ סמן הנבחרות כחסומות</button>
+      <button class="btn" style="background:#16a34a;color:#fff" onclick="bulkMarkGallery(true, false)">✅ סמן הנבחרות כתקינות</button>
+      <button class="btn" style="background:#dc2626;color:#fff" onclick="bulkMarkGallery(false, false)">❌ סמן הנבחרות כחסומות</button>
+      <button class="btn" style="background:#2563eb;color:#fff" onclick="bulkMarkGallery(true, true)">📏 למדידה (מסמן תקין + מודד לבייסליין)</button>
       <button class="btn" style="background:#eab308;color:#fff" onclick="setSelectedAsMainImage()">🌟 סמן נבחרות כתמונה ראשית (במצב מסונן)</button>
       <button class="btn btn-none" onclick="clearGallerySelection()">נקה בחירה</button>
     </div>
@@ -261,14 +262,14 @@ function updateGallerySelCount() {
 
 let lastBulkAction = null; // {store, removedItems, previousBaseline} - לביטול
 
-async function bulkMarkGallery(isValid) {
+async function bulkMarkGallery(isValid, shouldMeasure) {
   const store = document.getElementById('galleryStore').value;
   const msg = document.getElementById('galleryMsg');
   if (!store) { msg.textContent = 'בחרי קודם חנות'; return; }
   if (!gallerySelected.size) { msg.textContent = 'לא נבחרו תמונות'; return; }
 
   const indices = [...gallerySelected];
-  msg.textContent = `מודדת ${indices.length} תמונות...`;
+  msg.textContent = shouldMeasure ? `מודדת ${indices.length} תמונות...` : `מסמנת ${indices.length} תמונות...`;
 
   // שומרים snapshot של הבייסליין לפני הפעולה, כדי שאפשר יהיה לבטל בדיוק
   let previousBaseline = { avgSizeKb: 0, sampleCount: 0, maxBlockedSizeKb: 0, blockedSampleCount: 0 };
@@ -277,7 +278,8 @@ async function bulkMarkGallery(isValid) {
     previousBaseline = await baseRes.json();
   } catch(e) {}
 
-  // בודקים כל תמונה שנבחרה - גם אם המדידה נכשלת (CORS), התמונה עדיין נספרת ומטופלת
+  // מדידה (fetch לכל תמונה) קורית אך ורק כשמפעילים דרך כפתור "למדידה" — לא בסימון תקין/חסום הרגיל,
+  // כדי לא לבזבז זמן על מדידת חנויות שאין עניין למדוד אותן
   const items = [];
   const removedItems = [];
   for (const i of indices) {
@@ -285,13 +287,15 @@ async function bulkMarkGallery(isValid) {
     if (!url) continue;
     removedItems.push(galleryImages[i]);
     let sizeKB = null;
-    try {
-      const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-      if (resp.ok) {
-        const blob = await resp.blob();
-        sizeKB = blob.size / 1024;
-      }
-    } catch(e) {}
+    if (shouldMeasure) {
+      try {
+        const resp = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          sizeKB = blob.size / 1024;
+        }
+      } catch(e) {}
+    }
     items.push({ url, sizeKB, productId: galleryImages[i]?.productId });
   }
 
@@ -303,9 +307,11 @@ async function bulkMarkGallery(isValid) {
       body: JSON.stringify({ store, valid: isValid, sizes: items }),
     });
     const data = await res.json();
-    const learnedTxt = data.learnedCount > 0
-      ? ` (${data.learnedCount} מתוכן גם הזינו למידה — ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB, מקסימום חסום: ${data.maxBlockedSizeKb.toFixed(1)}KB)`
-      : ' (לא הצלחתי למדוד גודל לאף אחת — CORS כנראה — אבל הסימון שלך נשמר ותועד)';
+    const learnedTxt = shouldMeasure
+      ? (data.learnedCount > 0
+        ? ` (${data.learnedCount} מתוכן גם הזינו למידה — ממוצע תקין: ${data.avgSizeKb.toFixed(1)}KB, מקסימום חסום: ${data.maxBlockedSizeKb.toFixed(1)}KB)`
+        : ' (לא הצלחתי למדוד גודל לאף אחת — CORS כנראה — אבל הסימון שלך נשמר ותועד)')
+      : '';
     msg.innerHTML = `✅ ${data.markedCount} תמונות סומנו כ${isValid?'תקינות':'חסומות'}${learnedTxt} — <button onclick="undoLastBulkAction()" style="background:none;border:none;color:#7c3aed;text-decoration:underline;cursor:pointer;font-size:13px;font-weight:700">↩️ בטל פעולה זו</button>`;
 
     lastBulkAction = { store, removedItems, previousBaseline };

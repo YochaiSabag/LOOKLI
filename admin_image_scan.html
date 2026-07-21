@@ -255,16 +255,6 @@ async function getStoreThreshold(store) {
   return computeThresholdFromCache(store);
 }
 
-async function reportStatus(productId, imageUrl, valid, totalImages, store, sizeKB) {
-  try {
-    await fetch('/api/report-image-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId, imageUrl, valid, totalImages, store, sizeKB }),
-    });
-  } catch(e) {}
-}
-
 async function scanProduct(p) {
   const images = (p.images && p.images.length) ? p.images : (p.image_url ? [p.image_url] : []);
   if (!images.length) {
@@ -285,6 +275,9 @@ async function scanProduct(p) {
 
   const threshold = await getStoreThreshold(p.store);
   let anyValid = false;
+  const validUrls = [];
+  const validSizes = [];
+  const blockedSizes = [];
   for (const url of images) {
     if (!running) break;
     const img = new Image();
@@ -293,13 +286,27 @@ async function scanProduct(p) {
       checkImageValidity(img, threshold),
       new Promise(r => setTimeout(() => r({ valid: false, sizeKB: null }), 12000)), // timeout
     ]);
-    await reportStatus(p.id, url, result.valid, images.length, p.store, result.sizeKB);
     if (result.valid) {
       anyValid = true;
+      validUrls.push(url);
+      if (typeof result.sizeKB === 'number') validSizes.push({ url, sizeKB: result.sizeKB });
       if (storeBaselineCache[p.store]) storeBaselineCache[p.store].sampleCount++; // עדכון מקומי גס, למנוע קריאות מיותרות
       break; // מספיקה תמונה אחת תקינה, לא צריך לבדוק את השאר
+    } else if (typeof result.sizeKB === 'number') {
+      blockedSizes.push({ url, sizeKB: result.sizeKB });
     }
   }
+
+  // שומרים בפועל על המוצר עצמו - קריאה אחת בסוף, ל-endpoint האמיתי (לא הישן שהוסר).
+  // זה מה שמסמן reviewed_at, כדי שהמוצר הזה לא יחזור שוב בהרצה הבאה של הסריקה.
+  try {
+    await fetch('/api/admin/image-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id: p.id, validUrls, validSizes, blockedSizes, store: p.store }),
+    });
+  } catch(e) {}
 
   totalChecked++;
   if (anyValid) totalValid++; else totalBlocked++;

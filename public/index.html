@@ -316,6 +316,15 @@
     .ios-switch input:checked + .ios-slider{background:var(--accent)}
     .ios-switch input:checked + .ios-slider::before{transform:translateX(-18px)}
     .filter-toggle-label{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;color:var(--text);cursor:pointer;user-select:none}
+    /* גרסת דסקטופ בולטת - קופסה מעוגלת בגרדיאנט ההידר, טקסט בהיר, כמו במודעות השיווק */
+    .netfree-box{background:var(--header-gradient);color:#fff;padding:11px 20px;border-radius:16px;box-shadow:0 3px 12px rgba(126,83,103,.28)}
+    .netfree-box .ios-switch .ios-slider{background:rgba(255,255,255,.4)}
+    .netfree-box .ios-switch input:checked + .ios-slider{background:#fff}
+    .netfree-box .ios-switch input:checked + .ios-slider::before{background:var(--accent-dark)}
+    @media(max-width:768px){ #safeImagesToggleWrap{display:none} }
+    .netfree-status{font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;opacity:.85;margin-top:2px}
+    .netfree-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;transition:background .2s ease}
+    .netfree-status.on::before{background:#22c55e}
     /* Custom sort dropdown */
     .sort-wrap{position:relative;display:inline-block;user-select:none}
     .sort-btn{
@@ -865,7 +874,20 @@
     <!-- SIDEBAR -->
     <aside class="filters" id="filtersPanel">
       <button class="filter-close-btn" onclick="toggleMobileFilters()" aria-label="סגור פילטרים">✕</button>
-      
+
+      <div class="filter-section open" id="netfreeSection" style="padding:16px 20px">
+        <label class="filter-toggle-label" style="justify-content:space-between;width:100%">
+          <span style="display:flex;flex-direction:column">
+            <span>לאתר מסונן (נטפרי)</span>
+            <span class="netfree-status" id="netfreeStatusMobile">כבוי</span>
+          </span>
+          <span class="ios-switch">
+            <input type="checkbox" id="safeImagesToggleMobile" onchange="onSafeImagesToggle('safeImagesToggleMobile')"/>
+            <span class="ios-slider"></span>
+          </span>
+        </label>
+      </div>
+
       <div class="filter-section open" id="storeSection">
         <div class="filter-header" onclick="toggleFilter('storeSection')">
           <span>חנות</span>
@@ -991,10 +1013,13 @@
       <div class="toolbar">
         <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
         <div class="toolbar-right-group">
-          <label class="filter-toggle-label">
-            לאתר מסונן
+          <label class="filter-toggle-label netfree-box" id="safeImagesToggleWrap">
+            <span style="display:flex;flex-direction:column">
+              <span>לאתר מסונן</span>
+              <span class="netfree-status" id="netfreeStatusDesktop">כבוי</span>
+            </span>
             <span class="ios-switch">
-              <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle()"/>
+              <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle('safeImagesToggle')"/>
               <span class="ios-slider"></span>
             </span>
           </label>
@@ -3533,14 +3558,33 @@ document.addEventListener('click', e => {
   // הבדיקה היחידה נעשית ידנית ע"י מנהלת האתר דרך admin_image_scan.html, ומשפיעה
   // על התצוגה רק כשהסינון פעיל (safeImages=1), בצד השרת ב-/api/products.
 
-  function onSafeImagesToggle(){
-    const on = document.getElementById('safeImagesToggle').checked;
+  function updateNetfreeStatusUI(isOn){
+    ['netfreeStatusDesktop','netfreeStatusMobile'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = isOn ? 'פעיל' : 'כבוי';
+      el.classList.toggle('on', isOn);
+    });
+  }
+  function onSafeImagesToggle(sourceId){
+    const source = document.getElementById(sourceId);
+    const on = source.checked;
     localStorage.setItem('safeImagesMode', on ? '1' : '0');
+    // מסנכרנים את שני הצ'קבוקסים (דסקטופ בטולבר + מובייל בתפריט הפילטרים) לאותו מצב
+    ['safeImagesToggle','safeImagesToggleMobile'].forEach(id => {
+      const cb = document.getElementById(id);
+      if (cb && cb !== source) cb.checked = on;
+    });
+    updateNetfreeStatusUI(on);
     runRegularSearch();
   }
   (function initSafeImagesToggle(){
-    const cb = document.getElementById('safeImagesToggle');
-    if (cb) cb.checked = localStorage.getItem('safeImagesMode') === '1';
+    const isOn = localStorage.getItem('safeImagesMode') === '1';
+    ['safeImagesToggle','safeImagesToggleMobile'].forEach(id => {
+      const cb = document.getElementById(id);
+      if (cb) cb.checked = isOn;
+    });
+    updateNetfreeStatusUI(isOn);
   })();
 
   // תמונה שנכשלה בטעינה לגמרי (404/רשת) — הצגת הפולבק הוויזואלי (הדיווח לשרת הוסר)

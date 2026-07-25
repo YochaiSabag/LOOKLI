@@ -979,10 +979,11 @@ app.get("/api/similar/:id", async (req, res) => {
 
     if (!p.category) return res.json([]);
 
+    const wantSafeImagesSimilar = req.query.safeImages === '1';
     const candidates = await pool.query(
       `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, pattern, fabric, design_details
        FROM products
-       WHERE id != $1 AND category = $2
+       WHERE id != $1 AND category = $2${wantSafeImagesSimilar ? ' AND has_valid_image = true AND reviewed_at IS NOT NULL' : ''}
        ORDER BY RANDOM()
        LIMIT 120`,
       [id, p.category]

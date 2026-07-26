@@ -140,9 +140,10 @@ async function scrapeProduct(page, url) {
       document.querySelectorAll('.woocommerce-product-gallery__image img').forEach(img => {
         addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
       });
-      document.querySelectorAll('.wd-carousel-item img').forEach(img => {
-        addImg(img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src);
-      });
+      // הוסר: '.wd-carousel-item img' — זו מחלקת קרוסלה כללית של תבנית Woodmart שאינה ספציפית
+      // לגלריית המוצר, וגרמה לאיסוף תמונות thumbnail כפולות וגם תמונות לא קשורות מקרוסלות
+      // אחרות בעמוד (מוצרים דומים / נצפו לאחרונה וכו'). שני הסלקטורים למעלה כבר מכסים
+      // את כל תמונות הגלריה האמיתיות דרך מחלקת ה-WooCommerce הרשמית.
 
       // === תיאור ===
       const description = document.querySelector(

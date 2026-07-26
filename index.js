@@ -981,7 +981,7 @@ app.get("/api/similar/:id", async (req, res) => {
 
     const wantSafeImagesSimilar = req.query.safeImages === '1';
     const candidates = await pool.query(
-      `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, pattern, fabric, design_details
+      `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, pattern, fabric, design_details
        FROM products
        WHERE id != $1 AND category = $2${wantSafeImagesSimilar ? ' AND has_valid_image = true AND reviewed_at IS NOT NULL' : ''}
        ORDER BY RANDOM()
@@ -1042,7 +1042,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
     if (safeImages === true || safeImages === '1') { sql += ` AND has_valid_image = true AND reviewed_at IS NOT NULL`; }
     const params = [];
     let i = 1;
@@ -1826,13 +1826,14 @@ app.get("/api/debug/db", async (req, res) => {
 app.get("/api/sponsored", async (req, res) => {
   try {
     const q = req.query.q || "";
+    const wantSafeImagesSponsored = req.query.safeImages === '1';
     // מחזיר את כל המודעות הפעילות — הגרלה לפי משקל תתבצע בצד הלקוח
     const query = `
       SELECT sp.id, sp.priority_row, sp.impression_weight, sp.show_rate, sp.badge_text,
              p.image_url, p.source_url, p.title, p.price, p.store
       FROM sponsored_products sp
       JOIN products p ON p.id = sp.product_id
-      WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
+      WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())${wantSafeImagesSponsored ? ' AND p.has_valid_image = true AND p.reviewed_at IS NOT NULL' : ''}
       ORDER BY
         CASE WHEN $1 != '' AND (p.title ILIKE $1 OR p.category ILIKE $1) THEN 0 ELSE 1 END,
         sp.created_at DESC

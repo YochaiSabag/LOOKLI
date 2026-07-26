@@ -1975,7 +1975,10 @@ function renderProducts(products,append=false){
     for(; idx < chunkEnd; idx++){
       const p = products[idx];
       const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
-      const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
+      const _netfreeCardModeActive = localStorage.getItem('safeImagesMode')==='1';
+      const images = _netfreeCardModeActive
+        ? (p.valid_image_urls?.length ? p.valid_image_urls : [])
+        : ((p.images?.length)?p.images:(p.image_url?[p.image_url]:[]));
       const thumbImages = images.map(thumbUrl); // גודל מצומצם לכרטיסיות
       const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
       const sizes=(p.sizes||[]).map(formatSize);
@@ -2405,7 +2408,9 @@ async function openProduct(id){
         if(!items?.length){similarSection.style.display='none';return;}
         const grid = document.getElementById('similarGrid');
         grid.innerHTML = items.map(p=>{
-          const img = (p.images?.[0]||p.image_url||'');
+          const img = _netfreeModeActive
+            ? (p.valid_image_urls?.[0]||'')
+            : (p.images?.[0]||p.image_url||'');
           const isOnSale = p.original_price && p.original_price > p.price;
           const priceHTML = isOnSale
             ? `<span style="color:var(--accent);font-weight:700">₪${p.price}</span> <s style="color:#9ca3af;font-size:11px">₪${p.original_price}</s>`
@@ -3631,6 +3636,7 @@ document.addEventListener('click', e => {
       document.querySelectorAll('.card.sponsored').forEach(el => el.remove());
       const params = new URLSearchParams();
       if (query) params.set('q', query);
+      if (localStorage.getItem('safeImagesMode')==='1') params.set('safeImages','1');
       const res = await fetch('/api/sponsored?' + params.toString());
       if (!res.ok) return;
       const raw = await res.json();

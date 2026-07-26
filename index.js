@@ -2817,10 +2817,13 @@ app.post('/api/admin/bulk-seed-baseline', adminAuth, async (req, res) => {
           WHERE id = $2
         `, [merged, productId]);
       } else {
-        // חסום: מסמנים כנסקר תמיד; has_valid_image=false רק אם לא כבר אושר תקין קודם (לא דורסים אישור קודם בטעות)
+        // חסום: מסמנים כנסקר תמיד.
+        // has_valid_image=true נשאר רק אם יש בפועל תמונות תקינות מאושרות בעבר (valid_image_urls לא ריק) —
+        // לא מסתמכים על ערך has_valid_image הקיים כי ל-DEFAULT של העמודה יש true גם למוצרים שמעולם לא נסקרו,
+        // מה שגרם לתמונות חסומות "לרשת" אישור מזויף ולעבור את סינון נטפרי.
         await pool.query(`
           UPDATE products
-          SET has_valid_image = (has_valid_image IS TRUE),
+          SET has_valid_image = (COALESCE(array_length(valid_image_urls,1),0) > 0),
               reviewed_at = NOW()
           WHERE id = $1
         `, [productId]);

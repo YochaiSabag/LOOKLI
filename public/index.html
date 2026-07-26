@@ -1975,10 +1975,7 @@ function renderProducts(products,append=false){
     for(; idx < chunkEnd; idx++){
       const p = products[idx];
       const store=p.store||"MEKIMI",logo=storeLogos[store]||'';
-      const _netfreeCardModeActive = localStorage.getItem('safeImagesMode')==='1';
-      const images = _netfreeCardModeActive
-        ? (p.valid_image_urls?.length ? p.valid_image_urls : [])
-        : ((p.images?.length)?p.images:(p.image_url?[p.image_url]:[]));
+      const images=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);
       const thumbImages = images.map(thumbUrl); // גודל מצומצם לכרטיסיות
       const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
       const sizes=(p.sizes||[]).map(formatSize);
@@ -2289,7 +2286,8 @@ async function openProduct(id){
   document.getElementById("modalWrapper").scrollTop = 0;
   document.body.style.overflow = 'hidden';
   try{
-    const p=await(await fetch("/api/product/"+id)).json();
+    const _prodSafeParam = localStorage.getItem('safeImagesMode')==='1' ? '?safeImages=1' : '';
+    const p=await(await fetch("/api/product/"+id+_prodSafeParam)).json();
     document.title=`${p.title||'מוצר'} – LOOKLI`;
     const slug=titleToSlug(p.title);
     if(slug) history.replaceState({productId:id},'',`/product/${slug}`);
@@ -2348,13 +2346,8 @@ async function openProduct(id){
       colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>';
     }
 
-    // שלב 2 — תמונה ראשית
-    // כשמצב "אתר מסונן" (נטפרי) פעיל — מציגים אך ורק תמונות שאושרו בפועל כפתוחות (valid_image_urls),
-    // לא את מערך images הגולמי שמכיל גם תמונות חסומות שעדיין לא סוננו
-    const _netfreeModeActive = localStorage.getItem('safeImagesMode')==='1';
-    modalImages = _netfreeModeActive
-      ? (p.valid_image_urls?.length ? p.valid_image_urls : [])
-      : ((p.images?.length)?p.images:(p.image_url?[p.image_url]:[]));
+    // שלב 2 — תמונה ראשית (הסינון של נטפרי מוחל כבר בצד השרת לפי הפרמטר ששלחנו בבקשה)
+    modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
     modalImageIndex=0;
     if(modalImages.length){
       const mainImg = new Image();
@@ -2408,9 +2401,7 @@ async function openProduct(id){
         if(!items?.length){similarSection.style.display='none';return;}
         const grid = document.getElementById('similarGrid');
         grid.innerHTML = items.map(p=>{
-          const img = _netfreeModeActive
-            ? (p.valid_image_urls?.[0]||'')
-            : (p.images?.[0]||p.image_url||'');
+          const img = (p.images?.[0]||p.image_url||'');
           const isOnSale = p.original_price && p.original_price > p.price;
           const priceHTML = isOnSale
             ? `<span style="color:var(--accent);font-weight:700">₪${p.price}</span> <s style="color:#9ca3af;font-size:11px">₪${p.original_price}</s>`

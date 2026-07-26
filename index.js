@@ -465,6 +465,25 @@ function calculateShipping(store, price) {
   return { cost: isFree ? 0 : info.cost, isFree, threshold: info.threshold };
 }
 
+// ── סינון נטפרי — מחיל תמונות מאושרות בלבד על אובייקט מוצר יחיד ──
+// שימוש עקבי בכל endpoint שמחזיר תמונות מוצר, כדי שהלקוח תמיד יקבל
+// images/image_url כבר נכונים ולא יצטרך שום מודעות ל-valid_image_urls בעצמו.
+function applySafeImages(product, wantSafeImages) {
+  const out = { ...product };
+  if (wantSafeImages) {
+    if (Array.isArray(out.valid_image_urls) && out.valid_image_urls.length > 0) {
+      out.images = out.valid_image_urls;
+      out.image_url = out.valid_image_urls[0];
+    } else {
+      // אין תמונה מאושרת בכלל למוצר הזה — לא מציגים תמונות חסומות
+      out.images = [];
+      out.image_url = '';
+    }
+  }
+  delete out.valid_image_urls; // לא צריך לשלוח את זה ללקוח, כבר הוחל
+  return out;
+}
+
 // קאש פשוט בזיכרון למצב ברירת המחדל של /api/filters (בלי שום פילטר נבחר) —
 // זה המקרה הנפוץ ביותר (רץ כמעט בכל טעינת עמוד), ומתעדכן מעצמו כל 3 דקות
 let filtersDefaultCache = null;
@@ -901,15 +920,7 @@ app.get("/api/products", async (req, res) => {
 
     const wantSafeImages = req.query.safeImages === '1';
     res.json({
-      results: rows.map(p => {
-        const out = { ...p, shipping: calculateShipping(p.store, p.price) };
-        if (wantSafeImages && Array.isArray(p.valid_image_urls) && p.valid_image_urls.length > 0) {
-          out.images = p.valid_image_urls;
-          out.image_url = p.valid_image_urls[0];
-        }
-        delete out.valid_image_urls; // לא צריך לשלוח את זה ללקוח, כבר הוחל
-        return out;
-      }),
+      results: rows.map(p => ({ ...applySafeImages(p, wantSafeImages), shipping: calculateShipping(p.store, p.price) })),
       total
     });
   } catch (err) {
@@ -922,11 +933,12 @@ app.get("/api/products", async (req, res) => {
 app.get("/api/product/slug/:slug", async (req, res) => {
   try {
     const slug = req.params.slug;
+    const wantSafeImages = req.query.safeImages === '1';
     // נסה קודם לפי ID אם ה-slug הוא מספר
     if (/^\d+$/.test(slug)) {
       const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [parseInt(slug)]);
       if (result.rows.length && !result.rows[0].banned && !result.rows[0].hidden_stale) {
-        const product = result.rows[0];
+        const product = applySafeImages(result.rows[0], wantSafeImages);
         product.shipping = calculateShipping(product.store, product.price);
         return res.json(product);
       }
@@ -938,8 +950,8 @@ app.get("/api/product/slug/:slug", async (req, res) => {
       [slug.toLowerCase()]
     );
     if (!all.rows.length) return res.status(404).json({ error: "Not found" });
-    const product = all.rows[0];
-    if (product.banned || product.hidden_stale) return res.status(404).json({ error: "Not found" });
+    if (all.rows[0].banned || all.rows[0].hidden_stale) return res.status(404).json({ error: "Not found" });
+    const product = applySafeImages(all.rows[0], wantSafeImages);
     product.shipping = calculateShipping(product.store, product.price);
     res.json(product);
   } catch (err) {
@@ -952,10 +964,11 @@ app.get("/api/product/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const wantSafeImages = req.query.safeImages === '1';
     const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [id]);
     if (!result.rows.length) return res.status(404).json({ error: "Not found" });
-    const product = result.rows[0];
-    if (product.banned || product.hidden_stale) return res.status(404).json({ error: "Not found" });
+    if (result.rows[0].banned || result.rows[0].hidden_stale) return res.status(404).json({ error: "Not found" });
+    const product = applySafeImages(result.rows[0], wantSafeImages);
     product.shipping = calculateShipping(product.store, product.price);
     res.json(product);
   } catch (err) {
@@ -1029,7 +1042,7 @@ app.get("/api/similar/:id", async (req, res) => {
       ? [...diverse, ...leftovers.slice(0, 4 - diverse.length)]
       : diverse;
 
-    res.json(result.slice(0,4).map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })));
+    res.json(result.slice(0,4).map(p => ({ ...applySafeImages(p, wantSafeImagesSimilar), shipping: calculateShipping(p.store, p.price) })));
   } catch (err) {
     console.error("similar error:", err.message);
     res.status(500).json({ error: "DB error" });
@@ -1122,7 +1135,8 @@ app.post("/api/ai-search", async (req, res) => {
       });
     }
     
-    res.json({ query, analysis, results: rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) })), count: rows.length });
+    const wantSafeImagesAI = safeImages === true || safeImages === '1';
+    res.json({ query, analysis, results: rows.map(p => ({ ...applySafeImages(p, wantSafeImagesAI), shipping: calculateShipping(p.store, p.price) })), count: rows.length });
   } catch (err) {
     console.error("ai-search error:", err.message);
     res.status(500).json({ error: "Search error" });
@@ -1830,7 +1844,7 @@ app.get("/api/sponsored", async (req, res) => {
     // מחזיר את כל המודעות הפעילות — הגרלה לפי משקל תתבצע בצד הלקוח
     const query = `
       SELECT sp.id, sp.priority_row, sp.impression_weight, sp.show_rate, sp.badge_text,
-             p.image_url, p.source_url, p.title, p.price, p.store
+             p.image_url, p.valid_image_urls, p.source_url, p.title, p.price, p.store
       FROM sponsored_products sp
       JOIN products p ON p.id = sp.product_id
       WHERE sp.active = true AND (sp.expires_at IS NULL OR sp.expires_at > NOW())${wantSafeImagesSponsored ? ' AND p.has_valid_image = true AND p.reviewed_at IS NOT NULL' : ''}
@@ -1839,7 +1853,15 @@ app.get("/api/sponsored", async (req, res) => {
         sp.created_at DESC
       LIMIT 20`;
     const result = await pool.query(query, [`%${q}%`]);
-    res.json({ sponsored: result.rows });
+    const sponsored = result.rows.map(r => {
+      const out = { ...r };
+      if (wantSafeImagesSponsored && Array.isArray(out.valid_image_urls) && out.valid_image_urls.length > 0) {
+        out.image_url = out.valid_image_urls[0];
+      }
+      delete out.valid_image_urls;
+      return out;
+    });
+    res.json({ sponsored });
   } catch (e) {
     res.json({ sponsored: [] });
   }

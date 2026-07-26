@@ -1038,11 +1038,12 @@ app.get("/api/similar/:id", async (req, res) => {
 
 app.post("/api/ai-search", async (req, res) => {
   try {
-    const { query } = req.body;
+    const { query, safeImages } = req.body;
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
     let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    if (safeImages === true || safeImages === '1') { sql += ` AND has_valid_image = true AND reviewed_at IS NOT NULL`; }
     const params = [];
     let i = 1;
 

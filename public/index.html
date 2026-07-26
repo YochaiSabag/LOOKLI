@@ -2338,7 +2338,13 @@ async function openProduct(id){
     }
 
     // שלב 2 — תמונה ראשית
-    modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
+    // כשמצב "אתר מסונן" (נטפרי) פעיל — מציגים אך ורק תמונות שאושרו בפועל כפתוחות (valid_image_urls),
+    // לא את מערך images הגולמי שמכיל גם תמונות חסומות שעדיין לא סוננו
+    const _netfreeModeActive = localStorage.getItem('safeImagesMode')==='1';
+    modalImages = _netfreeModeActive
+      ? (p.valid_image_urls?.length ? p.valid_image_urls : [])
+      : ((p.images?.length)?p.images:(p.image_url?[p.image_url]:[]));
+    modalImageIndex=0;
     if(modalImages.length){
       const mainImg = new Image();
       mainImg.onload = () => {
@@ -3578,6 +3584,7 @@ document.addEventListener('click', e => {
       if (cb && cb !== source) cb.checked = on;
     });
     updateNetfreeStatusUI(on);
+    checkHideHero();
     runRegularSearch();
   }
   (function initSafeImagesToggle(){

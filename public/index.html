@@ -1187,6 +1187,14 @@ let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 function handleImgError(img){
   console.warn('[IMG FAIL]', img.src);
+  // ניסיון גיבוי: אם זו תמונת כרטיסייה עם URL מקורי שמור (data-orig) שעדיין לא ניסינו —
+  // כנראה שנחשנו גודל תמונה (thumbUrl) שלא קיים בפועל אצל החנות. ננסה את המקור לפני שנוותר.
+  var orig = img.getAttribute('data-orig');
+  if (orig && !img.dataset.triedOrig) {
+    img.dataset.triedOrig = '1';
+    img.src = orig;
+    return;
+  }
   img.style.display='none';
   var w=img.closest('.img-wrap');
   if(w&&!w.querySelector('.img-err')){

@@ -331,7 +331,9 @@ try {
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
 
   // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
-  if (fail > urls.length * 0.5 && urls.length > 10) {
+  if (urls.length === 0) {
+    console.log(`⚠️ לא נאספה אף כתובת מוצר (איסוף ה-URLs נכשל לגמרי) — דילוג על reportScraperFinished למניעת הסתרה שגויה של כל המוצרים הקיימים`);
+  } else if (fail > urls.length * 0.5 && urls.length > 10) {
     console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
   } else {
     await reportScraperFinished(db, 'LEAA', urls);

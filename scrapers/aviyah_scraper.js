@@ -503,7 +503,9 @@ try {
 
   // ── דווח רק מוצרים שבאמת נשמרו בהצלחה — מוצרים שנכשלו בעיבוד (לא רק שנעלמו מהקטגוריה)
   // יחשבו כ"לא נמצאו" וייספרו לקראת ה-3 הרצות שמסתירות מוצר תקוע/פגום ──
-  if (fail > totalUrls * 0.5 && totalUrls > 10) {
+  if (totalUrls === 0) {
+    console.log(`\n⚠️ לא נאספה אף כתובת מוצר (איסוף ה-URLs נכשל לגמרי) — דילוג על reportScraperFinished למניעת הסתרה שגויה של כל המוצרים הקיימים`);
+  } else if (fail > totalUrls * 0.5 && totalUrls > 10) {
     console.log(`\n⚠️ ${fail}/${totalUrls} מוצרים נכשלו בעיבוד — דילוג על reportScraperFinished למניעת הסתרה גורפת שגויה`);
   } else {
     await reportScraperFinished(db, 'AVIYAH', successfulUrls);

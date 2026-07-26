@@ -728,6 +728,8 @@ try {
   // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
   if (TEST_MODE_ACTIVE) {
     console.log(`🧪 TEST MODE פעיל — דילוג על reportScraperFinished (לא לדווח על מוצרים "לא נמצאו" מריצת בדיקה חלקית)`);
+  } else if (urls.length === 0) {
+    console.log(`⚠️ לא נאספה אף כתובת מוצר (איסוף ה-URLs נכשל לגמרי) — דילוג על reportScraperFinished למניעת הסתרה שגויה של כל המוצרים הקיימים`);
   } else if (fail > urls.length * 0.5 && urls.length > 10) {
     console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
   } else {

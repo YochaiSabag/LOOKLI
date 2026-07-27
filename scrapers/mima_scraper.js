@@ -651,6 +651,8 @@ async function saveProduct(product) {
          design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
          all_sizes      = EXCLUDED.all_sizes,
          last_seen      = NOW(),
+         hidden_stale   = false,
+         not_seen_count = 0,
          tagged_fields  = (
            SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
              COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||

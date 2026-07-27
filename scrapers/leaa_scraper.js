@@ -232,6 +232,7 @@ async function saveProduct(product) {
          category=EXCLUDED.category, description=EXCLUDED.description,
          color_sizes=EXCLUDED.color_sizes, pattern=EXCLUDED.pattern, fabric=EXCLUDED.fabric,
          design_details=EXCLUDED.design_details, all_sizes=EXCLUDED.all_sizes, last_seen=NOW(),
+         hidden_stale=false, not_seen_count=0,
          price_dropped_at = CASE
            WHEN EXCLUDED.original_price IS NOT NULL
             AND EXCLUDED.original_price > EXCLUDED.price * 1.10

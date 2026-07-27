@@ -54,17 +54,21 @@ function proxyFetch(url, options = {}) {
 }
 
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
-const { Client } = pkg;
+const { Pool } = pkg;
 
 const connStr = process.env.DATABASE_URL;
 const useSSL = connStr && (connStr.includes('rlwy.net') || connStr.includes('amazonaws.com') || connStr.includes('supabase'));
 
-const db = new Client({
+// Pool במקום Client בודד — אם חיבור נופל (למשל Railway סוגר חיבור "שקט" בזמן העלאת
+// תמונה ל-Cloudinary), ה-Pool פשוט זורק את החיבור הפגום ופותח חדש לשאילתה הבאה,
+// במקום שהתהליך כולו יקרוס עם Unhandled 'error' event.
+const db = new Pool({
   connectionString: connStr,
   ssl: useSSL ? { rejectUnauthorized: false } : undefined,
 });
-
-await db.connect();
+db.on('error', (err) => {
+  console.log(`  ⚠️ DB pool error (חיבור לא פעיל נזרק, לא קורס): ${err.message}`);
+});
 
 console.log('🚀 Chemise Scraper');
 
@@ -177,7 +181,44 @@ async function scrapeProduct(page, url) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(1500);
     await page.waitForSelector('.variable-items-wrapper li', { timeout: 5000 }).catch(() => {});
-    
+
+    // ── בדיקת מידות ילדים מוקדמת — לפני קליק על וריאציה והמתנה של 3 שניות למחיר ──
+    // המידות כבר נגישות ב-DOM ברגע שהסווצ'ים נטענו, בלי שום צורך בקליק/AJAX.
+    // אם המוצר יידחה בגלל מידות ילדים ממילא, אין טעם לשלם את עלות ההמתנה למחיר.
+    const earlySizeCheck = await page.evaluate(() => {
+      const rawSizes = [];
+      document.querySelectorAll('.variable-items-wrapper li, ul.variable-items-wrapper li').forEach(el => {
+        const wrapper = el.closest('[data-attribute_name], [data-attribute-name]');
+        const attrName = wrapper?.getAttribute('data-attribute_name') ||
+                         wrapper?.getAttribute('data-attribute-name') ||
+                         el.getAttribute('data-attribute_name') || '';
+        const title = el.getAttribute('data-title')
+                   || el.getAttribute('title')
+                   || el.getAttribute('aria-label')
+                   || el.getAttribute('data-value')
+                   || el.querySelector('[title]')?.getAttribute('title')
+                   || '';
+        if (!title) return;
+        const isColor = attrName.includes('color') || attrName.includes('צבע') ||
+                        attrName.includes('pa_color') || attrName.includes('גוון') ||
+                        el.querySelector('.variable-item-span-color') !== null;
+        const isSize = !isColor && (attrName.includes('size') || attrName.includes('מידה') ||
+                        attrName.includes('pa_size'));
+        if (isSize) rawSizes.push(decodeURIComponent(title));
+      });
+      if (rawSizes.length === 0) {
+        document.querySelectorAll('select[name*="size"] option, select[name*="pa_size"] option, select[name*="מידה"] option').forEach(opt => {
+          const val = opt.textContent?.trim();
+          if (val && !val.includes('בחירת')) rawSizes.push(val);
+        });
+      }
+      return rawSizes;
+    });
+    if (isKidsSizeOnly(earlySizeCheck)) {
+      console.log(`  ⏭️ מדלג מוקדם (מידות ילדים: ${earlySizeCheck.join(',')})`);
+      return null;
+    }
+
     // לחץ על הסווץ' הראשון — WooCommerce מציג מחיר רק אחרי בחירת וריאציה
     await page.click('.variable-items-wrapper li:not(.disabled)').catch(() =>{});
     await page.waitForTimeout(1500); // המתן לAJAX מחיר
@@ -643,6 +684,8 @@ async function saveProduct(product) {
          design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
          all_sizes      = EXCLUDED.all_sizes,
          last_seen      = NOW(),
+         hidden_stale   = false,
+         not_seen_count = 0,
          tagged_fields  = (
            SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
              COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
@@ -733,7 +776,16 @@ try {
   } else if (fail > urls.length * 0.5 && urls.length > 10) {
     console.log(`⚠️ יחס כישלונות גבוה (${fail}/${urls.length}) — דילוג על reportScraperFinished למניעת הסתרה שגויה`);
   } else {
-    await reportScraperFinished(db, 'CHEMISE', urls);
+    // הגנה נוספת: אם נאספו הרבה פחות URLs ממה שיש כרגע ב-DB לחנות הזו —
+    // כנראה איסוף חלקי (לא כישלון טוטלי, אבל גם לא סריקה מלאה) ולא באמת "מוצרים שירדו מהאתר".
+    // ללא ההגנה הזו, ריצה חלקית כזו הייתה גורמת להסתרה המונית שגויה (למשל 166 מתוך 172).
+    const dbCountResult = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='CHEMISE' AND (banned IS NULL OR banned = false)`);
+    const dbCount = parseInt(dbCountResult.rows[0].c) || 0;
+    if (dbCount > 0 && urls.length < dbCount * 0.4) {
+      console.log(`⚠️ נאספו רק ${urls.length} URLs מתוך ${dbCount} מוצרים קיימים ב-DB (פחות מ-40%) — נראה כמו איסוף חלקי, לא ירידת מוצרים אמיתית. דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+    } else {
+      await reportScraperFinished(db, 'CHEMISE', urls);
+    }
   }
 
   await runHealthCheck(ok, fail);

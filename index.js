@@ -4820,6 +4820,17 @@ app.listen(PORT, async () => {
     // לא נוגע בכלל בסיווג color/colors — הטאגר ומנגנוני הסינון הקיימים ממשיכים לעבוד בלי שינוי.
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_raw_labels TEXT[]`).catch(()=>{});
     console.log('[init] ✅ עמודת color_raw_labels[] מוכנה');
+
+    // ── scraper_skip_urls — כתובות שסקרייפר קבע שאין טעם לסרוק שוב (למשל: פריט ילדים) ──
+    // לא קשור בכלל למנגנון hidden_stale/not_seen_count — אלה כלל לא נחשבים "מוצרים שנמצאו",
+    // רק כתובות שנבדקו ונקבע לגביהן סופית שהן לא רלוונטיות למערכת.
+    await pool.query(`CREATE TABLE IF NOT EXISTS scraper_skip_urls (
+      source_url TEXT PRIMARY KEY,
+      store TEXT NOT NULL,
+      reason TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`).catch(()=>{});
+    console.log('[init] ✅ טבלת scraper_skip_urls מוכנה');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

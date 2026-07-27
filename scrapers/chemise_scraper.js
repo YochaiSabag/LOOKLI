@@ -167,7 +167,22 @@ async function getAllProductUrls(page) {
   }
 
   console.log(`\n${'─'.repeat(40)}\n📊 סה"כ: ${allUrls.size} URLs\n${'─'.repeat(40)}`);
-  return [...allUrls];
+
+  // ── סנן החוצה כתובות שכבר נקבע לגביהן סופית שאין טעם לסרוק (למשל: פריטי ילדים) ──
+  let filteredUrls = [...allUrls];
+  try {
+    const skipResult = await db.query(`SELECT source_url FROM scraper_skip_urls WHERE store='CHEMISE'`);
+    const skipSet = new Set(skipResult.rows.map(r => r.source_url));
+    if (skipSet.size > 0) {
+      const before = filteredUrls.length;
+      filteredUrls = filteredUrls.filter(u => !skipSet.has(u));
+      console.log(`  ⏭️ סוננו ${before - filteredUrls.length} כתובות שכבר סומנו לדילוג קבוע (${skipSet.size} ברשימה)`);
+    }
+  } catch (e) {
+    console.log(`  ⚠️ לא ניתן לטעון רשימת דילוג קבועה: ${e.message.substring(0, 60)}`);
+  }
+
+  return filteredUrls;
 }
 
 // ======================================================================
@@ -216,7 +231,11 @@ async function scrapeProduct(page, url) {
     });
     if (isKidsSizeOnly(earlySizeCheck)) {
       console.log(`  ⏭️ מדלג מוקדם (מידות ילדים: ${earlySizeCheck.join(',')})`);
-      return null;
+      await db.query(
+        `INSERT INTO scraper_skip_urls (source_url, store, reason) VALUES ($1, 'CHEMISE', 'kids_sizes') ON CONFLICT (source_url) DO NOTHING`,
+        [url]
+      ).catch(() => {});
+      return 'KIDS_SKIP';
     }
 
     // לחץ על הסווץ' הראשון — WooCommerce מציג מחיר רק אחרי בחירת וריאציה
@@ -432,7 +451,11 @@ async function scrapeProduct(page, url) {
     const rawSizeLabelsForKidsCheck = (data.rawSizes || []).map(s => s.name);
     if (isKidsSizeOnly(rawSizeLabelsForKidsCheck)) {
       console.log(`  ⏭️ מדלג (מידות ילדים: ${rawSizeLabelsForKidsCheck.join(',')}): ${data.title.substring(0, 40)}`);
-      return null;
+      await db.query(
+        `INSERT INTO scraper_skip_urls (source_url, store, reason) VALUES ($1, 'CHEMISE', 'kids_sizes') ON CONFLICT (source_url) DO NOTHING`,
+        [url]
+      ).catch(() => {});
+      return 'KIDS_SKIP';
     }
 
     const style = detectStyle(data.title, data.description);
@@ -762,17 +785,23 @@ try {
   const urls = await getAllProductUrls(page);
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
   
-  let ok = 0, fail = 0;
+  let ok = 0, fail = 0, kidsSkipped = 0;
+  const kidsSkipUrls = new Set();
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
   for (let i = 0; i < urls.length; i++) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
-    if (p) { await saveProduct(p); ok++; } else fail++;
+    if (p === 'KIDS_SKIP') { kidsSkipped++; kidsSkipUrls.add(urls[i]); }
+    else if (p) { await saveProduct(p); ok++; }
+    else fail++;
     await page.waitForTimeout(500);
   }
-  
-  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+
+  // מוצרי ילדים לא נחשבים "נמצאו" בכלל — לא קשורים למנגנון hidden_stale
+  const foundUrls = urls.filter(u => !kidsSkipUrls.has(u));
+
+  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail} | 👶 דולגו (ילדים): ${kidsSkipped}\n${'='.repeat(50)}`);
 
   // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
   if (TEST_MODE_ACTIVE) {
@@ -787,10 +816,10 @@ try {
     // ללא ההגנה הזו, ריצה חלקית כזו הייתה גורמת להסתרה המונית שגויה (למשל 166 מתוך 172).
     const dbCountResult = await db.query(`SELECT COUNT(*) as c FROM products WHERE store='CHEMISE' AND (banned IS NULL OR banned = false)`);
     const dbCount = parseInt(dbCountResult.rows[0].c) || 0;
-    if (dbCount > 0 && urls.length < dbCount * 0.4) {
-      console.log(`⚠️ נאספו רק ${urls.length} URLs מתוך ${dbCount} מוצרים קיימים ב-DB (פחות מ-40%) — נראה כמו איסוף חלקי, לא ירידת מוצרים אמיתית. דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+    if (dbCount > 0 && foundUrls.length < dbCount * 0.4) {
+      console.log(`⚠️ נאספו רק ${foundUrls.length} מוצרים רלוונטיים (לא ילדים) מתוך ${dbCount} מוצרים קיימים ב-DB (פחות מ-40%) — נראה כמו איסוף חלקי, לא ירידת מוצרים אמיתית. דילוג על reportScraperFinished למניעת הסתרה שגויה`);
     } else {
-      await reportScraperFinished(db, 'CHEMISE', urls);
+      await reportScraperFinished(db, 'CHEMISE', foundUrls);
     }
   }
 

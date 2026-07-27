@@ -447,6 +447,7 @@ async function scrapeProduct(page, url) {
     const availableSizes = new Set();
     const allSizesSet = new Set();
     const availableColors = new Set();
+    const colorRawLabelMap = {}; // normColor -> המלל המדויק מאתר המקור (לתצוגה/חיפוש בלבד, לא לסיווג)
 
     // מקצה שם ייחודי לצבע לא מוכר: אחר / אחר2 / אחר3 ...
     function getOtherColor() {
@@ -496,6 +497,7 @@ async function scrapeProduct(page, url) {
               normColor = withLabel;
             }
           }
+          if (normColor) colorRawLabelMap[normColor] = displayColor.trim();
         }
         
         let normSizes = [];
@@ -572,6 +574,7 @@ async function scrapeProduct(page, url) {
             normColor = withLabel;
           }
         }
+        if (normColor) colorRawLabelMap[normColor] = clean;
         const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
         if (flatSizes.length > 0) {
           availableColors.add(normColor);
@@ -585,6 +588,7 @@ async function scrapeProduct(page, url) {
       }
     } // סוף else swatches
     const uniqueColors = [...availableColors];
+    const colorRawLabels = uniqueColors.map(c => colorRawLabelMap[c] || c);
     console.log(`    🎨 uniqueColors (${uniqueColors.length}): ${uniqueColors.join(', ')}`);
     // חשב uniqueSizes מ-colorSizesMap (מדויק יותר מavailableSizes)
     const uniqueSizes = [...new Set(Object.values(colorSizesMap).flat())];
@@ -635,6 +639,7 @@ async function scrapeProduct(page, url) {
       originalPrice: data.originalPrice,
       images: finalImages,
       colors: uniqueColors,
+      colorRawLabels,
       sizes: uniqueSizes,
       allSizes: allUniqueSizes,
       mainColor,
@@ -663,8 +668,8 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, color_raw_labels, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title          = EXCLUDED.title,
          price          = EXCLUDED.price,
@@ -674,6 +679,7 @@ async function saveProduct(product) {
          sizes          = EXCLUDED.sizes,
          color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
          colors         = EXCLUDED.colors,
+         color_raw_labels = EXCLUDED.color_raw_labels,
          style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
          fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
          category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
@@ -711,7 +717,7 @@ async function saveProduct(product) {
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null,
        product.designDetails?.length ? product.designDetails : null,
-       product.allSizes]
+       product.allSizes, product.colorRawLabels?.length ? product.colorRawLabels : null]
     );
     console.log('  💾 saved');
   } catch (err) {

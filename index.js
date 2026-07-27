@@ -4814,6 +4814,12 @@ app.listen(PORT, async () => {
     // ── styles[] — מאפשר להחיל כמה סגנונות על אותו מוצר (כמו fits[] ו-colors[]) ──
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS styles TEXT[] DEFAULT '{}'`).catch(()=>{});
     console.log('[init] ✅ עמודת styles[] מוכנה');
+
+    // ── color_raw_labels[] — המלל המדויק מאתר המקור לכל צבע ב-colors[], באותו סדר ──
+    // לתצוגה/חיפוש בלבד (למשל "טורקיז" במקום "כחול", או במקום "אחר").
+    // לא נוגע בכלל בסיווג color/colors — הטאגר ומנגנוני הסינון הקיימים ממשיכים לעבוד בלי שינוי.
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_raw_labels TEXT[]`).catch(()=>{});
+    console.log('[init] ✅ עמודת color_raw_labels[] מוכנה');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

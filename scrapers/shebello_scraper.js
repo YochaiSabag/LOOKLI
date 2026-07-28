@@ -2,17 +2,20 @@ import 'dotenv/config';
 import { chromium } from 'playwright';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
-const { Client } = pkg;
+const { Pool } = pkg;
 
 const connStr = process.env.DATABASE_URL;
 const useSSL = connStr && (connStr.includes('rlwy.net') || connStr.includes('amazonaws.com') || connStr.includes('supabase'));
 
-const db = new Client({
+// Pool במקום Client בודד — חוסן מפני חיבור "שקט" שנסגר ע"י הפרוקסי של Railway
+const db = new Pool({
   connectionString: connStr,
   ssl: useSSL ? { rejectUnauthorized: false } : undefined,
 });
+db.on('error', (err) => {
+  console.log(`  ⚠️ DB pool error (חיבור לא פעיל נזרק, לא קורס): ${err.message}`);
+});
 
-await db.connect();
 console.log('🚀 Shebello Scraper');
 
 import { loadScraperConfig } from './scraper_utils.js';
@@ -39,7 +42,9 @@ async function getAllProductUrls(page) {
 
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(2500);
+      // המתנה דינמית לתוכן ה-AJAX (JetEngine) במקום זמן קבוע — הזמן הזה משתנה בין הרצות,
+      // וזמן קבוע קצר מדי גורם לעמוד ריק ולעצירה מיידית ("לפעמים כן לפעמים לא")
+      await page.waitForSelector('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url], a[href*="/product/"]', { timeout: 10000 }).catch(() => {});
 
       for (let i = 0; i < 3; i++) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});

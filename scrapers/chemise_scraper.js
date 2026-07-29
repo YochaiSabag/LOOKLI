@@ -101,7 +101,7 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-  // TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7-%d7%9c%d7%95%d7%92%d7%95/'];
+   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%99%d7%95%d7%95%d7%a5/'];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');
@@ -518,12 +518,22 @@ async function scrapeProduct(page, url) {
           }
           normColor = normalizeColor(displayColor);
           if (!normColor || normColor === 'אחר') normColor = getOtherColor();
-          // אם הצבע המנורמל כבר קיים — הוסף מלל מקורי כ-suffix ייחודי
+          // אם הצבע המנורמל כבר קיים — בדוק אם זה באמת גוון שונה, או רק אותו שם עם
+          // תרגום אנגלי/ספרה שרירותית נוספים (למשל "שחור" מול "שחור-black") — במקרה כזה
+          // ממזגים למידות של אותו צבע במקום ליצור כפילות מיותרת.
           if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))) {
             const originalLabel = displayColor.trim();
-            const withLabel = `${normColor} - ${originalLabel}`;
-            if (!colorSizesMap[withLabel] && !availableColors.has(withLabel)) {
-              normColor = withLabel;
+            const parts = originalLabel.split(/[-\s]/);
+            const core = parts[0].replace(/\d+$/, '').trim();
+            const remainder = parts.slice(1).join(' ');
+            const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
+            // מיזוג רק אם זה אותו שם צבע + תרגום אנגלי/ספרה (רעש) — לא אם יש תוספת עברית
+            // אמיתית (כמו "כחול כהה") שכן עשויה לציין גוון שונה שראוי לשמור בנפרד
+            if (core !== normColor || remainderHasHebrew) {
+              const withLabel = `${normColor} - ${originalLabel}`;
+              if (!colorSizesMap[withLabel] && !availableColors.has(withLabel)) {
+                normColor = withLabel;
+              }
             }
           }
           if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(displayColor.trim());
@@ -596,11 +606,18 @@ async function scrapeProduct(page, url) {
         const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
         const _n = normalizeColor(clean, clean);
         let normColor = (_n && _n !== 'אחר') ? _n : getOtherColor();
-        // אם הצבע המנורמל כבר קיים — הוסף מלל מקורי כ-suffix ייחודי
+        // אם הצבע המנורמל כבר קיים — בדוק אם זה באמת גוון שונה, או רק אותו שם עם
+        // תרגום אנגלי/ספרה שרירותית נוספים — במקרה כזה ממזגים במקום ליצור כפילות
         if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))) {
-          const withLabel = `${normColor} - ${clean}`;
-          if (!colorSizesMap[withLabel] && !availableColors.has(withLabel)) {
-            normColor = withLabel;
+          const parts = clean.split(/[-\s]/);
+          const core = parts[0].replace(/\d+$/, '').trim();
+          const remainder = parts.slice(1).join(' ');
+          const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
+          if (core !== normColor || remainderHasHebrew) {
+            const withLabel = `${normColor} - ${clean}`;
+            if (!colorSizesMap[withLabel] && !availableColors.has(withLabel)) {
+              normColor = withLabel;
+            }
           }
         }
         if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(clean);

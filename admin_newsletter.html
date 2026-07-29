@@ -29,7 +29,7 @@ html{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-h
 .page{max-width:1100px;margin:0 auto;padding:24px 28px}
 
 /* ─── Stats ──────────────────────────────────────────── */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:24px}
 @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
 .stat-num{font-size:28px;font-weight:900;line-height:1}
@@ -147,6 +147,8 @@ code{background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:12px
     <div class="stat"><div class="stat-num" id="stFooter" style="color:var(--blue)">–</div><div class="stat-lbl">מטופס תחתית</div></div>
     <div class="stat"><div class="stat-num" id="stRegister" style="color:var(--accent2)">–</div><div class="stat-lbl">מהרשמה לאתר</div></div>
     <div class="stat"><div class="stat-num" id="stWeek" style="color:var(--green)">–</div><div class="stat-lbl">הצטרפו השבוע</div></div>
+    <div class="stat"><div class="stat-num" id="stKids" style="color:var(--yellow)">–</div><div class="stat-lbl">נרשמו לבגדי ילדים</div></div>
+    <div class="stat"><div class="stat-num" id="stKidsClicks" style="color:var(--red)">–</div><div class="stat-lbl">לחצו על "בקרוב" (ילדים)</div></div>
   </div>
 
   <div class="grid2">
@@ -357,6 +359,7 @@ function updateStats() {
   const total = allSubs.length;
   const footer = allSubs.filter(s => s.source === 'footer').length;
   const reg = allSubs.filter(s => s.source === 'register').length;
+  const kids = allSubs.filter(s => s.source === 'kids_waitlist').length;
   const week = allSubs.filter(s => {
     const d = new Date(s.created_at);
     return (Date.now() - d.getTime()) < 7*24*60*60*1000;
@@ -365,6 +368,18 @@ function updateStats() {
   document.getElementById('stFooter').textContent = footer;
   document.getElementById('stRegister').textContent = reg;
   document.getElementById('stWeek').textContent = '+' + week;
+  document.getElementById('stKids').textContent = kids;
+}
+
+// ─── לחיצות "בקרוב" (ילדים) — טבלה נפרדת, לא קשור לרשימת המנויים ───
+async function loadKidsClicks() {
+  try {
+    const res = await fetch('/api/interest-click/count?key=kids_promo_click');
+    const data = await res.json();
+    document.getElementById('stKidsClicks').textContent = data.count ?? 0;
+  } catch(e) {
+    document.getElementById('stKidsClicks').textContent = '–';
+  }
 }
 
 // ─── Chart ────────────────────────────────────────────────
@@ -544,6 +559,7 @@ function showToast(msg, type='') {
 // ─── Init ─────────────────────────────────────────────────
 loadList();
 loadCampaignLog();
+loadKidsClicks();
 
 // ─── Campaign Log ─────────────────────────────────────────
 async function loadCampaignLog() {

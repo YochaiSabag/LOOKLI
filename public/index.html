@@ -282,6 +282,7 @@
       
       .whatsapp-btn{bottom:16px!important;right:16px!important;width:50px!important;height:50px!important}
       .whatsapp-btn svg{width:24px;height:24px}
+      body.kids-promo-bar-active .whatsapp-btn{bottom:88px!important}
       
       .modal{width:100%;max-height:100vh;border-radius:0}
       .modal-body{grid-template-columns:1fr;padding:12px 16px}
@@ -361,7 +362,9 @@
     .kids-promo-success{font-size:12px;font-weight:400;color:var(--accent-dark);padding:2px 0;line-height:1.5}
     /* מופע מובייל/טאבלט — באנר יחס 1:5 מעל הגריד, מוצג רק מתחת ל-1024px (בדסקטופ המופע בסייד-בר לוקח את מקומו) */
     @media(min-width:1024px){.kids-promo-mobile{display:none !important}}
-    .kids-promo-mobile{aspect-ratio:5/1;min-height:76px;padding:10px 18px;display:flex;align-items:center}
+    .kids-promo-mobile{position:fixed;bottom:0;right:0;left:0;z-index:60;aspect-ratio:5/1;min-height:76px;max-height:110px;padding:10px 18px;display:flex;align-items:center;margin:0;border-radius:14px 14px 0 0;border-width:2.5px 2.5px 0 2.5px;box-shadow:0 -4px 16px rgba(196,140,179,.22);transform:translateY(100%);transition:transform .35s ease}
+    .kids-promo-mobile.kids-promo-scrolled{transform:translateY(0)}
+    .kids-promo-mobile.kids-promo-expanded{max-height:none}
     .kids-promo-mobile .kids-promo-mobile-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:nowrap;width:100%}
     .kids-promo-mobile .kids-promo-mobile-text{flex:1;min-width:0}
     .kids-promo-mobile .kids-promo-handwritten{font-size:18px;margin-bottom:9px}
@@ -590,7 +593,8 @@
     .footer-nl-msg{font-size:12px;min-height:18px;margin-top:6px;color:rgba(255,255,255,.8);text-align:center}
     
     /* WhatsApp Button */
-    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s}
+    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s,bottom .35s ease}
+    body.kids-promo-bar-active .whatsapp-btn{bottom:96px}
     .whatsapp-btn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(196,140,179,.5)}
     .whatsapp-btn svg{width:28px;height:28px;color:#fff}
     
@@ -1135,7 +1139,7 @@
         <div class="kids-promo-form-wrap">
           <form class="kids-promo-form" onsubmit="submitKidsPromo(event)">
             <input type="email" class="kids-promo-email" placeholder="האימייל שלך" required/>
-            <button type="submit">עדכנו אותי</button>
+            <button type="submit" onclick="trackKidsInterest()">עדכנו אותי</button>
           </form>
         </div>
       </div>
@@ -3662,14 +3666,23 @@ document.addEventListener('click', e => {
   }
   
   // ===== כרטיסיית "בקרוב" — התאמת מידות לילדים (יש 2 מופעים: דסקטופ + מובייל) =====
+  function trackKidsInterest(){
+    fetch('/api/interest-click', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ key: 'kids_promo_click' })
+    }).catch(()=>{});
+  }
   function dismissKidsPromo(){
     localStorage.setItem('kidsPromoDismissed','1');
     document.querySelectorAll('.kids-promo-card').forEach(c => c.style.display = 'none');
+    document.body.classList.remove('kids-promo-bar-active');
   }
   function handleMobileBannerClick(e, card){
     if (card.classList.contains('kids-promo-expanded')) return;
     if (e.target.closest('.kids-promo-close')) return;
     card.classList.add('kids-promo-expanded');
+    trackKidsInterest();
     const input = card.querySelector('.kids-promo-email');
     setTimeout(() => input && input.focus(), 150);
   }
@@ -3678,6 +3691,7 @@ document.addEventListener('click', e => {
     const input = btn.closest('.kids-promo-form-wrap').querySelector('.kids-promo-email');
     if (!card.classList.contains('kids-promo-expanded')) {
       card.classList.add('kids-promo-expanded');
+      trackKidsInterest();
       setTimeout(() => input.focus(), 150);
       return;
     }
@@ -3714,6 +3728,22 @@ document.addEventListener('click', e => {
   (function initKidsPromo(){
     if (localStorage.getItem('kidsPromoDismissed') === '1') return;
     document.querySelectorAll('.kids-promo-card').forEach(c => c.style.display = '');
+    // הבאנר במובייל (fixed בתחתית) נחשף רק אחרי גלילה — לא מטריד בטעינה הראשונה
+    const mobileCard = document.querySelector('.kids-promo-mobile');
+    if (!mobileCard) return;
+    const SCROLL_THRESHOLD = 500; // בערך כמה שורות מוצרים
+    let revealed = false;
+    function checkScroll(){
+      if (revealed) return;
+      if (window.scrollY > SCROLL_THRESHOLD) {
+        mobileCard.classList.add('kids-promo-scrolled');
+        document.body.classList.add('kids-promo-bar-active');
+        revealed = true;
+        window.removeEventListener('scroll', checkScroll);
+      }
+    }
+    window.addEventListener('scroll', checkScroll, { passive: true });
+    checkScroll();
   })();
 
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====

@@ -317,6 +317,13 @@ app.use(express.static(path.join(__dirname, "public"), {
     if (filePath.endsWith('index.html')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
+    // Content-Type מפורש לפונטים — עם X-Content-Type-Options:nosniff פעיל גלובלית,
+    // MIME type שגוי/חסר גורם לדפדפן לסרב להשתמש בקובץ כפונט (גם אם ההורדה הישירה תקינה)
+    if (filePath.endsWith('.woff')) {
+      res.setHeader('Content-Type', 'font/woff');
+    } else if (filePath.endsWith('.woff2')) {
+      res.setHeader('Content-Type', 'font/woff2');
+    }
   }
 }));
 // שים לב: אין כאן static(__dirname) — admin קבצים מוגנים בסיסמה
@@ -2360,6 +2367,32 @@ app.get("/admin/newsletter", adminAuth, (req, res) => {
 });
 
 // POST /api/newsletter/subscribe
+// POST /api/interest-click — תיעוד לחיצת "עניין" קלה, בלי מייל ובלי שום מידע מזהה,
+// רק ספירה לפי מפתח אירוע. לא קשור בכלל לרשימת התפוצה.
+app.post("/api/interest-click", async (req, res) => {
+  try {
+    const { key } = req.body;
+    if (!key || typeof key !== 'string' || key.length > 100) return res.status(400).json({ error: 'invalid key' });
+    await pool.query(`INSERT INTO interest_events (event_key) VALUES ($1)`, [key]);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: 'שגיאה' });
+  }
+});
+
+// GET /api/interest-click/count?key=... — בדיקת ספירה (מוגן אדמין)
+app.get("/api/interest-click/count", adminAuth, async (req, res) => {
+  try {
+    const { key } = req.query;
+    const result = key
+      ? await pool.query(`SELECT COUNT(*) as c FROM interest_events WHERE event_key = $1`, [key])
+      : await pool.query(`SELECT event_key, COUNT(*) as c FROM interest_events GROUP BY event_key ORDER BY c DESC`);
+    res.json(key ? { key, count: parseInt(result.rows[0]?.c || 0) } : { counts: result.rows });
+  } catch(e) {
+    res.status(500).json({ error: 'שגיאה' });
+  }
+});
+
 app.post("/api/newsletter/subscribe", async (req, res) => {
   try {
     const { email, source = 'footer' } = req.body;
@@ -4831,6 +4864,14 @@ app.listen(PORT, async () => {
       created_at TIMESTAMP DEFAULT NOW()
     )`).catch(()=>{});
     console.log('[init] ✅ טבלת scraper_skip_urls מוכנה');
+    // ── interest_events — ספירת "עניין" קלה (למשל כמה לחצו על "בקרוב"), נפרד לגמרי
+    // מרשימת התפוצה. אין כאן מייל בכלל — רק תיעוד אנונימי של לחיצות לפי מפתח אירוע ──
+    await pool.query(`CREATE TABLE IF NOT EXISTS interest_events (
+      id SERIAL PRIMARY KEY,
+      event_key VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`).catch(()=>{});
+    console.log('[init] ✅ טבלת interest_events מוכנה');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

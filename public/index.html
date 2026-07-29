@@ -106,7 +106,10 @@
       --container:1600px;
       --sidebar:280px;
       --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%);
-      --sale-color:#ef4444
+      --sale-color:#ef4444;
+      --accent-kids:#e3a97a;
+      --accent-kids-dark:#b97d49;
+      --accent-kids-bg:#fdf3ea
     }
     *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
     body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden}
@@ -321,6 +324,22 @@
     .netfree-box .ios-switch .ios-slider{background:rgba(255,255,255,.4)}
     .netfree-box .ios-switch input:checked + .ios-slider{background:#fff}
     .netfree-box .ios-switch input:checked + .ios-slider::before{background:var(--accent-dark)}
+
+    /* כרטיסיית "בקרוב" — התאמת מידות לילדים */
+    .kids-promo-card{position:relative;margin:0 0 16px;padding:18px 20px;border-radius:18px;background:linear-gradient(135deg,var(--accent-kids-bg) 0%,#fff 100%);border:1px solid rgba(185,125,73,.18);box-shadow:0 3px 14px rgba(185,125,73,.1)}
+    .kids-promo-close{position:absolute;top:10px;left:10px;width:22px;height:22px;border:none;background:rgba(0,0,0,.05);border-radius:50%;color:var(--text);font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .kids-promo-close:hover{background:rgba(0,0,0,.1)}
+    .kids-promo-badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.3px;color:var(--accent-kids-dark);background:rgba(227,169,122,.15);padding:3px 9px;border-radius:20px;margin-bottom:9px}
+    .kids-promo-title{font-size:15px;font-weight:800;color:#4a4a4a;margin:0 0 5px;line-height:1.35}
+    .kids-promo-desc{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0 0 13px}
+    .kids-promo-form{display:flex;gap:7px}
+    .kids-promo-form input[type=email]{flex:1;min-width:0;padding:9px 12px;border:1px solid rgba(185,125,73,.3);border-radius:10px;font-size:13px;font-family:inherit;background:#fff;color:var(--text)}
+    .kids-promo-form input[type=email]:focus{outline:none;border-color:var(--accent-kids-dark)}
+    .kids-promo-form button{flex-shrink:0;padding:9px 16px;border:none;border-radius:10px;background:var(--accent-kids-dark);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+    .kids-promo-form button:hover{opacity:.9}
+    .kids-promo-form button:disabled{opacity:.6;cursor:default}
+    .kids-promo-success{font-size:13px;color:var(--accent-kids-dark);font-weight:700;padding:4px 0}
+    @media(max-width:480px){.kids-promo-form{flex-direction:column}.kids-promo-form button{width:100%}}
     @media(max-width:768px){ #safeImagesToggleWrap{display:none} }
     @media(min-width:769px){ #netfreeSection{display:none} }
     .netfree-status{font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;opacity:.85;margin-top:2px}
@@ -887,6 +906,19 @@
             <span class="ios-slider"></span>
           </span>
         </label>
+      </div>
+
+      <div class="kids-promo-card" id="kidsPromoCard" style="display:none">
+        <button class="kids-promo-close" onclick="dismissKidsPromo()" aria-label="סגור">✕</button>
+        <span class="kids-promo-badge">בקרוב</span>
+        <p class="kids-promo-title">התאמת מידות לכל הילדים בסט אחד</p>
+        <p class="kids-promo-desc">מזינים את המידות שצריך, ומקבלים את כל הבגדים הזמינים — כולל השלמת סט בין חנויות לפי צבע.</p>
+        <div id="kidsPromoFormWrap">
+          <form class="kids-promo-form" onsubmit="submitKidsPromo(event)">
+            <input type="email" id="kidsPromoEmail" placeholder="האימייל שלך" required/>
+            <button type="submit" id="kidsPromoBtn">עדכנו אותי</button>
+          </form>
+        </div>
       </div>
 
       <div class="filter-section open" id="storeSection">
@@ -3565,6 +3597,42 @@ document.addEventListener('click', e => {
     }
   }
   
+  // ===== כרטיסיית "בקרוב" — התאמת מידות לילדים =====
+  function dismissKidsPromo(){
+    localStorage.setItem('kidsPromoDismissed','1');
+    const card = document.getElementById('kidsPromoCard');
+    if (card) card.style.display = 'none';
+  }
+  async function submitKidsPromo(e){
+    e.preventDefault();
+    const emailInput = document.getElementById('kidsPromoEmail');
+    const btn = document.getElementById('kidsPromoBtn');
+    const email = emailInput.value.trim();
+    if (!email || !email.includes('@')) return;
+    btn.disabled = true;
+    btn.textContent = 'שולח...';
+    try {
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email, source: 'kids_waitlist' })
+      });
+      if (!res.ok) throw new Error();
+      document.getElementById('kidsPromoFormWrap').innerHTML =
+        '<p class="kids-promo-success">✓ נרשמת בהצלחה! נעדכן אותך ברגע שזה מוכן.</p>';
+      localStorage.setItem('kidsPromoDismissed','1');
+    } catch(err) {
+      btn.disabled = false;
+      btn.textContent = 'עדכנו אותי';
+      alert('משהו השתבש, אפשר לנסות שוב');
+    }
+  }
+  (function initKidsPromo(){
+    if (localStorage.getItem('kidsPromoDismissed') === '1') return;
+    const card = document.getElementById('kidsPromoCard');
+    if (card) card.style.display = '';
+  })();
+
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
   // בדיקת תמונות מבוססת-משתמשות הוסרה לגמרי (הוסכם: אין דיווח מגלישה רגילה).
   // הבדיקה היחידה נעשית ידנית ע"י מנהלת האתר דרך admin_image_scan.html, ומשפיעה

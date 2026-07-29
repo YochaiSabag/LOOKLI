@@ -471,6 +471,12 @@ async function scrapeProduct(page, url) {
     const allSizesSet = new Set();
     const availableColors = new Set();
     const colorRawLabelMap = {}; // normColor -> המלל המדויק מאתר המקור (לתצוגה/חיפוש בלבד, לא לסיווג)
+    // מנקה ספרות שרירותיות בסוף מילה (כמו "אבן1" → "אבן") — אלה בד"כ מק"ט/גוון פנימי
+    // של החנות שלא עקבי בין מוצרים או בין חנויות, ולכן חסר משמעות לשמירה/השוואה
+    function cleanRawColorLabel(text) {
+      if (!text) return text;
+      return text.split(/([\s-]+)/).map(part => /^\S+$/.test(part) ? part.replace(/(\D)\d+$/, '$1') : part).join('').trim();
+    }
 
     // מקצה שם ייחודי לצבע לא מוכר: אחר / אחר2 / אחר3 ...
     function getOtherColor() {
@@ -520,7 +526,7 @@ async function scrapeProduct(page, url) {
               normColor = withLabel;
             }
           }
-          if (normColor) colorRawLabelMap[normColor] = displayColor.trim();
+          if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(displayColor.trim());
         }
         
         let normSizes = [];
@@ -597,7 +603,7 @@ async function scrapeProduct(page, url) {
             normColor = withLabel;
           }
         }
-        if (normColor) colorRawLabelMap[normColor] = clean;
+        if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(clean);
         const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
         if (flatSizes.length > 0) {
           availableColors.add(normColor);

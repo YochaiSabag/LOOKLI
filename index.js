@@ -2775,16 +2775,15 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
     // וגם מוצרים חדשים שנכנסים מהסקרייפרים, לא יזיזו את "המקום" באמצע שהיא עוברת עליו
     // ויגרמו לדילוג על מוצרים או להצגה כפולה שלהם.
     const beforeId = req.query.beforeId ? parseInt(req.query.beforeId) : null;
-    if (!store) return res.status(400).json({ error: 'חסר store' });
     // שולפים מספיק מוצרים כדי למלא את מכסת התמונות — עם רשת ביטחון (limit+40) למוצרים בלי תמונות בכלל
     const productLimit = Math.min(limit + 40, 500);
     const { rows } = await pool.query(
-      `SELECT id, images, image_url FROM products
-       WHERE store = $1 AND reviewed_at IS NULL
+      `SELECT id, store, images, image_url FROM products
+       WHERE ($1::text IS NULL OR store = $1) AND reviewed_at IS NULL
          AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)
          AND ($3::int IS NULL OR id < $3::int)
        ORDER BY id DESC LIMIT $2`,
-      [store, productLimit, beforeId]
+      [store || null, productLimit, beforeId]
     );
     const flat = [];
     const seenUrls = new Set(); // מונע הצגת אותה תמונה פעמיים (אם שני מוצרים חולקים תמונה זהה, או שהיא מופיעה פעמיים במערך)
@@ -2797,7 +2796,7 @@ app.get('/api/admin/image-gallery', adminAuth, async (req, res) => {
       for (const url of imgs) { // כל התמונות של המוצר — לא רק 4 ראשונות
         if (!url || seenUrls.has(url)) continue;
         seenUrls.add(url);
-        flat.push({ productId: p.id, url });
+        flat.push({ productId: p.id, store: p.store, url });
         if (flat.length >= limit) break;
       }
       if (flat.length >= limit) break;

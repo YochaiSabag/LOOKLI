@@ -27,13 +27,13 @@ const DEFAULT_COLORS = {
 };
 
 const DEFAULT_CATEGORIES = {
-  'שמלה':['שמלה','שמלת','dress'],'חולצה':['חולצה','חולצת','טופ','top','shirt','blouse'],
-  'חצאית':['חצאית','skirt'],'קרדיגן':['קרדיגן','cardigan'],'סוודר':['סוודר','sweater'],
-  'טוניקה':['טוניקה','tunic'],'סרפן':['סרפן','pinafore'],
-  "ז׳קט":["ז׳קט","ג׳קט",'jacket'],'בלייזר':['בלייזר','blazer'],
-  'וסט':['וסט','vest'],'עליונית':['עליונית','שכמיה','cape'],
-  'מעיל':['מעיל','coat'],'אוברול':['אוברול','jumpsuit'],
-  'סט':['סט','set'],'בייסיק':['בייסיק','basic'],'חלוק':['חלוק','robe'],
+  'שמלה':['שמלה','שמלות','שמלת','dress'],'חולצה':['חולצה','חולצות','חולצת','טופ','טופים','top','shirt','blouse'],
+  'חצאית':['חצאית','חצאיות','skirt'],'קרדיגן':['קרדיגן','קרדיגנים','cardigan'],'סוודר':['סוודר','סוודרים','sweater'],
+  'טוניקה':['טוניקה','טוניקות','tunic'],'סרפן':['סרפן','סרפנים','pinafore'],
+  "ז׳קט":["ז׳קט","ז׳קטים","ג׳קט","ג׳קטים",'jacket'],'בלייזר':['בלייזר','בלייזרים','blazer'],
+  'וסט':['וסט','וסטים','vest'],'עליונית':['עליונית','עליוניות','שכמיה','שכמיות','cape'],
+  'מעיל':['מעיל','מעילים','coat'],'אוברול':['אוברול','אוברולים','jumpsuit'],
+  'סט':['סט','סטים','set'],'בייסיק':['בייסיק','בייסיקים','basic'],'חלוק':['חלוק','חלוקים','robe'],
 };
 
 const DEFAULT_STYLES = {
@@ -155,7 +155,13 @@ export async function loadScraperConfig(db) {
       if (lookup[stripped]) return lookup[stripped];
     }
     const words = lower.split(/[\s\-]+/);
-    for (const w of words) { if (lookup[w]) return lookup[w]; }
+    for (const w of words) {
+      if (lookup[w]) return lookup[w];
+      // חנויות לפעמים מוסיפות ספרה בסוף שם הצבע לציון גוון/מק"ט (למשל "אבן1", "אבן2") —
+      // זה עדיין אותו צבע בסיס, לא צבע נפרד. מנסים את המילה בלי הספרות בסוף.
+      const wNoDigits = w.replace(/\d+$/, '');
+      if (wNoDigits && wNoDigits !== w && lookup[wNoDigits]) return lookup[wNoDigits];
+    }
     for (const key of Object.keys(lookup)) {
       // "סט" — התאמה מדויקת בלבד (מניעת "פסטל" → "סט")
       if (key === 'סט' || key === 'set') {
@@ -188,7 +194,6 @@ export async function loadScraperConfig(db) {
       const JEANS_WORDS = ["ג'ינס","ג׳ינס","ג\u05F3ינס",'גינס','denim','jeans'];
       const lower = title.toLowerCase();
 
-      // בדוק ג׳ינס קודם — הוא בד שמצביע על צבע כחול
       if (JEANS_WORDS.some(w => lower.includes(w.toLowerCase()))) return 'כחול';
 
       const words = lower.split(/[\s\-,\/]+/);
@@ -207,7 +212,6 @@ export async function loadScraperConfig(db) {
 
     unknownColors,
 
-    // אם יש derived_tags על הצבע (למשל "אדום" → style: "בולט"), מחזיר אותם
     getColorDerivedStyle(colorName) {
       const derived = colorDerived[colorName] || {};
       return { derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
@@ -227,12 +231,6 @@ export async function loadScraperConfig(db) {
       });
     },
 
-    // מזהה פריטי ילדים לפי מידות מספריות גולמיות (לפני מיפוי לאותיות):
-    // מידות מבוגרים בחלק מהחנויות (כמו שמיז) הן אך ורק 0-6 (עד 7 ערכים אפשריים בסה"כ) → S/M/L/XL/XXL/XXXL
-    // מידות ילדים (גיל): 7,8,9,10,12,14,16,18... — כל מספר 7 ומעלה הוא סימן חד-משמעי למידת ילדים,
-    // גם אם המוצר מכיל גם מידות קטנות יותר (למשל טבלת מידות-גיל רציפה 4,5,6,7,8,9,10,12,14,16,18 —
-    // זו עדיין מוצר ילדים/נוער, לא מוצר מבוגרים עם מידה "נוספת" במקרה)
-    // מקבל מערך של label-ים גולמיים (כמו שהם מופיעים באתר, לפני נירמול)
     isKidsSizeOnly(rawSizeLabels) {
       if (!rawSizeLabels || !rawSizeLabels.length) return false;
       const nums = rawSizeLabels
@@ -246,8 +244,14 @@ export async function loadScraperConfig(db) {
     detectCategory(title) {
       if (!title) return null;
       const t = title.toLowerCase();
+      const rawWords = t.split(/[^\u05d0-\u05eaa-z0-9\u05f3]+/).filter(Boolean);
+      const words = new Set();
+      for (const w of rawWords) {
+        words.add(w);
+        if (/^[לבמשכ][\u05d0-\u05ea]/.test(w) && w.length > 2) words.add(w.slice(1));
+      }
       for (const [name, aliases] of Object.entries(categoryMap)) {
-        if (aliases.some(a => t.includes(a.toLowerCase()))) return name;
+        if (aliases.some(a => words.has(a.toLowerCase()))) return name;
       }
       return null;
     },
@@ -276,7 +280,6 @@ export async function loadScraperConfig(db) {
       return '';
     },
 
-    // אם יש derived_tags על סוג הבד (למשל "סאטן" → style: "אלגנטי"), מחזיר אותם
     getFabricDerivedStyle(fabricName) {
       const derived = fabricDerived[fabricName] || {};
       return { derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
@@ -290,7 +293,6 @@ export async function loadScraperConfig(db) {
       return '';
     },
 
-    // אם יש derived_tags על הדוגמה (למשל "פרחוני" → style: "רומנטי"), מחזיר אותם
     getPatternDerivedStyle(patternName) {
       const derived = patternDerived[patternName] || {};
       return { derivedStyle: derived.style?.[0] || null, derivedStyles: derived.style || [] };
@@ -321,10 +323,6 @@ export async function loadScraperConfig(db) {
       return details;
     },
 
-    // ── מנגנון הסתרת מוצרים שלא נמצאים יותר באתר ──────────────────────
-    // קוראים בסוף כל סקרייפר: await reportScraperFinished(db, 'STORE_NAME', foundUrls)
-    // - מוצרים שנמצאו: not_seen_count=0, hidden_stale=false (חזרו לחיים)
-    // - מוצרים שלא נמצאו: not_seen_count++, ואם הגיע ל-3 → hidden_stale=true (מוסתר, לא נמחק)
     async reportScraperFinished(dbClient, store, foundUrls) {
       try {
         await dbClient.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS not_seen_count INTEGER DEFAULT 0`).catch(()=>{});

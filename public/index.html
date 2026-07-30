@@ -168,13 +168,15 @@
     .filter-icon svg{width:19px;height:19px}
     @media(min-width:1001px){
       .filters{transition:width .25s ease}
-      .filters.collapsed{width:64px}
+      .filters.collapsed{width:64px;scrollbar-width:none}
+      .filters.collapsed::-webkit-scrollbar{width:0;display:none}
 
       /* נטפרי בסיידבר קיים רק במובייל - בדסקטופ הוא רק למעלה מעל המוצרים */
       #netfreeSection{display:none}
 
       /* כפתור משתלב לתפריט - פס צר לגובה, ורוד במותג האתר, מתחבר ישירות לרצועת הסיידבר */
       .sidebar-toggle-col{display:flex;flex:0 0 16px;justify-content:center;align-self:flex-start;position:sticky;top:220px;z-index:21}
+      .filters.collapsed{border-left:1px solid #ddd !important}
       .sidebar-collapse-btn{display:flex;width:16px;height:58px;background:var(--header-gradient);border:none;border-radius:8px 0 0 8px;align-items:center;justify-content:center;cursor:pointer;box-shadow:-2px 2px 8px rgba(196,140,179,.4);padding:0;transition:width .15s,box-shadow .15s}
       .sidebar-collapse-btn:hover{width:19px;box-shadow:-3px 3px 12px rgba(196,140,179,.55)}
       .sidebar-collapse-btn svg{width:11px;height:11px;color:#fff;transition:transform .2s;transform:rotate(180deg);flex-shrink:0}
@@ -182,11 +184,14 @@
 
       /* בזמן כיווץ: הצג רק אייקונים, הסתר טקסטים ותוכן פתוח */
       .filters.collapsed .filter-content{display:none !important}
-      .filters.collapsed .filter-header{justify-content:center;padding:16px 0;gap:0}
+      .filters.collapsed .filter-header{justify-content:center;padding:16px 0;gap:0;position:relative}
       .filters.collapsed .filter-header span:not(.filter-icon){display:none}
       .filters.collapsed .filter-header .filter-icon{display:flex}
       .filters.collapsed .reset-btn-wrap{display:none}
       .filter-header:hover .filter-icon{color:var(--accent)}
+      #iconTooltip{display:none;position:fixed;background:rgba(0,0,0,.85);color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:2000;transform:translateY(-50%)}
+      #iconTooltip::after{content:'';position:absolute;top:50%;right:-5px;transform:translateY(-50%);border:5px solid transparent;border-right:0;border-left-color:rgba(0,0,0,.85)}
+      #iconTooltip.show{display:block}
 
       /* חמישה טורי מוצרים כשהסיידבר מכווץ, ברוחבים שרגיל מוצג בהם 4 */
       @media(min-width:1201px){
@@ -315,6 +320,7 @@
       .whatsapp-btn{bottom:16px!important;right:16px!important;width:50px!important;height:50px!important}
       .whatsapp-btn svg{width:24px;height:24px}
       body.kids-promo-bar-active .whatsapp-btn{bottom:88px!important}
+      body.kids-promo-bar-active .mobile-filter-btn{bottom:152px!important}
       
       .modal{width:100%;max-height:100vh;border-radius:0}
       .modal-body{grid-template-columns:1fr;padding:12px 16px}
@@ -339,6 +345,9 @@
     
     /* Filter close button */
     .filter-close-btn{display:none;position:absolute;top:12px;left:12px;width:36px;height:36px;background:#fff;border:1px solid #eee;border-radius:50%;font-size:18px;cursor:pointer;z-index:10}
+    @media(max-width:768px){
+      #netfreeSection{padding-top:56px!important}
+    }
     @media(max-width:768px){
       .filter-close-btn{display:flex;align-items:center;justify-content:center}
       .filters{position:relative}
@@ -666,8 +675,15 @@
     
     /* ===== Hero Discovery Section ===== */
     .hero-discover{width:100%;padding:30px 0 14px;text-align:center;background:#fff;border-bottom:1px solid #eee}
+    /* טיזר סגור ל-HERO - מוצג במקום קטע הבחירה שלב-שלב, עד שלוחצים עליו */
+    .hero-teaser{display:flex;flex-direction:column;align-items:center;gap:5px;width:fit-content;margin:18px auto 26px;padding:4px 10px;color:var(--muted);font-size:14.5px;font-weight:500;cursor:pointer;background:none;border:none;box-shadow:none;transition:color .15s}
+    .hero-teaser:hover{color:var(--accent)}
+    .hero-teaser svg{width:16px;height:16px;flex-shrink:0;transition:transform .2s}
+    .hero-teaser:hover svg{transform:translateY(3px)}
+    .hero-teaser.hidden{display:none}
     .hero-discover.hidden{display:none}
     .hero-title{font-size:28px;font-weight:500;color:var(--accent);margin:0 0 26px;padding:0 24px;line-height:1.4}
+    .hero-title-standalone{text-align:center;background:#fff;padding-top:28px;margin-bottom:0}
     .hero-step-label{font-size:21px;font-weight:500;color:#3a3a3a;margin-bottom:20px;padding:0 24px}
     .hero-nav-labels{display:flex;align-items:center;gap:16px;margin-top:12px;justify-content:center;padding:0 24px}
     .hero-nav-btn{display:flex;align-items:center;gap:6px;padding:9px 20px;border-radius:22px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);transition:all .15s}
@@ -958,8 +974,14 @@
   <span id="aiAnalysis" style="display:none"></span><span id="aiBox" style="display:none"></span>
   
   <!-- Hero Discovery Section -->
-  <div class="hero-discover" id="heroDiscover">
-    <h1 class="hero-title">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI לוקלי</h1>
+  <h1 class="hero-title hero-title-standalone">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI לוקלי</h1>
+
+  <div class="hero-teaser" id="heroTeaser" onclick="openHeroTeaser()">
+    <span>רוצה לבחור שלב שלב?</span>
+    <svg class="hero-teaser-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+
+  <div class="hero-discover hidden" id="heroDiscover">
     <div class="hero-step-label" id="heroStepLabel">מה את מחפשת?</div>
     <div class="hero-slider">
       <button class="hero-arrow hero-arrow-right" onclick="heroScroll(1)">‹</button>
@@ -993,8 +1015,8 @@
       </div>
 
       <div class="filter-section open" id="storeSection">
-        <div class="filter-header" onclick="toggleFilter('storeSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l1-4h14l1 4"/><path d="M4 8v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8"/><path d="M9 21v-6h6v6"/></svg></span>
+        <div class="filter-header" data-tooltip="חנות" onclick="toggleFilter('storeSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
           <span>חנות</span>
           <span class="arrow">▲</span>
         </div>
@@ -1004,8 +1026,8 @@
       </div>
       
       <div class="filter-section open" id="categorySection">
-        <div class="filter-header" onclick="toggleFilter('categorySection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        <div class="filter-header" data-tooltip="סוג מוצר" onclick="toggleFilter('categorySection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
           <span>סוג מוצר</span>
           <span class="arrow">▲</span>
         </div>
@@ -1015,8 +1037,8 @@
       </div>
       
       <div class="filter-section" id="colorSection">
-        <div class="filter-header" onclick="toggleFilter('colorSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="14" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="13" r="1.3" fill="currentColor" stroke="none"/><circle cx="10.5" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg></span>
+        <div class="filter-header" data-tooltip="צבע" onclick="toggleFilter('colorSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 18 9a6 6 0 1 1-12 0z"/></svg></span>
           <span>צבע</span>
           <span class="arrow">▼</span>
         </div>
@@ -1026,8 +1048,8 @@
       </div>
       
       <div class="filter-section" id="sizeSection">
-        <div class="filter-header" onclick="toggleFilter('sizeSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v3M11 8v3M15 8v3"/></svg></span>
+        <div class="filter-header" data-tooltip="מידה" onclick="toggleFilter('sizeSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10.5 8v3M14.5 8v3M18.5 8v3"/></svg></span>
           <span>מידה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1037,8 +1059,8 @@
       </div>
       
       <div class="filter-section" id="priceSection">
-        <div class="filter-header" onclick="toggleFilter('priceSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.41 20.59a2 2 0 0 1-2.82 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg></span>
+        <div class="filter-header" data-tooltip="מחיר" onclick="toggleFilter('priceSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12.01V2h10.01l8.58 8.58a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
           <span>מחיר</span>
           <span class="arrow">▼</span>
         </div>
@@ -1053,8 +1075,8 @@
       </div>
       
       <div class="filter-section" id="styleSection">
-        <div class="filter-header" onclick="toggleFilter('styleSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
+        <div class="filter-header" data-tooltip="סגנון" onclick="toggleFilter('styleSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 1 0-2 2"/><path d="M12 5v3"/><path d="M4.2 18.3 12 9.5l7.8 8.8a1 1 0 0 1-.8 1.7H5a1 1 0 0 1-.8-1.7Z"/><path d="M4 21h16"/></svg></span>
           <span>סגנון</span>
           <span class="arrow">▼</span>
         </div>
@@ -1064,8 +1086,8 @@
       </div>
       
       <div class="filter-section" id="fitSection">
-        <div class="filter-header" onclick="toggleFilter('fitSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2.1" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2.1" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2.1" fill="currentColor" stroke="none"/></svg></span>
+        <div class="filter-header" data-tooltip="גיזרה" onclick="toggleFilter('fitSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/></svg></span>
           <span>גיזרה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1075,8 +1097,8 @@
       </div>
       
       <div class="filter-section" id="fabricSection">
-        <div class="filter-header" onclick="toggleFilter('fabricSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5-9 5-9-5 9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg></span>
+        <div class="filter-header" data-tooltip="סוג בד" onclick="toggleFilter('fabricSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
           <span>סוג בד</span>
           <span class="arrow">▼</span>
         </div>
@@ -1086,8 +1108,8 @@
       </div>
       
       <div class="filter-section" id="patternSection">
-        <div class="filter-header" onclick="toggleFilter('patternSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg></span>
+        <div class="filter-header" data-tooltip="דוגמא" onclick="toggleFilter('patternSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.7"/><circle cx="12" cy="6" r="1.7"/><circle cx="18" cy="6" r="1.7"/><circle cx="6" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18" cy="12" r="1.7"/><circle cx="6" cy="18" r="1.7"/><circle cx="12" cy="18" r="1.7"/><circle cx="18" cy="18" r="1.7"/></svg></span>
           <span>דוגמא</span>
           <span class="arrow">▼</span>
         </div>
@@ -1097,8 +1119,8 @@
       </div>
       
       <div class="filter-section" id="designSection">
-        <div class="filter-header" onclick="toggleFilter('designSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></span>
+        <div class="filter-header" data-tooltip="עיצוב" onclick="toggleFilter('designSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
           <span>עיצוב</span>
           <span class="arrow">▼</span>
         </div>
@@ -1108,8 +1130,8 @@
       </div>
       
       <div class="filter-section" id="discountSection">
-        <div class="filter-header" onclick="toggleFilter('discountSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.3"/><circle cx="17.5" cy="17.5" r="2.3"/></svg></span>
+        <div class="filter-header" data-tooltip="הנחה" onclick="toggleFilter('discountSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></span>
           <span>הנחה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1129,6 +1151,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
     </div>
+
+    <!-- טולטיפ אייקוני הסיידבר המכווץ -->
+    <div id="iconTooltip"></div>
     
     <!-- MAIN -->
     <main class="main">
@@ -1644,6 +1669,32 @@ function toggleDesktopSidebar(){
   if(!filtersPanel) return;
   setSidebarCollapsed(!filtersPanel.classList.contains('collapsed'));
 }
+
+// טולטיפים על אייקוני הסיידבר במצב מכווץ - position:fixed כדי לא להיחתך ע"י הגלילה הפנימית של הסיידבר
+(function initFilterIconTooltips(){
+  const panel=document.getElementById('filtersPanel');
+  const tip=document.getElementById('iconTooltip');
+  if(!panel||!tip) return;
+  panel.addEventListener('mouseover', (e) => {
+    if(!panel.classList.contains('collapsed') || window.innerWidth<1001) return;
+    const header=e.target.closest('.filter-header');
+    if(!header || !panel.contains(header)) return;
+    const label=header.getAttribute('data-tooltip');
+    if(!label) return;
+    tip.textContent=label;
+    const rect=header.getBoundingClientRect();
+    tip.style.top=(rect.top+rect.height/2)+'px';
+    tip.style.right=(window.innerWidth-rect.left+3)+'px';
+    tip.classList.add('show');
+  });
+  panel.addEventListener('mouseout', (e) => {
+    if(e.target.closest('.filter-header')) tip.classList.remove('show');
+  });
+  // הגנה: אם המסך מצטמצם למובייל בזמן שהטולטיפ מוצג (למשל מעבר למצב מובייל ב-DevTools) - נסתיר אותו
+  window.addEventListener('resize', () => {
+    if(window.innerWidth<1001) tip.classList.remove('show');
+  });
+})();
 
 window.addEventListener('DOMContentLoaded', () => {
   try{
@@ -2946,6 +2997,19 @@ function heroPrevStep(){
 function checkHideHero(){
   var hero=document.getElementById('heroDiscover');
   if(hero&&!hero.classList.contains('hidden'))hero.classList.add('hidden');
+  var teaser=document.getElementById('heroTeaser');
+  if(teaser) teaser.classList.add('hidden');
+}
+
+var heroTeaserOpened=false;
+function openHeroTeaser(){
+  if(heroTeaserOpened) return;
+  heroTeaserOpened=true;
+  var teaser=document.getElementById('heroTeaser');
+  if(teaser) teaser.classList.add('hidden');
+  var hero=document.getElementById('heroDiscover');
+  if(hero) hero.classList.remove('hidden');
+  renderHeroStep();
 }
 
 var _origSelectStore=selectStore;
@@ -2972,7 +3036,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     } catch(e) {}
   }
   await initFilters();
-  renderHeroStep();
+  // בניית קטע ה-HERO (שלב-שלב) נדחית לרגע שבו לוחצים על הטיזר - openHeroTeaser()
   skipScrollOnSearch=true;
   await runRegularSearch();
   window.scrollTo(0,0);

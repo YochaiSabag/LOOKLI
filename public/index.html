@@ -173,11 +173,11 @@
       /* נטפרי בסיידבר קיים רק במובייל - בדסקטופ הוא רק למעלה מעל המוצרים */
       #netfreeSection{display:none}
 
-      /* כפתור משתלב לתפריט - ורוד במותג האתר, צמוד ממש לגבול, סטיקי */
-      .sidebar-toggle-col{display:flex;flex:0 0 0px;justify-content:center;align-self:flex-start;position:sticky;top:220px;z-index:21}
-      .sidebar-collapse-btn{display:flex;width:30px;height:30px;background:var(--header-gradient);border:2px solid #fff;border-radius:50%;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 10px rgba(196,140,179,.45);padding:0;transition:transform .15s,box-shadow .15s}
-      .sidebar-collapse-btn:hover{transform:scale(1.08);box-shadow:0 4px 14px rgba(196,140,179,.6)}
-      .sidebar-collapse-btn svg{width:14px;height:14px;color:#fff;transition:transform .2s;transform:rotate(180deg)}
+      /* כפתור משתלב לתפריט - פס צר לגובה, ורוד במותג האתר, מתחבר ישירות לרצועת הסיידבר */
+      .sidebar-toggle-col{display:flex;flex:0 0 16px;justify-content:center;align-self:flex-start;position:sticky;top:220px;z-index:21}
+      .sidebar-collapse-btn{display:flex;width:16px;height:58px;background:var(--header-gradient);border:none;border-radius:8px 0 0 8px;align-items:center;justify-content:center;cursor:pointer;box-shadow:-2px 2px 8px rgba(196,140,179,.4);padding:0;transition:width .15s,box-shadow .15s}
+      .sidebar-collapse-btn:hover{width:19px;box-shadow:-3px 3px 12px rgba(196,140,179,.55)}
+      .sidebar-collapse-btn svg{width:11px;height:11px;color:#fff;transition:transform .2s;transform:rotate(180deg);flex-shrink:0}
       .filters.collapsed ~ .sidebar-toggle-col .sidebar-collapse-btn svg{transform:rotate(0deg)}
 
       /* בזמן כיווץ: הצג רק אייקונים, הסתר טקסטים ותוכן פתוח */

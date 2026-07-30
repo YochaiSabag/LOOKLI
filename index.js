@@ -466,6 +466,13 @@ const shippingInfo = {
   'CHEMISE': { cost: 30, threshold: 350 }
 };
 
+// בניית תבנית regex שתופסת שם קטגוריה כמילה שלמה בכותרת (כולל צורות רבים נפוצות: ים/ות/ה) —
+// לא כתת-מחרוזת בתוך מילה אחרת (כמו "וסט" בתוך "לקוסט"). משמש כתחליף בטוח ל-title ILIKE '%cat%'.
+function categoryWordPattern(cat) {
+  const escaped = cat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return `(^|[^\u05d0-\u05ea])${escaped}(\u05d9\u05dd|\u05d5\u05ea|\u05d4)?([^\u05d0-\u05ea]|$)`;
+}
+
 function calculateShipping(store, price) {
   const info = shippingInfo[store] || { cost: 30, threshold: 300 };
   const isFree = price >= info.threshold;
@@ -512,7 +519,7 @@ app.get("/api/filters", async (req, res) => {
     if (category) { 
       const cats = category.split(',').filter(Boolean);
       if (cats.length === 1) {
-        baseWhere += ` AND (category = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(cats[0], `%${cats[0]}%`); paramIndex += 2;
+        baseWhere += ` AND (category = $${paramIndex} OR title ~* $${paramIndex + 1})`; baseParams.push(cats[0], categoryWordPattern(cats[0])); paramIndex += 2;
       } else {
         baseWhere += ` AND category = ANY($${paramIndex}::text[])`; baseParams.push(cats); paramIndex++;
       }
@@ -848,18 +855,18 @@ app.get("/api/products", async (req, res) => {
       if (cats.length === 1) {
         const cat = cats[0];
         if (cat === '\u05d7\u05dc\u05d5\u05e7') {
-          sql += ` AND (category = $${i} OR title ILIKE $${i+1} OR title ILIKE '%\u05d0\u05d9\u05e8\u05d5\u05d7%')`;
-          params.push(cat, `%${cat}%`); i += 2;
+          sql += ` AND (category = $${i} OR title ~* $${i+1} OR title ~* $${i+2})`;
+          params.push(cat, categoryWordPattern(cat), categoryWordPattern('\u05d0\u05d9\u05e8\u05d5\u05d7')); i += 3;
         } else {
-          sql += ` AND (category = $${i} OR title ILIKE $${i+1})`;
-          params.push(cat, `%${cat}%`); i += 2;
+          sql += ` AND (category = $${i} OR title ~* $${i+1})`;
+          params.push(cat, categoryWordPattern(cat)); i += 2;
         }
       } else {
-        // Multi-select: OR logic - category matches any, or title contains any
-        const orParts = cats.map((_, idx) => `category = $${i + idx} OR title ILIKE $${i + cats.length + idx}`);
+        // Multi-select: OR logic - category matches any, or title contains any (כמילה שלמה)
+        const orParts = cats.map((_, idx) => `category = $${i + idx} OR title ~* $${i + cats.length + idx}`);
         sql += ` AND (${orParts.join(' OR ')})`;
         cats.forEach(c => params.push(c));
-        cats.forEach(c => params.push(`%${c}%`));
+        cats.forEach(c => params.push(categoryWordPattern(c)));
         i += cats.length * 2;
       }
     }
@@ -1084,10 +1091,10 @@ app.post("/api/ai-search", async (req, res) => {
     if (analysis.category || analysis.categories?.length) {
       const cats = analysis.categories?.length > 1 ? analysis.categories : (analysis.category ? [analysis.category] : []);
       if (cats.length === 1) {
-        sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(cats[0], `%${cats[0]}%`); i += 2;
+        sql += ` AND (category = $${i} OR title ~* $${i+1})`; params.push(cats[0], categoryWordPattern(cats[0])); i += 2;
       } else if (cats.length > 1) {
-        sql += ` AND (category = ANY($${i}::text[]) OR ${cats.map((_,j) => `title ILIKE $${i+1+j}`).join(' OR ')})`; 
-        params.push(cats); cats.forEach(c => params.push(`%${c}%`)); i += 1 + cats.length;
+        sql += ` AND (category = ANY($${i}::text[]) OR ${cats.map((_,j) => `title ~* $${i+1+j}`).join(' OR ')})`; 
+        params.push(cats); cats.forEach(c => params.push(categoryWordPattern(c))); i += 1 + cats.length;
       }
     }
     if (analysis.style) {

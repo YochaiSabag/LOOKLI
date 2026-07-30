@@ -161,7 +161,39 @@
     .filters::-webkit-scrollbar{width:5px}
     .filters::-webkit-scrollbar-track{background:#f3f4f6}
     .filters::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:3px}
-    
+
+    /* ===== SIDEBAR COLLAPSE (דסקטופ בלבד, מ-1001px ומעלה) ===== */
+    .sidebar-toggle-col{display:none}
+    .filter-icon{display:none;align-items:center;justify-content:center;color:var(--muted)}
+    .filter-icon svg{width:19px;height:19px}
+    @media(min-width:1001px){
+      .filters{transition:width .25s ease}
+      .filters.collapsed{width:64px}
+
+      /* נטפרי בסיידבר קיים רק במובייל - בדסקטופ הוא רק למעלה מעל המוצרים */
+      #netfreeSection{display:none}
+
+      /* כפתור משתלב לתפריט - ורוד במותג האתר, צמוד ממש לגבול, סטיקי */
+      .sidebar-toggle-col{display:flex;flex:0 0 0px;justify-content:center;align-self:flex-start;position:sticky;top:220px;z-index:21}
+      .sidebar-collapse-btn{display:flex;width:30px;height:30px;background:var(--header-gradient);border:2px solid #fff;border-radius:50%;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 10px rgba(196,140,179,.45);padding:0;transition:transform .15s,box-shadow .15s}
+      .sidebar-collapse-btn:hover{transform:scale(1.08);box-shadow:0 4px 14px rgba(196,140,179,.6)}
+      .sidebar-collapse-btn svg{width:14px;height:14px;color:#fff;transition:transform .2s;transform:rotate(180deg)}
+      .filters.collapsed ~ .sidebar-toggle-col .sidebar-collapse-btn svg{transform:rotate(0deg)}
+
+      /* בזמן כיווץ: הצג רק אייקונים, הסתר טקסטים ותוכן פתוח */
+      .filters.collapsed .filter-content{display:none !important}
+      .filters.collapsed .filter-header{justify-content:center;padding:16px 0;gap:0}
+      .filters.collapsed .filter-header span:not(.filter-icon){display:none}
+      .filters.collapsed .filter-header .filter-icon{display:flex}
+      .filters.collapsed .reset-btn-wrap{display:none}
+      .filter-header:hover .filter-icon{color:var(--accent)}
+
+      /* חמישה טורי מוצרים כשהסיידבר מכווץ, ברוחבים שרגיל מוצג בהם 4 */
+      @media(min-width:1201px){
+        .filters.collapsed ~ .main .grid{grid-template-columns:repeat(5,1fr)}
+      }
+    }
+
     /* Filter Accordion */
     .filter-section{border-bottom:1px solid var(--border)}
     .filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
@@ -962,6 +994,7 @@
 
       <div class="filter-section open" id="storeSection">
         <div class="filter-header" onclick="toggleFilter('storeSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l1-4h14l1 4"/><path d="M4 8v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8"/><path d="M9 21v-6h6v6"/></svg></span>
           <span>חנות</span>
           <span class="arrow">▲</span>
         </div>
@@ -972,6 +1005,7 @@
       
       <div class="filter-section open" id="categorySection">
         <div class="filter-header" onclick="toggleFilter('categorySection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
           <span>סוג מוצר</span>
           <span class="arrow">▲</span>
         </div>
@@ -982,6 +1016,7 @@
       
       <div class="filter-section" id="colorSection">
         <div class="filter-header" onclick="toggleFilter('colorSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="14" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="13" r="1.3" fill="currentColor" stroke="none"/><circle cx="10.5" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg></span>
           <span>צבע</span>
           <span class="arrow">▼</span>
         </div>
@@ -992,6 +1027,7 @@
       
       <div class="filter-section" id="sizeSection">
         <div class="filter-header" onclick="toggleFilter('sizeSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v3M11 8v3M15 8v3"/></svg></span>
           <span>מידה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1002,6 +1038,7 @@
       
       <div class="filter-section" id="priceSection">
         <div class="filter-header" onclick="toggleFilter('priceSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.41 20.59a2 2 0 0 1-2.82 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg></span>
           <span>מחיר</span>
           <span class="arrow">▼</span>
         </div>
@@ -1017,6 +1054,7 @@
       
       <div class="filter-section" id="styleSection">
         <div class="filter-header" onclick="toggleFilter('styleSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
           <span>סגנון</span>
           <span class="arrow">▼</span>
         </div>
@@ -1027,6 +1065,7 @@
       
       <div class="filter-section" id="fitSection">
         <div class="filter-header" onclick="toggleFilter('fitSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2.1" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2.1" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2.1" fill="currentColor" stroke="none"/></svg></span>
           <span>גיזרה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1037,6 +1076,7 @@
       
       <div class="filter-section" id="fabricSection">
         <div class="filter-header" onclick="toggleFilter('fabricSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5-9 5-9-5 9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg></span>
           <span>סוג בד</span>
           <span class="arrow">▼</span>
         </div>
@@ -1047,6 +1087,7 @@
       
       <div class="filter-section" id="patternSection">
         <div class="filter-header" onclick="toggleFilter('patternSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg></span>
           <span>דוגמא</span>
           <span class="arrow">▼</span>
         </div>
@@ -1057,6 +1098,7 @@
       
       <div class="filter-section" id="designSection">
         <div class="filter-header" onclick="toggleFilter('designSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></span>
           <span>עיצוב</span>
           <span class="arrow">▼</span>
         </div>
@@ -1067,6 +1109,7 @@
       
       <div class="filter-section" id="discountSection">
         <div class="filter-header" onclick="toggleFilter('discountSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.3"/><circle cx="17.5" cy="17.5" r="2.3"/></svg></span>
           <span>הנחה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1074,11 +1117,18 @@
           <div class="filter-options" id="discountBoxes"></div>
         </div>
       </div>
-      <div style="padding:14px 20px">
+      <div class="reset-btn-wrap" style="padding:14px 20px">
         <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
       </div>
       
     </aside>
+
+    <!-- כפתור כיווץ/הרחבת סיידבר - חיצוני, צמוד ממש לגבול הסיידבר, סטיקי -->
+    <div class="sidebar-toggle-col">
+      <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleDesktopSidebar()" aria-label="כווץ/הרחב תפריט">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
     
     <!-- MAIN -->
     <main class="main">
@@ -1563,11 +1613,45 @@ function toggleMobileFilters(){
 }
 
 function toggleFilter(id){
+  const filtersPanel=document.getElementById('filtersPanel');
   const section=document.getElementById(id);
+  if(filtersPanel && filtersPanel.classList.contains('collapsed') && window.innerWidth>=1001){
+    // סיידבר מכווץ - מרחיבים את כל התפריט, פותחים רק את הסעיף שנלחץ וסוגרים את כל השאר
+    setSidebarCollapsed(false);
+    document.querySelectorAll('#filtersPanel .filter-section:not(#netfreeSection)').forEach(s => {
+      const isTarget=s.id===id;
+      s.classList.toggle('open', isTarget);
+      const arrow=s.querySelector('.arrow');
+      if(arrow) arrow.textContent=isTarget?'▲':'▼';
+    });
+    if(section) section.scrollIntoView({block:'nearest'});
+    return;
+  }
   section.classList.toggle('open');
   const arrow=section.querySelector('.arrow');
   arrow.textContent=section.classList.contains('open')?'▲':'▼';
 }
+
+function setSidebarCollapsed(collapsed){
+  const filtersPanel=document.getElementById('filtersPanel');
+  if(!filtersPanel) return;
+  filtersPanel.classList.toggle('collapsed', collapsed);
+  try{ localStorage.setItem('lookli_sidebar_collapsed', collapsed ? '1' : '0'); }catch(e){}
+}
+
+function toggleDesktopSidebar(){
+  const filtersPanel=document.getElementById('filtersPanel');
+  if(!filtersPanel) return;
+  setSidebarCollapsed(!filtersPanel.classList.contains('collapsed'));
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  try{
+    if(window.innerWidth>=1001 && localStorage.getItem('lookli_sidebar_collapsed')==='1'){
+      setSidebarCollapsed(true);
+    }
+  }catch(e){}
+});
 
 function handleSearchInput(){
   const q=document.getElementById("q").value.trim();

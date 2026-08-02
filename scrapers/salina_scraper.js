@@ -96,7 +96,53 @@ async function resolveUrlsForIds(page, ids, allUrls) {
   }
 }
 
-// אסטרטגיה 1 (חדשה, ראשית): לחיצה חוזרת על כפתור "טען עוד" (Elementor Load-More AJAX)
+// אסטרטגיה 0 (חדשה, ראשית ומועדפת): שליפה ישירה דרך WordPress REST API עם דפדוף אמיתי.
+// הגריד של Elementor באתר הזה מוגבל ל-100 מוצרים בלי שום מנגנון דפדוף בצד הלקוח (לא כפתור
+// ולא מספרי עמודים) - אז במקום להסתמך על הרינדור הוויזואלי, שולפים ישירות מה-API הרשמי
+// של וורדפרס (שכבר בשימוש בקוד הקיים לפענוח קישורים לפי ID, כך שידוע שהוא פתוח ועובד).
+async function getAllProductUrlsViaRestApi(page) {
+  const allUrls = new Set();
+  const PER_PAGE = 100;
+  const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+
+  // צריך context של דף טעון כדי שה-fetch מהדפדפן יעבוד בלי בעיות CORS
+  await page.goto('https://salinafashion.com/shop/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.waitForTimeout(1000);
+
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const apiUrl = `https://salinafashion.com/wp-json/wp/v2/product?per_page=${PER_PAGE}&page=${p}&_fields=link,id&status=publish`;
+    const data = await page.evaluate(async (u) => {
+      try {
+        const r = await fetch(u);
+        if (!r.ok) return { items: [], totalPages: 0, status: r.status };
+        const totalPages = parseInt(r.headers.get('X-WP-TotalPages') || '1');
+        const items = await r.json();
+        return { items: Array.isArray(items) ? items : [], totalPages, status: r.status };
+      } catch (e) {
+        return { items: [], totalPages: 0, status: 0 };
+      }
+    }, apiUrl);
+
+    if (!data.items || data.items.length === 0) {
+      console.log(`  ⏹ REST עמוד ${p}: ריק (status ${data.status}) — עוצר`);
+      break;
+    }
+
+    data.items.forEach(item => { if (item.link) allUrls.add(item.link.split('?')[0]); });
+    console.log(`  → REST עמוד ${p}: ${data.items.length} מוצרים (סה"כ ייחודי: ${allUrls.size} מתוך ${data.totalPages} עמודים)`);
+
+    if (p >= data.totalPages) break;
+    await page.waitForTimeout(400); // עדינות כלפי השרת
+  }
+
+  if (allUrls.size === 0) {
+    console.log('  ℹ ה-REST API לא החזיר תוצאות — עובר לאסטרטגיה הבאה');
+    return null; // מאותת לקוד הקורא לעבור ל-fallback
+  }
+  return [...allUrls];
+}
+
+// אסטרטגיה 1 (fallback): לחיצה חוזרת על כפתור "טען עוד" (Elementor Load-More AJAX)
 // זה נחוץ כי לאתר אין בהכרח קישורי /page/N/ אמיתיים - הפאג'ינציה מבוססת JS בלבד
 async function getAllProductUrlsViaLoadMore(page) {
   const allUrls = new Set();
@@ -192,16 +238,27 @@ async function getAllProductUrlsViaPages(page) {
   return [...allUrls];
 }
 
-// פונקציה ראשית - מנסה קודם "טען עוד", ואם לא רלוונטי נופלת חזרה לניווט לפי עמודים
+// פונקציה ראשית - מנסה קודם REST API (הכי אמין), ואז "טען עוד", ולבסוף ניווט לפי עמודים
 async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
   let result = null;
+
   try {
-    result = await getAllProductUrlsViaLoadMore(page);
+    result = await getAllProductUrlsViaRestApi(page);
   } catch (e) {
-    console.log(`  ⚠ שגיאה באסטרטגיית "טען עוד": ${e.message.substring(0, 80)} - עובר ל-fallback`);
+    console.log(`  ⚠ שגיאה ב-REST API: ${e.message.substring(0, 80)} - עובר ל-fallback`);
     result = null;
   }
+
+  if (result === null) {
+    try {
+      result = await getAllProductUrlsViaLoadMore(page);
+    } catch (e) {
+      console.log(`  ⚠ שגיאה באסטרטגיית "טען עוד": ${e.message.substring(0, 80)} - עובר ל-fallback`);
+      result = null;
+    }
+  }
+
   if (result === null) {
     result = await getAllProductUrlsViaPages(page);
   }

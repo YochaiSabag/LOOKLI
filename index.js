@@ -1153,64 +1153,76 @@ app.post("/api/ai-search", async (req, res) => {
 // ── חיפוש לפי תמונה ──────────────────────────────────────────
 app.post("/api/search-by-image", authMiddleware, async (req, res) => {
   try {
-    const { imageBase64, mimeType, safeImages } = req.body;
+    const { imageBase64, mimeType, safeImages, analysis: providedAnalysis } = req.body;
     const wantSafeImagesImg = safeImages === true || safeImages === '1';
-    if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
 
-    // רישום/הגבלת שימוש שבועי — אותו דפוס בדיוק כמו הסטייליסטית AI
-    await pool.query(`CREATE TABLE IF NOT EXISTS image_search_usage (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      used_at TIMESTAMP DEFAULT NOW()
-    )`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_image_search_usage_user_date ON image_search_usage(user_id, used_at)`);
+    let analysis;
+    let imgUsedCount = 0;
     const IMAGE_SEARCH_WEEKLY_LIMIT = 3;
-    const imgUsageRes = await pool.query(
-      `SELECT COUNT(*) AS c FROM image_search_usage WHERE user_id=$1 AND used_at > NOW() - INTERVAL '7 days'`,
-      [req.userId]
-    );
-    const imgUsedCount = parseInt(imgUsageRes.rows[0].c);
-    if (imgUsedCount >= IMAGE_SEARCH_WEEKLY_LIMIT) {
-      return res.status(429).json({
-        error: `הגעת למגבלת השימוש השבועית בחיפוש לפי תמונה (${IMAGE_SEARCH_WEEKLY_LIMIT} פעמים). אפשר לנסות שוב בעוד כמה ימים.`,
-        limitReached: true,
-      });
-    }
+    const isRerun = providedAnalysis && typeof providedAnalysis === 'object';
 
-    // רשימות ערכים סגורות — זהות בדיוק לתגיות הקיימות במאגר (admin_tagger.html),
-    // כדי שהתשובה של Claude תתאים ישירות ל-fits/design_details/fabric/pattern/color בפועל
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 600,
-        messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
-          { type: "text", text: `נתחי בדיוק את פריט הלבוש בתמונה כמו מתייגת מקצועית של קטלוג אופנה. החזירי אך ורק JSON תקין (בלי טקסט נוסף):
+    if (isRerun) {
+      // ריצה חוזרת עם ניתוח קיים (למשל שינוי מצב נטפרי על תוצאות חיפוש תמונה) —
+      // לא קוראים שוב ל-Claude ולא נספר במכסה השבועית, כי לא בוצע ניתוח חדש בפועל
+      analysis = providedAnalysis;
+      analysis.fits = Array.isArray(analysis.fits) ? analysis.fits : [];
+      analysis.designDetails = Array.isArray(analysis.designDetails) ? analysis.designDetails : [];
+    } else {
+      if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
+
+      // רישום/הגבלת שימוש שבועי — אותו דפוס בדיוק כמו הסטייליסטית AI
+      await pool.query(`CREATE TABLE IF NOT EXISTS image_search_usage (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        used_at TIMESTAMP DEFAULT NOW()
+      )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_image_search_usage_user_date ON image_search_usage(user_id, used_at)`);
+      const imgUsageRes = await pool.query(
+        `SELECT COUNT(*) AS c FROM image_search_usage WHERE user_id=$1 AND used_at > NOW() - INTERVAL '7 days'`,
+        [req.userId]
+      );
+      imgUsedCount = parseInt(imgUsageRes.rows[0].c);
+      if (imgUsedCount >= IMAGE_SEARCH_WEEKLY_LIMIT) {
+        return res.status(429).json({
+          error: `הגעת למגבלת השימוש השבועית בחיפוש לפי תמונה (${IMAGE_SEARCH_WEEKLY_LIMIT} פעמים). אפשר לנסות שוב בעוד כמה ימים.`,
+          limitReached: true,
+        });
+      }
+
+      // רשימות ערכים סגורות — זהות בדיוק לתגיות הקיימות במאגר (admin_tagger.html),
+      // כדי שהתשובה של Claude תתאים ישירות ל-fits/design_details/fabric/pattern/color בפועל
+      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 600,
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+            { type: "text", text: `נתחי בדיוק את פריט הלבוש בתמונה כמו מתייגת מקצועית של קטלוג אופנה. החזירי אך ורק JSON תקין (בלי טקסט נוסף):
 {
   "category": "בחרי ערך אחד בדיוק מתוך: שמלה, חולצה, חצאית, מכנסיים, קרדיגן, ז'קט, בלייזר, וסט, עליונית, מעיל, סט, טוניקה, סרפן, חלוק, סוודר — או null אם לא ברור. שימי לב מיוחד להבחנה בין 'שמלה' ל'סט': פריטים רבים באופנה צנועה הם שמלה אחת רציפה עם עיצוב שמדמה קרדיגן/ווסט מעל (למשל חלק עליון בגזרת קרדיגן פתוח שנקשר בחגורה, מחובר ישירות לחצאית/שמלה מתחתיו כפריט אחיד אחד) — זו עדיין 'שמלה', לא 'סט'. סווגי כ'סט' רק אם ברור לגמרי שיש שני פריטי לבוש נפרדים לגמרי (כמו חולצה+חצאית שלא מחוברות, שנמכרים ונלבשים בנפרד) ולא עיצוב חד-פריטי שרק נראה כך.",
   "color": "בחרי ערך אחד בדיוק מתוך: שחור, לבן, שמנת, כחול, תכלת, אדום, בורדו, ירוק, זית, חאקי, חום, קאמל, בז', ניוד, אפור, ורוד, סגול, לילך, צהוב, חרדל, כתום, זהב, כסף, פרחוני, צבעוני, מנטה, אפרסק, אבן — הצבע הדומיננטי בלבד, או null",
   "fits": "מערך של 1-3 ערכים בדיוק מתוך: ארוכה, מידי, קצרה, מותן, מתרחבת, ישרה, מחויטת, מעטפת, צמודה, רפויה, הריון, הנקה. חשוב מאוד לגבי אורך — תבדקי בקפידה איפה מסתיים הפריט ביחס לברך הנראית בתמונה: אם הוא מסתיים בגובה הברך או מעליה → קצרה. אם מגיע עד אמצע השוק → מידי. אם מגיע עד הקרסול/הרצפה → ארוכה. אל תניחי שפריט הוא ארוך רק כי הוא נראה אלגנטי — התבססי רק על מה שנראה בפועל בתמונה. בנוסף לאורך, ציינו גם את הגזרה (ישרה/מתרחבת/מחויטת/מעטפת/צמודה/רפויה) אם ברורה",
-  "fabric": "בחרי ערך אחד בדיוק מתוך: ז'רסי, סריג, שיפון, כותנה, סאטן, תחרה, קטיפה, אריג, פשתן, משי, צמר, עור, פרווה, לייקרה, טריקו, רשת — לפי המרקם הנראה בתמונה, או null אם לא ברור",
+  "fabric": "בחרי ערך אחד בדיוק מתוך: ז'רסי, סריג, שיפון, כותנה, סאטן, תחרה, קטיפה, אריג, פשתן, משי, צמר, עור, פרווה, לייקרה, טריקו, רשת — לפי המרקם הנראה בתמונה. חשוב: זיהוי בד מתמונה קשה ולא אמין - סוגי בד רבים (למשל שיפון וקרפ, או סאטן וקרפ-סאטן) נראים דומים מאוד בתמונה סטטית, במיוחד בתאורה או רזולוציה לא אידיאלית. תני ערך רק אם המרקם ברור וחד-משמעי לחלוטין (למשל נצנוץ ברור של סאטן, שקיפות ברורה של תחרה, סריגה נראית לעין). בכל מקרה של ספק, אפילו קל - תחזירי null. עדיף null מדויק מניחוש שגוי.",
   "pattern": "בחרי ערך אחד בדיוק מתוך: פסים, פרחוני, משבצות, נקודות, חלק, הדפס, אבסטרקטי, גיאומטרי — או null",
   "designDetails": "מערך של 0-3 ערכים בדיוק מתוך: צווארון V, צווארון עגול, צווארון גבוה, גולף, צווארון סירה, כפתורים, רוכסן, שרוול ארוך, שרוול קצר, שרוול 3/4, ללא שרוולים, שרוול פעמון, שרוול נפוח, חגורה, קשירה, כיסים, תחרה, פפלום, מלמלה, קפלים, שסע",
   "style": "בחרי ערך אחד בדיוק מתוך: ערב, שבת, חגיגי, יום חול, קלאסי, מינימליסטי, מודרני, רטרו, אוברסייז — או null"
 }
 חשוב: כל שדה שמופיע ברשימה סגורה חייב להכיל ערך מתוך הרשימה בדיוק (או null/מערך ריק) — אסור להמציא ערכים חדשים.` }
-        ]}]
-      })
-    });
-    if (!claudeRes.ok) return res.status(502).json({ error: "שגיאה בניתוח תמונה" });
-    const claudeData = await claudeRes.json();
-    const text = claudeData.content?.[0]?.text || "{}";
-    let analysis;
-    try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
-    catch { analysis = { category: null, color: null, fits: [], fabric: null, pattern: null, designDetails: [], style: null }; }
-    analysis.fits = Array.isArray(analysis.fits) ? analysis.fits : [];
-    analysis.designDetails = Array.isArray(analysis.designDetails) ? analysis.designDetails : [];
+          ]}]
+        })
+      });
+      if (!claudeRes.ok) return res.status(502).json({ error: "שגיאה בניתוח תמונה" });
+      const claudeData = await claudeRes.json();
+      const text = claudeData.content?.[0]?.text || "{}";
+      try { analysis = JSON.parse(text.replace(/```json|```/g, "").trim()); }
+      catch { analysis = { category: null, color: null, fits: [], fabric: null, pattern: null, designDetails: [], style: null }; }
+      analysis.fits = Array.isArray(analysis.fits) ? analysis.fits : [];
+      analysis.designDetails = Array.isArray(analysis.designDetails) ? analysis.designDetails : [];
+    }
 
     // חיפוש מבוסס-ניקוד (כמו בסטייליסטית AI) — מסתמך אך ורק על הנתונים המובנים
     // (קטגוריה/גזרה/צבע/בד/דוגמה/פרטי עיצוב) בלי חיפוש טקסט חופשי על הכותרת,
@@ -1262,15 +1274,17 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
       }
     }
 
-    // רושמים שימוש רק אחרי חיפוש מוצלח
-    await pool.query(`INSERT INTO image_search_usage (user_id) VALUES ($1)`, [req.userId]);
+    // רושמים שימוש רק אחרי חיפוש מוצלח שבאמת ניתח תמונה חדשה (לא ריצה חוזרת עם ניתוח קיים)
+    if (!isRerun) {
+      await pool.query(`INSERT INTO image_search_usage (user_id) VALUES ($1)`, [req.userId]);
+    }
 
     const rowsWithShipping = rows.map(p => ({ ...applySafeImages(p, wantSafeImagesImg), shipping: calculateShipping(p.store, p.price) }));
     res.json({
       analysis,
       results: rowsWithShipping,
       count: rowsWithShipping.length,
-      usageRemaining: IMAGE_SEARCH_WEEKLY_LIMIT - imgUsedCount - 1,
+      usageRemaining: isRerun ? undefined : (IMAGE_SEARCH_WEEKLY_LIMIT - imgUsedCount - 1),
     });
   } catch (err) {
     console.error("search-by-image error:", err.message);

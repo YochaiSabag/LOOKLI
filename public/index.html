@@ -1412,6 +1412,7 @@ function shouldShowByRate(rate) {
   return (_sessionCounter % interval) === 1;
 }
 let lastSearchKeywords=[];
+let lastImageAnalysis=null; // נשמר אחרי חיפוש לפי תמונה, כדי שהחלפת נטפרי תוכל להריץ מחדש באותה לוגיקה ולא בסינון קשיח
 let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
 
 const storeLogos={
@@ -1794,6 +1795,7 @@ async function searchByImage(event){
     if(searchResp.status===429){ alert(data.error); return; }
     if(!searchResp.ok){alert(data.error||'שגיאה');runRegularSearch();return;}
     const analysis=data.analysis||{};
+    lastImageAnalysis=analysis;
 
     // לא מגדירים lastSearchKeywords מהתמונה בכוונה — כדי שאינטראקציה עתידית עם פילטרים
     // (שקוראת ל-runRegularSearch) לא תוסיף שוב טקסט חופשי מגביל על הכותרת, ותסתמך רק
@@ -1815,6 +1817,24 @@ async function searchByImage(event){
   finally{
     if(imgBtn){imgBtn.innerHTML=originalBtnHTML;imgBtn.disabled=false;}
   }
+}
+
+// הרצה חוזרת של חיפוש התמונה האחרון (לא מעלה תמונה חדשה, לא נספר במכסה) -
+// נחוץ כשמשנים את מצב הנטפרי בזמן שצופים בתוצאות חיפוש תמונה, כדי שהסינון
+// יישאר "הכי מתאים" (ניקוד) ולא יהפוך לסינון קשיח שדורש התאמה של כל השדות יחד
+async function reRunImageSearchForNetfree(){
+  if(!lastImageAnalysis) return;
+  setLoading();
+  try{
+    const searchResp=await fetch('/api/search-by-image',{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
+      body:JSON.stringify({analysis:lastImageAnalysis,safeImages:localStorage.getItem('safeImagesMode')==='1'})
+    });
+    const data=await searchResp.json();
+    if(!searchResp.ok){ return; }
+    paginationMode='client';allProducts=data.results;currentPage=1;renderPage();
+    document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (חיפוש תמונה)`;
+  }catch(e){console.error(e);}
 }
 
 let pendingStylistFile=null;
@@ -2095,6 +2115,7 @@ async function runAISearch(){
 var skipScrollOnSearch=false;
 
 async function runRegularSearch(){
+  lastImageAnalysis=null;
   setLoading();document.getElementById("aiAnalysis").classList.remove("active");
   if(!skipScrollOnSearch){window.scrollTo({top:0,behavior:'smooth'})}
   skipScrollOnSearch=false;
@@ -3946,7 +3967,8 @@ document.addEventListener('click', e => {
     });
     updateNetfreeStatusUI(on);
     checkHideHero();
-    runRegularSearch();
+    if(lastImageAnalysis){ reRunImageSearchForNetfree(); }
+    else { runRegularSearch(); }
   }
   (function initSafeImagesToggle(){
     const isOn = localStorage.getItem('safeImagesMode') === '1';

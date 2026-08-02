@@ -369,6 +369,15 @@
     .netfree-box .ios-switch .ios-slider{background:rgba(255,255,255,.4)}
     .netfree-box .ios-switch input:checked + .ios-slider{background:#fff}
     .netfree-box .ios-switch input:checked + .ios-slider::before{background:var(--accent-dark)}
+    /* אייקון מידע - עובד גם ב-hover (עכבר) וגם בלחיצה/מגע (מובייל) */
+    .info-tooltip-icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;font-size:10.5px;font-weight:700;cursor:pointer;flex-shrink:0}
+    .info-tooltip-icon::after{content:attr(data-tooltip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;font-size:12px;font-weight:400;line-height:1.4;padding:8px 12px;border-radius:8px;white-space:normal;width:210px;text-align:center;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
+    .info-tooltip-icon:hover::after,.info-tooltip-icon.show-tip::after{opacity:1}
+    .netfree-info{background:rgba(255,255,255,.3);color:#fff}
+    .netfree-info:hover,.netfree-info.show-tip{background:rgba(255,255,255,.55)}
+    .netfree-info-light{background:rgba(224,161,192,.18);color:var(--accent-dark)}
+    .netfree-info-light:hover,.netfree-info-light.show-tip{background:rgba(224,161,192,.35)}
+
 
     /* כרטיסיית "בקרוב" — התאמת מידות לילדים (בסייד-בר המודעות) */
     .kids-promo-card{position:relative;width:100%;box-sizing:border-box;margin:0 0 10px;padding:10px 16px 16px;border-radius:14px;background:#fff;border:2.5px solid var(--accent);color:var(--text);box-shadow:0 3px 14px rgba(196,140,179,.16)}
@@ -1004,7 +1013,10 @@
       <div class="filter-section open" id="netfreeSection" style="padding:16px 20px">
         <label class="filter-toggle-label" style="justify-content:space-between;width:100%">
           <span style="display:flex;flex-direction:column">
-            <span>לאתר מסונן (נטפרי)</span>
+            <span style="display:flex;align-items:center;gap:6px">
+              <span>לאתר מסונן (נטפרי)</span>
+              <span class="info-tooltip-icon netfree-info-light" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה באתר המסונן נטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
+            </span>
             <span class="netfree-status" id="netfreeStatusMobile">כבוי</span>
           </span>
           <span class="ios-switch">
@@ -1164,6 +1176,7 @@
             <span style="display:flex;align-items:center;gap:6px">
               <span>לאתר מסונן</span>
               <span class="netfree-status" id="netfreeStatusDesktop" style="margin-top:0">כבוי</span>
+              <span class="info-tooltip-icon netfree-info" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה באתר המסונן נטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
             </span>
             <span class="ios-switch">
               <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle('safeImagesToggle')"/>
@@ -1671,6 +1684,21 @@ function toggleDesktopSidebar(){
 }
 
 // טולטיפים על אייקוני הסיידבר במצב מכווץ - position:fixed כדי לא להיחתך ע"י הגלילה הפנימית של הסיידבר
+// אייקוני מידע (הסבר נטפרי) - תומך גם בלחיצה/מגע, לא רק hover
+(function initInfoTooltips(){
+  document.querySelectorAll('.info-tooltip-icon').forEach(icon => {
+    icon.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const wasShown=icon.classList.contains('show-tip');
+      document.querySelectorAll('.info-tooltip-icon.show-tip').forEach(i => i.classList.remove('show-tip'));
+      if(!wasShown) icon.classList.add('show-tip');
+    });
+  });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.info-tooltip-icon.show-tip').forEach(i => i.classList.remove('show-tip'));
+  });
+})();
+
 (function initFilterIconTooltips(){
   const panel=document.getElementById('filtersPanel');
   const tip=document.getElementById('iconTooltip');
@@ -1757,7 +1785,7 @@ async function searchByImage(event){
     // שלב ב: ניתוח תמונה + חיפוש ב-DB בקריאה אחת (endpoint קיים ועובד בשרת, דורש התחברות)
     const searchResp=await fetch('/api/search-by-image',{
       method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
-      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
+      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg',safeImages:localStorage.getItem('safeImagesMode')==='1'})
     });
     const searchText=await searchResp.text();
     let data;

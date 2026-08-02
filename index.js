@@ -466,13 +466,6 @@ const shippingInfo = {
   'CHEMISE': { cost: 30, threshold: 350 }
 };
 
-// בניית תבנית regex שתופסת שם קטגוריה כמילה שלמה בכותרת (כולל צורות רבים נפוצות: ים/ות/ה) —
-// לא כתת-מחרוזת בתוך מילה אחרת (כמו "וסט" בתוך "לקוסט"). משמש כתחליף בטוח ל-title ILIKE '%cat%'.
-function categoryWordPattern(cat) {
-  const escaped = cat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return `(^|[^\u05d0-\u05ea])${escaped}(\u05d9\u05dd|\u05d5\u05ea|\u05d4)?([^\u05d0-\u05ea]|$)`;
-}
-
 function calculateShipping(store, price) {
   const info = shippingInfo[store] || { cost: 30, threshold: 300 };
   const isFree = price >= info.threshold;
@@ -519,7 +512,7 @@ app.get("/api/filters", async (req, res) => {
     if (category) { 
       const cats = category.split(',').filter(Boolean);
       if (cats.length === 1) {
-        baseWhere += ` AND (category = $${paramIndex} OR title ~* $${paramIndex + 1})`; baseParams.push(cats[0], categoryWordPattern(cats[0])); paramIndex += 2;
+        baseWhere += ` AND (category = $${paramIndex} OR title ILIKE $${paramIndex + 1})`; baseParams.push(cats[0], `%${cats[0]}%`); paramIndex += 2;
       } else {
         baseWhere += ` AND category = ANY($${paramIndex}::text[])`; baseParams.push(cats); paramIndex++;
       }
@@ -855,18 +848,18 @@ app.get("/api/products", async (req, res) => {
       if (cats.length === 1) {
         const cat = cats[0];
         if (cat === '\u05d7\u05dc\u05d5\u05e7') {
-          sql += ` AND (category = $${i} OR title ~* $${i+1} OR title ~* $${i+2})`;
-          params.push(cat, categoryWordPattern(cat), categoryWordPattern('\u05d0\u05d9\u05e8\u05d5\u05d7')); i += 3;
+          sql += ` AND (category = $${i} OR title ILIKE $${i+1} OR title ILIKE '%\u05d0\u05d9\u05e8\u05d5\u05d7%')`;
+          params.push(cat, `%${cat}%`); i += 2;
         } else {
-          sql += ` AND (category = $${i} OR title ~* $${i+1})`;
-          params.push(cat, categoryWordPattern(cat)); i += 2;
+          sql += ` AND (category = $${i} OR title ILIKE $${i+1})`;
+          params.push(cat, `%${cat}%`); i += 2;
         }
       } else {
-        // Multi-select: OR logic - category matches any, or title contains any (כמילה שלמה)
-        const orParts = cats.map((_, idx) => `category = $${i + idx} OR title ~* $${i + cats.length + idx}`);
+        // Multi-select: OR logic - category matches any, or title contains any
+        const orParts = cats.map((_, idx) => `category = $${i + idx} OR title ILIKE $${i + cats.length + idx}`);
         sql += ` AND (${orParts.join(' OR ')})`;
         cats.forEach(c => params.push(c));
-        cats.forEach(c => params.push(categoryWordPattern(c)));
+        cats.forEach(c => params.push(`%${c}%`));
         i += cats.length * 2;
       }
     }
@@ -1091,10 +1084,10 @@ app.post("/api/ai-search", async (req, res) => {
     if (analysis.category || analysis.categories?.length) {
       const cats = analysis.categories?.length > 1 ? analysis.categories : (analysis.category ? [analysis.category] : []);
       if (cats.length === 1) {
-        sql += ` AND (category = $${i} OR title ~* $${i+1})`; params.push(cats[0], categoryWordPattern(cats[0])); i += 2;
+        sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(cats[0], `%${cats[0]}%`); i += 2;
       } else if (cats.length > 1) {
-        sql += ` AND (category = ANY($${i}::text[]) OR ${cats.map((_,j) => `title ~* $${i+1+j}`).join(' OR ')})`; 
-        params.push(cats); cats.forEach(c => params.push(categoryWordPattern(c))); i += 1 + cats.length;
+        sql += ` AND (category = ANY($${i}::text[]) OR ${cats.map((_,j) => `title ILIKE $${i+1+j}`).join(' OR ')})`; 
+        params.push(cats); cats.forEach(c => params.push(`%${c}%`)); i += 1 + cats.length;
       }
     }
     if (analysis.style) {
@@ -1160,7 +1153,8 @@ app.post("/api/ai-search", async (req, res) => {
 // ── חיפוש לפי תמונה ──────────────────────────────────────────
 app.post("/api/search-by-image", authMiddleware, async (req, res) => {
   try {
-    const { imageBase64, mimeType } = req.body;
+    const { imageBase64, mimeType, safeImages } = req.body;
+    const wantSafeImagesImg = safeImages === true || safeImages === '1';
     if (!imageBase64 || !mimeType) return res.status(400).json({ error: "חסרה תמונה" });
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY לא מוגדר" });
@@ -1197,7 +1191,7 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
           { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
           { type: "text", text: `נתחי בדיוק את פריט הלבוש בתמונה כמו מתייגת מקצועית של קטלוג אופנה. החזירי אך ורק JSON תקין (בלי טקסט נוסף):
 {
-  "category": "בחרי ערך אחד בדיוק מתוך: שמלה, חולצה, חצאית, מכנסיים, קרדיגן, ז'קט, בלייזר, וסט, עליונית, מעיל, סט, טוניקה, סרפן, חלוק, סוודר — או null אם לא ברור",
+  "category": "בחרי ערך אחד בדיוק מתוך: שמלה, חולצה, חצאית, מכנסיים, קרדיגן, ז'קט, בלייזר, וסט, עליונית, מעיל, סט, טוניקה, סרפן, חלוק, סוודר — או null אם לא ברור. שימי לב מיוחד להבחנה בין 'שמלה' ל'סט': פריטים רבים באופנה צנועה הם שמלה אחת רציפה עם עיצוב שמדמה קרדיגן/ווסט מעל (למשל חלק עליון בגזרת קרדיגן פתוח שנקשר בחגורה, מחובר ישירות לחצאית/שמלה מתחתיו כפריט אחיד אחד) — זו עדיין 'שמלה', לא 'סט'. סווגי כ'סט' רק אם ברור לגמרי שיש שני פריטי לבוש נפרדים לגמרי (כמו חולצה+חצאית שלא מחוברות, שנמכרים ונלבשים בנפרד) ולא עיצוב חד-פריטי שרק נראה כך.",
   "color": "בחרי ערך אחד בדיוק מתוך: שחור, לבן, שמנת, כחול, תכלת, אדום, בורדו, ירוק, זית, חאקי, חום, קאמל, בז', ניוד, אפור, ורוד, סגול, לילך, צהוב, חרדל, כתום, זהב, כסף, פרחוני, צבעוני, מנטה, אפרסק, אבן — הצבע הדומיננטי בלבד, או null",
   "fits": "מערך של 1-3 ערכים בדיוק מתוך: ארוכה, מידי, קצרה, מותן, מתרחבת, ישרה, מחויטת, מעטפת, צמודה, רפויה, הריון, הנקה. חשוב מאוד לגבי אורך — תבדקי בקפידה איפה מסתיים הפריט ביחס לברך הנראית בתמונה: אם הוא מסתיים בגובה הברך או מעליה → קצרה. אם מגיע עד אמצע השוק → מידי. אם מגיע עד הקרסול/הרצפה → ארוכה. אל תניחי שפריט הוא ארוך רק כי הוא נראה אלגנטי — התבססי רק על מה שנראה בפועל בתמונה. בנוסף לאורך, ציינו גם את הגזרה (ישרה/מתרחבת/מחויטת/מעטפת/צמודה/רפויה) אם ברורה",
   "fabric": "בחרי ערך אחד בדיוק מתוך: ז'רסי, סריג, שיפון, כותנה, סאטן, תחרה, קטיפה, אריג, פשתן, משי, צמר, עור, פרווה, לייקרה, טריקו, רשת — לפי המרקם הנראה בתמונה, או null אם לא ברור",
@@ -1221,13 +1215,15 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
     // חיפוש מבוסס-ניקוד (כמו בסטייליסטית AI) — מסתמך אך ורק על הנתונים המובנים
     // (קטגוריה/גזרה/צבע/בד/דוגמה/פרטי עיצוב) בלי חיפוש טקסט חופשי על הכותרת,
     // כדי שלא יוחזרו מוצרים רק בגלל התאמת מילה בכותרת בלי שאר הנתונים תואמים
+    // משקלים: סוג המוצר וצבע דומיננטיים בבירור מעל השאר, לפי חשיבות יורדת
     const scoreExpr = `(
-        (CASE WHEN $1::text IS NOT NULL AND category = $1::text THEN 3 ELSE 0 END) +
-        (CASE WHEN $2::text[] = '{}' THEN 0 WHEN fits && $2::text[] THEN 2 ELSE 0 END) +
-        (CASE WHEN $3::text IS NOT NULL AND (color = $3::text OR $3::text = ANY(colors)) THEN 2 ELSE 0 END) +
-        (CASE WHEN $4::text IS NOT NULL AND fabric = $4::text THEN 1 ELSE 0 END) +
+        (CASE WHEN $1::text IS NOT NULL AND category = $1::text THEN 6 ELSE 0 END) +
+        (CASE WHEN $3::text IS NOT NULL AND (color = $3::text OR $3::text = ANY(colors)) THEN 5 ELSE 0 END) +
+        (CASE WHEN $2::text[] = '{}' THEN 0 WHEN fits && $2::text[] THEN 3 ELSE 0 END) +
+        (CASE WHEN $4::text IS NOT NULL AND fabric = $4::text THEN 2 ELSE 0 END) +
+        (CASE WHEN $6::text[] = '{}' THEN 0 WHEN design_details && $6::text[] THEN 2 ELSE 0 END) +
         (CASE WHEN $5::text IS NOT NULL AND pattern = $5::text THEN 1 ELSE 0 END) +
-        (CASE WHEN $6::text[] = '{}' THEN 0 WHEN design_details && $6::text[] THEN 1 ELSE 0 END)
+        (CASE WHEN $7::text IS NOT NULL AND style = $7::text THEN 1 ELSE 0 END)
       )`;
     const params = [
       analysis.category || null,
@@ -1236,11 +1232,13 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
       analysis.fabric || null,
       analysis.pattern || null,
       analysis.designDetails,
+      analysis.style || null,
     ];
-    const sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,
+    const safeImagesSql = wantSafeImagesImg ? ' AND has_valid_image = true AND reviewed_at IS NOT NULL' : '';
+    const sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,valid_image_urls,
       ${scoreExpr} AS match_score
       FROM products
-      WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0
+      WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0${safeImagesSql}
       AND ${scoreExpr} > 0
       ORDER BY match_score DESC, RANDOM() LIMIT 60`;
     const result = await pool.query(sql, params);
@@ -1252,11 +1250,11 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
     const MIN_RESULTS = 4;
     if (rows.length < MIN_RESULTS) {
       const existingIds = new Set(rows.map(r => r.id));
-      const fallbackSql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,
+      const fallbackSql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,valid_image_urls,
         ${scoreExpr} AS match_score
         FROM products
-        WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0
-        ORDER BY match_score DESC, RANDOM() LIMIT $7`;
+        WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0${safeImagesSql}
+        ORDER BY match_score DESC, RANDOM() LIMIT $8`;
       const fallbackResult = await pool.query(fallbackSql, [...params, MIN_RESULTS]);
       for (const r of fallbackResult.rows) {
         if (rows.length >= MIN_RESULTS) break;
@@ -1267,7 +1265,7 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
     // רושמים שימוש רק אחרי חיפוש מוצלח
     await pool.query(`INSERT INTO image_search_usage (user_id) VALUES ($1)`, [req.userId]);
 
-    const rowsWithShipping = rows.map(p => ({ ...p, shipping: calculateShipping(p.store, p.price) }));
+    const rowsWithShipping = rows.map(p => ({ ...applySafeImages(p, wantSafeImagesImg), shipping: calculateShipping(p.store, p.price) }));
     res.json({
       analysis,
       results: rowsWithShipping,

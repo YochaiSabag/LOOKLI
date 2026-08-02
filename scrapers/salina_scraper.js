@@ -36,8 +36,123 @@ function normalizeSize(s) {
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
-async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
+
+// עוזר: חילוץ post IDs מה-DOM הנוכחי (Elementor loop-item classes)
+async function extractPostIds(page) {
+  return await page.evaluate(() => {
+    const ids = [];
+    document.querySelectorAll('.e-loop-item').forEach(el => {
+      const m = el.className.match(/e-loop-item-(\d+)/);
+      if (m) ids.push(m[1]);
+    });
+    return [...new Set(ids)];
+  });
+}
+
+// עוזר: גלילה כדי לטעון תוכן lazy
+async function scrollToLoad(page) {
+  for (let i = 0; i < 4; i++) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(800);
+  }
+  await page.waitForTimeout(1000);
+}
+
+// עוזר: מחפש ולוחץ על כפתור "טען עוד" אם קיים וגלוי. מחזיר true אם לחץ בהצלחה
+async function clickLoadMoreButton(page) {
+  return await page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll('a, button'));
+    const btn = candidates.find(el => {
+      const text = (el.textContent || '').trim();
+      const cls = el.className || '';
+      const isVisible = el.offsetParent !== null;
+      if (!isVisible) return false;
+      return /טען עוד|הצג עוד|עוד מוצרים|load\s*more/i.test(text) || /e-load-more|load-more/i.test(cls);
+    });
+    if (btn) {
+      btn.scrollIntoView({ block: 'center' });
+      btn.click();
+      return true;
+    }
+    return false;
+  });
+}
+
+// שולף URL לכל post ID דרך WP REST API ומוסיף ל-allUrls
+async function resolveUrlsForIds(page, ids, allUrls) {
+  for (const id of ids) {
+    try {
+      const apiUrl = `https://salinafashion.com/wp-json/wp/v2/product/${id}?_fields=link`;
+      const resp = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        if (!r.ok) return null;
+        const d = await r.json();
+        return d.link || null;
+      }, apiUrl);
+      if (resp && resp.includes('salinafashion.com')) {
+        allUrls.add(resp.split('?')[0]);
+      }
+    } catch(_) {}
+  }
+}
+
+// אסטרטגיה 1 (חדשה, ראשית): לחיצה חוזרת על כפתור "טען עוד" (Elementor Load-More AJAX)
+// זה נחוץ כי לאתר אין בהכרח קישורי /page/N/ אמיתיים - הפאג'ינציה מבוססת JS בלבד
+async function getAllProductUrlsViaLoadMore(page) {
+  const allUrls = new Set();
+  const seenIds = new Set();
+  const MAX_CLICKS = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+
+  await page.goto('https://salinafashion.com/shop/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.waitForTimeout(3000);
+  await scrollToLoad(page);
+
+  let ids = await extractPostIds(page);
+  ids.forEach(id => seenIds.add(id));
+  console.log(`  → טעינה ראשונית: ${ids.length} מוצרים (סה"כ ייחודיים: ${seenIds.size})`);
+
+  // בדיקה שיש בכלל כפתור "טען עוד" - אם אין, זו לא האסטרטגיה הנכונה לאתר הזה
+  const hasLoadMoreAtAll = await page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll('a, button'));
+    return candidates.some(el => {
+      const text = (el.textContent || '').trim();
+      const cls = el.className || '';
+      return /טען עוד|הצג עוד|עוד מוצרים|load\s*more/i.test(text) || /e-load-more|load-more/i.test(cls);
+    });
+  });
+  if (!hasLoadMoreAtAll) {
+    console.log('  ℹ לא נמצא כפתור "טען עוד" - עובר לאסטרטגיית עמודים רגילה');
+    return null; // מאותת לקוד הקורא לעבור ל-fallback
+  }
+
+  let clicks = 1;
+  while (clicks < MAX_CLICKS) {
+    const didClick = await clickLoadMoreButton(page);
+    if (!didClick) {
+      console.log('  ⏹ הכפתור "טען עוד" נעלם - כל המוצרים נטענו');
+      break;
+    }
+    await page.waitForTimeout(2500);
+    await scrollToLoad(page);
+    const newIds = await extractPostIds(page);
+    const before = seenIds.size;
+    newIds.forEach(id => seenIds.add(id));
+    clicks++;
+    console.log(`  → לחיצה ${clicks}: סה"כ מוצרים ייחודיים: ${seenIds.size}`);
+    if (seenIds.size === before) {
+      console.log('  ⏹ לחיצה לא הוסיפה מוצרים חדשים - עוצר (מניעת לולאה תקועה)');
+      break;
+    }
+  }
+
+  console.log(`\n  📦 שולף URLs עבור ${seenIds.size} מוצרים...`);
+  await resolveUrlsForIds(page, [...seenIds], allUrls);
+  return [...allUrls];
+}
+
+// אסטרטגיה 2 (fallback מקורי): ניווט לפי /page/N/ עם בדיקת קישור "עמוד הבא"
+async function getAllProductUrlsViaPages(page) {
+  console.log('\n📂 איסוף קישורים מ-salinafashion.com (עמודים)...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
@@ -49,23 +164,9 @@ async function getAllProductUrls(page) {
       console.log(`  → עמוד ${p}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(3000);
+      await scrollToLoad(page);
 
-      // גלילה
-      for (let i = 0; i < 4; i++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(800);
-      }
-      await page.waitForTimeout(1500);
-
-      // חלץ post IDs מ-Elementor loop-item classes
-      const postIds = await page.evaluate(() => {
-        const ids = [];
-        document.querySelectorAll('.e-loop-item').forEach(el => {
-          const m = el.className.match(/e-loop-item-(\d+)/);
-          if (m) ids.push(m[1]);
-        });
-        return [...new Set(ids)];
-      });
+      const postIds = await extractPostIds(page);
 
       if (postIds.length === 0) {
         console.log(`    ⏹ אין מוצרים — עוצר`);
@@ -73,23 +174,7 @@ async function getAllProductUrls(page) {
       }
 
       console.log(`    📦 נמצאו ${postIds.length} post IDs — שולף URLs...`);
-
-      // שלוף URL לכל post ID דרך WP REST API
-      for (const id of postIds) {
-        try {
-          const apiUrl = `https://salinafashion.com/wp-json/wp/v2/product/${id}?_fields=link`;
-          const resp = await page.evaluate(async (u) => {
-            const r = await fetch(u);
-            if (!r.ok) return null;
-            const d = await r.json();
-            return d.link || null;
-          }, apiUrl);
-          if (resp && resp.includes('salinafashion.com')) {
-            allUrls.add(resp.split('?')[0]);
-          }
-        } catch(_) {}
-      }
-
+      await resolveUrlsForIds(page, postIds, allUrls);
       console.log(`    ✓ סה"כ: ${allUrls.size}`);
 
       // אם אין עמוד הבא — עצור
@@ -104,7 +189,23 @@ async function getAllProductUrls(page) {
     }
   }
 
-  const result = [...allUrls];
+  return [...allUrls];
+}
+
+// פונקציה ראשית - מנסה קודם "טען עוד", ואם לא רלוונטי נופלת חזרה לניווט לפי עמודים
+async function getAllProductUrls(page) {
+  console.log('\n📂 איסוף קישורים מ-salinafashion.com...\n');
+  let result = null;
+  try {
+    result = await getAllProductUrlsViaLoadMore(page);
+  } catch (e) {
+    console.log(`  ⚠ שגיאה באסטרטגיית "טען עוד": ${e.message.substring(0, 80)} - עובר ל-fallback`);
+    result = null;
+  }
+  if (result === null) {
+    result = await getAllProductUrlsViaPages(page);
+  }
+
   console.log(`\n  ✓ סה"כ: ${result.length} קישורים\n`);
   return result;
 }

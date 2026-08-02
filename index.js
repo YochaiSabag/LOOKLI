@@ -1151,6 +1151,43 @@ app.post("/api/ai-search", async (req, res) => {
 });
 
 // ── חיפוש לפי תמונה ──────────────────────────────────────────
+// בדיקת מכסת שימוש (חיפוש לפי תמונה + סטייליסטית AI) בלי לבצע חיפוש/ניתוח בפועל —
+// לצורך הצגת "נשארו לך X שימושים" בממשק לפני שהמשתמשת בכלל מתחילה להשתמש בפיצ'ר
+async function getUsageStatus(userId, tableName, weeklyLimit) {
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    used_at TIMESTAMP DEFAULT NOW()
+  )`);
+  const rowsRes = await pool.query(
+    `SELECT used_at FROM ${tableName} WHERE user_id=$1 AND used_at > NOW() - INTERVAL '7 days' ORDER BY used_at ASC`,
+    [userId]
+  );
+  const used = rowsRes.rows.length;
+  const remaining = Math.max(0, weeklyLimit - used);
+  let resetsAt = null;
+  if (rowsRes.rows.length > 0) {
+    // המכסה מתחדשת בהדרגה - כל שימוש "משתחרר" 7 ימים אחרי שנעשה. השימוש הכי ישן בחלון
+    // הוא זה שמשתחרר הכי קרוב, אז זה מה שרלוונטי להציג כ"מתי נפתח השימוש הבא"
+    const oldest = new Date(rowsRes.rows[0].used_at);
+    resetsAt = new Date(oldest.getTime() + 7 * 24 * 60 * 60 * 1000);
+  }
+  return { used, remaining, limit: weeklyLimit, resetsAt };
+}
+
+app.get("/api/usage-status", authMiddleware, async (req, res) => {
+  try {
+    const [imageSearch, aiStylist] = await Promise.all([
+      getUsageStatus(req.userId, 'image_search_usage', 3),
+      getUsageStatus(req.userId, 'ai_stylist_usage', 2),
+    ]);
+    res.json({ imageSearch, aiStylist });
+  } catch (err) {
+    console.error("usage-status error:", err.message);
+    res.status(500).json({ error: "שגיאה בבדיקת מכסה" });
+  }
+});
+
 app.post("/api/search-by-image", authMiddleware, async (req, res) => {
   try {
     const { imageBase64, mimeType, safeImages, analysis: providedAnalysis } = req.body;

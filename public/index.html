@@ -376,9 +376,10 @@
     .netfree-info{background:rgba(255,255,255,.3);color:#fff}
     .netfree-info:hover,.netfree-info.show-tip{background:rgba(255,255,255,.55)}
     .netfree-info-light{background:rgba(224,161,192,.18);color:var(--accent-dark)}
-    /* תג מידע קטן וצנוע על כפתור חיפוש התמונה - לא משנה את גודל/מראה הכפתור עצמו */
-    .camera-limit-badge{position:absolute;top:-5px;left:-5px;width:15px;height:15px;background:#fff;color:var(--accent-dark);border:1.5px solid var(--accent);font-size:9px;font-style:italic;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.15)}
-    .camera-limit-badge::after{left:auto;right:0;transform:none;width:190px}
+    /* תג מידע על כפתור חיפוש התמונה - הנקודה הוויזואלית קטנה, אבל שטח הלחיצה גדול מספיק למגע */
+    .camera-limit-badge{position:absolute;top:-9px;left:-9px;width:28px;height:28px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .camera-limit-badge::before{content:'i';display:flex;align-items:center;justify-content:center;width:15px;height:15px;background:#fff;color:var(--accent-dark);border:1.5px solid var(--accent);border-radius:50%;font-size:9px;font-style:italic;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+    .camera-limit-badge::after{left:0;right:auto;transform:none;width:180px;text-align:right}
     .netfree-info-light:hover,.netfree-info-light.show-tip{background:rgba(224,161,192,.35)}
 
 
@@ -966,7 +967,7 @@
           </button>
           <button class="btn" id="imgSearchBtn" onclick="triggerImageSearch()" title="חיפוש לפי תמונה" style="position:relative">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <span class="info-tooltip-icon camera-limit-badge" id="cameraLimitBadge" data-tooltip="חיפוש לפי תמונה מוגבל למספר פעמים בשבוע" onclick="event.preventDefault();event.stopPropagation()">i</span>
+            <span class="info-tooltip-icon camera-limit-badge" id="cameraLimitBadge" data-tooltip="חיפוש לפי תמונה מוגבל למספר פעמים בשבוע" onclick="event.preventDefault();event.stopPropagation()"></span>
           </button>
           <input id="imgSearchInput" type="file" accept="image/*" style="display:none" onchange="searchByImage(event)"/>
         </div>
@@ -1776,18 +1777,18 @@ async function fetchUsageStatus(){
 function usageSentence(u,label){
   if(!u) return '';
   if(u.remaining<=0){
-    return u.resetsAt ? `נוצל השימוש השבועי ב${label} - ייפתח שימוש נוסף ${formatHebrewDay(u.resetsAt)}` : `נוצל השימוש השבועי ב${label}`;
+    return u.resetsAt ? `נוצל השימוש השבועי - יתפנה שימוש נוסף ${formatHebrewDay(u.resetsAt)}` : `נוצל השימוש השבועי`;
   }
-  const resetNote = (u.remaining<u.limit && u.resetsAt) ? ` (מתחדש ${formatHebrewDay(u.resetsAt)})` : '';
-  return `${label} מוגבל ל-${u.limit} פעמים בשבוע - נשארו לך ${u.remaining}${resetNote}`;
+  if(u.remaining>=u.limit) return `יש לך ${u.remaining} שימושים זמינים השבוע`;
+  const resetNote = u.resetsAt ? ` (יתחדש ${formatHebrewDay(u.resetsAt)})` : '';
+  return `נשאר לך ${u.remaining} שימושים לשבוע זה${resetNote}`;
 }
 window.addEventListener('DOMContentLoaded', async () => {
   const badge=document.getElementById('cameraLimitBadge');
   if(!badge) return;
+  if(!authToken){ badge.style.display='none'; return; }
   const status=await fetchUsageStatus();
-  if(status && status.imageSearch){
-    badge.setAttribute('data-tooltip', usageSentence(status.imageSearch,'חיפוש לפי תמונה'));
-  }
+  badge.setAttribute('data-tooltip', usageSentence(status?.imageSearch,'חיפוש לפי תמונה'));
 });
 
 async function searchByImage(event){
@@ -1927,7 +1928,7 @@ function showStylistIntro(){
   (async () => {
     const status=await fetchUsageStatus();
     const el=document.getElementById('stylistUsageInfo');
-    if(el && status && status.aiStylist) el.textContent=usageSentence(status.aiStylist,'הסטייליסטית');
+    if(el) el.textContent=usageSentence(status?.aiStylist,'הסטייליסטית');
   })();
 }
 

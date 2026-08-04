@@ -120,7 +120,7 @@ async function scrapeProduct(page, url) {
         [...document.querySelectorAll('.jet-woo-product-gallery__image-link')]
           .map(a => a.href)
           .filter(h => h.match(/\.(jpg|jpeg|png|webp)/i))
-      )].slice(0, 6);
+      )].slice(0, 20); // תקרת ביטחון בלבד - לא Cloudinary אז אין עלות העלאה, פשוט לא לוקחים בלי גבול במקרה קיצון
 
       if (!sizeEls.length) {
         const sel = document.querySelector('select[name^="attribute_"]');

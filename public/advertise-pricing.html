@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+
+  <!-- עמוד פרטי - לא מיועד לאינדוקס או לגילוי דרך חיפוש -->
+  <meta name="robots" content="noindex,nofollow"/>
+  <meta name="theme-color" content="#c48cb3"/>
+  <link rel="icon" href="/favicon.ico"/>
+
+  <title>מחירי פרסום | LOOKLI</title>
+  <style>
+    :root{
+      --bg:#fff;
+      --text:#787878;
+      --muted:#787878;
+      --accent:#e0a1c0;
+      --accent-light:#d191b0;
+      --accent-dark:#c48cb3;
+      --border:#e5e7eb;
+      --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%)
+    }
+    *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit;text-decoration:none}
+
+    .header{background:var(--header-gradient);padding:0}
+    .header-inner{max-width:2000px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:14px}
+    .logo img{height:48px;width:auto}
+    @media(max-width:768px){
+      .header-inner{padding:12px 16px}
+      .logo img{height:36px}
+    }
+
+    .hero{background:var(--header-gradient);padding:50px 24px;text-align:center;color:#fff}
+    .hero h1{font-size:34px;font-weight:700;margin:0 0 12px}
+    .hero p{font-size:16px;opacity:.9;max-width:560px;margin:0 auto}
+    @media(max-width:768px){
+      .hero{padding:36px 16px}
+      .hero h1{font-size:24px}
+      .hero p{font-size:14px}
+    }
+
+    .content{max-width:800px;margin:0 auto;padding:50px 24px}
+    @media(max-width:768px){.content{padding:28px 16px}}
+
+    .section{background:#fff;border-radius:8px;padding:36px;margin-bottom:24px}
+    @media(max-width:768px){.section{padding:22px 18px}}
+    .section p.note{font-size:14px;line-height:1.8;margin:0 0 18px;color:var(--text)}
+
+    .price-table-wrap{overflow-x:auto;margin-top:8px}
+    table.pricing{width:100%;border-collapse:collapse;min-width:520px}
+    table.pricing th{font-size:12px;font-weight:700;color:#fff;background:var(--header-gradient);padding:12px 10px;text-align:center}
+    table.pricing th:first-child{text-align:right;border-radius:8px 0 0 0}
+    table.pricing th:last-child{border-radius:0 8px 0 0}
+    table.pricing td{padding:14px 10px;text-align:center;font-size:15px;font-weight:700;color:var(--text);border-bottom:1px solid var(--border)}
+    table.pricing td:first-child{text-align:right;font-weight:600;color:var(--muted)}
+    table.pricing tr:last-child td{border-bottom:none}
+    .save-tag{display:block;font-size:11px;font-weight:600;color:var(--accent-dark);margin-top:2px}
+    .price-loading{text-align:center;padding:30px;color:var(--muted);font-size:14px}
+
+    .cta-box{background:var(--header-gradient);border-radius:8px;padding:36px;text-align:center;color:#fff;margin-top:8px}
+    @media(max-width:768px){.cta-box{padding:26px 18px}}
+    .cta-box h3{font-size:20px;font-weight:700;margin:0 0 10px}
+    .cta-box p{font-size:14px;opacity:.9;margin:0 0 20px}
+    .cta-btn{display:inline-block;background:#fff;color:var(--accent-dark);padding:13px 30px;border-radius:8px;font-weight:700;font-size:14px;transition:transform .2s;margin:0 6px}
+    .cta-btn:hover{transform:translateY(-2px)}
+    .cta-btn.outline{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.7)}
+
+    .back-link{display:block;text-align:center;margin-top:24px;font-size:13px;color:var(--muted)}
+    .back-link:hover{color:var(--accent-dark)}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <img src="/lookli-logo.png" alt="LOOKLI"/>
+      </a>
+    </div>
+  </header>
+
+  <div class="hero">
+    <h1>מחירי פרסום ב-LOOKLI</h1>
+    <p>הטבלה מעודכנת בזמן אמת. לכל שאלה או התאמה אישית - נשמח לעזור בוואטסאפ או בטופס יצירת הקשר</p>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <p class="note">המחיר הסופי נקבע לפי גודל הלוח ומשך הפרסום — ככל שהתקופה ארוכה יותר, המחיר היומי נמוך יותר.</p>
+      <div class="price-table-wrap">
+        <table class="pricing" id="pricingTable">
+          <tbody><tr><td class="price-loading" colspan="5">טוען מחירים...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="cta-box">
+      <h3>מוכנים להתחיל?</h3>
+      <p>כתבו לנו איזה פורמט ומשך פרסום מתאימים לכם, ונתאם את הכל</p>
+      <a href="https://wa.me/972532424941?text=שלום, פניתי לגבי מחירי הפרסום ב-LOOKLI" target="_blank" class="cta-btn">וואטסאפ</a>
+      <a href="/contact?type=ads" class="cta-btn outline">טופס יצירת קשר</a>
+    </div>
+
+    <a href="/advertise" class="back-link">← חזרה לעמוד "פרסמו אצלנו"</a>
+  </div>
+
+  <script>
+    const sizeLabels = { single: 'לוח רגיל (180×180)', double: 'לוח כפול (180×370)', triple: 'לוח תלת (180×560)', mobile_banner: 'Banner מובייל', sponsored_product: 'מוצר ממומן' };
+
+    function calcPrice(dailyRate, days, discountPct) {
+      return Math.round(dailyRate * days * (1 - discountPct / 100));
+    }
+
+    async function loadPricing() {
+      const table = document.getElementById('pricingTable');
+      try {
+        const res = await fetch('/api/ad-pricing');
+        if (!res.ok) throw new Error();
+        const cfg = await res.json();
+        const rates = cfg.base_rates;
+        const tiers = cfg.duration_tiers;
+        let html = '<thead><tr><th>גודל לוח</th>' + tiers.map(t => `<th>${t.label}<br>(${t.days} ימים)</th>`).join('') + '</tr></thead><tbody>';
+        Object.keys(sizeLabels).forEach(key => {
+          html += `<tr><td>${sizeLabels[key]}</td>`;
+          tiers.forEach(t => {
+            const price = calcPrice(rates[key] || 0, t.days, t.discount);
+            html += `<td>₪${price}${t.discount > 0 ? `<span class="save-tag">חסכון ${t.discount}%</span>` : ''}</td>`;
+          });
+          html += '</tr>';
+        });
+        html += '</tbody>';
+        table.innerHTML = html;
+      } catch(e) {
+        table.innerHTML = '<tbody><tr><td class="price-loading" colspan="5">לא ניתן לטעון מחירים כרגע — נסי לרענן, או צרי קשר</td></tr></tbody>';
+      }
+    }
+    loadPricing();
+  </script>
+</body>
+</html>

@@ -304,6 +304,10 @@ app.get("/contact", (req, res) => {
 app.get("/advertise", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "advertise.html"));
 });
+// עמוד מחירים פרטי - לא מקושר משום מקום באתר ולא ב-sitemap, לשליחה ידנית בלבד למי שמבקש
+app.get("/advertise-pricing", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "advertise-pricing.html"));
+});
 // הפניות 301 מהכתובות הישנות עם .html — לשמירה על SEO וקישורים קיימים
 app.get("/about.html", (req, res) => res.redirect(301, "/about"));
 app.get("/contact.html", (req, res) => res.redirect(301, "/contact"));

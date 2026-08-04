@@ -203,12 +203,7 @@
         <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
         מחירים
       </h2>
-      <p>המחיר הסופי נקבע לפי גודל הלוח ומשך הפרסום — ככל שהתקופה ארוכה יותר, המחיר היומי נמוך יותר.</p>
-      <div class="price-table-wrap">
-        <table class="pricing" id="pricingTable">
-          <tbody><tr><td class="price-loading" colspan="5">טוען מחירים...</td></tr></tbody>
-        </table>
-      </div>
+      <p>המחיר הסופי נקבע לפי גודל הלוח ומשך הפרסום — ככל שהתקופה ארוכה יותר, המחיר היומי נמוך יותר. נשמח לשלוח הצעת מחיר מותאמת בהתאם לפורמט ולתקופה שמעניינים אתכם.</p>
     </div>
 
     <div class="section">
@@ -269,37 +264,5 @@
     </div>
   </footer>
 
-  <script>
-    const sizeLabels = { single: 'לוח רגיל (180×180)', double: 'לוח כפול (180×370)', triple: 'לוח תלת (180×560)', mobile_banner: 'Banner מובייל', sponsored_product: 'מוצר ממומן' };
-
-    function calcPrice(dailyRate, days, discountPct) {
-      return Math.round(dailyRate * days * (1 - discountPct / 100));
-    }
-
-    async function loadPricing() {
-      const table = document.getElementById('pricingTable');
-      try {
-        const res = await fetch('/api/ad-pricing');
-        if (!res.ok) throw new Error();
-        const cfg = await res.json();
-        const rates = cfg.base_rates;
-        const tiers = cfg.duration_tiers;
-        let html = '<thead><tr><th>גודל לוח</th>' + tiers.map(t => `<th>${t.label}<br>(${t.days} ימים)</th>`).join('') + '</tr></thead><tbody>';
-        Object.keys(sizeLabels).forEach(key => {
-          html += `<tr><td>${sizeLabels[key]}</td>`;
-          tiers.forEach(t => {
-            const price = calcPrice(rates[key] || 0, t.days, t.discount);
-            html += `<td>₪${price}${t.discount > 0 ? `<span class="save-tag">חסכון ${t.discount}%</span>` : ''}</td>`;
-          });
-          html += '</tr>';
-        });
-        html += '</tbody>';
-        table.innerHTML = html;
-      } catch(e) {
-        table.innerHTML = '<tbody><tr><td class="price-loading" colspan="5">לא ניתן לטעון מחירים כרגע — צרו קשר לפרטים</td></tr></tbody>';
-      }
-    }
-    loadPricing();
-  </script>
 </body>
 </html>

@@ -429,7 +429,7 @@ async function loadBatch() {
 }
 
 function renderCard(p) {
-  const images = (p.images && p.images.length) ? p.images.slice(0,6) : (p.image_url ? [p.image_url] : []);
+  const images = (p.images && p.images.length) ? p.images.slice(0,20) : (p.image_url ? [p.image_url] : []);
   const container = document.getElementById('cardsContainer');
   const card = document.createElement('div');
   card.className = 'card';
@@ -549,7 +549,7 @@ async function searchProducts() {
 }
 
 function renderSearchCard(p) {
-  const images = (p.images && p.images.length) ? p.images.slice(0, 10) : (p.image_url ? [p.image_url] : []);
+  const images = (p.images && p.images.length) ? p.images.slice(0, 20) : (p.image_url ? [p.image_url] : []);
   const validSet = new Set(p.valid_image_urls || []);
   const container = document.getElementById('searchResultsContainer');
   const card = document.createElement('div');

@@ -84,6 +84,7 @@ body{padding:0}
     <a href="/admin/ads" class="nav-link">📋 מודעות</a>
     <a href="/admin/pricing" class="nav-link active">תמחור פרסום</a>
     <a href="/advertise.html" class="nav-link" target="_blank">עמוד פרסום ציבורי</a>
+    <a href="/advertise-pricing" class="nav-link" target="_blank" style="color:var(--accent2)">💰 עמוד מחירים (לשליחה)</a>
     <a href="/" class="nav-link" target="_blank">🌐 אתר</a>
   </div>
 </div>
@@ -94,6 +95,14 @@ body{padding:0}
   <div>
     <div class="note-box">
       <strong>איך זה עובד:</strong> המחיר הסופי לכל גודל לוח ולכל משך פרסום מחושב אוטומטית: <strong>מחיר יומי × מספר ימים × (100% פחות ההנחה של אותה תקופה)</strong>. שני השדות למטה הם המקור היחיד לאמת — התצוגה המקדימה מימין וגם עמוד "פרסמו אצלנו" הציבורי מתעדכנים אוטומטית לפי מה שתשמרי כאן.
+    </div>
+
+    <div class="note-box" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <strong style="color:var(--text)">💰 קישור עמוד מחירים לשליחה:</strong>
+        <div id="pricingLinkText" style="direction:ltr;text-align:left;color:var(--accent2);font-weight:700;margin-top:4px">lookli.co.il/advertise-pricing</div>
+      </div>
+      <button id="copyPricingLinkBtn" onclick="copyPricingLink()" style="background:var(--accent2);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">העתקת קישור</button>
     </div>
 
     <div class="panel">
@@ -158,6 +167,28 @@ body{padding:0}
 
 <script>
 let currentConfig = null;
+
+function copyPricingLink(){
+  const url = location.origin + '/advertise-pricing';
+  const btn = document.getElementById('copyPricingLinkBtn');
+  const done = () => {
+    const original = btn.textContent;
+    btn.textContent = '✓ הועתק!';
+    setTimeout(() => { btn.textContent = original; }, 1800);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done).catch(() => fallbackCopy(url, done));
+  } else {
+    fallbackCopy(url, done);
+  }
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch(e) {}
+  document.body.removeChild(ta);
+}
 
 const sizeLabels = { single: 'לוח רגיל', double: 'לוח כפול', triple: 'לוח תלת', mobile_banner: 'Banner מובייל', sponsored_product: 'מוצר ממומן' };
 

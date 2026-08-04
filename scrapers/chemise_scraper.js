@@ -101,7 +101,7 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-  // TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%99%d7%95%d7%95%d7%a5/'];
+   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%99%d7%95%d7%95%d7%a5/'];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');
@@ -672,8 +672,9 @@ async function scrapeProduct(page, url) {
       console.log(`    📸 דילוג על העלאת תמונות (SKIP_IMAGE_UPLOAD)`);
     } else {
       if (process.env.FORCE_REIMAGE === 'true') console.log(`    🔁 FORCE_REIMAGE פעיל — מעלה מחדש ומחליף תמונות קיימות`);
-      console.log(`    📸 מעלה ${Math.min(data.images.length, 6)} תמונות ל-Cloudinary...`);
-      for (const imgUrl of data.images.slice(0, 6)) {
+      const uploadCap = 20; // תקרת ביטחון בלבד (מגינה מפני מקרה קיצון של תקלת חילוץ) - לא אמורה להיות רלוונטית בפועל
+      console.log(`    📸 מעלה ${Math.min(data.images.length, uploadCap)} תמונות ל-Cloudinary...`);
+      for (const imgUrl of data.images.slice(0, uploadCap)) {
         const cdnUrl = await uploadToCloudinary(imgUrl);
         if (cdnUrl) finalImages.push(cdnUrl);
       }

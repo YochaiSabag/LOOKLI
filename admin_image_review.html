@@ -55,6 +55,7 @@
   <div style="display:flex;gap:8px;margin-bottom:16px">
     <button class="tab-btn active" id="tabGallery" onclick="switchTab('gallery')">🖼️ גלריית תמונות מהירה</button>
     <button class="tab-btn" id="tabCards" onclick="switchTab('cards')">📇 לפי מוצר (מפורט)</button>
+    <button class="tab-btn" id="tabSearch" onclick="switchTab('search')">🔍 חיפוש ותיקון מוצר</button>
   </div>
 
   <div id="galleryView">
@@ -121,12 +122,31 @@
     <button id="loadMoreBtn" class="load-more" style="display:none" onclick="loadBatch()">טעני עוד</button>
   </div>
 
+  <div id="searchView" style="display:none">
+    <h1 style="margin-bottom:12px">🔍 חיפוש ותיקון מוצר ספציפי</h1>
+    <div style="font-size:13px;color:#7A4A63;margin-bottom:16px;line-height:1.6">
+      חיפוש לפי <b>קישור המוצר (URL)</b> או <b>שם המוצר</b> — כולל מוצרים שכבר נסקרו בעבר.
+      שימושי לתיקון טעות: תמונה שנחסמה בטעות, או להפך — תמונה שסומנה כתקינה אבל למעשה חסומה.
+      הבחירה הנוכחית (התמונות המסומנות ✓ ירוק) משקפת את מה שמוגדר במערכת <b>עכשיו</b> — אפשר לשנות ולשמור מחדש.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input id="searchQuery" type="text" placeholder="הדביקי קישור מוצר, או הקלידי חלק משם המוצר..."
+        style="flex:1;padding:10px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px"
+        onkeydown="if(event.key==='Enter')searchProducts()"/>
+      <button class="btn btn-save" onclick="searchProducts()">חיפוש</button>
+    </div>
+    <div id="searchResultsMeta" style="font-size:13px;color:#888;margin-bottom:10px"></div>
+    <div id="searchResultsContainer"></div>
+  </div>
+
 <script>
 function switchTab(tab) {
   document.getElementById('galleryView').style.display = tab === 'gallery' ? 'block' : 'none';
   document.getElementById('cardsView').style.display = tab === 'cards' ? 'block' : 'none';
+  document.getElementById('searchView').style.display = tab === 'search' ? 'block' : 'none';
   document.getElementById('tabGallery').classList.toggle('active', tab === 'gallery');
   document.getElementById('tabCards').classList.toggle('active', tab === 'cards');
+  document.getElementById('tabSearch').classList.toggle('active', tab === 'search');
   if (tab === 'cards' && !document.getElementById('cardsContainer').children.length) loadBatch();
 }
 
@@ -505,6 +525,115 @@ function escapeHtml(s) {
 }
 
 loadBatch();
+</script>
+
+<script>
+async function searchProducts() {
+  const q = document.getElementById('searchQuery').value.trim();
+  const meta = document.getElementById('searchResultsMeta');
+  const container = document.getElementById('searchResultsContainer');
+  container.innerHTML = '';
+  if (!q) { meta.textContent = 'הקלידי קישור או שם מוצר לחיפוש'; return; }
+  meta.textContent = 'מחפשת...';
+  try {
+    const res = await fetch('/api/admin/image-review/search?q=' + encodeURIComponent(q), { credentials: 'include' });
+    if (!res.ok) { meta.textContent = 'שגיאת חיפוש'; return; }
+    const data = await res.json();
+    const products = data.products || [];
+    if (!products.length) { meta.textContent = 'לא נמצאו מוצרים תואמים'; return; }
+    meta.textContent = `נמצאו ${products.length} מוצרים`;
+    products.forEach(renderSearchCard);
+  } catch (e) {
+    meta.textContent = 'שגיאה בחיפוש';
+  }
+}
+
+function renderSearchCard(p) {
+  const images = (p.images && p.images.length) ? p.images.slice(0, 10) : (p.image_url ? [p.image_url] : []);
+  const validSet = new Set(p.valid_image_urls || []);
+  const container = document.getElementById('searchResultsContainer');
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'scard-' + p.id;
+  card.dataset.store = p.store || '';
+
+  const thumbsHTML = images.map((img, i) => `
+    <div class="thumb-wrap${validSet.has(img) ? ' selected' : ''}" data-url="${img.replace(/"/g,'&quot;')}" onclick="toggleThumb(this)">
+      <img src="${img}" loading="lazy" onerror="this.parentElement.style.opacity='0.3'"/>
+      <div class="thumb-check">✓</div>
+      <div class="thumb-num">${i+1}</div>
+    </div>`).join('');
+
+  const statusBits = [];
+  statusBits.push(p.reviewed_at
+    ? `נסקר לאחרונה: ${new Date(p.reviewed_at).toLocaleDateString('he-IL')}`
+    : 'טרם נסקר בעבר');
+  statusBits.push(p.has_valid_image ? `${(p.valid_image_urls||[]).length} תמונות תקינות מוגדרות כעת` : 'אין כרגע אף תמונה תקינה מוגדרת');
+  if (p.banned) statusBits.push('⚠️ מוצר חסום (banned)');
+  if (p.hidden_stale) statusBits.push('⚠️ מוצר מוסתר (לא נמצא בסריקה אחרונה)');
+
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-title">${escapeHtml(p.title || '(ללא כותרת)')}</div>
+      <div class="card-store">${p.store || ''}</div>
+    </div>
+    <div style="font-size:12px;color:#7A4A63;margin-bottom:10px;line-height:1.7">
+      ${statusBits.join(' · ')}<br/>
+      ${p.source_url ? `<a href="${p.source_url}" target="_blank" style="color:#4A2F3D">🔗 פתחי את המוצר באתר המקור</a>` : ''}
+    </div>
+    <div class="thumbs-scroll">${thumbsHTML || '<div style="color:#999;font-size:13px">אין תמונות בכלל</div>'}</div>
+    <div class="card-actions">
+      <button class="btn btn-save" onclick="saveSearchCard(${p.id})">💾 שמירת התיקון</button>
+      <button class="btn btn-none" onclick="markNoneValidSearch(${p.id})">❌ אין תמונה תקינה בכלל</button>
+      <span class="saved-tag" id="ssaved-${p.id}"></span>
+    </div>`;
+  container.appendChild(card);
+}
+
+async function saveSearchCard(id) {
+  const card = document.getElementById('scard-' + id);
+  const all = [...card.querySelectorAll('.thumb-wrap')];
+  const selected = all.filter(el => el.classList.contains('selected')).map(el => el.dataset.url);
+  const unselected = all.filter(el => !el.classList.contains('selected')).map(el => el.dataset.url);
+  await submitSearchReview(id, selected, unselected, card.dataset.store);
+}
+
+async function markNoneValidSearch(id) {
+  const card = document.getElementById('scard-' + id);
+  const allUrls = [...card.querySelectorAll('.thumb-wrap')].map(el => el.dataset.url);
+  await submitSearchReview(id, [], allUrls, card?.dataset.store);
+}
+
+// זהה בעיקרון ל-submitReview הרגיל, אבל בלי לגעת בתור/במונה של טאב "לפי מוצר" —
+// זה טאב עצמאי לתיקון נקודתי, לא אמור להשפיע על ה"נותרו לסקירה" של התור הרגיל
+async function submitSearchReview(id, validUrls, blockedUrls, store) {
+  const tag = document.getElementById('ssaved-' + id);
+  tag.textContent = 'שומר...';
+  try {
+    const validSizes = [];
+    for (const url of validUrls) {
+      const kb = await measureSizeKB(url);
+      if (kb !== null) validSizes.push({ url, sizeKB: kb });
+    }
+    const blockedSizes = [];
+    for (const url of (blockedUrls || [])) {
+      const kb = await measureSizeKB(url);
+      if (kb !== null) blockedSizes.push({ url, sizeKB: kb });
+    }
+    const res = await fetch('/api/admin/image-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id, validUrls, validSizes, blockedSizes, store })
+    });
+    if (!res.ok) throw new Error('save failed');
+    tag.textContent = '✓ נשמר בהצלחה';
+    tag.style.color = '#16a34a';
+  } catch (e) {
+    tag.textContent = 'שגיאה, נסי שוב';
+    tag.style.color = '#dc2626';
+  }
+}
 </script>
 </body>
 </html>

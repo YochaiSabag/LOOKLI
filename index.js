@@ -3083,6 +3083,39 @@ app.get('/api/store-image-baseline', async (req, res) => {
 });
 
 // ── כלי סקירת תמונות ידני (מוצרים עם תמונות חסומות/מפוקסלות מנטפרי) ──
+// חיפוש מוצר ספציפי לצורך תיקון סטטוס תמונות (URL או שם) - בניגוד לתור הרגיל, זה
+// מוצא גם מוצרים שכבר נסקרו בעבר, כדי לתקן טעויות (תמונה שנחסמה בטעות או להפך)
+app.get('/api/admin/image-review/search', adminAuth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ products: [] });
+    if (q.length > 300) return res.status(400).json({ error: 'שאילתה ארוכה מדי' });
+
+    const looksLikeUrl = /^https?:\/\//i.test(q);
+    let sql, params;
+    if (looksLikeUrl) {
+      // התאמה מדויקת קודם (הכי אמין), עם fallback להתאמה חלקית (למקרה של פרמטרים שונים ב-URL)
+      sql = `SELECT id, title, store, image_url, images, source_url, valid_image_urls, has_valid_image, reviewed_at, banned, hidden_stale
+             FROM products WHERE source_url = $1
+             UNION
+             SELECT id, title, store, image_url, images, source_url, valid_image_urls, has_valid_image, reviewed_at, banned, hidden_stale
+             FROM products WHERE source_url ILIKE $2 AND source_url <> $1
+             LIMIT 20`;
+      params = [q, `%${q.replace(/[%_]/g, '\\$&')}%`];
+    } else {
+      sql = `SELECT id, title, store, image_url, images, source_url, valid_image_urls, has_valid_image, reviewed_at, banned, hidden_stale
+             FROM products WHERE title ILIKE $1
+             ORDER BY id DESC LIMIT 20`;
+      params = [`%${q.replace(/[%_]/g, '\\$&')}%`];
+    }
+    const { rows } = await pool.query(sql, params);
+    res.json({ products: rows });
+  } catch (err) {
+    console.error('image-review search error:', err.message);
+    res.status(500).json({ error: 'שגיאת חיפוש' });
+  }
+});
+
 app.get('/api/admin/image-review', adminAuth, async (req, res) => {
   try {
     // תומך גם בחנות בודדת וגם ברשימה מופרדת בפסיקים (קבוצת חנויות)

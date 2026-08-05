@@ -12,7 +12,17 @@ cloudinary.config({
 });
 
 // העלאת תמונה ל-Cloudinary — fetch ידני עם Referer, אחר כך upload כ-buffer
+let cloudinaryQuotaExceeded = false; // ברגע שמזוהה חריגת מכסה - מפסיקים לנסות להעלות לשאר ההרצה, לא מבזבזים זמן על ניסיונות שיודעים מראש שייכשלו
+
+function isCloudinaryQuotaError(e) {
+  const code = e?.http_code;
+  const msg = (e?.message || '').toLowerCase();
+  return code === 420 || code === 429 ||
+    msg.includes('insufficient credit') || msg.includes('quota') || msg.includes('rate limit') || msg.includes('plan limit');
+}
+
 async function uploadToCloudinary(imageUrl) {
+  if (cloudinaryQuotaExceeded) return null; // כבר ידוע שהמכסה נגמרה - לא מבזבזים fetch+upload על ניסיון שייכשל בוודאות
   try {
     // שלב 1: קחת את התמונה עם headers מתאימים
     const resp = await fetch(imageUrl, {
@@ -39,7 +49,14 @@ async function uploadToCloudinary(imageUrl) {
     });
     return result.secure_url;
   } catch(e) {
-    console.log(`    ⚠ Cloudinary upload failed: ${e.message?.substring(0,80)}`);
+    if (isCloudinaryQuotaError(e) && !cloudinaryQuotaExceeded) {
+      cloudinaryQuotaExceeded = true;
+      console.log(`\n🛑🛑🛑 נראה שנגמרה המכסה של Cloudinary (${e.http_code || ''} ${e.message?.substring(0,100)}) 🛑🛑🛑`);
+      console.log(`🛑 עוצר ניסיונות העלאת תמונות לשאר הריצה הזו - שאר שדות המוצר (מחיר/מידות/כותרת) ימשיכו להתעדכן כרגיל.`);
+      console.log(`🛑 בדוק ב-console.cloudinary.com לפני שמריצים שוב עם FORCE_REIMAGE.\n`);
+    } else {
+      console.log(`    ⚠ Cloudinary upload failed: ${e.message?.substring(0,80)}`);
+    }
     return null;
   }
 }
@@ -101,7 +118,7 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%99%d7%95%d7%95%d7%a5/'];
+  // TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%99%d7%95%d7%95%d7%a5/'];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');

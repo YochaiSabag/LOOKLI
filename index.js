@@ -2039,6 +2039,30 @@ app.post("/api/sidebar-ads/:id/deactivate", adminAuth, async(req,res)=>{ await p
 app.delete("/api/sidebar-ads/:id", adminAuth, async(req,res)=>{ await pool.query("DELETE FROM sidebar_ads WHERE id=$1",[req.params.id]); res.json({ok:true}); });
 
 // GET /api/ad-pricing — ציבורי, לעמוד "פרסמו אצלנו" ולתצוגה בכל מקום שצריך
+// Proxy תמונה ממוקד - מגיש תמונה בודדת מ-Cloudinary תחת הדומיין של lookli.co.il, בלי
+// לשמור שום דבר בקביעות (רק stream בזמן אמת). נועד לתמונות ספציפיות וגבוליות שנחסמו
+// תחת res.cloudinary.com אבל עשויות להיפתח כשמוגשות מדומיין lookli עצמו.
+// הגנת אבטחה: מאפשר אך ורק URL-ים מה-cloud_name שלנו - לא proxy פתוח כללי.
+const ALLOWED_IMG_PROXY_PREFIX = 'https://res.cloudinary.com/dghxzffis/';
+app.get('/img-proxy', async (req, res) => {
+  try {
+    const src = req.query.u || '';
+    if (!src.startsWith(ALLOWED_IMG_PROXY_PREFIX)) {
+      return res.status(400).json({ error: 'כתובת לא מורשית' });
+    }
+    const upstream = await fetch(src);
+    if (!upstream.ok) return res.status(upstream.status).end();
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable'); // 30 יום - חוסך bandwidth בביקורים חוזרים
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error('img-proxy error:', err.message);
+    res.status(500).end();
+  }
+});
+
 app.get("/api/ad-pricing", async (req, res) => {
   try {
     const r = await pool.query("SELECT base_rates, duration_tiers, updated_at FROM ad_pricing_config WHERE id=1");

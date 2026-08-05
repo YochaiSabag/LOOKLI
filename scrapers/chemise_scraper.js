@@ -118,7 +118,7 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-  // TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%99%d7%92-%d7%9b%d7%99%d7%95%d7%95%d7%a5/'];
+   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%a1%d7%a8%d7%99%d7%92-%d7%a7%d7%a8%d7%93%d7%99%d7%92%d7%9f-%d7%a7%d7%99%d7%99%d7%a6%d7%99/'];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');
@@ -281,6 +281,20 @@ async function scrapeProduct(page, url) {
       
       // === תמונות ===
       const images = [];
+      // מפתח לזיהוי כפילויות: אותה תמונה יכולה להופיע ב-URL שונה טכנית (גדלים שונים
+      // של אותו קובץ, כמו "S26162-כתום.jpg" מול "S26162-כתום-1400x2182.jpg") - צריך
+      // להשוות לפי השם הבסיסי בלי סיומת הגודל, אחרת אותה תמונה נספרת כמה פעמים
+      function baseImgKey(url) {
+        return (url || '').split('?')[0].replace(/-\d+x\d+(?=\.\w+$)/i, '');
+      }
+      const seenBaseKeys = new Set();
+      function addImage(url) {
+        if (!url) return;
+        const key = baseImgKey(url);
+        if (seenBaseKeys.has(key)) return;
+        seenBaseKeys.add(key);
+        images.push(url);
+      }
 
       // שלב 0 (הכי אמין): data-default JSON שמוטמע ב-HTML לפני כל JS
       const galleryWrap = document.querySelector('.iconic-woothumbs-all-images-wrap[data-default]');
@@ -293,7 +307,7 @@ async function scrapeProduct(page, url) {
                            parseFloat((item.aspect || '1:1').split(':')[1] || 1);
             if (aspect > 2) return; // תמונת טבלת מידות — דלג
             const url = item.full_src || item.src || item.large_src || '';
-            if (url && url.includes('uploads') && !images.includes(url)) images.push(url);
+            if (url && url.includes('uploads')) addImage(url);
           });
         } catch(e) { /* fallback לשלבים הבאים */ }
       }
@@ -333,14 +347,13 @@ async function scrapeProduct(page, url) {
           seenIndexes.add(idx);
           const img = slide.querySelector('img');
           if (!img) return;
-          const url = getImgUrl(img);
-          if (url && !images.includes(url)) images.push(url);
+          addImage(getImgUrl(img));
         });
       }
 
-      // שלב 1.5: thumbnails — מחלץ URL מ-data-srcset (כל התמונות הנוספות)
+      // שלב 1.5: thumbnails — מוסיף רק תמונות שבאמת לא נאספו עדיין (לפי השם הבסיסי),
+      // לא עוד גרסת-גודל של תמונה שכבר יש
       {
-        const seenThumb = new Set(images);
         document.querySelectorAll('.iconic-woothumbs-thumbnails__image').forEach(img => {
           const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset') || '';
           let best = '';
@@ -364,17 +377,14 @@ async function scrapeProduct(page, url) {
             const src = img.getAttribute('src') || '';
             best = src.replace(/-\d+x\d+(\.\w+)$/, '-460x460$1');
           }
-          if (best && best.includes('uploads') && !seenThumb.has(best)) {
-            seenThumb.add(best);
-            images.push(best);
-          }
+          if (best && best.includes('uploads')) addImage(best);
         });
       }
 
       // שלב 2: fallback — WooCommerce gallery
       if (images.length === 0) {
         document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {
-          if (a.href && a.href.includes('uploads') && !images.includes(a.href)) images.push(a.href);
+          if (a.href && a.href.includes('uploads')) addImage(a.href);
         });
       }
       

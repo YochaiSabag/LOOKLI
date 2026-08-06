@@ -4942,6 +4942,11 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_images JSONB`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS first_seen TIMESTAMP`);
     await pool.query(`UPDATE products SET first_seen = created_at WHERE first_seen IS NULL`);
+    // תשתית מוצרי ילדים - במקום למחוק/לדלג על מוצרים עם מידות ילדים (7,8,9,10,12,14...),
+    // שומרים אותם עם תיוג נפרד. sizes (מידות מבוגרים) נשארות ריקות עבורם בכוונה, כך שהם
+    // ממשיכים להיות מוסתרים אוטומטית מהחיפוש הרגיל (שדורש array_length(sizes,1)>0) עד שתיבנה תצוגה ייעודית
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_kids BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS kids_sizes TEXT[]`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
     await pool.query(`DROP TABLE IF EXISTS image_cache`).catch(()=>{});

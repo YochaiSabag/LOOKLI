@@ -118,7 +118,7 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%a1%d7%a8%d7%99%d7%92-%d7%a7%d7%a8%d7%93%d7%99%d7%92%d7%9f-%d7%a7%d7%99%d7%99%d7%a6%d7%99/'];
+   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a4%d7%a1%d7%99%d7%9d-%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7/'];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');
@@ -246,13 +246,12 @@ async function scrapeProduct(page, url) {
       }
       return rawSizes;
     });
-    if (isKidsSizeOnly(earlySizeCheck)) {
-      console.log(`  ⏭️ מדלג מוקדם (מידות ילדים: ${earlySizeCheck.join(',')})`);
-      await db.query(
-        `INSERT INTO scraper_skip_urls (source_url, store, reason) VALUES ($1, 'CHEMISE', 'kids_sizes') ON CONFLICT (source_url) DO NOTHING`,
-        [url]
-      ).catch(() => {});
-      return 'KIDS_SKIP';
+    // מוצרי ילדים — מזוהים לפי מידות מספריות גולמיות (7,8,9,10,12,14...) בניגוד למידות
+    // מבוגרים באותה חנות (1,2,3,4,5,6). בעבר היו מדולגים לגמרי; עכשיו ממשיכים לעבד אותם
+    // באופן מלא (מחיר/תמונות/צבעים) ומסמנים is_kids=true בשמירה, כדי לא לאבד אותם.
+    let isKidsProduct = isKidsSizeOnly(earlySizeCheck);
+    if (isKidsProduct) {
+      console.log(`  🧒 זוהה כמוצר ילדים (מידות: ${earlySizeCheck.join(',')}) — ממשיך לעבד ולשמור עם תיוג`);
     }
 
     // לחץ על הסווץ' הראשון — WooCommerce מציג מחיר רק אחרי בחירת וריאציה
@@ -473,16 +472,13 @@ async function scrapeProduct(page, url) {
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (!data.price) console.log(`    ⚠️ מחיר 0 — בדוק HTML מחיר`);
 
-    // דילוג על פריטי ילדים — מזוהים לפי מידות מספריות גולמיות (7,8,9,10,12,14...)
-    // בניגוד למידות מבוגרים באותה חנות (1,2,3,4,5,6)
+    // מוצרי ילדים — מזוהים לפי מידות מספריות גולמיות (7,8,9,10,12,14...) בניגוד למידות
+    // מבוגרים באותה חנות (1,2,3,4,5,6). ממשיכים לעבד במלואם (לא מדלגים) ומעדכנים את הדגל
+    // עם המידע המלא שנאסף כאן (הבדיקה המוקדמת יכולה לפעמים לפספס אם ה-DOM נטען חלקית)
     const rawSizeLabelsForKidsCheck = (data.rawSizes || []).map(s => s.name);
     if (isKidsSizeOnly(rawSizeLabelsForKidsCheck)) {
-      console.log(`  ⏭️ מדלג (מידות ילדים: ${rawSizeLabelsForKidsCheck.join(',')}): ${data.title.substring(0, 40)}`);
-      await db.query(
-        `INSERT INTO scraper_skip_urls (source_url, store, reason) VALUES ($1, 'CHEMISE', 'kids_sizes') ON CONFLICT (source_url) DO NOTHING`,
-        [url]
-      ).catch(() => {});
-      return 'KIDS_SKIP';
+      isKidsProduct = true;
+      console.log(`  🧒 אושר כמוצר ילדים (מידות: ${rawSizeLabelsForKidsCheck.join(',')}): ${data.title.substring(0, 40)}`);
     }
 
     const style = detectStyle(data.title, data.description);
@@ -725,6 +721,8 @@ async function scrapeProduct(page, url) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
+      isKids: isKidsProduct,
+      kidsSizes: isKidsProduct ? [...new Set(rawSizeLabelsForKidsCheck)] : [],
       url
     };
     
@@ -742,8 +740,8 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, color_raw_labels, last_seen, first_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW(),NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, color_raw_labels, is_kids, kids_sizes, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title          = EXCLUDED.title,
          price          = EXCLUDED.price,
@@ -763,6 +761,8 @@ async function saveProduct(product) {
          fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
          design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
          all_sizes      = EXCLUDED.all_sizes,
+         is_kids        = EXCLUDED.is_kids,
+         kids_sizes     = EXCLUDED.kids_sizes,
          last_seen      = NOW(),
          hidden_stale   = false,
          not_seen_count = 0,
@@ -791,9 +791,10 @@ async function saveProduct(product) {
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null,
        product.designDetails?.length ? product.designDetails : null,
-       product.allSizes, product.colorRawLabels?.length ? product.colorRawLabels : null]
+       product.allSizes, product.colorRawLabels?.length ? product.colorRawLabels : null,
+       product.isKids || false, product.kidsSizes?.length ? product.kidsSizes : null]
     );
-    console.log('  💾 saved');
+    console.log(product.isKids ? '  💾 saved (🧒 ילדים)' : '  💾 saved');
   } catch (err) {
     console.log(`  ✗ DB: ${err.message.substring(0, 30)}`);
   }
@@ -836,23 +837,22 @@ try {
   const urls = await getAllProductUrls(page);
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
   
-  let ok = 0, fail = 0, kidsSkipped = 0;
-  const kidsSkipUrls = new Set();
+  let ok = 0, fail = 0, kidsSaved = 0;
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
   for (let i = 0; i < urls.length; i++) {
     if (ok >= MAX_PRODUCTS) { console.log(`\n⏹ הגענו ל-${MAX_PRODUCTS} מוצרים - עוצר`); break; }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
-    if (p === 'KIDS_SKIP') { kidsSkipped++; kidsSkipUrls.add(urls[i]); }
-    else if (p) { await saveProduct(p); ok++; }
+    if (p) { await saveProduct(p); ok++; if (p.isKids) kidsSaved++; }
     else fail++;
     await page.waitForTimeout(500);
   }
 
-  // מוצרי ילדים לא נחשבים "נמצאו" בכלל — לא קשורים למנגנון hidden_stale
-  const foundUrls = urls.filter(u => !kidsSkipUrls.has(u));
+  // מוצרי ילדים נשמרים כרגע כמו כל מוצר אחר (is_kids=true) - הם חלק לגיטימי מ-foundUrls
+  // ומוגנים ע"י מנגנון hidden_stale הרגיל, בדיוק כמו מוצרי מבוגרים
+  const foundUrls = urls;
 
-  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail} | 👶 דולגו (ילדים): ${kidsSkipped}\n${'='.repeat(50)}`);
+  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} (מתוכם 🧒 ילדים: ${kidsSaved}) | ❌ ${fail}\n${'='.repeat(50)}`);
 
   // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
   if (TEST_MODE_ACTIVE) {

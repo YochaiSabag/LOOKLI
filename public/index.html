@@ -221,7 +221,7 @@
     .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
     .store-opt img{width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:7px}
     .store-opt[data-store="MYME"] img{width:100%;height:100%;padding:2px}
-    .store-opt span{font-size:12px;font-weight:800}
+    .store-opt span{font-size:12px;font-weight:700}
     .store-opt::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
     .store-opt:hover::after{opacity:1}
     
@@ -239,7 +239,7 @@
     
     /* Price slider */
     .price-section{padding:10px 0}
-    .price-display{font-size:16px;font-weight:800;color:var(--accent);text-align:center;margin-bottom:12px}
+    .price-display{font-size:16px;font-weight:700;color:var(--accent);text-align:center;margin-bottom:12px}
     .price-slider input[type="range"]{width:100%;height:6px;border-radius:3px;background:linear-gradient(to left,var(--accent),var(--accent-light));outline:none;-webkit-appearance:none;cursor:pointer}
     .price-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(144,97,249,.3)}
     
@@ -378,7 +378,7 @@
     .netfree-info-light{background:rgba(224,161,192,.18);color:var(--accent-dark)}
     /* תג מידע על כפתור חיפוש התמונה - הנקודה הוויזואלית קטנה, אבל שטח הלחיצה גדול מספיק למגע */
     .camera-limit-badge{position:absolute;top:-9px;left:-9px;width:28px;height:28px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer}
-    .camera-limit-badge::before{content:'i';display:flex;align-items:center;justify-content:center;width:15px;height:15px;background:#fff;color:var(--accent-dark);border:1.5px solid var(--accent);border-radius:50%;font-size:9px;font-style:italic;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+    .camera-limit-badge::before{content:'i';display:flex;align-items:center;justify-content:center;width:15px;height:15px;background:#fff;color:var(--accent-dark);border:1.5px solid var(--accent);border-radius:50%;font-size:9px;font-style:italic;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.15)}
     .camera-limit-badge::after{left:0;right:auto;transform:none;width:180px;text-align:right}
     .netfree-info-light:hover,.netfree-info-light.show-tip{background:rgba(224,161,192,.35)}
 
@@ -525,7 +525,7 @@
     .img-wrap{position:relative;width:100%;aspect-ratio:3/4;background:#f3f4f6;overflow:hidden}
     
     /* SALE Badge */
-    .sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:800;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
+    .sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
     
     /* Carousel */
     .carousel{position:relative;width:100%;height:100%}
@@ -540,7 +540,7 @@
     .carousel-prev{right:8px}
     .carousel-next{left:8px}
     @media(max-width:768px){
-      .carousel-nav{display:flex!important;pointer-events:none;width:auto;height:auto;background:none;box-shadow:none;border-radius:0;font-size:15px;font-weight:900;opacity:.75;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+      .carousel-nav{display:flex!important;pointer-events:none;width:auto;height:auto;background:none;box-shadow:none;border-radius:0;font-size:15px;font-weight:700;opacity:.75;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
       .carousel-prev{right:auto!important;left:6px!important}
       .carousel-next{left:auto!important;right:6px!important}
     }
@@ -552,13 +552,13 @@
     .card-logo:hover::after{opacity:1}
     .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-    .card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
+    .card-color-more{font-size:10px;font-weight:700;color:#666;padding:0 3px;display:flex;align-items:center}
     
     .card-body{padding:14px}
     .title{font-size:14px;font-weight:700;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:40px;color:var(--text)}
     .subrow{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
     .price-wrap{display:flex;align-items:center;gap:6px}
-    .price{font-weight:900;font-size:17px}
+    .price{font-weight:700;font-size:17px}
     .price-original{font-size:13px;color:var(--muted);text-decoration:line-through}
     .price.sale{color:var(--sale-color)}
     .store{font-size:12px;color:var(--muted);font-weight:600}
@@ -578,7 +578,7 @@
     #modalWrapper::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
     .modal{width:min(1000px,100%);background:#fff;border-radius:18px;overflow:visible;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
     .modal-head{padding:8px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
-    .modal-title{font-weight:800;font-size:15px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .modal-title{font-weight:700;font-size:15px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .close-btn{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:15px;transition:all .15s}
     .close-btn:hover{border-color:var(--accent);color:var(--accent)}
     .modal-body{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:12px 16px}
@@ -615,7 +615,7 @@
     .desc-title{font-weight:700;font-size:14px;margin-bottom:8px;color:var(--text)}
     .label{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase}
     .buy-big{margin-top:auto}
-    .buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:800;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
+    .buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:700;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
     .buy-big a:hover{background:var(--accent-dark)}
     
     /* Footer */
@@ -626,7 +626,7 @@
     .footer-section h4{font-size:12px;font-weight:700;margin:0 0 14px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px}
     .footer-section a{display:block;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;margin-bottom:9px;transition:color .15s}
     .footer-section a:hover{color:#fff}
-    .footer-brand{font-weight:900;font-size:22px;margin-bottom:10px;letter-spacing:-.3px}
+    .footer-brand{font-weight:700;font-size:22px;margin-bottom:10px;letter-spacing:-.3px}
     .footer-desc{font-size:12px;color:rgba(255,255,255,.45);line-height:1.65;margin:0}
     .footer-bottom{border-top:1px solid rgba(255,255,255,.07);text-align:center;padding:18px 24px;font-size:11px;color:rgba(255,255,255,.3)}
 
@@ -739,7 +739,7 @@
     .hero-color-cube .hero-cube-label{font-size:13px;font-weight:600}
     
     /* Price/Size cubes */
-    .hero-big-text{font-size:42px;font-weight:900;color:var(--accent)}
+    .hero-big-text{font-size:42px;font-weight:700;color:var(--accent)}
     
     @media(max-width:768px){
       .hero-discover{padding:18px 0 8px}
@@ -777,7 +777,7 @@
     .auth-modal-bg.open{display:flex}
     .auth-modal{background:#fff;border-radius:20px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;overflow-x:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
     .auth-modal-head{background:var(--header-gradient);padding:28px 28px 22px;text-align:center}
-    .auth-modal-head h2{margin:0;color:#fff;font-size:22px;font-weight:800}
+    .auth-modal-head h2{margin:0;color:#fff;font-size:22px;font-weight:700;font-family:inherit}
     .auth-modal-head p{margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px}
     .auth-modal-close{position:absolute;top:14px;left:14px;background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
     .auth-modal-body{padding:28px}
@@ -804,7 +804,7 @@
     .saved-panel-bg.open{display:flex}
     .saved-panel{background:#fff;width:380px;max-width:95vw;height:100%;overflow-y:auto;box-shadow:4px 0 30px rgba(0,0,0,.15);display:flex;flex-direction:column}
     .saved-panel-head{background:var(--header-gradient);padding:20px 20px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-    .saved-panel-head h3{margin:0;color:#fff;font-size:18px;font-weight:800}
+    .saved-panel-head h3{margin:0;color:#fff;font-size:18px;font-weight:700}
     .saved-panel-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px}
     .saved-panel-body{flex:1;padding:16px;overflow-y:auto}
     .saved-item{display:flex;gap:12px;padding:12px;border:1px solid #f3f4f6;border-radius:12px;margin-bottom:10px;align-items:center;transition:box-shadow .2s}
@@ -828,7 +828,7 @@
     .alert-popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1100;align-items:center;justify-content:center}
     .alert-popup-bg.open{display:flex}
     .alert-popup{background:#fff;border-radius:18px;padding:24px;width:320px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.18);direction:rtl}
-    .alert-popup-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px}
+    .alert-popup-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px}
     .alert-popup-product{font-size:12px;color:#9ca3af;margin-bottom:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .alert-option{display:flex;align-items:center;gap:10px;padding:11px 13px;border:2px solid #e5e7eb;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s}
     .alert-option:hover{border-color:var(--accent);background:rgba(224,161,192,.04)}
@@ -859,7 +859,7 @@
 
     /* Profile area in saved panel */
     .user-profile-bar{padding:14px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:12px}
-    .user-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;flex-shrink:0}
+    .user-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0}
     .user-info .user-email{font-size:13px;font-weight:700;color:var(--text)}
     .user-info .user-plan{font-size:11px;color:#9ca3af;margin-top:2px}
     .user-info .user-plan.premium{color:#f59e0b;font-weight:600}
@@ -1020,7 +1020,7 @@
           <span style="display:flex;flex-direction:column">
             <span style="display:flex;align-items:center;gap:6px">
               <span>לאתר מסונן (נטפרי)</span>
-              <span class="info-tooltip-icon netfree-info-light" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה בנטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
+              <span class="info-tooltip-icon netfree-info-light" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה באתר המסונן נטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
             </span>
             <span class="netfree-status" id="netfreeStatusMobile">כבוי</span>
           </span>
@@ -2355,7 +2355,7 @@ function renderProducts(products,append=false){
       const isSaved = savedUrls.has(p.source_url||'');
       const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
       const debugBadge = DEBUG_IMAGES
-        ? `<div style="position:absolute;top:0;left:0;right:0;z-index:50;text-align:center;font-size:11px;font-weight:800;padding:3px;color:#fff;background:${p.has_valid_image===false?'#dc2626':'#16a34a'}">${p.has_valid_image===false?'❌ מסומן חסום':'✅ מסומן תקין'} (ID:${p.id})</div>`
+        ? `<div style="position:absolute;top:0;left:0;right:0;z-index:50;text-align:center;font-size:11px;font-weight:700;padding:3px;color:#fff;background:${p.has_valid_image===false?'#dc2626':'#16a34a'}">${p.has_valid_image===false?'❌ מסומן חסום':'✅ מסומן תקין'} (ID:${p.id})</div>`
         : '';
       const debugBorder = DEBUG_IMAGES ? `border:4px solid ${p.has_valid_image===false?'#dc2626':'#16a34a'};` : '';
       grid.innerHTML+=`<div class="card" data-pid="${p.id}" data-total-imgs="${images.length||1}" style="${debugBorder}position:relative" onclick="${DEBUG_IMAGES?'':'openProduct('+p.id+')'}"><div class="img-wrap">${debugBadge}${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
@@ -3287,7 +3287,7 @@ document.addEventListener('click', e => {
         <!-- Profile (when logged in) -->
         <div id="profileForm" style="display:none">
           <div style="text-align:center;margin-bottom:20px">
-            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800;margin:0 auto 12px" id="profileAvatar">?</div>
+            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:700;margin:0 auto 12px" id="profileAvatar">?</div>
             <div style="font-weight:700;font-size:16px" id="profileName">-</div>
             <div style="color:#9ca3af;font-size:13px;margin-top:4px" id="profileEmail">-</div>
             <div style="margin-top:8px" id="profilePlanBadge"></div>
@@ -3316,7 +3316,7 @@ document.addEventListener('click', e => {
       <div class="saved-panel-body" style="padding:20px">
         <!-- אווטאר ופרטים -->
         <div style="text-align:center;margin-bottom:24px">
-          <div style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px;font-weight:800;margin:0 auto 12px" id="profileAvatar2">?</div>
+          <div style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px;font-weight:700;margin:0 auto 12px" id="profileAvatar2">?</div>
           <div style="font-weight:700;font-size:17px;margin-bottom:4px" id="profileName2">-</div>
           <div style="color:#9ca3af;font-size:13px" id="profileEmail2">-</div>
           <div style="margin-top:8px" id="profilePlanBadge2"></div>
@@ -3451,13 +3451,27 @@ document.addEventListener('click', e => {
       openProfilePanel();
       return;
     }
-    switchAuthTab('login');
+    // כותרת + כותרת-משנה משקפות את ההקשר האמיתי שבגללו המודל נפתח - הצעת ערך ממוקדת
+    // במקום ניסוח כללי. פיצ'רים נעולים (תמונה/סטייליסטית) פותחים ישר בטאב הרשמה,
+    // כי הסבירות הגבוהה היא שהמשתמשת עוד אין לה חשבון בכלל.
+    let titleText, subText, tab;
+    if (reason === 'stylist') {
+      titleText = 'בואי נכיר את הסטייל שלך';
+      subText = 'הסטייליסטית האישית שלנו זמינה בחינם למשתמשות רשומות - התאמה אישית תוך דקה';
+      tab = 'register';
+    } else if (reason === 'image-search') {
+      titleText = 'רגע לפני שמוצאים את הפריט';
+      subText = 'חיפוש לפי תמונה זמין בחינם למשתמשות רשומות - הרשמה לוקחת פחות מדקה';
+      tab = 'register';
+    } else {
+      titleText = 'ברוכה הבאה ל-LOOKLI';
+      subText = 'שמרי פריטים שאהבת וקבלי התראה כשהמחיר יורד';
+      tab = 'login';
+    }
+    switchAuthTab(tab);
     document.getElementById('authModalBg').classList.add('open');
     clearAuthMessages();
-    // כותרת-המשנה משקפת את הסיבה האמיתית לפתיחת המודל (במקום משפט כללי לא-קשור + הערה נפרדת בצבע לא קריא)
-    const subText = reason === 'stylist' ? 'הסטייליסטית האישית ניתנת למשתמשות רשומות (ללא עלות)'
-      : reason === 'image-search' ? 'חיפוש לפי תמונה ניתן למשתמשות רשומות (ללא עלות)'
-      : 'שמרי פריטים שאהבת וקבלי התראה כשהמחיר יורד';
+    document.getElementById('authModalTitle').textContent = titleText;
     document.getElementById('authModalSub').textContent = subText;
   }
 

@@ -118,7 +118,10 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-   TEST_MODE_ACTIVE = true; return ['https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a4%d7%a1%d7%99%d7%9d-%d7%91%d7%99%d7%99%d7%a1%d7%99%d7%a7/'];
+   TEST_MODE_ACTIVE = true; return [
+     'https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%98-%d7%a9%d7%9e%d7%99%d7%96/',
+     'https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a9%d7%9e%d7%99%d7%96-%d7%a8%d7%99%d7%91/',
+   ];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');
@@ -614,10 +617,18 @@ async function scrapeProduct(page, url) {
         const inStockSizeNames = [];
         for (const sizeEl of sizeEls) {
           if (comboCount++ > MAX_COMBOS) break;
-          const sizeName = await sizeEl.evaluate(e =>
-            e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || ''
-          );
-          if (!sizeName) continue;
+          const info = await sizeEl.evaluate(e => ({
+            name: e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || '',
+            disabled: e.classList.contains('disabled') || e.classList.contains('out-of-stock'),
+          }));
+          if (!info.name) continue;
+          if (info.disabled) {
+            // המידה מסומנת disabled ביחס לצבע שכבר בחרנו כרגע (לא ברירת מחדל כללית) -
+            // זה כן אמין כאן, ובעיקר: קליק מאולץ על אלמנט מנוטרל משאיר את הווידג'ט
+            // ב"מצב שבור" שמשפיע גם על בדיקות המידות הבאות באותו צבע - עדיף לדלג בלי לגעת
+            console.log(`        ${info.name}: disabled ל-${colorName} — מדלג בלי קליק`);
+            continue;
+          }
           await sizeEl.click({ force: true }).catch(() => {});
           await page.waitForTimeout(600); // המתנה ל-AJAX של WooCommerce שיעדכן מלאי
 
@@ -633,7 +644,7 @@ async function scrapeProduct(page, url) {
             return !disabledByClass && !disabledByWrap && !outOfStockText;
           });
           if (comboCount > MAX_COMBOS) break;
-          if (isAvailable) inStockSizeNames.push(sizeName);
+          if (isAvailable) inStockSizeNames.push(info.name);
         }
         if (comboCount > MAX_COMBOS) { console.log(`    ⏹ MAX_COMBOS הגיע — עוצר`); }
 
@@ -738,6 +749,7 @@ async function scrapeProduct(page, url) {
       colorSizes: colorSizesMap,
       isKids: isKidsProduct,
       kidsSizes: isKidsProduct ? [...new Set([...(earlySizeCheck || []), ...rawSizeLabelsForKidsCheck])] : [],
+      kidsGender: isKidsProduct ? 'girls' : null, // שמיז מוכרת רק בגדי בנות (עובדה קבועה של החנות, לא זיהוי אוטומטי)
       url
     };
     
@@ -755,8 +767,8 @@ async function saveProduct(product) {
   if (!product) return;
   try {
     await db.query(
-      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, color_raw_labels, is_kids, kids_sizes, last_seen, first_seen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW(),NOW())
+      `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, color_raw_labels, is_kids, kids_sizes, kids_gender, last_seen, first_seen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,NOW(),NOW())
        ON CONFLICT (source_url) DO UPDATE SET
          title          = EXCLUDED.title,
          price          = EXCLUDED.price,
@@ -778,6 +790,7 @@ async function saveProduct(product) {
          all_sizes      = EXCLUDED.all_sizes,
          is_kids        = EXCLUDED.is_kids,
          kids_sizes     = EXCLUDED.kids_sizes,
+         kids_gender    = EXCLUDED.kids_gender,
          last_seen      = NOW(),
          hidden_stale   = false,
          not_seen_count = 0,
@@ -807,7 +820,8 @@ async function saveProduct(product) {
        product.pattern || null, product.fabric || null,
        product.designDetails?.length ? product.designDetails : null,
        product.allSizes, product.colorRawLabels?.length ? product.colorRawLabels : null,
-       product.isKids || false, product.kidsSizes?.length ? product.kidsSizes : null]
+       product.isKids || false, product.kidsSizes?.length ? product.kidsSizes : null,
+       product.kidsGender || null]
     );
     console.log(product.isKids ? '  💾 saved (🧒 ילדים)' : '  💾 saved');
   } catch (err) {

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow"/>
+  <title>בגדי ילדים | LOOKLI</title>
+  <link rel="icon" href="/favicon.ico"/>
+  <style>
+    :root{
+      --bg:#fff; --text:#787878; --muted:#9a9a9a; --accent:#e0a1c0;
+      --accent-dark:#c48cb3; --border:#eee;
+      --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%);
+    }
+    *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit;text-decoration:none}
+
+    .header{background:var(--header-gradient);padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .header a.back{color:#fff;font-size:14px;font-weight:600}
+    .header .logo img{height:40px}
+
+    .hero{background:var(--header-gradient);padding:36px 24px;text-align:center;color:#fff}
+    .hero h1{font-size:26px;font-weight:700;margin:0 0 8px}
+    .hero p{font-size:14px;opacity:.9;margin:0}
+
+    .layout{max-width:1400px;margin:0 auto;padding:24px;display:flex;gap:24px}
+    @media(max-width:900px){.layout{flex-direction:column}}
+
+    .filters{width:220px;flex-shrink:0}
+    @media(max-width:900px){.filters{width:100%}}
+    .filter-group{margin-bottom:22px}
+    .filter-group h3{font-size:13px;font-weight:700;color:var(--text);margin:0 0 10px}
+    .filter-chip{display:inline-flex;align-items:center;justify-content:center;padding:6px 12px;margin:0 6px 6px 0;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;background:#fff;color:var(--text)}
+    .filter-chip.active{background:var(--accent-dark);color:#fff;border-color:var(--accent-dark)}
+    .color-chip{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;margin:0 6px 6px 0;display:inline-block;position:relative}
+    .color-chip.active{border-color:var(--accent-dark);box-shadow:0 0 0 2px var(--accent-dark)}
+    .search-box{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:16px}
+
+    .main{flex:1;min-width:0}
+    .main-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;font-size:13px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+    .card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;transition:transform .15s}
+    .card:hover{transform:translateY(-3px);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+    .card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#f5f5f5}
+    .card-body{padding:10px 12px}
+    .card-title{font-size:13px;color:var(--text);margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .card-price{font-size:14px;font-weight:700;color:var(--accent-dark)}
+    .card-price .orig{font-size:11px;color:var(--muted);text-decoration:line-through;margin-right:6px;font-weight:400}
+    .card-sizes{font-size:11px;color:var(--muted);margin-top:4px}
+    .card-store{font-size:11px;color:var(--muted)}
+
+    .empty-state{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+    .loading{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+    .load-more{display:block;margin:24px auto;padding:10px 28px;border-radius:8px;border:1px solid var(--accent-dark);color:var(--accent-dark);background:#fff;font-size:14px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="back">→ חזרה לאתר</a>
+    <a href="/" class="logo"><img src="/lookli-logo.png" alt="LOOKLI"/></a>
+  </header>
+
+  <div class="hero">
+    <h1>בגדי ילדים</h1>
+    <p id="heroSub">טוען...</p>
+  </div>
+
+  <div class="layout">
+    <aside class="filters">
+      <input class="search-box" id="searchInput" type="text" placeholder="חיפוש מוצר..."/>
+
+      <div class="filter-group">
+        <h3>מידה</h3>
+        <div id="sizeFilters"></div>
+      </div>
+
+      <div class="filter-group">
+        <h3>צבע</h3>
+        <div id="colorFilters"></div>
+      </div>
+
+      <div class="filter-group">
+        <h3>קטגוריה</h3>
+        <div id="categoryFilters"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="main-top">
+        <span id="resultCount"></span>
+        <select id="sortSelect" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:13px">
+          <option value="">מיון: ברירת מחדל</option>
+          <option value="price_asc">מחיר: מהזול ליקר</option>
+          <option value="price_desc">מחיר: מהיקר לזול</option>
+        </select>
+      </div>
+      <div id="grid" class="grid"></div>
+      <div id="loadingMsg" class="loading">טוען מוצרים...</div>
+      <button id="loadMoreBtn" class="load-more" style="display:none">טעני עוד</button>
+    </main>
+  </div>
+
+  <script>
+    let state = { q: '', colors: new Set(), sizes: new Set(), category: '', sort: '', offset: 0, limit: 30, total: 0 };
+    const LIMIT = 30;
+
+    async function loadFilters() {
+      try {
+        const res = await fetch('/api/kids-filters');
+        const data = await res.json();
+        document.getElementById('heroSub').textContent = 'כל מה שצריך לילדות שלכם, במקום אחד';
+
+        const sizeWrap = document.getElementById('sizeFilters');
+        sizeWrap.innerHTML = (data.sizes || []).map(s =>
+          `<span class="filter-chip" data-size="${escapeHtml(s)}" onclick="toggleSize('${escapeHtml(s)}')">${escapeHtml(s)}</span>`
+        ).join('') || '<span style="font-size:12px;color:var(--muted)">אין עדיין מידות</span>';
+
+        const colorWrap = document.getElementById('colorFilters');
+        colorWrap.innerHTML = (data.colors || []).map(c =>
+          `<span class="filter-chip" data-color="${escapeHtml(c)}" onclick="toggleColor('${escapeHtml(c)}')">${escapeHtml(c)}</span>`
+        ).join('') || '<span style="font-size:12px;color:var(--muted)">אין עדיין צבעים</span>';
+
+        const catWrap = document.getElementById('categoryFilters');
+        catWrap.innerHTML = (data.categories || []).map(c =>
+          `<span class="filter-chip" data-cat="${escapeHtml(c)}" onclick="toggleCategory('${escapeHtml(c)}')">${escapeHtml(c)}</span>`
+        ).join('') || '<span style="font-size:12px;color:var(--muted)">אין עדיין קטגוריות</span>';
+      } catch (e) {
+        document.getElementById('heroSub').textContent = 'כל מה שצריך לילדות שלכם, במקום אחד';
+      }
+    }
+
+    function toggleSize(s) {
+      if (state.sizes.has(s)) state.sizes.delete(s); else state.sizes.add(s);
+      document.querySelectorAll('[data-size]').forEach(el => el.classList.toggle('active', state.sizes.has(el.dataset.size)));
+      resetAndLoad();
+    }
+    function toggleColor(c) {
+      if (state.colors.has(c)) state.colors.delete(c); else state.colors.add(c);
+      document.querySelectorAll('[data-color]').forEach(el => el.classList.toggle('active', state.colors.has(el.dataset.color)));
+      resetAndLoad();
+    }
+    function toggleCategory(c) {
+      state.category = state.category === c ? '' : c;
+      document.querySelectorAll('[data-cat]').forEach(el => el.classList.toggle('active', el.dataset.cat === state.category));
+      resetAndLoad();
+    }
+
+    function resetAndLoad() { state.offset = 0; loadProducts(true); }
+
+    async function loadProducts(replace) {
+      const grid = document.getElementById('grid');
+      const loadingMsg = document.getElementById('loadingMsg');
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      loadingMsg.style.display = 'block';
+      loadMoreBtn.style.display = 'none';
+
+      const params = new URLSearchParams();
+      if (state.q) params.set('q', state.q);
+      if (state.colors.size) params.set('color', [...state.colors].join(','));
+      if (state.sizes.size) params.set('size', [...state.sizes].join(','));
+      if (state.category) params.set('category', state.category);
+      if (state.sort) params.set('sort', state.sort);
+      params.set('limit', LIMIT);
+      params.set('offset', state.offset);
+
+      try {
+        const res = await fetch('/api/kids-products?' + params);
+        const data = await res.json();
+        state.total = data.total || 0;
+        if (replace) grid.innerHTML = '';
+        (data.results || []).forEach(p => grid.appendChild(renderCard(p)));
+
+        document.getElementById('resultCount').textContent = state.total ? `${state.total} מוצרים` : '';
+        loadingMsg.style.display = 'none';
+
+        if (!data.results || data.results.length === 0) {
+          if (replace) grid.innerHTML = '<div class="empty-state">לא נמצאו מוצרים תואמים</div>';
+        } else if (state.offset + LIMIT < state.total) {
+          loadMoreBtn.style.display = 'block';
+        }
+      } catch (e) {
+        loadingMsg.textContent = 'שגיאה בטעינת מוצרים';
+      }
+    }
+
+    function renderCard(p) {
+      const div = document.createElement('a');
+      div.href = '/product/' + p.id;
+      div.target = '_blank';
+      div.className = 'card';
+      const img = (p.images && p.images[0]) || p.image_url || '';
+      const sizesText = (p.kids_sizes || []).join(', ');
+      div.innerHTML = `
+        <img src="${img}" loading="lazy" alt="${escapeHtml(p.title || '')}"/>
+        <div class="card-body">
+          <div class="card-title">${escapeHtml(p.title || '')}</div>
+          <div class="card-price">
+            ${p.original_price && p.original_price > p.price ? `<span class="orig">₪${p.original_price}</span>` : ''}
+            ₪${p.price}
+          </div>
+          ${sizesText ? `<div class="card-sizes">מידות: ${escapeHtml(sizesText)}</div>` : ''}
+          <div class="card-store">${escapeHtml(p.store || '')}</div>
+        </div>`;
+      return div;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    document.getElementById('searchInput').addEventListener('input', debounce(e => {
+      state.q = e.target.value.trim();
+      resetAndLoad();
+    }, 400));
+    document.getElementById('sortSelect').addEventListener('change', e => {
+      state.sort = e.target.value;
+      resetAndLoad();
+    });
+    document.getElementById('loadMoreBtn').addEventListener('click', () => {
+      state.offset += LIMIT;
+      loadProducts(false);
+    });
+
+    function debounce(fn, ms) {
+      let t;
+      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    loadFilters();
+    loadProducts(true);
+  </script>
+</body>
+</html>

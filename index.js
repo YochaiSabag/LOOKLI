@@ -308,6 +308,10 @@ app.get("/advertise", (req, res) => {
 app.get("/advertise-pricing", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "advertise-pricing.html"));
 });
+// עמוד קטגוריית ילדים
+app.get("/kids", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "kids.html"));
+});
 // הפניות 301 מהכתובות הישנות עם .html — לשמירה על SEO וקישורים קיימים
 app.get("/about.html", (req, res) => res.redirect(301, "/about"));
 app.get("/contact.html", (req, res) => res.redirect(301, "/contact"));
@@ -508,7 +512,7 @@ app.get("/api/filters", async (req, res) => {
     if (isDefaultState && filtersDefaultCache && (Date.now() - filtersDefaultCacheTime < FILTERS_CACHE_TTL_MS)) {
       return res.json(filtersDefaultCache);
     }
-    let baseWhere = '(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)';
+    let baseWhere = '(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false)';
     const baseParams = [];
     let paramIndex = 1;
     
@@ -701,7 +705,7 @@ async function loadSearchAliases() {
 app.get("/api/products", async (req, res) => {
   try {
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false)`;
     const params = [];
     let i = 1;
 
@@ -940,6 +944,80 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
+// API — מוצרי ילדים בלבד (is_kids=true) - עמוד/קטגוריה נפרדת. רזה בכוונה: לא כל
+// הפילטרים המורכבים של מבוגרים (style/fit/pattern/fabric), רק מה שרלוונטי בפועל לילדים
+app.get("/api/kids-products", async (req, res) => {
+  try {
+    const { q, color, size, category, maxPrice, sort } = req.query;
+    let sql = `SELECT id, title, price, original_price, image_url, images, kids_sizes, color, colors, category, store, source_url, description, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    const params = [];
+    let i = 1;
+
+    if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
+    if (color) {
+      const colors = color.split(',').filter(Boolean);
+      if (colors.length === 1) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++; }
+      else { sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`; params.push(colors); i++; }
+    }
+    if (size) {
+      const sizes = size.split(',').filter(Boolean);
+      sql += ` AND kids_sizes && $${i}::text[]`; params.push(sizes); i++;
+    }
+    if (category) { sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(category, `%${category}%`); i += 2; }
+    if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
+
+    const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    if (sort === 'price_asc') {
+    } else if (sort === 'price_desc') {
+      sql += ` ORDER BY price DESC`;
+    } else {
+      sql += ` ORDER BY id DESC`;
+    }
+
+    const reqLimit = Math.min(parseInt(req.query.limit) || 60, 100);
+    const reqOffset = Math.max(parseInt(req.query.offset) || 0, 0);
+    sql += ` LIMIT $${i} OFFSET $${i+1}`;
+    params.push(reqLimit, reqOffset); i += 2;
+
+    const result = await pool.query(sql, params);
+    const wantSafeImages = req.query.safeImages === '1';
+    res.json({
+      results: result.rows.map(p => ({ ...applySafeImages(p, wantSafeImages), shipping: calculateShipping(p.store, p.price) })),
+      total
+    });
+  } catch (err) {
+    console.error("kids-products error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+// API — אפשרויות סינון לילדים (צבעים/מידות/קטגוריות שבאמת קיימות בין מוצרי הילדים)
+app.get("/api/kids-filters", async (req, res) => {
+  try {
+    const baseWhere = `is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    const [colorsRes, sizesRes, categoriesRes, maxPriceRes] = await Promise.all([
+      pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`),
+      pool.query(`SELECT DISTINCT unnest(kids_sizes) AS size FROM products WHERE ${baseWhere} AND kids_sizes IS NOT NULL`),
+      pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`),
+      pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`)
+    ]);
+    // מיון מידות ילדים בסדר הגיוני (מספרי, לא אלפביתי) - "10" לפני "4-5" זה מבלבל
+    const sizeOrder = s => { const n = parseInt(s); return isNaN(n) ? 999 : n; };
+    const sizes = sizesRes.rows.map(r => r.size).sort((a, b) => sizeOrder(a) - sizeOrder(b));
+    res.json({
+      colors: colorsRes.rows.map(r => r.color),
+      sizes,
+      categories: categoriesRes.rows.map(r => r.category),
+      maxPrice: maxPriceRes.rows[0]?.max_price || 0
+    });
+  } catch (err) {
+    console.error("kids-filters error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
 // API — מוצר לפי slug (כותרת מנורמלת)
 app.get("/api/product/slug/:slug", async (req, res) => {
   try {
@@ -1066,7 +1144,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
-    let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false)`;
     if (safeImages === true || safeImages === '1') { sql += ` AND has_valid_image = true AND reviewed_at IS NOT NULL`; }
     const params = [];
     let i = 1;

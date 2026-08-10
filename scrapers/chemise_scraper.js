@@ -476,9 +476,9 @@ async function scrapeProduct(page, url) {
     // מבוגרים באותה חנות (1,2,3,4,5,6). ממשיכים לעבד במלואם (לא מדלגים) ומעדכנים את הדגל
     // עם המידע המלא שנאסף כאן (הבדיקה המוקדמת יכולה לפעמים לפספס אם ה-DOM נטען חלקית)
     const rawSizeLabelsForKidsCheck = (data.rawSizes || []).map(s => s.name);
-    if (isKidsSizeOnly(rawSizeLabelsForKidsCheck)) {
+    if (isKidsSizeOnly(rawSizeLabelsForKidsCheck) || isKidsProduct) {
       isKidsProduct = true;
-      console.log(`  🧒 אושר כמוצר ילדים (מידות: ${rawSizeLabelsForKidsCheck.join(',')}): ${data.title.substring(0, 40)}`);
+      console.log(`  🧒 מוצר ילדים — בדיקה מוקדמת: [${(earlySizeCheck||[]).join(',') || '-'}] | בדיקה מאוחרת: [${rawSizeLabelsForKidsCheck.join(',') || '-'}]: ${data.title.substring(0, 40)}`);
     }
 
     const style = detectStyle(data.title, data.description);
@@ -510,6 +510,7 @@ async function scrapeProduct(page, url) {
     }
 
     console.log(`    🎨 rawColors: ${data.rawColors.length}, rawSizes: ${data.rawSizes.length}`);
+
     if (data.variationsData && data.variationsData.length > 0) {
       // שיטה 1: JSON מדויק
       console.log(`    📋 ${data.variationsData.length} וריאציות ב-JSON`);
@@ -530,11 +531,14 @@ async function scrapeProduct(page, url) {
         if (colorVal) {
           let displayColor = colorVal;
           try { displayColor = decodeURIComponent(colorVal); } catch(e) {}
-          // חפש שם תצוגה מ-rawColors
+          // חפש שם תצוגה מ-rawColors — משווים אחרי הסרת תווי הפרדה (רווח/נקודה/מקף/קו תחתון),
+          // כי WooCommerce הופך את כולם למקף ב-slug (למשל "L.pink-ורוד בהיר" → "l-pink-ורוד-בהיר"),
+          // וזה גורם להתאמה להיכשל אם משווים רק lowercase בלי לנרמל גם את ההפרדה
+          const stripSeparators = s => s.toLowerCase().replace(/[\s.\-_]+/g, '');
+          const valStripped = stripSeparators(displayColor);
           for (const rc of data.rawColors) {
-            const rcLower = rc.name.toLowerCase();
-            const valLower = displayColor.toLowerCase();
-            if (rcLower === valLower || rcLower.includes(valLower) || valLower.includes(rcLower)) {
+            const rcStripped = stripSeparators(rc.name);
+            if (rcStripped === valStripped || rcStripped.includes(valStripped) || valStripped.includes(rcStripped)) {
               displayColor = rc.name;
               break;
             }
@@ -553,10 +557,9 @@ async function scrapeProduct(page, url) {
             // מיזוג רק אם זה אותו שם צבע + תרגום אנגלי/ספרה (רעש) — לא אם יש תוספת עברית
             // אמיתית (כמו "כחול כהה") שכן עשויה לציין גוון שונה שראוי לשמור בנפרד
             if (core !== normColor || remainderHasHebrew) {
-              const withLabel = `${normColor} - ${originalLabel}`;
-              if (!colorSizesMap[withLabel] && !availableColors.has(withLabel)) {
-                normColor = withLabel;
-              }
+              // תמיד להשתמש בתווית המשולבת (לא רק בפעם הראשונה) - אחרת מידות נוספות
+              // של אותו צבע בדיוק "נופלות" בחזרה לתווית הגנרית במקום להצטרף לתווית שכבר נוצרה
+              normColor = `${normColor} - ${originalLabel}`;
             }
           }
           if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(displayColor.trim());
@@ -569,7 +572,15 @@ async function scrapeProduct(page, url) {
           normSizes = normalizeSize(displaySize);
         }
         
-        if (normSizes.length > 0) {
+        if (isKidsProduct) {
+          // מוצרי ילדים: מידה גולמית (למשל "8") לעולם לא תנורמל למידת מבוגר - מסמנים
+          // את הצבע כזמין כל עוד יש מידת ילדים כלשהי במלאי, בלי תלות בנירמול למבוגר
+          if (sizeVal && normColor) {
+            availableColors.add(normColor);
+            if (!colorSizesMap[normColor]) colorSizesMap[normColor] = [];
+            console.log(`      ✓ ${normColor} + מידת ילדים: ${sizeVal}`);
+          }
+        } else if (normSizes.length > 0) {
           for (const ns of normSizes) {
             availableSizes.add(ns);
             if (normColor) {
@@ -637,25 +648,29 @@ async function scrapeProduct(page, url) {
           const remainder = parts.slice(1).join(' ');
           const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
           if (core !== normColor || remainderHasHebrew) {
-            const withLabel = `${normColor} - ${clean}`;
-            if (!colorSizesMap[withLabel] && !availableColors.has(withLabel)) {
-              normColor = withLabel;
-            }
+            // תמיד להשתמש בתווית המשולבת (לא רק בפעם הראשונה) - אחרת מידות נוספות
+            // של אותו צבע בדיוק "נופלות" בחזרה לתווית הגנרית במקום להצטרף לתווית שכבר נוצרה
+            normColor = `${normColor} - ${clean}`;
           }
         }
         if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(clean);
         const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
-        if (flatSizes.length > 0) {
+        // למוצרי ילדים: מידות המבוגרים (flatSizes) תמיד יצאו ריקות בכוונה (מידת ילדים
+        // כמו "8" לעולם לא תנורמל למידת מבוגר) - אז זמינות הצבע נקבעת לפי מידת ילדים
+        // גולמית כלשהי במלאי, לא לפי הצלחת הנירמול למבוגר
+        const hasStock = isKidsProduct ? inStockSizeNames.length > 0 : flatSizes.length > 0;
+        if (hasStock) {
           availableColors.add(normColor);
-          colorSizesMap[normColor] = flatSizes;
+          colorSizesMap[normColor] = flatSizes; // נשאר ריק לילדים בכוונה - העברת מידות הילדים נעשית ברמת כל המוצר (kids_sizes), לא לפי צבע, בשלב הזה
           flatSizes.forEach(s => availableSizes.add(s));
-          console.log(`      ✓ ${normColor}: ${flatSizes.join('/')}`);
+          console.log(`      ✓ ${normColor}: ${isKidsProduct ? `מידות ילדים במלאי: ${inStockSizeNames.join('/')}` : flatSizes.join('/')}`);
         } else {
           console.log(`      ✗ ${normColor}: אין מידות במלאי — מדולג`);
         }
         if (comboCount > MAX_COMBOS) break;
       }
     } // סוף else swatches
+
     const uniqueColors = [...availableColors];
     const colorRawLabels = uniqueColors.map(c => colorRawLabelMap[c] || c);
     console.log(`    🎨 uniqueColors (${uniqueColors.length}): ${uniqueColors.join(', ')}`);
@@ -722,7 +737,7 @@ async function scrapeProduct(page, url) {
       description: data.description,
       colorSizes: colorSizesMap,
       isKids: isKidsProduct,
-      kidsSizes: isKidsProduct ? [...new Set(rawSizeLabelsForKidsCheck)] : [],
+      kidsSizes: isKidsProduct ? [...new Set([...(earlySizeCheck || []), ...rawSizeLabelsForKidsCheck])] : [],
       url
     };
     

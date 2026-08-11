@@ -2308,14 +2308,15 @@ app.get("/api/product-sizes", async (req, res) => {
     );
     if (alertRow.rows[0]?.product_id) {
       const r = await pool.query(
-        "SELECT sizes, all_sizes, color_sizes, colors FROM products WHERE id = $1",
+        "SELECT sizes, all_sizes, color_sizes, colors, color_raw_labels FROM products WHERE id = $1",
         [alertRow.rows[0].product_id]
       );
       if (r.rows.length) return res.json({
         sizes: r.rows[0].sizes || [],
         all_sizes: r.rows[0].all_sizes || [],
         color_sizes: r.rows[0].color_sizes || {},
-        colors: r.rows[0].colors || []
+        colors: r.rows[0].colors || [],
+        color_raw_labels: r.rows[0].color_raw_labels || []
       });
     }
 
@@ -2323,7 +2324,7 @@ app.get("/api/product-sizes", async (req, res) => {
     const urlNoSlash = raw.replace(/\/+$/, '');
     const reEncodedNoSlash = reEncoded.replace(/\/+$/, '');
     const r = await pool.query(
-      `SELECT sizes, all_sizes, color_sizes, colors FROM products
+      `SELECT sizes, all_sizes, color_sizes, colors, color_raw_labels FROM products
        WHERE source_url = $1 OR source_url = $2
           OR source_url = $3 OR source_url = $4 LIMIT 1`,
       [urlNoSlash, urlNoSlash+'/', reEncodedNoSlash, reEncodedNoSlash+'/']
@@ -2333,7 +2334,8 @@ app.get("/api/product-sizes", async (req, res) => {
       sizes: r.rows[0].sizes || [],
       all_sizes: r.rows[0].all_sizes || [],
       color_sizes: r.rows[0].color_sizes || {},
-      colors: r.rows[0].colors || []
+      colors: r.rows[0].colors || [],
+      color_raw_labels: r.rows[0].color_raw_labels || []
     });
   } catch(e) { res.status(500).json({ error: 'שגיאה' }); }
 });

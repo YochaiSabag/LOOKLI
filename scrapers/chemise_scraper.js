@@ -517,6 +517,11 @@ async function scrapeProduct(page, url) {
     if (data.variationsData && data.variationsData.length > 0) {
       // שיטה 1: JSON מדויק
       console.log(`    📋 ${data.variationsData.length} וריאציות ב-JSON`);
+      // עוקב איזה שם גולמי מדויק "תפס" כל באקט צבע מנורמל - כדי להבדיל בין אותו צבע
+      // גולמי שחוזר על עצמו לאורך כמה מידות (למזג לאותו באקט) לבין שני צבעים גולמיים
+      // שונים שבמקרה מנרמלים לאותו שם (למשל "teal" ו"ירוק" - תמיד להבדיל, גם אם השם
+      // "נקי" בלי רעש - זה מה שגרם לדריסה בטעות בעבר)
+      const colorBucketOwner = {};
       
       for (const v of data.variationsData) {
         if (!v.is_in_stock) continue;
@@ -548,23 +553,17 @@ async function scrapeProduct(page, url) {
           }
           normColor = normalizeColor(displayColor);
           if (!normColor || normColor === 'אחר') normColor = getOtherColor();
-          // אם הצבע המנורמל כבר קיים — בדוק אם זה באמת גוון שונה, או רק אותו שם עם
-          // תרגום אנגלי/ספרה שרירותית נוספים (למשל "שחור" מול "שחור-black") — במקרה כזה
-          // ממזגים למידות של אותו צבע במקום ליצור כפילות מיותרת.
-          if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))) {
-            const originalLabel = displayColor.trim();
-            const parts = originalLabel.split(/[-\s]/);
-            const core = parts[0].replace(/\d+$/, '').trim();
-            const remainder = parts.slice(1).join(' ');
-            const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
-            // מיזוג רק אם זה אותו שם צבע + תרגום אנגלי/ספרה (רעש) — לא אם יש תוספת עברית
-            // אמיתית (כמו "כחול כהה") שכן עשויה לציין גוון שונה שראוי לשמור בנפרד
-            if (core !== normColor || remainderHasHebrew) {
-              // תמיד להשתמש בתווית המשולבת (לא רק בפעם הראשונה) - אחרת מידות נוספות
-              // של אותו צבע בדיוק "נופלות" בחזרה לתווית הגנרית במקום להצטרף לתווית שכבר נוצרה
-              normColor = `${normColor} - ${originalLabel}`;
-            }
+          const originalLabel = displayColor.trim();
+          // אם הבאקט כבר תפוס ע"י שם גולמי אחר (לא אותו צבע שממשיך) — תמיד מבדילים,
+          // בלי קשר ל"רעש" בשם. אם זה אותו שם גולמי שכבר תפס את הבאקט (רק מידה נוספת
+          // של אותו צבע) — ממשיכים לאותו באקט כרגיל.
+          if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))
+              && colorBucketOwner[normColor] !== originalLabel) {
+            // תמיד להשתמש בתווית המשולבת (לא רק בפעם הראשונה) - אחרת מידות נוספות
+            // של אותו צבע בדיוק "נופלות" בחזרה לתווית הגנרית במקום להצטרף לתווית שכבר נוצרה
+            normColor = `${normColor} - ${originalLabel}`;
           }
+          colorBucketOwner[normColor] = originalLabel; // רושמים מי "בעל" הבאקט הזה כרגע
           if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(displayColor.trim());
         }
         
@@ -644,16 +643,13 @@ async function scrapeProduct(page, url) {
           const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
           const _n = normalizeColor(clean, clean);
           let normColor = (_n && _n !== 'אחר') ? _n : getOtherColor();
-          // אם הצבע המנורמל כבר קיים — בדוק אם זה באמת גוון שונה, או רק אותו שם עם
-          // תרגום אנגלי/ספרה שרירותית נוספים — במקרה כזה ממזגים במקום ליצור כפילות
+          // כל איטרציה בלולאה הזו היא צבע גולמי שונה לגמרי בדף (לא אותו צבע חוזר על
+          // עצמו כמו במסלול ה-JSON) - אז אם הבאקט כבר תפוס, זה תמיד אומר שיש כאן שני
+          // צבעים אמיתיים ושונים שרק מנרמלים לאותו שם (למשל "teal" ו"ירוק") - תמיד
+          // מבדילים ביניהם, בלי קשר ל"רעש" בשם (זה מה שגרם לדריסה בטעות - "ירוק" הגולמי
+          // זהה בדיוק למנורמל שלו, אז לא זוהה כ"רעש" ודרס את teal שכבר תפס את הבאקט)
           if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))) {
-            const parts = clean.split(/[-\s]/);
-            const core = parts[0].replace(/\d+$/, '').trim();
-            const remainder = parts.slice(1).join(' ');
-            const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
-            if (core !== normColor || remainderHasHebrew) {
-              normColor = `${normColor} - ${clean}`;
-            }
+            normColor = `${normColor} - ${clean}`;
           }
           if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(clean);
           const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];

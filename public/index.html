@@ -2645,6 +2645,13 @@ async function openProduct(id){
 
     const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
     const colorSizes=p.color_sizes||{};
+    // מיפוי צבע-פנימי -> מלל אמיתי מהחנות (color_raw_labels, באותו סדר כמו colors) -
+    // לתצוגה בלבד. השם הפנימי (עם ה"-" שנוסף להבחנה בין שני גוונים שמנרמלים לאותו שם,
+    // כמו "ירוק - ירוק") נשאר המפתח לחיפוש המידות ב-color_sizes, אבל למשתמשת מציגים
+    // את המלל האמיתי מהחנות ("ירוק"/"teal") שהרבה יותר ברור וקריא.
+    const colorRawLabelFor = {};
+    (p.colors || []).forEach((c, i) => { colorRawLabelFor[c] = p.color_raw_labels?.[i] || c; });
+    const displayColorName = (c) => colorRawLabelFor[c] || c;
     const colorsDiv=document.getElementById("modalColors");
     const colorSizesDiv=document.getElementById("modalColorSizes");
     const colorSizesLabel=document.getElementById("modalColorSizesLabel");
@@ -2653,7 +2660,7 @@ async function openProduct(id){
     const showColorSizes = (color) => {
       const sizes = colorSizes[color];
       if (!sizes || sizes.length === 0) { colorSizesDiv.style.display='none'; return; }
-      colorSizesLabel.textContent = `מידות ב${color}:`;
+      colorSizesLabel.textContent = `מידות ב${displayColorName(color)}:`;
       colorSizesTags.innerHTML = sizes.map(s =>
         `<span style="background:#f3f4f6;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">${s}</span>`
       ).join('');
@@ -2669,7 +2676,7 @@ async function openProduct(id){
         const dot = document.createElement('span');
         dot.className = 'modal-color';
         dot.style.background = getColorHex(c);
-        dot.title = c;
+        dot.title = displayColorName(c);
         dot.setAttribute('data-color', c);
         dot.onclick = () => showColorSizes(c);
         colorsDiv.appendChild(dot);
@@ -4303,12 +4310,15 @@ document.addEventListener('click', e => {
 
         // ── בחירת צבע אם יש כמה צבעים ──
         const colorSizes = p.color_sizes || {};
+        // מיפוי צבע-פנימי -> מלל אמיתי מהחנות, לתצוגה בלבד (השם הפנימי נשאר value לחיפוש)
+        const colorRawLabelFor = {};
+        (p.colors || []).forEach((c, i) => { colorRawLabelFor[c] = p.color_raw_labels?.[i] || c; });
         // השתמש ב-p.colors לכל הצבעים (כולל אלו שנגמרו מהמלאי)
         const allProductColors = (p.colors || Object.keys(colorSizes)).filter(Boolean);
         const colors = allProductColors.length > 1 ? allProductColors
           : Object.keys(colorSizes).filter(c => colorSizes[c]?.length > 0);
         if (colors.length > 1 && colorRow) {
-          colorSel.innerHTML = colors.map(c => `<option value="${c}">${c}</option>`).join('');
+          colorSel.innerHTML = colors.map(c => `<option value="${c}">${colorRawLabelFor[c] || c}</option>`).join('');
           colorRow.style.display = 'none'; // יוצג רק בלחיצה על הצ'קבוקס
           // עדכן מידות לפי צבע ראשון
           const updateBySel = () => {

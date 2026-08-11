@@ -499,6 +499,38 @@ function applySafeImages(product, wantSafeImages) {
   return out;
 }
 
+// לוגיקה משותפת לפילטרים של ילדים - בשימוש גם מ-/api/kids-filters וגם מהענף
+// המקביל בתוך /api/filters. נשארת נפרדת בכוונה מלוגיקת המבוגרים המורכבת (שם יש
+// למשל VALID_SIZES קבוע שכולל רק מידות מבוגרים ויפסול כל מידת ילדים בטעות).
+async function getKidsFilterData(gender) {
+  let baseWhere = `is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+  const genderParams = [];
+  if (gender === 'girls' || gender === 'boys') {
+    baseWhere += ` AND kids_gender = $1`;
+    genderParams.push(gender);
+  }
+  const [colorsRes, sizesRes, categoriesRes, maxPriceRes, gendersRes, storesRes] = await Promise.all([
+    pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`, [...genderParams, ...genderParams]),
+    pool.query(`SELECT DISTINCT unnest(kids_sizes) AS size FROM products WHERE ${baseWhere} AND kids_sizes IS NOT NULL`, genderParams),
+    pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`, genderParams),
+    pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`, genderParams),
+    pool.query(`SELECT DISTINCT kids_gender FROM products WHERE is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND kids_gender IS NOT NULL`),
+    pool.query(`SELECT DISTINCT store FROM products WHERE ${baseWhere} AND store IS NOT NULL ORDER BY store`, genderParams)
+  ]);
+  const sizeOrder = s => { const n = parseInt(s); return isNaN(n) ? 999 : n; };
+  const sizes = sizesRes.rows.map(r => r.size).sort((a, b) => sizeOrder(a) - sizeOrder(b));
+  return {
+    stores: storesRes.rows.map(r => r.store).filter(Boolean),
+    sizes,
+    colors: colorsRes.rows.map(r => r.color),
+    colorHex: {},
+    styles: [], fits: [], patterns: [], fabrics: [], designs: [], // עדיין לא קיימים נתונים לילדים בשדות האלה
+    categories: categoriesRes.rows.map(r => r.category),
+    maxPrice: Math.ceil(parseFloat(maxPriceRes.rows[0]?.max_price) || 200),
+    genders: gendersRes.rows.map(r => r.kids_gender)
+  };
+}
+
 // קאש פשוט בזיכרון למצב ברירת המחדל של /api/filters (בלי שום פילטר נבחר) —
 // זה המקרה הנפוץ ביותר (רץ כמעט בכל טעינת עמוד), ומתעדכן מעצמו כל 3 דקות
 let filtersDefaultCache = null;
@@ -507,6 +539,13 @@ const FILTERS_CACHE_TTL_MS = 3 * 60 * 1000;
 
 app.get("/api/filters", async (req, res) => {
   try {
+    // ענף ילדים - נפרד לגמרי מלוגיקת המבוגרים, לא עובר דרך VALID_SIZES/cfgByType
+    // שמותאמים אך ורק למבוגרים ויפסלו כל ערך ילדים בטעות
+    if (req.query.kids === '1') {
+      const data = await getKidsFilterData(req.query.gender);
+      return res.json(data);
+    }
+
     const { store, category, color, size, style, fit, fabric, pattern, design } = req.query;
     const isDefaultState = !store && !category && !color && !size && !style && !fit && !fabric && !pattern && !design;
     if (isDefaultState && filtersDefaultCache && (Date.now() - filtersDefaultCacheTime < FILTERS_CACHE_TTL_MS)) {
@@ -704,6 +743,13 @@ async function loadSearchAliases() {
 
 app.get("/api/products", async (req, res) => {
   try {
+    // ענף ילדים - נפרד לגמרי מבנאי השאילתה המורכב של מבוגרים למטה (expandSize,
+    // color_sizes JSON matching וכו' בנויים אך ורק עבור מערכת המידות של מבוגרים)
+    if (req.query.kids === '1') {
+      const data = await queryKidsProducts(req.query);
+      return res.json(data);
+    }
+
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
     let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false)`;
     const params = [];
@@ -946,47 +992,56 @@ app.get("/api/products", async (req, res) => {
 
 // API — מוצרי ילדים בלבד (is_kids=true) - עמוד/קטגוריה נפרדת. רזה בכוונה: לא כל
 // הפילטרים המורכבים של מבוגרים (style/fit/pattern/fabric), רק מה שרלוונטי בפועל לילדים
+// שאילתת מוצרי ילדים משותפת - בשימוש גם מ-/api/kids-products וגם מהענף המקביל
+// בתוך /api/products. נפרדת בכוונה מהבנאי המורכב של /api/products הרגיל (שם יש
+// expandSize/color_sizes JSON matching שבנויים אך ורק למערכת המידות של מבוגרים)
+async function queryKidsProducts(q) {
+  const { color, size, category, maxPrice, sort, gender, limit, offset, safeImages } = q;
+  let sql = `SELECT id, title, price, original_price, image_url, images, kids_sizes, kids_gender, color, colors, category, store, source_url, description, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
+  const params = [];
+  let i = 1;
+
+  if (gender === 'girls' || gender === 'boys') { sql += ` AND kids_gender = $${i++}`; params.push(gender); }
+  if (q.q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q.q}%`); }
+  if (color) {
+    const colors = color.split(',').filter(Boolean);
+    if (colors.length === 1) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++; }
+    else { sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`; params.push(colors); i++; }
+  }
+  if (size) {
+    const sizes = size.split(',').filter(Boolean);
+    sql += ` AND kids_sizes && $${i}::text[]`; params.push(sizes); i++;
+  }
+  if (category) { sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(category, `%${category}%`); i += 2; }
+  if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
+
+  const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
+  const total = parseInt(countResult.rows[0]?.total || 0);
+
+  if (sort === 'price_asc') {
+  } else if (sort === 'price_desc') {
+    sql += ` ORDER BY price DESC`;
+  } else {
+    sql += ` ORDER BY id DESC`;
+  }
+
+  const reqLimit = Math.min(parseInt(limit) || 60, 100);
+  const reqOffset = Math.max(parseInt(offset) || 0, 0);
+  sql += ` LIMIT $${i} OFFSET $${i+1}`;
+  params.push(reqLimit, reqOffset); i += 2;
+
+  const result = await pool.query(sql, params);
+  const wantSafeImages = safeImages === '1';
+  return {
+    results: result.rows.map(p => ({ ...applySafeImages(p, wantSafeImages), shipping: calculateShipping(p.store, p.price) })),
+    total
+  };
+}
+
 app.get("/api/kids-products", async (req, res) => {
   try {
-    const { q, color, size, category, maxPrice, sort } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, kids_sizes, color, colors, category, store, source_url, description, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
-    const params = [];
-    let i = 1;
-
-    if (q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q}%`); }
-    if (color) {
-      const colors = color.split(',').filter(Boolean);
-      if (colors.length === 1) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++; }
-      else { sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`; params.push(colors); i++; }
-    }
-    if (size) {
-      const sizes = size.split(',').filter(Boolean);
-      sql += ` AND kids_sizes && $${i}::text[]`; params.push(sizes); i++;
-    }
-    if (category) { sql += ` AND (category = $${i} OR title ILIKE $${i+1})`; params.push(category, `%${category}%`); i += 2; }
-    if (maxPrice) { sql += ` AND price <= $${i++}`; params.push(Number(maxPrice)); }
-
-    const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
-    const total = parseInt(countResult.rows[0]?.total || 0);
-
-    if (sort === 'price_asc') {
-    } else if (sort === 'price_desc') {
-      sql += ` ORDER BY price DESC`;
-    } else {
-      sql += ` ORDER BY id DESC`;
-    }
-
-    const reqLimit = Math.min(parseInt(req.query.limit) || 60, 100);
-    const reqOffset = Math.max(parseInt(req.query.offset) || 0, 0);
-    sql += ` LIMIT $${i} OFFSET $${i+1}`;
-    params.push(reqLimit, reqOffset); i += 2;
-
-    const result = await pool.query(sql, params);
-    const wantSafeImages = req.query.safeImages === '1';
-    res.json({
-      results: result.rows.map(p => ({ ...applySafeImages(p, wantSafeImages), shipping: calculateShipping(p.store, p.price) })),
-      total
-    });
+    const data = await queryKidsProducts(req.query);
+    res.json(data);
   } catch (err) {
     console.error("kids-products error:", err.message);
     res.status(500).json({ error: "DB error" });
@@ -996,22 +1051,8 @@ app.get("/api/kids-products", async (req, res) => {
 // API — אפשרויות סינון לילדים (צבעים/מידות/קטגוריות שבאמת קיימות בין מוצרי הילדים)
 app.get("/api/kids-filters", async (req, res) => {
   try {
-    const baseWhere = `is_kids = true AND (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)`;
-    const [colorsRes, sizesRes, categoriesRes, maxPriceRes] = await Promise.all([
-      pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`),
-      pool.query(`SELECT DISTINCT unnest(kids_sizes) AS size FROM products WHERE ${baseWhere} AND kids_sizes IS NOT NULL`),
-      pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`),
-      pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`)
-    ]);
-    // מיון מידות ילדים בסדר הגיוני (מספרי, לא אלפביתי) - "10" לפני "4-5" זה מבלבל
-    const sizeOrder = s => { const n = parseInt(s); return isNaN(n) ? 999 : n; };
-    const sizes = sizesRes.rows.map(r => r.size).sort((a, b) => sizeOrder(a) - sizeOrder(b));
-    res.json({
-      colors: colorsRes.rows.map(r => r.color),
-      sizes,
-      categories: categoriesRes.rows.map(r => r.category),
-      maxPrice: maxPriceRes.rows[0]?.max_price || 0
-    });
+    const data = await getKidsFilterData(req.query.gender);
+    res.json(data);
   } catch (err) {
     console.error("kids-filters error:", err.message);
     res.status(500).json({ error: "DB error" });
@@ -5025,6 +5066,9 @@ app.listen(PORT, async () => {
     // ממשיכים להיות מוסתרים אוטומטית מהחיפוש הרגיל (שדורש array_length(sizes,1)>0) עד שתיבנה תצוגה ייעודית
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_kids BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS kids_sizes TEXT[]`);
+    // מגדר לילדים - 'girls'/'boys'/NULL. שמיז מוכרת רק בנות, אבל חנויות ילדים אחרות
+    // עתידיות עשויות למכור גם בנים - צריך שדה נפרד כדי לתמוך בזה נכון מההתחלה
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS kids_gender TEXT`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMP`);
     await pool.query(`UPDATE products SET price_dropped_at = updated_at WHERE price_dropped_at IS NULL AND original_price IS NOT NULL AND original_price > price * 1.10`);
     await pool.query(`DROP TABLE IF EXISTS image_cache`).catch(()=>{});

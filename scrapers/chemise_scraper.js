@@ -596,89 +596,82 @@ async function scrapeProduct(page, url) {
         }
       }
     } else {
-      // שיטה 2: לחץ כל שילוב צבע+מידה בפועל ב-Playwright, ובדוק מלאי אמיתי אחרי כל לחיצה
-      // (בלי JSON, WooCommerce לא מסמן מראש אילו מידות זמינות — צריך לבחור צבע+מידה יחד ולבדוק בפועל)
-      console.log(`    ⚠️ אין JSON - לוחץ על כל שילוב צבע+מידה בפועל (${data.rawColors.length} צבעים)`);
+      // שיטה 2: כמו בסלינה (salina_scraper.js) - קליק על הצבע קורה כולו בתוך evaluate
+      // יחיד (לא Playwright ElementHandle שעלול "למות" אם ה-DOM מתרענן), ואז קוראים
+      // בבת אחת את מצב ה-disabled של כל המידות - בלי לקלוק על כל מידה בנפרד
+      console.log(`    ⚠️ אין JSON - עובר על כל צבע בפועל (${data.rawColors.length} צבעים)`);
       console.log(`    🔍 rawColors names: ${data.rawColors.map(c=>c.name+'('+(c.disabled?'dis':'ok')+')').join(', ')}`);
       const colorSelQ = '.color-variable-items-wrapper li, [data-attribute_name*="color"] li, [data-attribute_name*="צבע"] li';
       const sizeSelQ  = '.size-variable-items-wrapper li, [data-attribute_name*="size"] li, [data-attribute_name*="מידה"] li, [data-attribute_name*="מידות"] li';
-      const colorEls = await page.$$(colorSelQ);
-      const MAX_COMBOS = 80; // רשת ביטחון מפני מוצרים עם כמות וריאציות חריגה
-      let comboCount = 0;
-      for (const el of colorEls) {
-        const colorName = await el.evaluate(e =>
-          e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || ''
-        );
-        if (!colorName) continue;
-        await el.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(400);
 
-        const sizeEls = await page.$$(sizeSelQ);
-        const inStockSizeNames = [];
-        for (const sizeEl of sizeEls) {
-          if (comboCount++ > MAX_COMBOS) break;
-          const info = await sizeEl.evaluate(e => ({
-            name: e.getAttribute('data-title') || e.getAttribute('title') || e.getAttribute('data-value') || '',
-            disabled: e.classList.contains('disabled') || e.classList.contains('out-of-stock'),
-          }));
-          if (!info.name) continue;
-          if (info.disabled) {
-            // המידה מסומנת disabled ביחס לצבע שכבר בחרנו כרגע (לא ברירת מחדל כללית) -
-            // זה כן אמין כאן, ובעיקר: קליק מאולץ על אלמנט מנוטרל משאיר את הווידג'ט
-            // ב"מצב שבור" שמשפיע גם על בדיקות המידות הבאות באותו צבע - עדיף לדלג בלי לגעת
-            console.log(`        ${info.name}: disabled ל-${colorName} — מדלג בלי קליק`);
+      for (const c of data.rawColors) {
+        const colorName = c.name;
+        if (!colorName) continue;
+        if (c.disabled) {
+          // הצבע מסומן X בדף עצמו (מהסריקה הראשונית) - אין בו מלאי בכלל, לא צריך
+          // בכלל לנסות ללחוץ עליו (וזה גם מונע קריאת מצב שגוי אם הקליק נכשל בשקט)
+          console.log(`      ✗ ${colorName}: מסומן X בדף (אין מלאי בכלל) — מדלג בלי קליק`);
+          continue;
+        }
+        try {
+          const clickFound = await page.evaluate(({ sel, name }) => {
+            const els = document.querySelectorAll(sel);
+            for (const el of els) {
+              const t = el.getAttribute('data-title') || el.getAttribute('title') || el.getAttribute('data-value') || '';
+              if (t.trim() === name) { el.click(); return true; }
+            }
+            return false;
+          }, { sel: colorSelQ, name: colorName });
+          if (!clickFound) {
+            console.log(`      ⚠️ לא נמצאה התאמה מדויקת ל-"${colorName}" בדף (בעיית קידוד/רווחים?) — מדלג במקום לקרוא מצב שגוי`);
             continue;
           }
-          await sizeEl.click({ force: true }).catch(() => {});
-          await page.waitForTimeout(600); // המתנה ל-AJAX של WooCommerce שיעדכן מלאי
+          await page.waitForTimeout(900); // המתנה ל-AJAX של WooCommerce שיעדכן את מצב המידות עבור הצבע הזה
 
-          // מלאי אמיתי: בודקים אם כפתור "הוספה לסל" פעיל (לא disabled) — האינדיקציה האמינה ביותר
-          const isAvailable = await page.evaluate(() => {
-            const btn = document.querySelector('.single_add_to_cart_button');
-            const wrap = document.querySelector('.woocommerce-variation-add-to-cart');
-            if (!btn) return false;
-            const disabledByClass = btn.classList.contains('disabled') || btn.classList.contains('wc-variation-is-unavailable');
-            const disabledByWrap = wrap?.classList.contains('woocommerce-variation-add-to-cart-disabled');
-            const stockText = document.querySelector('.woocommerce-variation-availability .stock')?.textContent || '';
-            const outOfStockText = stockText.includes('אזל') || stockText.toLowerCase().includes('out of stock');
-            return !disabledByClass && !disabledByWrap && !outOfStockText;
-          });
-          if (comboCount > MAX_COMBOS) break;
-          if (isAvailable) inStockSizeNames.push(info.name);
-        }
-        if (comboCount > MAX_COMBOS) { console.log(`    ⏹ MAX_COMBOS הגיע — עוצר`); }
+          const sizesForColor = await page.evaluate((sel) => {
+            const res = [];
+            document.querySelectorAll(sel).forEach(el => {
+              const t = el.getAttribute('data-title') || el.getAttribute('title') || el.getAttribute('data-value') || '';
+              const disabled = el.classList.contains('disabled') || el.classList.contains('out-of-stock');
+              if (t) res.push({ name: t.trim(), disabled });
+            });
+            return res;
+          }, sizeSelQ);
 
-        const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
-        const _n = normalizeColor(clean, clean);
-        let normColor = (_n && _n !== 'אחר') ? _n : getOtherColor();
-        // אם הצבע המנורמל כבר קיים — בדוק אם זה באמת גוון שונה, או רק אותו שם עם
-        // תרגום אנגלי/ספרה שרירותית נוספים — במקרה כזה ממזגים במקום ליצור כפילות
-        if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))) {
-          const parts = clean.split(/[-\s]/);
-          const core = parts[0].replace(/\d+$/, '').trim();
-          const remainder = parts.slice(1).join(' ');
-          const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
-          if (core !== normColor || remainderHasHebrew) {
-            // תמיד להשתמש בתווית המשולבת (לא רק בפעם הראשונה) - אחרת מידות נוספות
-            // של אותו צבע בדיוק "נופלות" בחזרה לתווית הגנרית במקום להצטרף לתווית שכבר נוצרה
-            normColor = `${normColor} - ${clean}`;
+          console.log(`      🔍 ${colorName}: ${sizesForColor.map(s => (s.disabled?'✗':'✓')+s.name).join(' | ')}`);
+          const inStockSizeNames = sizesForColor.filter(s => !s.disabled).map(s => s.name);
+
+          const clean = colorName.replace(/[',.-]/g,' ').replace(/yello\b/gi,'yellow').replace(/\s+/g,' ').trim();
+          const _n = normalizeColor(clean, clean);
+          let normColor = (_n && _n !== 'אחר') ? _n : getOtherColor();
+          // אם הצבע המנורמל כבר קיים — בדוק אם זה באמת גוון שונה, או רק אותו שם עם
+          // תרגום אנגלי/ספרה שרירותית נוספים — במקרה כזה ממזגים במקום ליצור כפילות
+          if (normColor && normColor !== 'אחר' && (colorSizesMap[normColor] || availableColors.has(normColor))) {
+            const parts = clean.split(/[-\s]/);
+            const core = parts[0].replace(/\d+$/, '').trim();
+            const remainder = parts.slice(1).join(' ');
+            const remainderHasHebrew = /[\u0590-\u05FF]/.test(remainder);
+            if (core !== normColor || remainderHasHebrew) {
+              normColor = `${normColor} - ${clean}`;
+            }
           }
+          if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(clean);
+          const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
+          // למוצרי ילדים: מידות המבוגרים (flatSizes) תמיד יצאו ריקות בכוונה (מידת ילדים
+          // כמו "8" לעולם לא תנורמל למידת מבוגר) - אז זמינות הצבע נקבעת לפי מידת ילדים
+          // גולמית כלשהי במלאי, לא לפי הצלחת הנירמול למבוגר
+          const hasStock = isKidsProduct ? inStockSizeNames.length > 0 : flatSizes.length > 0;
+          if (hasStock) {
+            availableColors.add(normColor);
+            colorSizesMap[normColor] = flatSizes; // נשאר ריק לילדים בכוונה - העברת מידות הילדים נעשית ברמת כל המוצר (kids_sizes), לא לפי צבע, בשלב הזה
+            flatSizes.forEach(s => availableSizes.add(s));
+            console.log(`      ✓ ${normColor}: ${isKidsProduct ? `מידות ילדים במלאי: ${inStockSizeNames.join('/')}` : flatSizes.join('/')}`);
+          } else {
+            console.log(`      ✗ ${normColor}: אין מידות במלאי — מדולג`);
+          }
+        } catch (e) {
+          console.log(`      ⚠️ שגיאה בצבע ${colorName}: ${e.message.substring(0, 60)}`);
         }
-        if (normColor) colorRawLabelMap[normColor] = cleanRawColorLabel(clean);
-        const flatSizes = [...new Set(inStockSizeNames.flatMap(s => normalizeSize(s)).filter(Boolean))];
-        // למוצרי ילדים: מידות המבוגרים (flatSizes) תמיד יצאו ריקות בכוונה (מידת ילדים
-        // כמו "8" לעולם לא תנורמל למידת מבוגר) - אז זמינות הצבע נקבעת לפי מידת ילדים
-        // גולמית כלשהי במלאי, לא לפי הצלחת הנירמול למבוגר
-        const hasStock = isKidsProduct ? inStockSizeNames.length > 0 : flatSizes.length > 0;
-        if (hasStock) {
-          availableColors.add(normColor);
-          colorSizesMap[normColor] = flatSizes; // נשאר ריק לילדים בכוונה - העברת מידות הילדים נעשית ברמת כל המוצר (kids_sizes), לא לפי צבע, בשלב הזה
-          flatSizes.forEach(s => availableSizes.add(s));
-          console.log(`      ✓ ${normColor}: ${isKidsProduct ? `מידות ילדים במלאי: ${inStockSizeNames.join('/')}` : flatSizes.join('/')}`);
-        } else {
-          console.log(`      ✗ ${normColor}: אין מידות במלאי — מדולג`);
-        }
-        if (comboCount > MAX_COMBOS) break;
       }
     } // סוף else swatches
 

@@ -510,7 +510,10 @@ async function getKidsFilterData(gender) {
     genderParams.push(gender);
   }
   const [colorsRes, sizesRes, categoriesRes, maxPriceRes, gendersRes, storesRes] = await Promise.all([
-    pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`, [...genderParams, ...genderParams]),
+    // מקבצים לפי השם הבסיסי (לפני " - ") - כדי שבסיידבר יופיע רק "ירוק" אחד, לא שתי
+    // כפתורים כפולים ("ירוק" ו"ירוק - teal") שנראים כמו כפילות מבלבלת. הסינון בפועל
+    // כבר תומך בשני הגוונים גם עם כפתור אחד (LIKE 'ירוק - %' ב-WHERE)
+    pool.query(`SELECT DISTINCT split_part(c, ' - ', 1) AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY color`, [...genderParams, ...genderParams]),
     pool.query(`SELECT DISTINCT unnest(kids_sizes) AS size FROM products WHERE ${baseWhere} AND kids_sizes IS NOT NULL`, genderParams),
     pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`, genderParams),
     pool.query(`SELECT MAX(price) as max_price FROM products WHERE ${baseWhere} AND price > 0`, genderParams),
@@ -599,11 +602,10 @@ app.get("/api/filters", async (req, res) => {
       if (colors.includes('בהיר')) {
         colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS])];
       }
-      if (colors.length === 1) {
-        baseWhere += ` AND (color = $${paramIndex} OR $${paramIndex} = ANY(colors))`; baseParams.push(colors[0]); paramIndex++;
-      } else {
-        baseWhere += ` AND (color = ANY($${paramIndex}::text[]) OR colors && $${paramIndex}::text[])`; baseParams.push(colors); paramIndex++;
-      }
+      // התאמה גם לצבע מדויק וגם לגרסה עם תווית מורחבת (כמו "ירוק - ירוק" כשיש שני
+      // גוונים שמנרמלים לאותו שם) - אחרת סינון לפי "ירוק" יפספס את הגוון השני בטעות
+      baseWhere += ` AND EXISTS (SELECT 1 FROM unnest(array_append(colors, color)) AS pc WHERE pc = ANY($${paramIndex}::text[]) OR EXISTS (SELECT 1 FROM unnest($${paramIndex}::text[]) AS sv WHERE pc LIKE sv || ' - %'))`;
+      baseParams.push(colors); paramIndex++;
     }
     if (size) { 
       const sizes = size.split(',').filter(Boolean);
@@ -617,7 +619,7 @@ app.get("/api/filters", async (req, res) => {
     const [storesRes, sizesRes, colorsRes, stylesRes, fitsRes, categoriesRes, maxPriceRes, patternsRes, fabricsRes, designRes] = await Promise.all([
       pool.query(`SELECT DISTINCT store FROM products WHERE ${baseWhere} AND store IS NOT NULL ORDER BY store`, baseParams),
       pool.query(`SELECT DISTINCT unnest(sizes) AS size FROM products WHERE ${baseWhere} AND sizes IS NOT NULL`, baseParams),
-      pool.query(`SELECT DISTINCT c AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY c`, [...baseParams, ...baseParams]),
+      pool.query(`SELECT DISTINCT split_part(c, ' - ', 1) AS color FROM (SELECT color AS c FROM products WHERE ${baseWhere} AND color IS NOT NULL AND color != '' UNION SELECT unnest(colors) AS c FROM products WHERE ${baseWhere} AND colors IS NOT NULL) sub ORDER BY color`, [...baseParams, ...baseParams]),
       pool.query(`SELECT DISTINCT style FROM products WHERE ${baseWhere} AND style IS NOT NULL AND style != '' ORDER BY style`, baseParams),
       pool.query(`SELECT DISTINCT fit FROM products WHERE ${baseWhere} AND fit IS NOT NULL AND fit != '' ORDER BY fit`, baseParams),
       pool.query(`SELECT DISTINCT category FROM products WHERE ${baseWhere} AND category IS NOT NULL AND category != '' ORDER BY category`, baseParams),
@@ -765,7 +767,7 @@ app.get("/api/products", async (req, res) => {
       const aliasMatch = SEARCH_ALIASES[qLower];
 
       if (aliasMatch && aliasMatch.type === 'color') {
-        sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
+        sql += ` AND (title ILIKE $${i} OR EXISTS (SELECT 1 FROM unnest(array_append(colors, color)) AS pc WHERE pc = $${i+1} OR pc LIKE $${i+1} || ' - %'))`;
         params.push(`%${q}%`, aliasMatch.name); i += 2;
       } else if (aliasMatch && aliasMatch.type === 'category') {
         sql += ` AND (title ILIKE $${i} OR category = $${i+1})`;
@@ -783,7 +785,7 @@ app.get("/api/products", async (req, res) => {
         sql += ` AND (title ILIKE $${i} OR pattern = $${i+1})`;
         params.push(`%${q}%`, aliasMatch.name); i += 2;
       } else if (aliasColor) {
-        sql += ` AND (title ILIKE $${i} OR color = $${i+1} OR $${i+1} = ANY(colors))`;
+        sql += ` AND (title ILIKE $${i} OR EXISTS (SELECT 1 FROM unnest(array_append(colors, color)) AS pc WHERE pc = $${i+1} OR pc LIKE $${i+1} || ' - %'))`;
         params.push(`%${q}%`, aliasColor); i += 2;
       } else {
         sql += ` AND title ILIKE $${i++}`;
@@ -797,12 +799,9 @@ app.get("/api/products", async (req, res) => {
       if (colors.includes('בהיר')) {
         colors = [...new Set([...colors.filter(c => c !== 'בהיר'), ...LIGHT_COLORS2])];
       }
-      if (colors.length === 1) {
-        sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++;
-      } else {
-        sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`;
-        params.push(colors); i++;
-      }
+      // התאמה גם לצבע מדויק וגם לגרסה עם תווית מורחבת (כמו "ירוק - ירוק")
+      sql += ` AND EXISTS (SELECT 1 FROM unnest(array_append(colors, color)) AS pc WHERE pc = ANY($${i}::text[]) OR EXISTS (SELECT 1 FROM unnest($${i}::text[]) AS sv WHERE pc LIKE sv || ' - %'))`;
+      params.push(colors); i++;
     }
     if (size) {
       const sizes = size.split(',').filter(Boolean);
@@ -1005,8 +1004,8 @@ async function queryKidsProducts(q) {
   if (q.q) { sql += ` AND title ILIKE $${i++}`; params.push(`%${q.q}%`); }
   if (color) {
     const colors = color.split(',').filter(Boolean);
-    if (colors.length === 1) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(colors[0]); i++; }
-    else { sql += ` AND (color = ANY($${i}::text[]) OR colors && $${i}::text[])`; params.push(colors); i++; }
+    sql += ` AND EXISTS (SELECT 1 FROM unnest(array_append(colors, color)) AS pc WHERE pc = ANY($${i}::text[]) OR EXISTS (SELECT 1 FROM unnest($${i}::text[]) AS sv WHERE pc LIKE sv || ' - %'))`;
+    params.push(colors); i++;
   }
   if (size) {
     const sizes = size.split(',').filter(Boolean);
@@ -1193,7 +1192,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (analysis.keywords.length > 0) { sql += ` AND title ILIKE $${i++}`; params.push(`%${analysis.keywords.join(' ')}%`); }
     if (analysis.store) { sql += ` AND store = $${i++}`; params.push(analysis.store); }
     
-    if (analysis.color) { sql += ` AND (color = $${i} OR $${i} = ANY(colors))`; params.push(analysis.color); i++; }
+    if (analysis.color) { sql += ` AND EXISTS (SELECT 1 FROM unnest(array_append(colors, color)) AS pc WHERE pc = $${i} OR pc LIKE $${i} || ' - %')`; params.push(analysis.color); i++; }
     if (analysis.size) {
       const expandedSizes = expandSize(analysis.size);
       if (expandedSizes.length === 1) {

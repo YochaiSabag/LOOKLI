@@ -62,14 +62,25 @@ async function getAllProductUrls(page) {
         { timeout: 15000 }
       ).catch(() => {});
 
-      const urls = await page.evaluate(() =>
+      let urls = await page.evaluate(() =>
         [...document.querySelectorAll('a[href*="/product/"]')]
           .map(a => a.href.split('?')[0])
           .filter(h => h.includes('myme.co.il/product/'))
           .filter((v, i, a) => a.indexOf(v) === i)
       );
 
-      if (urls.length === 0) { console.log('    ⏹ עמוד ריק — עוצר'); break; }
+      if (urls.length === 0) {
+        console.log('    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר');
+        await page.waitForTimeout(4000);
+        urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('myme.co.il/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls.length === 0) { console.log('    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות'); break; }
+        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
+      }
       const before = allUrls.size;
       urls.forEach(u => allUrls.add(u));
       console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);

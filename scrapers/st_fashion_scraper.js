@@ -67,21 +67,50 @@ async function getAllProductUrls(page) {
           await page.waitForTimeout(800);
         }
 
-        const urls = await page.evaluate(() =>
+        let urls = await page.evaluate(() =>
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href.split('?')[0])
             .filter(h => h.includes('st-fashion.co.il/product/'))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
 
-        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+        if (urls.length === 0) {
+          console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+          await page.waitForTimeout(4000);
+          urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('st-fashion.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls.length === 0) { console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
+          console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
+        }
         const before = allUrls.size;
         urls.forEach(u => allUrls.add(u));
         console.log(`    ✓ עמוד ${p}: ${urls.length} (סה"כ: ${allUrls.size})`);
         if (allUrls.size === before) break; // לא התווסף שום דבר חדש
       } catch(e) {
-        console.log(`    ⏹ שגיאה: ${e.message.substring(0, 50)}`);
-        break;
+        console.log(`    ⚠ שגיאה: ${e.message.substring(0, 50)} - מנסה שוב`);
+        try {
+          await page.waitForTimeout(4000);
+          const urls2 = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('st-fashion.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls2.length > 0) {
+            urls2.forEach(u => allUrls.add(u));
+            console.log(`    ✓ ניסיון שני הצליח: ${urls2.length}`);
+          } else {
+            console.log(`    ⏹ ניסיון שני גם ריק - עוצר`);
+            break;
+          }
+        } catch (e2) {
+          console.log(`    ⏹ ניסיון שני נכשל - עוצר`);
+          break;
+        }
       }
     }
   }

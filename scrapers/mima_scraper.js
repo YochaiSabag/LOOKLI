@@ -167,11 +167,20 @@ async function getAllProductUrls(page, maxProducts = 10) {
       await page.goto(url2022, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(2000);
       await dismissPopups(page);
-      const links2022 = await page.evaluate(() =>
+      let links2022 = await page.evaluate(() =>
         [...document.querySelectorAll('a[href*="/product-page/"]')]
           .map(a => a.href.split('?')[0]).filter((v,i,a) => a.indexOf(v)===i)
       );
-      if (links2022.length === 0) { console.log(`  ⏹ 2022 עמוד ריק - עוצר`); break; }
+      if (links2022.length === 0) {
+        console.log(`  ⏳ 2022 עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+        await page.waitForTimeout(4000);
+        links2022 = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product-page/"]')]
+            .map(a => a.href.split('?')[0]).filter((v,i,a) => a.indexOf(v)===i)
+        );
+        if (links2022.length === 0) { console.log(`  ⏹ 2022 עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
+        console.log(`  ✓ ניסיון נוסף הצליח: ${links2022.length}`);
+      }
       const before2022 = allUrls.size;
       links2022.forEach(u => allUrls.add(u));
       console.log(`  ✓ 2022/${p}: ${links2022.length} (סה"כ: ${allUrls.size})`);

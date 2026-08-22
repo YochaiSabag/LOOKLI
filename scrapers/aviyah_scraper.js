@@ -41,7 +41,7 @@ async function getAllProductUrls(page) {
   
   // קטגוריית שמלות ערב - סימון כ"ערב"
   const eveningPages = [];
-  for (let p = 1; p <= 15; p++) {
+  for (let p = 1; p <= 30; p++) {
     const url = p === 1 
       ? 'https://aviyahyosef.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa-%d7%a2%d7%a8%d7%91/'
       : `https://aviyahyosef.com/product-category/%d7%a9%d7%9e%d7%9c%d7%95%d7%aa-%d7%a2%d7%a8%d7%91/page/${p}/`;
@@ -50,7 +50,7 @@ async function getAllProductUrls(page) {
   
   // קטגוריה ראשית (כל המוצרים)
   const mainPages = [];
-  for (let p = 1; p <= 15; p++) {
+  for (let p = 1; p <= 30; p++) {
     const url = p === 1
       ? 'https://aviyahyosef.com/product-category/uncategorized/'
       : `https://aviyahyosef.com/product-category/uncategorized/page/${p}/`;
@@ -71,7 +71,7 @@ async function getAllProductUrls(page) {
         await page.waitForTimeout(1000);
       }
       
-      const urls = await page.evaluate(() => 
+      let urls = await page.evaluate(() => 
         [...document.querySelectorAll('a[href*="/product/"]')]
           .map(a => a.href)
           .filter(h => h.includes('aviyahyosef.com/product/'))
@@ -79,8 +79,25 @@ async function getAllProductUrls(page) {
       );
       
       if (urls.length === 0) {
-        console.log(`    ⏹ עמוד ריק - עוצר`);
-        break;
+        // לפני שמוותרים על הקטגוריה כולה - ממתינים עוד ומנסים שוב, כי לפעמים העמוד
+        // פשוט לא הספיק להיטען במלואו (שרת Railway מרוחק מהאתר) ולא שהקטגוריה נגמרה
+        console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+        await page.waitForTimeout(4000);
+        for (let i = 0; i < 3; i++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1200);
+        }
+        urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href)
+            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls.length === 0) {
+          console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`);
+          break;
+        }
+        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length} (ערב)`);
       }
       
       urls.forEach(u => allUrls.set(u, { isEvening: true }));
@@ -122,7 +139,7 @@ async function getAllProductUrls(page) {
         await page.waitForTimeout(1000);
       }
       
-      const urls = await page.evaluate(() => 
+      let urls = await page.evaluate(() => 
         [...document.querySelectorAll('a[href*="/product/"]')]
           .map(a => a.href)
           .filter(h => h.includes('aviyahyosef.com/product/'))
@@ -130,8 +147,23 @@ async function getAllProductUrls(page) {
       );
       
       if (urls.length === 0) {
-        console.log(`    ⏹ עמוד ריק - עוצר`);
-        break;
+        console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+        await page.waitForTimeout(4000);
+        for (let i = 0; i < 3; i++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1200);
+        }
+        urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href)
+            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls.length === 0) {
+          console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`);
+          break;
+        }
+        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
       }
       
       // אל תדרוס isEvening אם כבר סומן

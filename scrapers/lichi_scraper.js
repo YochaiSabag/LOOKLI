@@ -50,7 +50,7 @@ async function getAllProductUrls(page) {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(2000);
 
-      const urls = await page.evaluate(() =>
+      let urls = await page.evaluate(() =>
         [...document.querySelectorAll(
           'h3.wd-entities-title a, a.wd-product-img-link, .product-element-top a, a[href*="/product/"]'
         )]
@@ -60,8 +60,21 @@ async function getAllProductUrls(page) {
       );
 
       if (urls.length === 0) {
-        console.log(`  ⏹ עמוד ריק - עוצר`);
-        break;
+        console.log(`  ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+        await page.waitForTimeout(4000);
+        urls = await page.evaluate(() =>
+          [...document.querySelectorAll(
+            'h3.wd-entities-title a, a.wd-product-img-link, .product-element-top a, a[href*="/product/"]'
+          )]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('lichi-shop.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        );
+        if (urls.length === 0) {
+          console.log(`  ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`);
+          break;
+        }
+        console.log(`  ✓ ניסיון נוסף הצליח: ${urls.length}`);
       }
       const before = allUrls.size;
       urls.forEach(u => allUrls.add(u));
@@ -597,7 +610,7 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 10;
+const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 9999;
 
 async function launchBrowser() {
   const browser = await chromium.launch({ headless: true, slowMo: 30 });

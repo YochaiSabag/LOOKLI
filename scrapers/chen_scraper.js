@@ -67,14 +67,25 @@ async function getAllProductUrls(page) {
         await page.waitForTimeout(800);
       }
 
-      const urls = await page.evaluate(() =>
+      let urls = await page.evaluate(() =>
         [...document.querySelectorAll('a[href*="/product/"]')]
           .map(a => a.href.split('?')[0])
           .filter(h => h.includes('chen-fashion.com/product/'))
           .filter((v, i, a) => a.indexOf(v) === i)
       ).catch(() => []);
 
-      if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+      if (urls.length === 0) {
+        console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+        await page.waitForTimeout(4000);
+        urls = await page.evaluate(() =>
+          [...document.querySelectorAll('a[href*="/product/"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes('chen-fashion.com/product/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        ).catch(() => []);
+        if (urls.length === 0) { console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
+        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
+      }
 
       urls.forEach(u => allUrls.add(u));
       console.log(`    ✓ ${urls.length} קישורים (סה"כ: ${allUrls.size})`);

@@ -82,14 +82,31 @@ async function getAllProductUrls(page) {
           lastCount = count;
         }
 
-        const urls = await page.evaluate(() =>
+        let urls = await page.evaluate(() =>
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href.split('?')[0])
             .filter(h => h.includes('avivit-weizman.co.il/product/'))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
 
-        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק - עוצר`); break; }
+        if (urls.length === 0) {
+          // לפני שמוותרים על הקטגוריה כולה - ממתינים עוד ומנסים שוב (גם למקרה של
+          // Cloudflare שעדיין לא סיים לאמת, וגם למקרה של עמוד שפשוט לא הספיק להיטען)
+          console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+          await page.waitForTimeout(6000);
+          for (let scroll = 0; scroll < 4; scroll++) {
+            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await page.waitForTimeout(1200);
+          }
+          urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('avivit-weizman.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls.length === 0) { console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
+          console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
+        }
 
         const before = allUrls.size;
         urls.forEach(u => allUrls.add(u));
@@ -97,8 +114,30 @@ async function getAllProductUrls(page) {
 
         if (allUrls.size === before && p > 1) break;
       } catch (e) {
-        console.log(`    ⏹ שגיאה - עוצר (${e.message.substring(0, 30)})`);
-        break;
+        // בעבר: שגיאה גרמה לעצירה מיידית בלי שום ניסיון נוסף - חמור, כי כל תקלת רשת
+        // חולפת (או אתגר Cloudflare זמני) הייתה מפילה את כל הקטגוריה. עכשיו מנסים שוב פעם אחת.
+        console.log(`    ⚠ שגיאה בעמוד ${p} - ${e.message.substring(0, 40)} - מנסה שוב`);
+        try {
+          await page.waitForTimeout(5000);
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.waitForTimeout(4000);
+          const urls2 = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('avivit-weizman.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls2.length > 0) {
+            urls2.forEach(u => allUrls.add(u));
+            console.log(`    ✓ ניסיון שני הצליח: ${urls2.length} (סה"כ: ${allUrls.size})`);
+          } else {
+            console.log(`    ⏹ ניסיון שני גם ריק - עוצר`);
+            break;
+          }
+        } catch (e2) {
+          console.log(`    ⏹ ניסיון שני נכשל - עוצר (${e2.message.substring(0, 30)})`);
+          break;
+        }
       }
     }
   }

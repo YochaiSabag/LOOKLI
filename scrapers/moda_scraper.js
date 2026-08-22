@@ -48,26 +48,66 @@ async function getAllProductUrls(page) {
     const url = p === 1 ? `${BASE}/shop/` : `${BASE}/shop/page/${p}/`;
     console.log(`  → עמוד ${p}`);
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(2000);
 
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(700);
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(700);
+      }
+
+      let urls = await page.evaluate((base) =>
+        [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
+          .map(a => a.href.split('?')[0])
+          .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
+          .filter((v, i, a) => a.indexOf(v) === i)
+      , BASE);
+
+      if (urls.length === 0) {
+        // לפני שמוותרים - ממתינים עוד ומנסים שוב, כי לפעמים העמוד פשוט לא הספיק
+        // להיטען במלואו (שרת Railway מרוחק מהאתר) ולא שהחנות באמת נגמרה
+        console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+        await page.waitForTimeout(4000);
+        urls = await page.evaluate((base) =>
+          [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        , BASE);
+        if (urls.length === 0) { console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
+        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
+      }
+
+      urls.forEach(u => allUrls.add(u));
+      console.log(`    ✓ ${urls.length} קישורים`);
+      await page.waitForTimeout(800);
+    } catch (e) {
+      // בעבר: אין בכלל try/catch כאן - שגיאת רשת חד-פעמית הייתה עלולה להפיל את
+      // כל תהליך איסוף הקישורים (לא רק לעצור בעדינות). עכשיו מנסים שוב פעם אחת.
+      console.log(`    ⚠ שגיאה בעמוד ${p} - ${e.message.substring(0, 40)} - מנסה שוב`);
+      try {
+        await page.waitForTimeout(4000);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(2000);
+        const urls2 = await page.evaluate((base) =>
+          [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
+            .map(a => a.href.split('?')[0])
+            .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
+            .filter((v, i, a) => a.indexOf(v) === i)
+        , BASE);
+        if (urls2.length > 0) {
+          urls2.forEach(u => allUrls.add(u));
+          console.log(`    ✓ ניסיון שני הצליח: ${urls2.length}`);
+        } else {
+          console.log(`    ⏹ ניסיון שני גם ריק - עוצר`);
+          break;
+        }
+      } catch (e2) {
+        console.log(`    ⏹ ניסיון שני נכשל - עוצר (${e2.message.substring(0, 30)})`);
+        break;
+      }
     }
-
-    const urls = await page.evaluate((base) =>
-      [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
-        .map(a => a.href.split('?')[0])
-        .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
-        .filter((v, i, a) => a.indexOf(v) === i)
-    , BASE);
-
-    if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
-
-    urls.forEach(u => allUrls.add(u));
-    console.log(`    ✓ ${urls.length} קישורים`);
-    await page.waitForTimeout(800);
   }
 
   const result = [...allUrls];

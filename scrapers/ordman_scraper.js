@@ -70,14 +70,31 @@ async function getAllProductUrls(page) {
           lastCount = count;
         }
 
-        const urls = await page.evaluate(() =>
+        let urls = await page.evaluate(() =>
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href.split('?')[0])
             .filter(h => h.includes('www.ordman.co.il/product/'))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
 
-        if (urls.length === 0) { console.log(`    ⏹ עמוד ריק - עוצר`); break; }
+        if (urls.length === 0) {
+          // לפני שמוותרים על הקטגוריה כולה - ממתינים עוד ומנסים שוב, כי לפעמים העמוד
+          // פשוט לא הספיק להיטען במלואו (שרת Railway מרוחק מהאתר) ולא שהקטגוריה נגמרה
+          console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+          await page.waitForTimeout(4000);
+          for (let scroll = 0; scroll < 4; scroll++) {
+            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await page.waitForTimeout(1200);
+          }
+          urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('www.ordman.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls.length === 0) { console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
+          console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
+        }
 
         const before = allUrls.size;
         urls.forEach(u => allUrls.add(u));

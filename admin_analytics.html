@@ -63,6 +63,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .bar-stack{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;height:148px}
 .bar-seg{width:100%;border-radius:3px 3px 0 0;min-height:3px;cursor:pointer;transition:opacity .2s}
 .bar-seg:hover{opacity:.75}
+.bar-col.selected .bar-stack{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 .bar-seg.sessions{background:linear-gradient(180deg,var(--accent),var(--accent2))}
 .bar-seg.clicks{background:linear-gradient(180deg,var(--green),#059669)}
 .bar-label{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
@@ -295,10 +296,15 @@ function render(data, periodLabel) {
         <div class="card-legend">
           <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>כניסות</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>קליקים לחנויות</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--yellow);border-radius:0;height:2px;align-self:center"></div>משתמשים ייחודיים</div>
         </div>
       </div>
       <div id="dailyAvgSummary" style="display:flex;gap:20px;font-size:12px;color:var(--muted);margin-bottom:10px"></div>
-      <div class="chart-wrap" id="chartWrap"></div>
+      <div id="dayDetailPanel" style="display:none;background:var(--bg2,rgba(255,255,255,.04));border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px"></div>
+      <div style="position:relative">
+        <svg id="usersLineOverlay" style="position:absolute;top:0;left:0;width:100%;height:148px;pointer-events:none" preserveAspectRatio="none"></svg>
+        <div class="chart-wrap" id="chartWrap"></div>
+      </div>
     </div>
 
     <!-- Stores + Products -->
@@ -375,6 +381,8 @@ function showMoreProds() {
   }
 }
 
+let _dailyDataRef = [];
+
 function formatDuration(seconds) {
   const s = Math.round(seconds || 0);
   const m = Math.floor(s / 60);
@@ -393,9 +401,49 @@ function renderDailyAvgSummary(daily) {
   `;
 }
 
+function showDayDetail(dateStr) {
+  const panel = document.getElementById('dayDetailPanel');
+  const d = _dailyDataRef.find(x => x.date === dateStr);
+  if (!panel || !d) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="font-weight:700;color:var(--text);margin-bottom:6px">${d.date}</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;color:var(--muted)">
+      <div>👥 <b style="color:var(--text)">${d.sessions}</b> כניסות</div>
+      <div>🙋 <b style="color:var(--text)">${d.users ?? '—'}</b> משתמשים ייחודיים</div>
+      <div>🖱️ <b style="color:var(--text)">${d.clicks || 0}</b> קליקים לחנויות</div>
+      <div>⏱️ <b style="color:var(--text)">${formatDuration(d.avgDuration)}</b> זמן גלישה ממוצע</div>
+    </div>`;
+  document.querySelectorAll('.bar-col').forEach(el => el.classList.toggle('selected', el.dataset.date === dateStr));
+}
+
+function drawUsersLine(daily) {
+  const svg = document.getElementById('usersLineOverlay');
+  if (!svg) return;
+  const maxU = Math.max(...daily.map(d => d.users || 0), 1);
+  const N = daily.length;
+  const H = 148;
+  // x בטווח 0-100 (אחוזים, תואם viewBox) - מרכז כל עמודה. y בפיקסלים אמיתיים (0-148)
+  const points = daily.map((d, i) => {
+    const x = (i + 0.5) / N * 100;
+    const y = H - ((d.users || 0) / maxU * (H - 8)) - 4; // שוליים קטנים מלמעלה ומלמטה
+    return `${x},${y}`;
+  });
+  svg.setAttribute('viewBox', `0 0 100 ${H}`);
+  const circles = daily.map((d, i) => {
+    const [x, y] = points[i].split(',');
+    return `<circle cx="${x}" cy="${y}" r="1.2" fill="var(--yellow)" />`;
+  }).join('');
+  svg.innerHTML = `
+    <polyline points="${points.join(' ')}" fill="none" stroke="var(--yellow)" stroke-width="1.5" vector-effect="non-scaling-stroke" opacity="0.9" />
+    ${circles}
+  `;
+}
+
 function drawChart(daily) {
   const wrap = document.getElementById('chartWrap');
   if (!wrap || !daily?.length) return;
+  _dailyDataRef = daily;
   renderDailyAvgSummary(daily);
   const maxS = Math.max(...daily.map(d=>d.sessions), 1);
   const maxC = Math.max(...daily.map(d=>d.clicks||0), 1);
@@ -405,7 +453,7 @@ function drawChart(daily) {
     const ch = Math.max(0, Math.round((d.clicks||0)/maxC*(H*0.5)));
     const label = d.date?.slice(5) || '';
     const sessionsTitle = `${d.date}: ${d.sessions} כניסות · ${d.users ?? '—'} משתמשים ייחודיים · זמן גלישה ממוצע: ${formatDuration(d.avgDuration)}`;
-    return `<div class="bar-col">
+    return `<div class="bar-col" data-date="${d.date}" onclick="showDayDetail('${d.date}')" style="cursor:pointer">
       <div class="bar-stack">
         <div class="bar-seg sessions" style="height:${sh}px" title="${sessionsTitle}"></div>
         ${ch ? `<div class="bar-seg clicks" style="height:${ch}px" title="${d.date}: ${d.clicks} קליקים"></div>` : ''}
@@ -413,6 +461,9 @@ function drawChart(daily) {
       <div class="bar-label">${label}</div>
     </div>`;
   }).join('');
+  drawUsersLine(daily);
+  // ברירת מחדל: מציג את היום האחרון (העדכני ביותר) בפאנל הפירוט מיד, בלי צורך בלחיצה
+  showDayDetail(daily[daily.length - 1].date);
 }
 
 function fmt(n) { return n ? Number(n).toLocaleString('he-IL') : '0'; }

@@ -3360,7 +3360,7 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
       ga4Query(token, {
         dateRanges: dateRange,
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'averageSessionDuration' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }]
       }),
       ga4Query(token, {
@@ -3388,7 +3388,8 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
     const dailyData = (daily.rows || []).map(r => ({
       date:     r.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
       sessions: parseInt(r.metricValues[0].value),
-      users:    parseInt(r.metricValues[1].value)
+      users:    parseInt(r.metricValues[1].value),
+      avgDuration: parseFloat(r.metricValues[2]?.value || 0)
     }));
 
     // מכשירים (מובייל/דסקטופ/טאבלט)

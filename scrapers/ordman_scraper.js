@@ -100,7 +100,23 @@ async function getAllProductUrls(page) {
         urls.forEach(u => allUrls.add(u));
         console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
 
-        if (allUrls.size === before && p > 1) break;
+        if (allUrls.size === before && p > 1) {
+          console.log(`    ⏳ אין URL-ים חדשים - ממתין ומנסה שוב לוודא`);
+          await page.waitForTimeout(5000);
+          const retryUrls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href.split('?')[0])
+              .filter(h => h.includes('www.ordman.co.il/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          const before2 = allUrls.size;
+          retryUrls.forEach(u => allUrls.add(u));
+          if (allUrls.size === before2) {
+            console.log(`    ⏹ אושר - באמת אין עוד URL-ים חדשים, עוצר`);
+            break;
+          }
+          console.log(`    ✓ ניסיון נוסף מצא עוד: ${allUrls.size - before2} חדשים`);
+        }
       } catch (e) {
         console.log(`    ⚠ שגיאה בעמוד ${p} - ${e.message.substring(0, 30)} - מנסה שוב`);
         try {

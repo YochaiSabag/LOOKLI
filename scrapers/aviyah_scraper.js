@@ -48,14 +48,22 @@ async function getAllProductUrls(page) {
     eveningPages.push(url);
   }
   
-  // קטגוריה ראשית (כל המוצרים)
-  const mainPages = [];
-  for (let p = 1; p <= 30; p++) {
-    const url = p === 1
-      ? 'https://aviyahyosef.com/product-category/uncategorized/'
-      : `https://aviyahyosef.com/product-category/uncategorized/page/${p}/`;
-    mainPages.push(url);
-  }
+  // קטגוריה ראשית - כל שאר הקטגוריות האמיתיות (בעבר: "uncategorized" בלבד - קטגוריית
+  // ברירת מחדל של וורדפרס שכמעט תמיד ריקה/לא רלוונטית, ופספסה כמעט את כל החנות)
+  const mainCategoryBases = [
+    'https://aviyahyosef.com/product-category/new-collection/',
+    'https://aviyahyosef.com/product-category/dresses/', // שמלות (כל השמלות, לא רק ערב)
+    'https://aviyahyosef.com/product-category/%d7%a1%d7%98%d7%99%d7%9d/', // סטים
+    'https://aviyahyosef.com/product-category/%d7%97%d7%95%d7%9c%d7%a6%d7%95%d7%aa/', // חולצות וסריגים
+    'https://aviyahyosef.com/product-category/%d7%97%d7%a6%d7%90%d7%99%d7%95%d7%aa/', // חצאיות
+    'https://aviyahyosef.com/product-category/%d7%94%d7%a8%d7%99%d7%95%d7%9f-%d7%95%d7%94%d7%a0%d7%a7%d7%94/', // הריון והנקה
+    'https://aviyahyosef.com/product-category/%d7%91%d7%92%d7%93%d7%99-%d7%99%d7%9d/', // בגדי ים
+    'https://aviyahyosef.com/product-category/%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96/', // אקססוריז
+    'https://aviyahyosef.com/product-category/sale/',
+    'https://aviyahyosef.com/product-category/%d7%a7%d7%95%d7%9c%d7%a7%d7%a6%d7%99%d7%99%d7%aa-%d7%97%d7%92%d7%99%d7%9d/', // קולקציית חגים
+    'https://aviyahyosef.com/product-category/%d7%9e%d7%99%d7%a0%d7%99%d7%9e%d7%99/', // מינימי
+    'https://aviyahyosef.com/product-category/uncategorized/', // רשת ביטחון - מוצרים שאולי לא שויכו לאף קטגוריה אמיתית
+  ];
   
   // סריקת עמודי ערב קודם (לסמן אותם)
   console.log('  🌙 סורק קטגוריית שמלות ערב...');
@@ -126,69 +134,74 @@ async function getAllProductUrls(page) {
     }
   }
   
-  // סריקת עמודים ראשיים
-  console.log('\n  📦 סורק קטגוריה ראשית...');
-  for (const url of mainPages) {
-    try {
-      console.log(`  → ${url}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(2000);
-      
-      for (let i = 0; i < 3; i++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(1000);
-      }
-      
-      let urls = await page.evaluate(() => 
-        [...document.querySelectorAll('a[href*="/product/"]')]
-          .map(a => a.href)
-          .filter(h => h.includes('aviyahyosef.com/product/'))
-          .filter((v, i, a) => a.indexOf(v) === i)
-      );
-      
-      if (urls.length === 0) {
-        console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
-        await page.waitForTimeout(4000);
-        for (let i = 0; i < 3; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1200);
-        }
-        urls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href)
-            .filter(h => h.includes('aviyahyosef.com/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        if (urls.length === 0) {
-          console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`);
-          break;
-        }
-        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
-      }
-      
-      // אל תדרוס isEvening אם כבר סומן
-      urls.forEach(u => { if (!allUrls.has(u)) allUrls.set(u, { isEvening: false }); });
-      console.log(`    ✓ ${urls.length}`);
-    } catch (e) {
-      console.log(`    ⚠ שגיאה - ${e.message.substring(0, 30)} - מנסה שוב`);
+  // סריקת עמודים ראשיים - מקונן (קטגוריה מבחוץ, עמוד מבפנים) כדי ש-break על עמוד
+  // ריק יעצור רק את הקטגוריה הנוכחית וימשיך לבאה בתור, לא יעצור את כל התהליך
+  console.log('\n  📦 סורק קטגוריות ראשיות...');
+  for (const catBase of mainCategoryBases) {
+    console.log(`  📁 [${catBase}]`);
+    for (let p = 1; p <= 30; p++) {
+      const url = p === 1 ? catBase : `${catBase}page/${p}/`;
       try {
-        await page.waitForTimeout(3000);
+        console.log(`  → ${url}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(2000);
-        const urls2 = await page.evaluate(() =>
+        
+        for (let i = 0; i < 3; i++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1000);
+        }
+        
+        let urls = await page.evaluate(() => 
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href)
             .filter(h => h.includes('aviyahyosef.com/product/'))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
-        if (urls2.length > 0) {
-          urls2.forEach(u => { if (!allUrls.has(u)) allUrls.set(u, { isEvening: false }); });
-          console.log(`    ✓ ניסיון שני הצליח: ${urls2.length}`);
-        } else {
-          console.log(`    ⏭ ניסיון שני גם ריק - ממשיך (לא עוצר קטגוריה)`);
+        
+        if (urls.length === 0) {
+          console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
+          await page.waitForTimeout(4000);
+          for (let i = 0; i < 3; i++) {
+            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await page.waitForTimeout(1200);
+          }
+          urls = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href)
+              .filter(h => h.includes('aviyahyosef.com/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls.length === 0) {
+            console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר קטגוריה זו, ממשיך לבאה`);
+            break; // עוצר רק את לולאת העמודים של הקטגוריה הזו
+          }
+          console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
         }
-      } catch (e2) {
-        console.log(`    ⏭ ניסיון שני נכשל - ממשיך (לא עוצר קטגוריה)`);
+        
+        // אל תדרוס isEvening אם כבר סומן
+        urls.forEach(u => { if (!allUrls.has(u)) allUrls.set(u, { isEvening: false }); });
+        console.log(`    ✓ ${urls.length}`);
+      } catch (e) {
+        console.log(`    ⚠ שגיאה - ${e.message.substring(0, 30)} - מנסה שוב`);
+        try {
+          await page.waitForTimeout(3000);
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.waitForTimeout(2000);
+          const urls2 = await page.evaluate(() =>
+            [...document.querySelectorAll('a[href*="/product/"]')]
+              .map(a => a.href)
+              .filter(h => h.includes('aviyahyosef.com/product/'))
+              .filter((v, i, a) => a.indexOf(v) === i)
+          );
+          if (urls2.length > 0) {
+            urls2.forEach(u => { if (!allUrls.has(u)) allUrls.set(u, { isEvening: false }); });
+            console.log(`    ✓ ניסיון שני הצליח: ${urls2.length}`);
+          } else {
+            console.log(`    ⏭ ניסיון שני גם ריק - ממשיך (לא עוצר קטגוריה)`);
+          }
+        } catch (e2) {
+          console.log(`    ⏭ ניסיון שני נכשל - ממשיך (לא עוצר קטגוריה)`);
+        }
       }
     }
   }

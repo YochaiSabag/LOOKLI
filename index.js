@@ -4137,14 +4137,15 @@ app.get('/api/cron/new-products-email', async (req, res) => {
 
   try {
     const dryRun = req.query.dry === '1'; // ?dry=1 → לא שולח, רק מחזיר JSON
+    const testEmail = req.query.testEmail; // ?testEmail=you@example.com → שולח מייל אמיתי רק אליך, לבדיקה
 
-    // 1. בדוק אם עברו 5 ימים מהשליחה האחרונה
+    // 1. בדוק אם עברו 5 ימים מהשליחה האחרונה (לא רלוונטי במצב בדיקה)
     const lastSentRow = await pool.query(
       `SELECT sent_at FROM email_campaign_log WHERE campaign_type='new_products' ORDER BY sent_at DESC LIMIT 1`
     ).catch(() => ({ rows: [] }));
 
     const forceRun = req.query.force === '1';
-    if (!dryRun && !forceRun && lastSentRow.rows.length) {
+    if (!dryRun && !testEmail && !forceRun && lastSentRow.rows.length) {
       const lastSent = new Date(lastSentRow.rows[0].sent_at);
       const daysSince = (Date.now() - lastSent.getTime()) / (1000 * 60 * 60 * 24);
       if (daysSince < 7) {
@@ -4193,6 +4194,12 @@ app.get('/api/cron/new-products-email', async (req, res) => {
     // dry run — החזר את ה-HTML בלבד
     if (dryRun) {
       return res.send(htmlContent);
+    }
+
+    // מצב בדיקה — שולח מייל אמיתי רק לכתובת שצוינה, לא נוגע ברשימת המנויים ולא נרשם בלוג
+    if (testEmail) {
+      const sent = await sendNewProductsEmail([testEmail], `[בדיקה] ${subject}`, htmlContent);
+      return res.json({ testMode: true, sentTo: testEmail, result: sent });
     }
 
     // 5. שלוף מנויים פעילים
@@ -4346,14 +4353,15 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
 
   try {
     const dryRun = req.query.dry === '1';
+    const testEmail = req.query.testEmail; // ?testEmail=you@example.com → שולח מייל אמיתי רק אליך, לבדיקה
 
-    // בדוק 7 ימים מהשליחה האחרונה
+    // בדוק 7 ימים מהשליחה האחרונה (לא רלוונטי במצב בדיקה)
     const lastSentRow = await pool.query(
       `SELECT sent_at FROM email_campaign_log WHERE campaign_type='price_drop' ORDER BY sent_at DESC LIMIT 1`
     ).catch(() => ({ rows: [] }));
 
     const forceRun = req.query.force === '1';
-    if (!dryRun && !forceRun && lastSentRow.rows.length) {
+    if (!dryRun && !testEmail && !forceRun && lastSentRow.rows.length) {
       const daysSince = (Date.now() - new Date(lastSentRow.rows[0].sent_at).getTime()) / (1000 * 60 * 60 * 24);
       if (daysSince < 7) {
         return res.json({ skipped: true, reason: `נשלח לפני ${daysSince.toFixed(1)} ימים — מינימום 7 ימים בין שליחות` });
@@ -4405,6 +4413,12 @@ app.get('/api/cron/price-drop-email', async (req, res) => {
     const html = buildPriceDropEmail(storeGroups);
 
     if (dryRun) return res.send(html);
+
+    // מצב בדיקה — שולח מייל אמיתי רק לכתובת שצוינה, לא נוגע ברשימת המנויים ולא נרשם בלוג
+    if (testEmail) {
+      const sent = await sendNewProductsEmail([testEmail], `[בדיקה] ${subject}`, html);
+      return res.json({ testMode: true, sentTo: testEmail, result: sent });
+    }
 
     // שלוף מנויים
     const subscribersRes = await pool.query(

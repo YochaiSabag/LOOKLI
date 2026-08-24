@@ -264,14 +264,9 @@ app.get("/sitemap.xml", async (req, res) => {
     ];
 
     const productUrls = products.rows.map(p => {
-      const slug = (p.title || '').trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g, '')
-        .toLowerCase()
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/, '');
+      const slug = titleToSlug(p.title);
       const lastmod = p.last_seen ? new Date(p.last_seen).toISOString().split('T')[0] : '';
-      return { loc: `${base}/product/${slug || p.id}`, priority: '0.8', changefreq: 'weekly', lastmod };
+      return { loc: `${base}/product/${encodeURIComponent(slug || p.id)}`, priority: '0.8', changefreq: 'weekly', lastmod };
     });
 
     const allUrls = [...staticUrls, ...productUrls];
@@ -366,7 +361,7 @@ app.get("/product/:slug", async (req, res) => {
     const title = product.title || 'מוצר';
     const desc = product.description || `${title} ב-${product.store} — ₪${product.price}`;
     const img = (product.images?.[0]) || product.image_url || '';
-    const url = `${base}/product/${slug}`;
+    const url = `${base}/product/${encodeURIComponent(slug)}`;
 
     const html = await res.sendFile(path.join(__dirname, "public", "index.html"), {}, async (err) => {});
 
@@ -3965,6 +3960,15 @@ const STORE_NAMES = {
 
 const SITE_BASE = process.env.SITE_URL || 'https://lookli.co.il';
 
+// בניית slug מכותרת מוצר - חייבת להתאים בדיוק ל-regexp_replace שהשרת משתמש בו
+// בחיפוש (ראה /product/:slug ו-idx_products_slug) - כל רצף של תווים לא-אלפאנומריים
+// (כולל מקפים קיימים בכותרת!) מתכווץ למקף בודד אחד. אי-התאמה בין השניים גרמה
+// לקישורי מייל עם כותרות שיש בהן מקף/פיסוק להיכשל בשקט ולהחזיר את דף הבית הכללי
+// במקום המוצר.
+function titleToSlug(title) {
+  return (title || '').toLowerCase().replace(/[^\u05D0-\u05EAa-zA-Z0-9]+/g, '-');
+}
+
 // בנה HTML email
 function buildNewProductsEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ store, storeName, products, total }) => {
@@ -3973,8 +3977,8 @@ function buildNewProductsEmail(storeGroups) {
       const price = p.original_price && p.original_price > p.price
         ? `<span style="color:#e0a1c0;font-weight:700">₪${p.price}</span> <s style="color:#aaa;font-size:11px">₪${p.original_price}</s>`
         : `<span style="color:#333;font-weight:700">₪${p.price}</span>`;
-      const slug  = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
-      const url   = `${SITE_BASE}/product/${slug||p.id}`;
+      const slug  = titleToSlug(p.title);
+      const url   = `${SITE_BASE}/product/${encodeURIComponent(slug||p.id)}`;
       return `
         <td style="width:25%;padding:3px;vertical-align:top">
           <a href="${url}" style="display:block;text-decoration:none;color:inherit">
@@ -4250,8 +4254,8 @@ function buildPriceDropEmail(storeGroups) {
     const cards = products.slice(0, 4).map(p => {
       const img = p.images?.[0] || p.image_url || '';
       const disc = Math.round((1 - p.price / p.original_price) * 100);
-      const slug = (p.title||'').trim().replace(/\s+/g,'-').replace(/[^\u05D0-\u05EAa-zA-Z0-9\-]/g,'').toLowerCase();
-      const url = `${SITE_BASE}/product/${slug||p.id}`;
+      const slug = titleToSlug(p.title);
+      const url = `${SITE_BASE}/product/${encodeURIComponent(slug||p.id)}`;
       return `
         <td style="width:25%;padding:3px;vertical-align:top">
           <a href="${url}" style="display:block;text-decoration:none;color:inherit">

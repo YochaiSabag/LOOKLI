@@ -15,28 +15,43 @@ const pool = new Pool({
 
 const BREVO_KEY  = process.env.BREVO_API_KEY;
 const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
+
+// בניית slug מכותרת מוצר - חייבת להתאים בדיוק ל-regexp_replace שהשרת משתמש בו
+// בחיפוש (/product/:slug ב-index.js). אותה פונקציה בדיוק כמו שם - עותק כי זה קובץ
+// עצמאי שלא מייבא מ-index.js. אי-התאמה בין השניים גרמה לקישורים עם כותרות שיש
+// בהן מקף/פיסוק להיכשל בשקט ולהחזיר את דף הבית הכללי במקום המוצר.
+function titleToSlug(title) {
+  return (title || '').toLowerCase().replace(/[^\u05D0-\u05EAa-zA-Z0-9]+/g, '-');
+}
 const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
 const FROM_NAME  = 'LOOKLI התראות';
 
 // ─── שלח מייל דרך Brevo ───────────────────────────────────
-async function sendEmail(toEmail, subject, htmlBody) {
+async function sendEmail(toEmail, subject, htmlBody, unsubUrl) {
   if (process.env.SKIP_EMAIL === 'true') { console.log(`[ALERTS] SKIP_EMAIL=true — לא שולח מייל`); return true; }
   if (!BREVO_KEY) {
     console.log(`[ALERT] BREVO_API_KEY חסר — מייל לא נשלח ל-${toEmail}`);
     return false;
   }
   try {
-    const myIp = await fetch('https://api.ipify.org?format=json').then(r=>r.json()).catch(()=>({ip:'unknown'}));
-    console.log(`[ALERTS] שולח מייל | IP: ${myIp.ip} | to: ${toEmail}`);
+    const body = {
+      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ email: toEmail }],
+      subject,
+      htmlContent: htmlBody,
+    };
+    // כותרות List-Unsubscribe אמיתיות - קריטי לדליברביליות. סינוני ספאם בודקים את
+    // הכותרת הזו ספציפית, לא מסתפקים בקישור טקסטואלי בתוך גוף המייל
+    if (unsubUrl) {
+      body.headers = {
+        'List-Unsubscribe': `<${unsubUrl}>, <mailto:unsubscribe@lookli.co.il?subject=unsubscribe>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      };
+    }
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': BREVO_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sender: { name: FROM_NAME, email: FROM_EMAIL },
-        to: [{ email: toEmail }],
-        subject,
-        htmlContent: htmlBody,
-      }),
+      body: JSON.stringify(body),
     });
     if (res.ok) { console.log(`  ✅ מייל נשלח: ${toEmail}`); return true; }
     else { const e = await res.json(); console.error(`  ❌ Brevo error:`, e); return false; }
@@ -44,7 +59,7 @@ async function sendEmail(toEmail, subject, htmlBody) {
 }
 
 // ─── תבנית מייל ───────────────────────────────────────────
-function buildEmail({ type, title, image, store, oldVal, newVal, url }) {
+function buildEmail({ type, title, image, store, oldVal, newVal, url, unsubUrl }) {
   const isPrice = type === 'price';
   const headline = isPrice
     ? `🎉 המחיר ירד! ${title}`
@@ -74,7 +89,7 @@ function buildEmail({ type, title, image, store, oldVal, newVal, url }) {
     </div>
     <div style="padding:16px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:11px;color:#9ca3af">
       קיבלת מייל זה כי הגדרת התראה ב-LOOKLI •
-      <a href="${SITE_URL}" style="color:#c48cb3;text-decoration:none">לביטול כניסי לפרופיל</a>
+      <a href="${unsubUrl || SITE_URL}" style="color:#c48cb3;text-decoration:none">ביטול כל ההתראות</a>
     </div>
   </div>
 </body>
@@ -97,6 +112,7 @@ async function checkAlerts() {
       pa.last_price, pa.last_sizes,
       pa.triggered_at,
       u.email AS user_email,
+      p.id AS product_id,
       p.price AS current_price,
       p.sizes AS current_sizes,
       p.color_sizes AS current_color_sizes,
@@ -115,12 +131,19 @@ async function checkAlerts() {
 
   for (const alert of alerts) {
     const {
-      id, user_email, product_source_url,
+      id, user_id, user_email, product_source_url,
       alert_price, alert_size, alert_color,
       last_price, last_sizes,
       current_price, current_sizes, current_color_sizes,
-      product_title, product_image, product_store,
+      product_title, product_image, product_store, product_id,
     } = alert;
+
+    // קישור פנימי ל-lookli (לא לחנות המקור החיצונית) - קריטי לדליברביליות: מייל
+    // מ-lookli.co.il שמקשר בעיקר לדומיינים חיצוניים משתנים נראה חשוד לסינוני ספאם
+    const slug = titleToSlug(product_title);
+    const productUrl = `${SITE_URL}/product/${encodeURIComponent(slug || product_id)}`;
+    // הסרה ייעודית מהתראות (לא מהניוזלטר!) - טבלה נפרדת, אנדפוינט נפרד
+    const unsubUrl = `${SITE_URL}/unsubscribe-alerts?token=${encodeURIComponent(Buffer.from(`alert:${user_id}`).toString('base64'))}`;
 
     // מידות נוכחיות — לפי צבע אם צויין
     const relevantSizes = alert_color && current_color_sizes?.[alert_color]
@@ -140,8 +163,9 @@ async function checkAlerts() {
             type: 'price', title: product_title,
             image: product_image, store: product_store,
             oldVal: prev.toFixed(0), newVal: curr.toFixed(0),
-            url: product_source_url,
-          })
+            url: productUrl, unsubUrl,
+          }),
+          unsubUrl
         );
         if (ok) {
           sent++;
@@ -170,8 +194,9 @@ async function checkAlerts() {
           buildEmail({
             type: 'size', title: product_title,
             image: product_image, store: product_store,
-            newVal: sizeLabel + colorLabel, url: product_source_url,
-          })
+            newVal: sizeLabel + colorLabel, url: productUrl, unsubUrl,
+          }),
+          unsubUrl
         );
         if (ok) {
           sent++;

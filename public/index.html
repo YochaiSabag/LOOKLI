@@ -2418,6 +2418,12 @@ async function initFilters(){
     storeDiv.innerHTML=`<div class="store-opt active" data-store="הכל" onclick="selectStore('')"><span>הכל</span></div>`;
     const storeDisplayNames={'LEAA':'Ladies'};
     (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const localOnly=new Set(['CHEN','ORDMAN']);const src=localOnly.has(s)?`/${s.toLowerCase()}-logo.png`:fallback;const displayName=storeDisplayNames[s]||s;storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" data-tooltip="${displayName}" onclick="selectStore('${s}')" ${bgStyle}>${src?`<img src="${src}" alt="${s}"${localOnly.has(s)?` onerror="this.src='${fallback}'"`:''}`:`<span>${s.substring(0,3)}</span>`}</div>`});
+    // תמיכה בהגעה מקישור מייל עם ?store=XXX (למשל "לכל המוצרים בחנות" בירידת מחיר/מוצרים
+    // חדשים) - עד עכשיו הקישור נבנה נכון אבל שום קוד לא היה מיישם אותו בפועל בטעינה
+    const urlStore = new URLSearchParams(location.search).get('store');
+    if (urlStore && (data.stores||[]).includes(urlStore)) {
+      selectStore(urlStore);
+    }
   } catch(e) {
     console.error('[ERROR] store logos rendering failed:', e);
   }
@@ -2426,6 +2432,11 @@ async function initFilters(){
   
   const discDiv=document.getElementById("discountBoxes");
   discDiv.innerHTML=`<div class="filter-opt${activeDiscount===''?' active':''}" data-discount="" onclick="selectDiscount('')">הכל</div>`+allDiscounts.map(d=>`<div class="filter-opt" data-discount="${d.val}" onclick="selectDiscount('${d.val}')">${d.label}</div>`).join('');
+  // תמיכה בהגעה מקישור מייל "ירידות מחיר" עם ?discount=10
+  const urlDiscount = new URLSearchParams(location.search).get('discount');
+  if (urlDiscount && allDiscounts.some(d => d.val === urlDiscount)) {
+    selectDiscount(urlDiscount);
+  }
   
   if(data.maxPrice){const slider=document.getElementById("priceRange");const roundedMax=Math.ceil(data.maxPrice/10)*10;slider.max=roundedMax;slider.value=roundedMax;document.getElementById("priceValue").textContent=roundedMax}
 }

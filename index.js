@@ -360,7 +360,7 @@ app.get("/product/:slug", async (req, res) => {
     const base = process.env.SITE_URL || 'https://lookli.co.il';
     const title = product.title || 'מוצר';
     const desc = product.description || `${title} ב-${product.store} — ₪${product.price}`;
-    const img = (product.images?.[0]) || product.image_url || '';
+    const img = encodeURI((product.images?.[0]) || product.image_url || '');
     const url = `${base}/product/${encodeURIComponent(slug)}`;
 
     const html = await res.sendFile(path.join(__dirname, "public", "index.html"), {}, async (err) => {});
@@ -3973,7 +3973,7 @@ function titleToSlug(title) {
 function buildNewProductsEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ store, storeName, products, total }) => {
     const cards = products.slice(0, 4).map(p => {
-      const img   = p.images?.[0] || p.image_url || '';
+      const img   = encodeURI(p.images?.[0] || p.image_url || '');
       const price = p.original_price && p.original_price > p.price
         ? `<span style="color:#e0a1c0;font-weight:700">₪${p.price}</span> <s style="color:#aaa;font-size:11px">₪${p.original_price}</s>`
         : `<span style="color:#333;font-weight:700">₪${p.price}</span>`;
@@ -4259,7 +4259,7 @@ async function ensureEmailCampaignLog() {
 function buildPriceDropEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ storeName, store, products, total }) => {
     const cards = products.slice(0, 4).map(p => {
-      const img = p.images?.[0] || p.image_url || '';
+      const img = encodeURI(p.images?.[0] || p.image_url || '');
       const disc = Math.round((1 - p.price / p.original_price) * 100);
       const slug = titleToSlug(p.title);
       const url = `${SITE_BASE}/product/${encodeURIComponent(slug||p.id)}`;

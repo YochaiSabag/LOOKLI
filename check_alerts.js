@@ -60,6 +60,10 @@ async function sendEmail(toEmail, subject, htmlBody, unsubUrl) {
 
 // ─── תבנית מייל ───────────────────────────────────────────
 function buildEmail({ type, title, image, store, oldVal, newVal, url, unsubUrl }) {
+  // קידוד URI - חנויות שומרות לפעמים שם קובץ בעברית גולמית בכתובת התמונה, וזה נכשל
+  // בהטמעה ישירה ב-HTML (400 Bad Request). encodeURI (לא encodeURIComponent) שומר
+  // על מבנה ה-URL (https://, /) ומקודד רק את התווים הלא-אנגליים.
+  if (image) image = encodeURI(image);
   const isPrice = type === 'price';
   const headline = isPrice
     ? `🎉 המחיר ירד! ${title}`

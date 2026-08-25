@@ -3956,6 +3956,17 @@ const STORE_NAMES = {
   'ORDMAN':  'אורדמן',
   'RARE':    'רייר',
   'AVIVIT':  'אביבית וייצמן',
+  // הושלמו - היו חסרות מהמפה ולכן נופלות לקוד הפנימי הגולמי (למשל "SALINA" כולו
+  // באותיות גדולות) - זה גם נראה לא מקצועי בכותרת מייל ללקוחה, וגם מפעיל את חוק
+  // הספאם SUBJ_ALL_CAPS (מילה שלמה באותיות גדולות ברצף). אם השם המדויק לא מתאים
+  // למותג בפועל - אפשר לעדכן בהמשך, העיקר שאף שם לא יישאר כולו-גדולות.
+  'SALINA':      'סלינה',
+  'CHEN':        'חן פאשן',
+  'MYME':        'MyMe',
+  'ST-FASHION':  'St.Fashion',
+  'LEAA':        'Ladies',
+  'SHEBELLO':    'Shebello',
+  'EUROPISRAEL': 'Europe Israel',
 };
 
 const SITE_BASE = process.env.SITE_URL || 'https://lookli.co.il';

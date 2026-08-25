@@ -360,7 +360,7 @@ app.get("/product/:slug", async (req, res) => {
     const base = process.env.SITE_URL || 'https://lookli.co.il';
     const title = product.title || 'מוצר';
     const desc = product.description || `${title} ב-${product.store} — ₪${product.price}`;
-    const img = encodeURI((product.images?.[0]) || product.image_url || '');
+    const img = safeEncodeUrl((product.images?.[0]) || product.image_url || '');
     const url = `${base}/product/${encodeURIComponent(slug)}`;
 
     const html = await res.sendFile(path.join(__dirname, "public", "index.html"), {}, async (err) => {});
@@ -3969,11 +3969,20 @@ function titleToSlug(title) {
   return (title || '').toLowerCase().replace(/[^\u05D0-\u05EAa-zA-Z0-9]+/g, '-');
 }
 
+// קידוד בטוח לכתובת תמונה - חלק מהחנויות שומרות את הכתובת עם עברית גולמית
+// (צריך encodeURI), חלק שומרות אותה כבר מקודדת מראש (%D7%A2...) - קידוד נוסף
+// עליהן היה מקודד גם את סימן ה-% עצמו (קידוד כפול, %25D7...) ומקלקל את הכתובת.
+// תו לא-אסקי בכתובת = עברית גולמית = צריך קידוד. הכל אסקי = כבר מקודדת = לא לגעת.
+function safeEncodeUrl(url) {
+  if (!url) return url;
+  return /[^\x00-\x7F]/.test(url) ? encodeURI(url) : url;
+}
+
 // בנה HTML email
 function buildNewProductsEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ store, storeName, products, total }) => {
     const cards = products.slice(0, 4).map(p => {
-      const img   = encodeURI(p.images?.[0] || p.image_url || '');
+      const img   = safeEncodeUrl(p.images?.[0] || p.image_url || '');
       const price = p.original_price && p.original_price > p.price
         ? `<span style="color:#e0a1c0;font-weight:700">₪${p.price}</span> <s style="color:#aaa;font-size:11px">₪${p.original_price}</s>`
         : `<span style="color:#333;font-weight:700">₪${p.price}</span>`;
@@ -4259,7 +4268,7 @@ async function ensureEmailCampaignLog() {
 function buildPriceDropEmail(storeGroups) {
   const storeBlocks = storeGroups.map(({ storeName, store, products, total }) => {
     const cards = products.slice(0, 4).map(p => {
-      const img = encodeURI(p.images?.[0] || p.image_url || '');
+      const img = safeEncodeUrl(p.images?.[0] || p.image_url || '');
       const disc = Math.round((1 - p.price / p.original_price) * 100);
       const slug = titleToSlug(p.title);
       const url = `${SITE_BASE}/product/${encodeURIComponent(slug||p.id)}`;

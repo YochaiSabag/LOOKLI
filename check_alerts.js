@@ -23,6 +23,14 @@ const SITE_URL   = process.env.SITE_URL || 'https://lookli.co.il';
 function titleToSlug(title) {
   return (title || '').toLowerCase().replace(/[^\u05D0-\u05EAa-zA-Z0-9]+/g, '-');
 }
+
+// קידוד בטוח לכתובת תמונה - חלק מהחנויות שומרות עברית גולמית (צריך encodeURI),
+// חלק שומרות כבר מקודדת מראש (%D7%A2...) - קידוד נוסף עליהן מקודד גם את סימן ה-%
+// עצמו (קידוד כפול, %25D7...) ומקלקל את הכתובת. אותה פונקציה בדיוק כמו ב-index.js.
+function safeEncodeUrl(url) {
+  if (!url) return url;
+  return /[^\x00-\x7F]/.test(url) ? encodeURI(url) : url;
+}
 const FROM_EMAIL = process.env.FROM_EMAIL || 'alerts@lookli.co.il';
 const FROM_NAME  = 'LOOKLI התראות';
 
@@ -63,7 +71,7 @@ function buildEmail({ type, title, image, store, oldVal, newVal, url, unsubUrl }
   // קידוד URI - חנויות שומרות לפעמים שם קובץ בעברית גולמית בכתובת התמונה, וזה נכשל
   // בהטמעה ישירה ב-HTML (400 Bad Request). encodeURI (לא encodeURIComponent) שומר
   // על מבנה ה-URL (https://, /) ומקודד רק את התווים הלא-אנגליים.
-  if (image) image = encodeURI(image);
+  if (image) image = safeEncodeUrl(image);
   const isPrice = type === 'price';
   const headline = isPrice
     ? `🎉 המחיר ירד! ${title}`

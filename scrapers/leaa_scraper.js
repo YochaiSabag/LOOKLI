@@ -173,10 +173,16 @@ async function scrapeProduct(page, url) {
       !!document.querySelector('.outofstock-badge, .out-of-stock')
     );
 
-    // תמונות
+    // תמונות - עדיפות לגרסה המוקטנת (src של ה-img בפועל, למשל -400x600.webp),
+    // כי href של ה-a מצביע על התמונה המקורית הענקית (לזום), בלי סיומת מידה בכלל -
+    // מה שגורם ל-thumbUrl() בפרונט לא לזהות אותה ולהעלות את המקור הענק כמו שהוא
     const images = await page.evaluate(() =>
       [...document.querySelectorAll('.woocommerce-product-gallery__image a, .product-images a')]
-        .map(a => a.getAttribute('href') || a.getAttribute('data-src'))
+        .map(a => {
+          const img = a.querySelector('img');
+          const resized = img?.getAttribute('src') || img?.getAttribute('data-src');
+          return resized || a.getAttribute('href') || a.getAttribute('data-src');
+        })
         .filter(Boolean)
         .filter((v, i, a) => a.indexOf(v) === i)
     );

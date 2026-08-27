@@ -108,6 +108,12 @@
       --header-gradient:linear-gradient(135deg,#d191b0 50%,#c48cb3 100%);
       --sale-color:#ef4444
     }
+    @font-face{
+      font-family:'DanaYad';
+      src:url('/fonts/DanaYadAlefAlefAlef-Normal.woff') format('woff');
+      font-weight:normal;
+      font-display:swap;
+    }
     *{box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
     body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden}
     a{color:inherit;text-decoration:none}
@@ -155,7 +161,44 @@
     .filters::-webkit-scrollbar{width:5px}
     .filters::-webkit-scrollbar-track{background:#f3f4f6}
     .filters::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:3px}
-    
+
+    /* ===== SIDEBAR COLLAPSE (דסקטופ בלבד, מ-1001px ומעלה) ===== */
+    .sidebar-toggle-col{display:none}
+    .filter-icon{display:none;align-items:center;justify-content:center;color:var(--muted)}
+    .filter-icon svg{width:19px;height:19px}
+    @media(min-width:1001px){
+      .filters{transition:width .25s ease}
+      .filters.collapsed{width:64px;scrollbar-width:none}
+      .filters.collapsed::-webkit-scrollbar{width:0;display:none}
+
+      /* נטפרי בסיידבר קיים רק במובייל - בדסקטופ הוא רק למעלה מעל המוצרים */
+      #netfreeSection{display:none}
+
+      /* כפתור משתלב לתפריט - פס צר לגובה, ורוד במותג האתר, מתחבר ישירות לרצועת הסיידבר */
+      .sidebar-toggle-col{display:flex;flex:0 0 16px;justify-content:center;align-self:flex-start;position:sticky;top:220px;z-index:21}
+      .filters.collapsed{border-left:1px solid #ddd !important}
+      .sidebar-collapse-btn{display:flex;width:16px;height:58px;background:var(--header-gradient);border:none;border-radius:8px 0 0 8px;align-items:center;justify-content:center;cursor:pointer;box-shadow:-2px 2px 8px rgba(196,140,179,.4);padding:0;transition:width .15s,box-shadow .15s}
+      .sidebar-collapse-btn:hover{width:19px;box-shadow:-3px 3px 12px rgba(196,140,179,.55)}
+      .sidebar-collapse-btn svg{width:11px;height:11px;color:#fff;transition:transform .2s;transform:rotate(180deg);flex-shrink:0}
+      .filters.collapsed ~ .sidebar-toggle-col .sidebar-collapse-btn svg{transform:rotate(0deg)}
+
+      /* בזמן כיווץ: הצג רק אייקונים, הסתר טקסטים ותוכן פתוח */
+      .filters.collapsed .filter-content{display:none !important}
+      .filters.collapsed .filter-header{justify-content:center;padding:16px 0;gap:0;position:relative}
+      .filters.collapsed .filter-header span:not(.filter-icon){display:none}
+      .filters.collapsed .filter-header .filter-icon{display:flex}
+      .filters.collapsed .reset-btn-wrap{display:none}
+      .filter-header:hover .filter-icon{color:var(--accent)}
+      #iconTooltip{display:none;position:fixed;background:rgba(0,0,0,.85);color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:2000;transform:translateY(-50%)}
+      #iconTooltip::after{content:'';position:absolute;top:50%;right:-5px;transform:translateY(-50%);border:5px solid transparent;border-right:0;border-left-color:rgba(0,0,0,.85)}
+      #iconTooltip.show{display:block}
+
+      /* חמישה טורי מוצרים כשהסיידבר מכווץ, ברוחבים שרגיל מוצג בהם 4 */
+      @media(min-width:1201px){
+        .filters.collapsed ~ .main .grid{grid-template-columns:repeat(5,1fr)}
+      }
+    }
+
     /* Filter Accordion */
     .filter-section{border-bottom:1px solid var(--border)}
     .filter-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--text);transition:background .15s}
@@ -178,7 +221,7 @@
     .store-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(144,97,249,.2)}
     .store-opt img{width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:7px}
     .store-opt[data-store="MYME"] img{width:100%;height:100%;padding:2px}
-    .store-opt span{font-size:12px;font-weight:800}
+    .store-opt span{font-size:12px;font-weight:700}
     .store-opt::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
     .store-opt:hover::after{opacity:1}
     
@@ -196,7 +239,7 @@
     
     /* Price slider */
     .price-section{padding:10px 0}
-    .price-display{font-size:16px;font-weight:800;color:var(--accent);text-align:center;margin-bottom:12px}
+    .price-display{font-size:16px;font-weight:700;color:var(--accent);text-align:center;margin-bottom:12px}
     .price-slider input[type="range"]{width:100%;height:6px;border-radius:3px;background:linear-gradient(to left,var(--accent),var(--accent-light));outline:none;-webkit-appearance:none;cursor:pointer}
     .price-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(144,97,249,.3)}
     
@@ -276,6 +319,8 @@
       
       .whatsapp-btn{bottom:16px!important;right:16px!important;width:50px!important;height:50px!important}
       .whatsapp-btn svg{width:24px;height:24px}
+      body.kids-promo-bar-active .whatsapp-btn{bottom:88px!important}
+      body.kids-promo-bar-active .mobile-filter-btn{bottom:152px!important}
       
       .modal{width:100%;max-height:100vh;border-radius:0}
       .modal-body{grid-template-columns:1fr;padding:12px 16px}
@@ -301,6 +346,9 @@
     /* Filter close button */
     .filter-close-btn{display:none;position:absolute;top:12px;left:12px;width:36px;height:36px;background:#fff;border:1px solid #eee;border-radius:50%;font-size:18px;cursor:pointer;z-index:10}
     @media(max-width:768px){
+      #netfreeSection{padding-top:56px!important}
+    }
+    @media(max-width:768px){
       .filter-close-btn{display:flex;align-items:center;justify-content:center}
       .filters{position:relative}
     }
@@ -321,7 +369,84 @@
     .netfree-box .ios-switch .ios-slider{background:rgba(255,255,255,.4)}
     .netfree-box .ios-switch input:checked + .ios-slider{background:#fff}
     .netfree-box .ios-switch input:checked + .ios-slider::before{background:var(--accent-dark)}
+    /* אייקון מידע - עובד גם ב-hover (עכבר) וגם בלחיצה/מגע (מובייל) */
+    .info-tooltip-icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;font-size:10.5px;font-weight:700;cursor:pointer;flex-shrink:0}
+    .info-tooltip-icon::after{content:attr(data-tooltip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;font-size:12px;font-weight:400;line-height:1.4;padding:8px 12px;border-radius:8px;white-space:normal;width:210px;text-align:center;opacity:0;pointer-events:none;transition:opacity .15s;z-index:999}
+    .info-tooltip-icon:hover::after,.info-tooltip-icon.show-tip::after{opacity:1}
+    .netfree-info{background:rgba(255,255,255,.3);color:#fff}
+    .netfree-info:hover,.netfree-info.show-tip{background:rgba(255,255,255,.55)}
+    .netfree-info-light{background:rgba(224,161,192,.18);color:var(--accent-dark)}
+    /* תג מידע על כפתור חיפוש התמונה - הנקודה הוויזואלית קטנה, אבל שטח הלחיצה גדול מספיק למגע */
+    .camera-limit-badge{position:absolute;top:-9px;left:-9px;width:28px;height:28px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .camera-limit-badge::before{content:'i';display:flex;align-items:center;justify-content:center;width:15px;height:15px;background:#fff;color:var(--accent-dark);border:1.5px solid var(--accent);border-radius:50%;font-size:9px;font-style:italic;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+    .camera-limit-badge::after{left:0;right:auto;transform:none;width:180px;text-align:right}
+    .netfree-info-light:hover,.netfree-info-light.show-tip{background:rgba(224,161,192,.35)}
+
+
+    /* כרטיסיית "בקרוב" — התאמת מידות לילדים (בסייד-בר המודעות) */
+    .kids-promo-card{position:relative;width:100%;box-sizing:border-box;margin:0 0 10px;padding:10px 16px 16px;border-radius:14px;background:#fff;border:2.5px solid var(--accent);color:var(--text);box-shadow:0 3px 14px rgba(196,140,179,.16)}
+    .kids-promo-close{position:absolute;top:8px;left:8px;width:20px;height:20px;border:none;background:rgba(0,0,0,.05);border-radius:50%;color:var(--text);font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+    .kids-promo-close:hover{background:rgba(0,0,0,.1)}
+    /* "בקרוב" — פתק כתב-יד, לא תגית במסגרת */
+    .kids-promo-handwritten{position:relative;display:inline-block;font-family:'DanaYad','Segoe UI',sans-serif;font-weight:normal;font-size:26px;color:var(--accent-dark);line-height:1;margin:0 0 14px;padding:0 3px}
+    .kids-promo-handwritten-text{display:inline-block;overflow:hidden;white-space:nowrap;width:0;vertical-align:bottom;animation:kidsPromoType 5s linear infinite}
+    @keyframes kidsPromoType{
+      0%{width:0;animation-timing-function:steps(5,end)}
+      20%{width:100%;animation-timing-function:steps(1,end)}
+      85%{width:100%}
+      88%{width:0}
+      100%{width:0}
+    }
+    .kids-promo-underline{position:absolute;right:0;left:0;height:2.5px;background:#e0483e;border-radius:2px;transform-origin:right}
+    .kids-promo-underline-1{bottom:-3px;animation:kidsPromoStripe1 5s linear infinite}
+    .kids-promo-underline-2{bottom:-7px;animation:kidsPromoStripe2 5s linear infinite}
+    @keyframes kidsPromoStripe1{0%,20%{transform:scaleX(0)}30%,85%{transform:scaleX(1)}88%,100%{transform:scaleX(0)}}
+    @keyframes kidsPromoStripe2{0%,30%{transform:scaleX(0)}40%,85%{transform:scaleX(1)}88%,100%{transform:scaleX(0)}}
+    .kids-promo-title{font-size:14px;font-weight:400;color:#3a3a3a;margin:2px 0 8px;line-height:1.3;animation:kidsPromoFloat 3.5s ease-in-out infinite}
+    @keyframes kidsPromoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+    .kids-promo-sentence{font-size:12px;font-weight:400;line-height:1.55;color:var(--text);margin:0 0 13px}
+    .kids-promo-sentence strong{color:var(--accent-dark);font-weight:700}
+    .kids-promo-form{display:flex;flex-direction:column;gap:6px}
+    .kids-promo-form input[type=email]{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(196,140,179,.35);border-radius:8px;font-size:12px;font-family:inherit;background:#fff;color:var(--text)}
+    .kids-promo-form input[type=email]::placeholder{color:#b8b8b8}
+    .kids-promo-form input[type=email]:focus{outline:none;border-color:var(--accent-dark)}
+    .kids-promo-form button{width:100%;padding:8px 10px;border:none;border-radius:8px;background:var(--header-gradient);color:#fff;font-size:12.5px;font-weight:400;cursor:pointer;font-family:inherit}
+    .kids-promo-form button:hover{opacity:.92}
+    .kids-promo-form button:disabled{opacity:.6;cursor:default}
+    .kids-promo-success{font-size:12px;font-weight:400;color:var(--accent-dark);padding:2px 0;line-height:1.5}
+    /* מופע מובייל/טאבלט — באנר יחס 1:5 מעל הגריד, מוצג רק מתחת ל-1024px (בדסקטופ המופע בסייד-בר לוקח את מקומו) */
+    @media(min-width:1024px){.kids-promo-mobile{display:none !important}}
+    .kids-promo-mobile{position:fixed;bottom:0;right:0;left:0;z-index:60;aspect-ratio:5/1;min-height:76px;max-height:110px;padding:10px 18px;display:flex;align-items:center;margin:0;border-radius:14px 14px 0 0;border-width:2.5px 2.5px 0 2.5px;box-shadow:0 -4px 16px rgba(196,140,179,.22);transform:translateY(100%);transition:transform .35s ease}
+    .kids-promo-mobile.kids-promo-scrolled{transform:translateY(0)}
+    .kids-promo-mobile.kids-promo-expanded{max-height:none}
+    .kids-promo-mobile .kids-promo-mobile-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:nowrap;width:100%}
+    .kids-promo-mobile .kids-promo-mobile-text{flex:1;min-width:0}
+    .kids-promo-mobile .kids-promo-handwritten{font-size:18px;margin-bottom:9px}
+    .kids-promo-mobile .kids-promo-title{font-size:12.5px;margin:1px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .kids-promo-mobile .kids-promo-sentence{display:none}
+    .kids-promo-mobile .kids-promo-form-wrap{width:auto;flex-shrink:0}
+    .kids-promo-mobile .kids-promo-form{flex-direction:row}
+    .kids-promo-mobile .kids-promo-form input[type=email]{display:none}
+    .kids-promo-mobile .kids-promo-form button{width:auto;white-space:nowrap;padding:8px 14px;transition:transform .15s}
+    .kids-promo-mobile .kids-promo-form button:active{transform:scale(1.1)}
+    .kids-promo-mobile{cursor:pointer}
+    .kids-promo-mobile.kids-promo-expanded{cursor:default}
+    .kids-promo-arrow{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:13px;line-height:1;color:var(--accent-dark);animation:kidsPromoBounce 1.3s ease-in-out infinite;pointer-events:none}
+    .kids-promo-mobile.kids-promo-expanded .kids-promo-arrow{display:none}
+    @keyframes kidsPromoBounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(3px)}}
+    /* אחרי לחיצה — הבאנר הצר נפתח לרגע כדי לחשוף את שדה המייל (אין מקום ליחס 1:5) */
+    .kids-promo-mobile.kids-promo-expanded{aspect-ratio:auto;min-height:0;padding:14px 16px;display:block}
+    .kids-promo-mobile.kids-promo-expanded .kids-promo-mobile-row{flex-direction:column;align-items:stretch;gap:8px}
+    .kids-promo-mobile.kids-promo-expanded .kids-promo-title{white-space:normal}
+    .kids-promo-mobile.kids-promo-expanded .kids-promo-sentence{display:block}
+    .kids-promo-mobile.kids-promo-expanded .kids-promo-form-wrap{width:100%}
+    .kids-promo-mobile.kids-promo-expanded .kids-promo-form input[type=email]{display:block;flex:1;min-width:0}
+    @media(max-width:480px){
+      .kids-promo-mobile{aspect-ratio:auto;min-height:0}
+      .kids-promo-mobile .kids-promo-title{white-space:normal}
+    }
     @media(max-width:768px){ #safeImagesToggleWrap{display:none} }
+    @media(min-width:769px){ #netfreeSection{display:none} }
     .netfree-status{font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;opacity:.85;margin-top:2px}
     .netfree-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;transition:background .2s ease}
     .netfree-status.on::before{background:#22c55e}
@@ -400,7 +525,7 @@
     .img-wrap{position:relative;width:100%;aspect-ratio:3/4;background:#f3f4f6;overflow:hidden}
     
     /* SALE Badge */
-    .sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:800;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
+    .sale-badge{position:absolute;top:10px;left:10px;background:var(--sale-color);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;z-index:5;box-shadow:0 3px 10px rgba(239,68,68,.3)}
     
     /* Carousel */
     .carousel{position:relative;width:100%;height:100%}
@@ -415,7 +540,7 @@
     .carousel-prev{right:8px}
     .carousel-next{left:8px}
     @media(max-width:768px){
-      .carousel-nav{display:flex!important;pointer-events:none;width:auto;height:auto;background:none;box-shadow:none;border-radius:0;font-size:15px;font-weight:900;opacity:.75;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+      .carousel-nav{display:flex!important;pointer-events:none;width:auto;height:auto;background:none;box-shadow:none;border-radius:0;font-size:15px;font-weight:700;opacity:.75;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
       .carousel-prev{right:auto!important;left:6px!important}
       .carousel-next{left:auto!important;right:6px!important}
     }
@@ -427,13 +552,13 @@
     .card-logo:hover::after{opacity:1}
     .card-colors{position:absolute;bottom:10px;right:10px;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:5px 8px;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
     .card-color{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-    .card-color-more{font-size:10px;font-weight:800;color:#666;padding:0 3px;display:flex;align-items:center}
+    .card-color-more{font-size:10px;font-weight:700;color:#666;padding:0 3px;display:flex;align-items:center}
     
     .card-body{padding:14px}
     .title{font-size:14px;font-weight:700;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:40px;color:var(--text)}
     .subrow{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
     .price-wrap{display:flex;align-items:center;gap:6px}
-    .price{font-weight:900;font-size:17px}
+    .price{font-weight:700;font-size:17px}
     .price-original{font-size:13px;color:var(--muted);text-decoration:line-through}
     .price.sale{color:var(--sale-color)}
     .store{font-size:12px;color:var(--muted);font-weight:600}
@@ -453,7 +578,7 @@
     #modalWrapper::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
     .modal{width:min(1000px,100%);background:#fff;border-radius:18px;overflow:visible;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.25)}
     .modal-head{padding:8px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
-    .modal-title{font-weight:800;font-size:15px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .modal-title{font-weight:700;font-size:15px;max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .close-btn{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:15px;transition:all .15s}
     .close-btn:hover{border-color:var(--accent);color:var(--accent)}
     .modal-body{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:12px 16px}
@@ -490,7 +615,7 @@
     .desc-title{font-weight:700;font-size:14px;margin-bottom:8px;color:var(--text)}
     .label{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase}
     .buy-big{margin-top:auto}
-    .buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:800;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
+    .buy-big a{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:700;background:var(--accent);color:#fff;font-size:15px;transition:all .2s}
     .buy-big a:hover{background:var(--accent-dark)}
     
     /* Footer */
@@ -501,7 +626,7 @@
     .footer-section h4{font-size:12px;font-weight:700;margin:0 0 14px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px}
     .footer-section a{display:block;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;margin-bottom:9px;transition:color .15s}
     .footer-section a:hover{color:#fff}
-    .footer-brand{font-weight:900;font-size:22px;margin-bottom:10px;letter-spacing:-.3px}
+    .footer-brand{font-weight:700;font-size:22px;margin-bottom:10px;letter-spacing:-.3px}
     .footer-desc{font-size:12px;color:rgba(255,255,255,.45);line-height:1.65;margin:0}
     .footer-bottom{border-top:1px solid rgba(255,255,255,.07);text-align:center;padding:18px 24px;font-size:11px;color:rgba(255,255,255,.3)}
 
@@ -522,7 +647,8 @@
     .footer-nl-msg{font-size:12px;min-height:18px;margin-top:6px;color:rgba(255,255,255,.8);text-align:center}
     
     /* WhatsApp Button */
-    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s}
+    .whatsapp-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#c48cb3;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(196,140,179,.4);z-index:150;transition:transform .2s,box-shadow .2s,bottom .35s ease}
+    body.kids-promo-bar-active .whatsapp-btn{bottom:96px}
     .whatsapp-btn:hover{transform:scale(1.1);box-shadow:0 6px 30px rgba(196,140,179,.5)}
     .whatsapp-btn svg{width:28px;height:28px;color:#fff}
     
@@ -562,8 +688,15 @@
     
     /* ===== Hero Discovery Section ===== */
     .hero-discover{width:100%;padding:30px 0 14px;text-align:center;background:#fff;border-bottom:1px solid #eee}
+    /* טיזר סגור ל-HERO - מוצג במקום קטע הבחירה שלב-שלב, עד שלוחצים עליו */
+    .hero-teaser{display:flex;flex-direction:column;align-items:center;gap:5px;width:fit-content;margin:18px auto 26px;padding:4px 10px;color:var(--muted);font-size:14.5px;font-weight:500;cursor:pointer;background:none;border:none;box-shadow:none;transition:color .15s}
+    .hero-teaser:hover{color:var(--accent)}
+    .hero-teaser svg{width:16px;height:16px;flex-shrink:0;transition:transform .2s}
+    .hero-teaser:hover svg{transform:translateY(3px)}
+    .hero-teaser.hidden{display:none}
     .hero-discover.hidden{display:none}
     .hero-title{font-size:28px;font-weight:500;color:var(--accent);margin:0 0 26px;padding:0 24px;line-height:1.4}
+    .hero-title-standalone{text-align:center;background:#fff;padding-top:28px;margin-bottom:0}
     .hero-step-label{font-size:21px;font-weight:500;color:#3a3a3a;margin-bottom:20px;padding:0 24px}
     .hero-nav-labels{display:flex;align-items:center;gap:16px;margin-top:12px;justify-content:center;padding:0 24px}
     .hero-nav-btn{display:flex;align-items:center;gap:6px;padding:9px 20px;border-radius:22px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);transition:all .15s}
@@ -606,7 +739,7 @@
     .hero-color-cube .hero-cube-label{font-size:13px;font-weight:600}
     
     /* Price/Size cubes */
-    .hero-big-text{font-size:42px;font-weight:900;color:var(--accent)}
+    .hero-big-text{font-size:42px;font-weight:700;color:var(--accent)}
     
     @media(max-width:768px){
       .hero-discover{padding:18px 0 8px}
@@ -644,7 +777,7 @@
     .auth-modal-bg.open{display:flex}
     .auth-modal{background:#fff;border-radius:20px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;overflow-x:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
     .auth-modal-head{background:var(--header-gradient);padding:28px 28px 22px;text-align:center}
-    .auth-modal-head h2{margin:0;color:#fff;font-size:22px;font-weight:800}
+    .auth-modal-head h2{margin:0;color:#fff;font-size:22px;font-weight:700;font-family:inherit}
     .auth-modal-head p{margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px}
     .auth-modal-close{position:absolute;top:14px;left:14px;background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
     .auth-modal-body{padding:28px}
@@ -671,7 +804,7 @@
     .saved-panel-bg.open{display:flex}
     .saved-panel{background:#fff;width:380px;max-width:95vw;height:100%;overflow-y:auto;box-shadow:4px 0 30px rgba(0,0,0,.15);display:flex;flex-direction:column}
     .saved-panel-head{background:var(--header-gradient);padding:20px 20px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-    .saved-panel-head h3{margin:0;color:#fff;font-size:18px;font-weight:800}
+    .saved-panel-head h3{margin:0;color:#fff;font-size:18px;font-weight:700}
     .saved-panel-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px}
     .saved-panel-body{flex:1;padding:16px;overflow-y:auto}
     .saved-item{display:flex;gap:12px;padding:12px;border:1px solid #f3f4f6;border-radius:12px;margin-bottom:10px;align-items:center;transition:box-shadow .2s}
@@ -695,7 +828,7 @@
     .alert-popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1100;align-items:center;justify-content:center}
     .alert-popup-bg.open{display:flex}
     .alert-popup{background:#fff;border-radius:18px;padding:24px;width:320px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.18);direction:rtl}
-    .alert-popup-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px}
+    .alert-popup-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px}
     .alert-popup-product{font-size:12px;color:#9ca3af;margin-bottom:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .alert-option{display:flex;align-items:center;gap:10px;padding:11px 13px;border:2px solid #e5e7eb;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s}
     .alert-option:hover{border-color:var(--accent);background:rgba(224,161,192,.04)}
@@ -726,7 +859,7 @@
 
     /* Profile area in saved panel */
     .user-profile-bar{padding:14px 16px;background:#f9fafb;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:12px}
-    .user-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;flex-shrink:0}
+    .user-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0}
     .user-info .user-email{font-size:13px;font-weight:700;color:var(--text)}
     .user-info .user-plan{font-size:11px;color:#9ca3af;margin-top:2px}
     .user-info .user-plan.premium{color:#f59e0b;font-weight:600}
@@ -812,9 +945,6 @@
       allow_enhanced_conversions: true
     });
   }
-  // הערה: כל שאר קריאות ה-gtag() בקובץ הזה נשארות כמו שהן בלי שינוי - כשהעקיפה
-  // פעילה, gtag() המקומית עדיין קיימת ובטוחה לקריאה, אבל היא רק דוחפת ל-dataLayer
-  // בלי שהסקריפט האמיתי טעון; בלי הסקריפט שום דבר לא נשלח בפועל ל-GA4.
 </script>
 </head>
 <body>
@@ -853,8 +983,9 @@
           <button class="btn" onclick="runAISearch()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </button>
-          <button class="btn" id="imgSearchBtn" onclick="triggerImageSearch()" title="חיפוש לפי תמונה">
+          <button class="btn" id="imgSearchBtn" onclick="triggerImageSearch()" title="חיפוש לפי תמונה" style="position:relative">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span class="info-tooltip-icon camera-limit-badge" id="cameraLimitBadge" data-tooltip="חיפוש לפי תמונה מוגבל למספר פעמים בשבוע" title="" onclick="event.preventDefault();event.stopPropagation()"></span>
           </button>
           <input id="imgSearchInput" type="file" accept="image/*" style="display:none" onchange="searchByImage(event)"/>
         </div>
@@ -875,8 +1006,14 @@
   <span id="aiAnalysis" style="display:none"></span><span id="aiBox" style="display:none"></span>
   
   <!-- Hero Discovery Section -->
-  <div class="hero-discover" id="heroDiscover">
-    <h1 class="hero-title">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI לוקלי</h1>
+  <h1 class="hero-title hero-title-standalone">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI לוקלי</h1>
+
+  <div class="hero-teaser" id="heroTeaser" onclick="openHeroTeaser()">
+    <span>רוצה לבחור שלב שלב?</span>
+    <svg class="hero-teaser-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+
+  <div class="hero-discover hidden" id="heroDiscover">
     <div class="hero-step-label" id="heroStepLabel">מה את מחפשת?</div>
     <div class="hero-slider">
       <button class="hero-arrow hero-arrow-right" onclick="heroScroll(1)">‹</button>
@@ -899,7 +1036,10 @@
       <div class="filter-section open" id="netfreeSection" style="padding:16px 20px">
         <label class="filter-toggle-label" style="justify-content:space-between;width:100%">
           <span style="display:flex;flex-direction:column">
-            <span>לאתר מסונן (נטפרי)</span>
+            <span style="display:flex;align-items:center;gap:6px">
+              <span>לאתר מסונן (נטפרי)</span>
+              <span class="info-tooltip-icon netfree-info-light" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה באתר המסונן נטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
+            </span>
             <span class="netfree-status" id="netfreeStatusMobile">כבוי</span>
           </span>
           <span class="ios-switch">
@@ -910,7 +1050,8 @@
       </div>
 
       <div class="filter-section open" id="storeSection">
-        <div class="filter-header" onclick="toggleFilter('storeSection')">
+        <div class="filter-header" data-tooltip="חנות" onclick="toggleFilter('storeSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
           <span>חנות</span>
           <span class="arrow">▲</span>
         </div>
@@ -920,7 +1061,8 @@
       </div>
       
       <div class="filter-section open" id="categorySection">
-        <div class="filter-header" onclick="toggleFilter('categorySection')">
+        <div class="filter-header" data-tooltip="סוג מוצר" onclick="toggleFilter('categorySection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
           <span>סוג מוצר</span>
           <span class="arrow">▲</span>
         </div>
@@ -930,7 +1072,8 @@
       </div>
       
       <div class="filter-section" id="colorSection">
-        <div class="filter-header" onclick="toggleFilter('colorSection')">
+        <div class="filter-header" data-tooltip="צבע" onclick="toggleFilter('colorSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 18 9a6 6 0 1 1-12 0z"/></svg></span>
           <span>צבע</span>
           <span class="arrow">▼</span>
         </div>
@@ -940,7 +1083,8 @@
       </div>
       
       <div class="filter-section" id="sizeSection">
-        <div class="filter-header" onclick="toggleFilter('sizeSection')">
+        <div class="filter-header" data-tooltip="מידה" onclick="toggleFilter('sizeSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10.5 8v3M14.5 8v3M18.5 8v3"/></svg></span>
           <span>מידה</span>
           <span class="arrow">▼</span>
         </div>
@@ -950,7 +1094,8 @@
       </div>
       
       <div class="filter-section" id="priceSection">
-        <div class="filter-header" onclick="toggleFilter('priceSection')">
+        <div class="filter-header" data-tooltip="מחיר" onclick="toggleFilter('priceSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12.01V2h10.01l8.58 8.58a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
           <span>מחיר</span>
           <span class="arrow">▼</span>
         </div>
@@ -965,7 +1110,8 @@
       </div>
       
       <div class="filter-section" id="styleSection">
-        <div class="filter-header" onclick="toggleFilter('styleSection')">
+        <div class="filter-header" data-tooltip="סגנון" onclick="toggleFilter('styleSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 1 0-2 2"/><path d="M12 5v3"/><path d="M4.2 18.3 12 9.5l7.8 8.8a1 1 0 0 1-.8 1.7H5a1 1 0 0 1-.8-1.7Z"/><path d="M4 21h16"/></svg></span>
           <span>סגנון</span>
           <span class="arrow">▼</span>
         </div>
@@ -975,7 +1121,8 @@
       </div>
       
       <div class="filter-section" id="fitSection">
-        <div class="filter-header" onclick="toggleFilter('fitSection')">
+        <div class="filter-header" data-tooltip="גיזרה" onclick="toggleFilter('fitSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/></svg></span>
           <span>גיזרה</span>
           <span class="arrow">▼</span>
         </div>
@@ -985,7 +1132,8 @@
       </div>
       
       <div class="filter-section" id="fabricSection">
-        <div class="filter-header" onclick="toggleFilter('fabricSection')">
+        <div class="filter-header" data-tooltip="סוג בד" onclick="toggleFilter('fabricSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
           <span>סוג בד</span>
           <span class="arrow">▼</span>
         </div>
@@ -995,7 +1143,8 @@
       </div>
       
       <div class="filter-section" id="patternSection">
-        <div class="filter-header" onclick="toggleFilter('patternSection')">
+        <div class="filter-header" data-tooltip="דוגמא" onclick="toggleFilter('patternSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.7"/><circle cx="12" cy="6" r="1.7"/><circle cx="18" cy="6" r="1.7"/><circle cx="6" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18" cy="12" r="1.7"/><circle cx="6" cy="18" r="1.7"/><circle cx="12" cy="18" r="1.7"/><circle cx="18" cy="18" r="1.7"/></svg></span>
           <span>דוגמא</span>
           <span class="arrow">▼</span>
         </div>
@@ -1005,7 +1154,8 @@
       </div>
       
       <div class="filter-section" id="designSection">
-        <div class="filter-header" onclick="toggleFilter('designSection')">
+        <div class="filter-header" data-tooltip="עיצוב" onclick="toggleFilter('designSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
           <span>עיצוב</span>
           <span class="arrow">▼</span>
         </div>
@@ -1015,7 +1165,8 @@
       </div>
       
       <div class="filter-section" id="discountSection">
-        <div class="filter-header" onclick="toggleFilter('discountSection')">
+        <div class="filter-header" data-tooltip="הנחה" onclick="toggleFilter('discountSection')">
+          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></span>
           <span>הנחה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1023,11 +1174,21 @@
           <div class="filter-options" id="discountBoxes"></div>
         </div>
       </div>
-      <div style="padding:14px 20px">
+      <div class="reset-btn-wrap" style="padding:14px 20px">
         <button class="reset-btn" onclick="resetAll()">איפוס הכל</button>
       </div>
       
     </aside>
+
+    <!-- כפתור כיווץ/הרחבת סיידבר - חיצוני, צמוד ממש לגבול הסיידבר, סטיקי -->
+    <div class="sidebar-toggle-col">
+      <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleDesktopSidebar()" aria-label="כווץ/הרחב תפריט">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+
+    <!-- טולטיפ אייקוני הסיידבר המכווץ -->
+    <div id="iconTooltip"></div>
     
     <!-- MAIN -->
     <main class="main">
@@ -1035,9 +1196,10 @@
         <div class="meta" id="metaToolbar">מציג את כל המוצרים</div>
         <div class="toolbar-right-group">
           <label class="filter-toggle-label netfree-box" id="safeImagesToggleWrap">
-            <span style="display:flex;flex-direction:column">
+            <span style="display:flex;align-items:center;gap:6px">
               <span>לאתר מסונן</span>
-              <span class="netfree-status" id="netfreeStatusDesktop">כבוי</span>
+              <span class="netfree-status" id="netfreeStatusDesktop" style="margin-top:0">כבוי</span>
+              <span class="info-tooltip-icon netfree-info" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה באתר המסונן נטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
             </span>
             <span class="ios-switch">
               <input type="checkbox" id="safeImagesToggle" onchange="onSafeImagesToggle('safeImagesToggle')"/>
@@ -1058,12 +1220,41 @@
           </div>
         </div>
       </div>
+      <div class="kids-promo-card kids-promo-mobile" style="display:none" onclick="handleMobileBannerClick(event, this)">
+        <button class="kids-promo-close" onclick="dismissKidsPromo()" aria-label="סגור">✕</button>
+        <div class="kids-promo-mobile-row">
+          <div class="kids-promo-mobile-text">
+            <span class="kids-promo-handwritten"><span class="kids-promo-handwritten-text">בקרוב!!</span><span class="kids-promo-underline kids-promo-underline-1"></span><span class="kids-promo-underline kids-promo-underline-2"></span></span>
+            <p class="kids-promo-title">גם לבגדי ילדים!</p>
+            <p class="kids-promo-sentence">חיפוש <strong>חכם</strong> שמרכיב סט שלם לילדים — לפי מידות, צבעים, ואפילו משילוב של כמה חנויות יחד.</p>
+          </div>
+          <div class="kids-promo-form-wrap">
+            <form class="kids-promo-form" onsubmit="submitKidsPromo(event)">
+              <input type="email" class="kids-promo-email" placeholder="האימייל שלך" required/>
+              <button type="button" onclick="handleMobilePromoClick(this)">עדכנו אותי</button>
+            </form>
+          </div>
+        </div>
+        <span class="kids-promo-arrow">▾</span>
+      </div>
       <div class="grid" id="grid"></div>
     </main>
     
     <!-- ADS SIDEBAR -->
     <aside class="ads-sidebar" id="adsSidebar">
-      <!-- נטען דינמית -->
+      <div class="kids-promo-card" style="display:none">
+        <button class="kids-promo-close" onclick="dismissKidsPromo()" aria-label="סגור">✕</button>
+        <div><span class="kids-promo-handwritten"><span class="kids-promo-handwritten-text">בקרוב!!</span><span class="kids-promo-underline kids-promo-underline-1"></span><span class="kids-promo-underline kids-promo-underline-2"></span></span></div>
+        <p class="kids-promo-title">גם לבגדי ילדים!</p>
+        <p class="kids-promo-sentence">חיפוש <strong>חכם</strong> שמרכיב סט שלם לילדים — לפי מידות, צבעים, ואפילו משילוב של כמה חנויות יחד.</p>
+        <div class="kids-promo-form-wrap">
+          <form class="kids-promo-form" onsubmit="submitKidsPromo(event)">
+            <input type="email" class="kids-promo-email" placeholder="האימייל שלך" required/>
+            <button type="submit" onclick="trackKidsInterest()">עדכנו אותי</button>
+          </form>
+        </div>
+      </div>
+      <!-- שאר המודעות נטענות דינמית -->
     </aside>
   </div>
   
@@ -1207,6 +1398,14 @@ let activeStyle="",activeFit="",activeStore="",activeColor="",activeCategory="",
 let activeColors=[],activeCategories=[],activeSizes=[],activeStyles=[],activeFits=[],activeFabrics=[];
 function handleImgError(img){
   console.warn('[IMG FAIL]', img.src);
+  // ניסיון גיבוי: אם זו תמונת כרטיסייה עם URL מקורי שמור (data-orig) שעדיין לא ניסינו —
+  // כנראה שנחשנו גודל תמונה (thumbUrl) שלא קיים בפועל אצל החנות. ננסה את המקור לפני שנוותר.
+  var orig = img.getAttribute('data-orig');
+  if (orig && !img.dataset.triedOrig) {
+    img.dataset.triedOrig = '1';
+    img.src = orig;
+    return;
+  }
   img.style.display='none';
   var w=img.closest('.img-wrap');
   if(w&&!w.querySelector('.img-err')){
@@ -1236,6 +1435,7 @@ function shouldShowByRate(rate) {
   return (_sessionCounter % interval) === 1;
 }
 let lastSearchKeywords=[];
+let lastImageAnalysis=null; // נשמר אחרי חיפוש לפי תמונה, כדי שהחלפת נטפרי תוכל להריץ מחדש באותה לוגיקה ולא בסינון קשיח
 let dbCategories=[],dbStyles=[],dbFits=[],dbColors=[],dbSizes=[],dbFabrics=[],dbPatterns=[],dbDesigns=[];
 
 const storeLogos={
@@ -1475,11 +1675,86 @@ function toggleMobileFilters(){
 }
 
 function toggleFilter(id){
+  const filtersPanel=document.getElementById('filtersPanel');
   const section=document.getElementById(id);
+  if(filtersPanel && filtersPanel.classList.contains('collapsed') && window.innerWidth>=1001){
+    // סיידבר מכווץ - מרחיבים את כל התפריט, פותחים רק את הסעיף שנלחץ וסוגרים את כל השאר
+    setSidebarCollapsed(false);
+    document.querySelectorAll('#filtersPanel .filter-section:not(#netfreeSection)').forEach(s => {
+      const isTarget=s.id===id;
+      s.classList.toggle('open', isTarget);
+      const arrow=s.querySelector('.arrow');
+      if(arrow) arrow.textContent=isTarget?'▲':'▼';
+    });
+    if(section) section.scrollIntoView({block:'nearest'});
+    return;
+  }
   section.classList.toggle('open');
   const arrow=section.querySelector('.arrow');
   arrow.textContent=section.classList.contains('open')?'▲':'▼';
 }
+
+function setSidebarCollapsed(collapsed){
+  const filtersPanel=document.getElementById('filtersPanel');
+  if(!filtersPanel) return;
+  filtersPanel.classList.toggle('collapsed', collapsed);
+  try{ localStorage.setItem('lookli_sidebar_collapsed', collapsed ? '1' : '0'); }catch(e){}
+}
+
+function toggleDesktopSidebar(){
+  const filtersPanel=document.getElementById('filtersPanel');
+  if(!filtersPanel) return;
+  setSidebarCollapsed(!filtersPanel.classList.contains('collapsed'));
+}
+
+// טולטיפים על אייקוני הסיידבר במצב מכווץ - position:fixed כדי לא להיחתך ע"י הגלילה הפנימית של הסיידבר
+// אייקוני מידע (הסבר נטפרי) - תומך גם בלחיצה/מגע, לא רק hover
+(function initInfoTooltips(){
+  document.querySelectorAll('.info-tooltip-icon').forEach(icon => {
+    icon.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const wasShown=icon.classList.contains('show-tip');
+      document.querySelectorAll('.info-tooltip-icon.show-tip').forEach(i => i.classList.remove('show-tip'));
+      if(!wasShown) icon.classList.add('show-tip');
+    });
+  });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.info-tooltip-icon.show-tip').forEach(i => i.classList.remove('show-tip'));
+  });
+})();
+
+(function initFilterIconTooltips(){
+  const panel=document.getElementById('filtersPanel');
+  const tip=document.getElementById('iconTooltip');
+  if(!panel||!tip) return;
+  panel.addEventListener('mouseover', (e) => {
+    if(!panel.classList.contains('collapsed') || window.innerWidth<1001) return;
+    const header=e.target.closest('.filter-header');
+    if(!header || !panel.contains(header)) return;
+    const label=header.getAttribute('data-tooltip');
+    if(!label) return;
+    tip.textContent=label;
+    const rect=header.getBoundingClientRect();
+    tip.style.top=(rect.top+rect.height/2)+'px';
+    tip.style.right=(window.innerWidth-rect.left+3)+'px';
+    tip.classList.add('show');
+  });
+  panel.addEventListener('mouseout', (e) => {
+    if(e.target.closest('.filter-header')) tip.classList.remove('show');
+  });
+  // הגנה: אם המסך מצטמצם למובייל בזמן שהטולטיפ מוצג (למשל מעבר למצב מובייל ב-DevTools) - נסתיר אותו
+  window.addEventListener('resize', () => {
+    if(window.innerWidth<1001) tip.classList.remove('show');
+  });
+})();
+
+window.addEventListener('DOMContentLoaded', () => {
+  try{
+    if(window.innerWidth>=1001 && localStorage.getItem('lookli_sidebar_collapsed')==='1'){
+      setSidebarCollapsed(true);
+    }
+  }catch(e){}
+});
 
 function handleSearchInput(){
   const q=document.getElementById("q").value.trim();
@@ -1496,6 +1771,43 @@ function triggerImageSearch(){
   if(!authToken){ openAuthModal('image-search'); return; }
   document.getElementById('imgSearchInput').click();
 }
+
+let usageStatusCache=null;
+function formatHebrewDay(dateStr){
+  const d=new Date(dateStr);
+  const days=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const today=new Date();
+  const diffDays=Math.round((d-new Date(today.getFullYear(),today.getMonth(),today.getDate()))/86400000);
+  if(diffDays<=0) return 'היום';
+  if(diffDays===1) return 'מחר';
+  return 'יום '+days[d.getDay()];
+}
+async function fetchUsageStatus(){
+  if(!authToken) return null;
+  if(usageStatusCache) return usageStatusCache;
+  try{
+    const r=await fetch('/api/usage-status',{headers:{Authorization:'Bearer '+authToken}});
+    if(!r.ok) return null;
+    usageStatusCache=await r.json();
+    return usageStatusCache;
+  }catch(e){ return null; }
+}
+function usageSentence(u,label){
+  if(!u) return '';
+  if(u.remaining<=0){
+    return u.resetsAt ? `נוצל השימוש השבועי - יתפנה שימוש נוסף ${formatHebrewDay(u.resetsAt)}` : `נוצל השימוש השבועי`;
+  }
+  if(u.remaining>=u.limit) return `יש לך ${u.remaining} שימושים זמינים השבוע`;
+  const resetNote = u.resetsAt ? ` (יתחדש ${formatHebrewDay(u.resetsAt)})` : '';
+  return `נשאר לך ${u.remaining} שימושים לשבוע זה${resetNote}`;
+}
+window.addEventListener('DOMContentLoaded', async () => {
+  const badge=document.getElementById('cameraLimitBadge');
+  if(!badge) return;
+  if(!authToken){ badge.style.display='none'; return; }
+  const status=await fetchUsageStatus();
+  badge.setAttribute('data-tooltip', usageSentence(status?.imageSearch,'חיפוש לפי תמונה'));
+});
 
 async function searchByImage(event){
   const file=event.target.files[0];
@@ -1534,7 +1846,7 @@ async function searchByImage(event){
     // שלב ב: ניתוח תמונה + חיפוש ב-DB בקריאה אחת (endpoint קיים ועובד בשרת, דורש התחברות)
     const searchResp=await fetch('/api/search-by-image',{
       method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
-      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg'})
+      body:JSON.stringify({imageBase64:base64,mimeType:'image/jpeg',safeImages:localStorage.getItem('safeImagesMode')==='1'})
     });
     const searchText=await searchResp.text();
     let data;
@@ -1543,6 +1855,8 @@ async function searchByImage(event){
     if(searchResp.status===429){ alert(data.error); return; }
     if(!searchResp.ok){alert(data.error||'שגיאה');runRegularSearch();return;}
     const analysis=data.analysis||{};
+    lastImageAnalysis=analysis;
+    usageStatusCache=null;
 
     // לא מגדירים lastSearchKeywords מהתמונה בכוונה — כדי שאינטראקציה עתידית עם פילטרים
     // (שקוראת ל-runRegularSearch) לא תוסיף שוב טקסט חופשי מגביל על הכותרת, ותסתמך רק
@@ -1564,6 +1878,24 @@ async function searchByImage(event){
   finally{
     if(imgBtn){imgBtn.innerHTML=originalBtnHTML;imgBtn.disabled=false;}
   }
+}
+
+// הרצה חוזרת של חיפוש התמונה האחרון (לא מעלה תמונה חדשה, לא נספר במכסה) -
+// נחוץ כשמשנים את מצב הנטפרי בזמן שצופים בתוצאות חיפוש תמונה, כדי שהסינון
+// יישאר "הכי מתאים" (ניקוד) ולא יהפוך לסינון קשיח שדורש התאמה של כל השדות יחד
+async function reRunImageSearchForNetfree(){
+  if(!lastImageAnalysis) return;
+  setLoading();
+  try{
+    const searchResp=await fetch('/api/search-by-image',{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},
+      body:JSON.stringify({analysis:lastImageAnalysis,safeImages:localStorage.getItem('safeImagesMode')==='1'})
+    });
+    const data=await searchResp.json();
+    if(!searchResp.ok){ return; }
+    paginationMode='client';allProducts=data.results;currentPage=1;renderPage();
+    document.getElementById('metaToolbar').textContent=`${data.count} תוצאות (חיפוש תמונה)`;
+  }catch(e){console.error(e);}
 }
 
 let pendingStylistFile=null;
@@ -1592,6 +1924,8 @@ function showStylistIntro(){
         </div>
       </div>
 
+      <div id="stylistUsageInfo" style="font-size:11.5px;color:#9ca3af;margin:0 0 14px;text-align:center"></div>
+
       <div id="stylistPreviewWrap" style="display:none;margin-bottom:14px">
         <img id="stylistPreviewImg" style="width:80px;height:106px;object-fit:cover;border-radius:10px;border:2px solid #e5e7eb">
         <div style="font-size:12px;color:var(--accent-dark);margin-top:4px;font-weight:700">✓ התמונה הועלתה</div>
@@ -1609,6 +1943,11 @@ function showStylistIntro(){
   openStylistModal();
   startStylistPlaceholderTypewriter();
   loadStylistIntroHistory();
+  (async () => {
+    const status=await fetchUsageStatus();
+    const el=document.getElementById('stylistUsageInfo');
+    if(el) el.textContent=usageSentence(status?.aiStylist,'הסטייליסטית');
+  })();
 }
 
 // אם ללקוחה יש כבר המלצה שמורה מהפעם הקודמת — מציגים תזכורת קצרה ונקייה בראש המסך
@@ -1784,6 +2123,7 @@ async function startStylistAnalysis(){
     if(resp.status===429){ closeStylistModal(); alert(data.error); return; }
     if(resp.status===401){ closeStylistModal(); openAuthModal('stylist'); return; }
     if(!resp.ok){ closeStylistModal(); alert(data.error||'שגיאה בניתוח'); return; }
+    usageStatusCache=null;
 
     // תוכן התוצאה — שורות אחידות וברורות, בלי תיבות/כותרות צבעוניות נפרדות
     const a=data.analysis||{};
@@ -1815,7 +2155,7 @@ async function runAISearch(){
   setLoading();
   window.scrollTo({top:0,behavior:'smooth'});
   try{
-    const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
+    const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q, safeImages: localStorage.getItem('safeImagesMode')==='1'})});
     const data=await res.json();
     lastSearchKeywords=data.analysis.keywords||[];
     // Clear all existing filters before applying AI results
@@ -1844,6 +2184,7 @@ async function runAISearch(){
 var skipScrollOnSearch=false;
 
 async function runRegularSearch(){
+  lastImageAnalysis=null;
   setLoading();document.getElementById("aiAnalysis").classList.remove("active");
   if(!skipScrollOnSearch){window.scrollTo({top:0,behavior:'smooth'})}
   skipScrollOnSearch=false;
@@ -2032,7 +2373,7 @@ function renderProducts(products,append=false){
       const isSaved = savedUrls.has(p.source_url||'');
       const saveBtn = buildSaveBtn(p.source_url||'', p.title||'', p.price||0, p.image_url||'', store||'', isSaved, isOnSale);
       const debugBadge = DEBUG_IMAGES
-        ? `<div style="position:absolute;top:0;left:0;right:0;z-index:50;text-align:center;font-size:11px;font-weight:800;padding:3px;color:#fff;background:${p.has_valid_image===false?'#dc2626':'#16a34a'}">${p.has_valid_image===false?'❌ מסומן חסום':'✅ מסומן תקין'} (ID:${p.id})</div>`
+        ? `<div style="position:absolute;top:0;left:0;right:0;z-index:50;text-align:center;font-size:11px;font-weight:700;padding:3px;color:#fff;background:${p.has_valid_image===false?'#dc2626':'#16a34a'}">${p.has_valid_image===false?'❌ מסומן חסום':'✅ מסומן תקין'} (ID:${p.id})</div>`
         : '';
       const debugBorder = DEBUG_IMAGES ? `border:4px solid ${p.has_valid_image===false?'#dc2626':'#16a34a'};` : '';
       grid.innerHTML+=`<div class="card" data-pid="${p.id}" data-total-imgs="${images.length||1}" style="${debugBorder}position:relative" onclick="${DEBUG_IMAGES?'':'openProduct('+p.id+')'}"><div class="img-wrap">${debugBadge}${saleBadgeHTML}${carouselHTML}${logoHTML}${colorDotsHTML}${saveBtn}</div><div class="card-body"><div class="title">${escapeHtml(p.title||'')}</div><div class="subrow">${priceHTML}<div class="store">${escapeHtml(store)}</div></div><div class="card-footer"><div class="sizes">${sizes.join(', ')||'-'}</div>${shippingBadgeHTML}</div></div></div>`;
@@ -2095,6 +2436,12 @@ async function initFilters(){
     storeDiv.innerHTML=`<div class="store-opt active" data-store="הכל" onclick="selectStore('')"><span>הכל</span></div>`;
     const storeDisplayNames={'LEAA':'Ladies'};
     (data.stores||[]).forEach(s=>{const fallback=storeLogos[s];const bgStyle=darkBgStores.has(s)?'style="background:#1a1a2e"':'';const localOnly=new Set(['CHEN','ORDMAN']);const src=localOnly.has(s)?`/${s.toLowerCase()}-logo.png`:fallback;const displayName=storeDisplayNames[s]||s;storeDiv.innerHTML+=`<div class="store-opt" data-store="${s}" data-tooltip="${displayName}" onclick="selectStore('${s}')" ${bgStyle}>${src?`<img src="${src}" alt="${s}"${localOnly.has(s)?` onerror="this.src='${fallback}'"`:''}`:`<span>${s.substring(0,3)}</span>`}</div>`});
+    // תמיכה בהגעה מקישור מייל עם ?store=XXX (למשל "לכל המוצרים בחנות" בירידת מחיר/מוצרים
+    // חדשים) - עד עכשיו הקישור נבנה נכון אבל שום קוד לא היה מיישם אותו בפועל בטעינה
+    const urlStore = new URLSearchParams(location.search).get('store');
+    if (urlStore && (data.stores||[]).includes(urlStore)) {
+      selectStore(urlStore);
+    }
   } catch(e) {
     console.error('[ERROR] store logos rendering failed:', e);
   }
@@ -2103,6 +2450,11 @@ async function initFilters(){
   
   const discDiv=document.getElementById("discountBoxes");
   discDiv.innerHTML=`<div class="filter-opt${activeDiscount===''?' active':''}" data-discount="" onclick="selectDiscount('')">הכל</div>`+allDiscounts.map(d=>`<div class="filter-opt" data-discount="${d.val}" onclick="selectDiscount('${d.val}')">${d.label}</div>`).join('');
+  // תמיכה בהגעה מקישור מייל "ירידות מחיר" עם ?discount=10
+  const urlDiscount = new URLSearchParams(location.search).get('discount');
+  if (urlDiscount && allDiscounts.some(d => d.val === urlDiscount)) {
+    selectDiscount(urlDiscount);
+  }
   
   if(data.maxPrice){const slider=document.getElementById("priceRange");const roundedMax=Math.ceil(data.maxPrice/10)*10;slider.max=roundedMax;slider.value=roundedMax;document.getElementById("priceValue").textContent=roundedMax}
 }
@@ -2298,7 +2650,8 @@ async function openProduct(id){
   document.getElementById("modalWrapper").scrollTop = 0;
   document.body.style.overflow = 'hidden';
   try{
-    const p=await(await fetch("/api/product/"+id)).json();
+    const _prodSafeParam = localStorage.getItem('safeImagesMode')==='1' ? '?safeImages=1' : '';
+    const p=await(await fetch("/api/product/"+id+_prodSafeParam)).json();
     document.title=`${p.title||'מוצר'} – LOOKLI`;
     const slug=titleToSlug(p.title);
     if(slug) history.replaceState({productId:id},'',`/product/${slug}`);
@@ -2321,6 +2674,13 @@ async function openProduct(id){
 
     const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];
     const colorSizes=p.color_sizes||{};
+    // מיפוי צבע-פנימי -> מלל אמיתי מהחנות (color_raw_labels, באותו סדר כמו colors) -
+    // לתצוגה בלבד. השם הפנימי (עם ה"-" שנוסף להבחנה בין שני גוונים שמנרמלים לאותו שם,
+    // כמו "ירוק - ירוק") נשאר המפתח לחיפוש המידות ב-color_sizes, אבל למשתמשת מציגים
+    // את המלל האמיתי מהחנות ("ירוק"/"teal") שהרבה יותר ברור וקריא.
+    const colorRawLabelFor = {};
+    (p.colors || []).forEach((c, i) => { colorRawLabelFor[c] = p.color_raw_labels?.[i] || c; });
+    const displayColorName = (c) => colorRawLabelFor[c] || c;
     const colorsDiv=document.getElementById("modalColors");
     const colorSizesDiv=document.getElementById("modalColorSizes");
     const colorSizesLabel=document.getElementById("modalColorSizesLabel");
@@ -2329,7 +2689,7 @@ async function openProduct(id){
     const showColorSizes = (color) => {
       const sizes = colorSizes[color];
       if (!sizes || sizes.length === 0) { colorSizesDiv.style.display='none'; return; }
-      colorSizesLabel.textContent = `מידות ב${color}:`;
+      colorSizesLabel.textContent = `מידות ב${displayColorName(color)}:`;
       colorSizesTags.innerHTML = sizes.map(s =>
         `<span style="background:#f3f4f6;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">${s}</span>`
       ).join('');
@@ -2345,7 +2705,7 @@ async function openProduct(id){
         const dot = document.createElement('span');
         dot.className = 'modal-color';
         dot.style.background = getColorHex(c);
-        dot.title = c;
+        dot.title = displayColorName(c);
         dot.setAttribute('data-color', c);
         dot.onclick = () => showColorSizes(c);
         colorsDiv.appendChild(dot);
@@ -2357,8 +2717,9 @@ async function openProduct(id){
       colorsDiv.innerHTML='<span style="color:#999;font-size:12px">לא צוין</span>';
     }
 
-    // שלב 2 — תמונה ראשית
+    // שלב 2 — תמונה ראשית (הסינון של נטפרי מוחל כבר בצד השרת לפי הפרמטר ששלחנו בבקשה)
     modalImages=(p.images?.length)?p.images:(p.image_url?[p.image_url]:[]);modalImageIndex=0;
+    modalImageIndex=0;
     if(modalImages.length){
       const mainImg = new Image();
       mainImg.onload = () => {
@@ -2406,7 +2767,8 @@ async function openProduct(id){
       if (!pendingId) return;
       // הראה spinner
       document.getElementById('similarGrid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px"><div style="display:inline-block;width:28px;height:28px;border:3px solid #f3f4f6;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div></div>';
-      fetch(`/api/similar/${pendingId}`).then(r=>r.json()).then(items=>{
+      const _similarSafeParam = localStorage.getItem('safeImagesMode')==='1' ? '?safeImages=1' : '';
+      fetch(`/api/similar/${pendingId}${_similarSafeParam}`).then(r=>r.json()).then(items=>{
         if(!items?.length){similarSection.style.display='none';return;}
         const grid = document.getElementById('similarGrid');
         grid.innerHTML = items.map(p=>{
@@ -2771,6 +3133,19 @@ function heroPrevStep(){
 function checkHideHero(){
   var hero=document.getElementById('heroDiscover');
   if(hero&&!hero.classList.contains('hidden'))hero.classList.add('hidden');
+  var teaser=document.getElementById('heroTeaser');
+  if(teaser) teaser.classList.add('hidden');
+}
+
+var heroTeaserOpened=false;
+function openHeroTeaser(){
+  if(heroTeaserOpened) return;
+  heroTeaserOpened=true;
+  var teaser=document.getElementById('heroTeaser');
+  if(teaser) teaser.classList.add('hidden');
+  var hero=document.getElementById('heroDiscover');
+  if(hero) hero.classList.remove('hidden');
+  renderHeroStep();
 }
 
 var _origSelectStore=selectStore;
@@ -2797,7 +3172,7 @@ runAISearch=async function(){checkHideHero();await _origRunAI()};
     } catch(e) {}
   }
   await initFilters();
-  renderHeroStep();
+  // בניית קטע ה-HERO (שלב-שלב) נדחית לרגע שבו לוחצים על הטיזר - openHeroTeaser()
   skipScrollOnSearch=true;
   await runRegularSearch();
   window.scrollTo(0,0);
@@ -2948,7 +3323,7 @@ document.addEventListener('click', e => {
         <!-- Profile (when logged in) -->
         <div id="profileForm" style="display:none">
           <div style="text-align:center;margin-bottom:20px">
-            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800;margin:0 auto 12px" id="profileAvatar">?</div>
+            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:700;margin:0 auto 12px" id="profileAvatar">?</div>
             <div style="font-weight:700;font-size:16px" id="profileName">-</div>
             <div style="color:#9ca3af;font-size:13px;margin-top:4px" id="profileEmail">-</div>
             <div style="margin-top:8px" id="profilePlanBadge"></div>
@@ -2977,7 +3352,7 @@ document.addEventListener('click', e => {
       <div class="saved-panel-body" style="padding:20px">
         <!-- אווטאר ופרטים -->
         <div style="text-align:center;margin-bottom:24px">
-          <div style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px;font-weight:800;margin:0 auto 12px" id="profileAvatar2">?</div>
+          <div style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px;font-weight:700;margin:0 auto 12px" id="profileAvatar2">?</div>
           <div style="font-weight:700;font-size:17px;margin-bottom:4px" id="profileName2">-</div>
           <div style="color:#9ca3af;font-size:13px" id="profileEmail2">-</div>
           <div style="margin-top:8px" id="profilePlanBadge2"></div>
@@ -3112,13 +3487,27 @@ document.addEventListener('click', e => {
       openProfilePanel();
       return;
     }
-    switchAuthTab('login');
+    // כותרת + כותרת-משנה משקפות את ההקשר האמיתי שבגללו המודל נפתח - הצעת ערך ממוקדת
+    // במקום ניסוח כללי. פיצ'רים נעולים (תמונה/סטייליסטית) פותחים ישר בטאב הרשמה,
+    // כי הסבירות הגבוהה היא שהמשתמשת עוד אין לה חשבון בכלל.
+    let titleText, subText, tab;
+    if (reason === 'stylist') {
+      titleText = 'בואי נכיר את הסטייל שלך';
+      subText = 'הסטייליסטית האישית שלנו זמינה בחינם למשתמשות רשומות - התאמה אישית תוך דקה';
+      tab = 'register';
+    } else if (reason === 'image-search') {
+      titleText = 'רגע לפני שמוצאים את הפריט';
+      subText = 'חיפוש לפי תמונה זמין בחינם למשתמשות רשומות - הרשמה לוקחת פחות מדקה';
+      tab = 'register';
+    } else {
+      titleText = 'ברוכה הבאה ל-LOOKLI';
+      subText = 'שמרי פריטים שאהבת וקבלי התראה כשהמחיר יורד';
+      tab = 'login';
+    }
+    switchAuthTab(tab);
     document.getElementById('authModalBg').classList.add('open');
     clearAuthMessages();
-    // כותרת-המשנה משקפת את הסיבה האמיתית לפתיחת המודל (במקום משפט כללי לא-קשור + הערה נפרדת בצבע לא קריא)
-    const subText = reason === 'stylist' ? 'הסטייליסטית האישית ניתנת למשתמשות רשומות (ללא עלות)'
-      : reason === 'image-search' ? 'חיפוש לפי תמונה ניתן למשתמשות רשומות (ללא עלות)'
-      : 'שמרי פריטים שאהבת וקבלי התראה כשהמחיר יורד';
+    document.getElementById('authModalTitle').textContent = titleText;
     document.getElementById('authModalSub').textContent = subText;
   }
 
@@ -3574,6 +3963,87 @@ document.addEventListener('click', e => {
     }
   }
   
+  // ===== כרטיסיית "בקרוב" — התאמת מידות לילדים (יש 2 מופעים: דסקטופ + מובייל) =====
+  function trackKidsInterest(){
+    fetch('/api/interest-click', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ key: 'kids_promo_click' })
+    }).catch(()=>{});
+  }
+  function dismissKidsPromo(){
+    localStorage.setItem('kidsPromoDismissed','1');
+    document.querySelectorAll('.kids-promo-card').forEach(c => c.style.display = 'none');
+    document.body.classList.remove('kids-promo-bar-active');
+  }
+  function handleMobileBannerClick(e, card){
+    if (card.classList.contains('kids-promo-expanded')) return;
+    if (e.target.closest('.kids-promo-close')) return;
+    card.classList.add('kids-promo-expanded');
+    trackKidsInterest();
+    const input = card.querySelector('.kids-promo-email');
+    setTimeout(() => input && input.focus(), 150);
+  }
+  function handleMobilePromoClick(btn){
+    const card = btn.closest('.kids-promo-mobile');
+    const input = btn.closest('.kids-promo-form-wrap').querySelector('.kids-promo-email');
+    if (!card.classList.contains('kids-promo-expanded')) {
+      card.classList.add('kids-promo-expanded');
+      trackKidsInterest();
+      setTimeout(() => input.focus(), 150);
+      return;
+    }
+    btn.closest('form').requestSubmit();
+  }
+  async function submitKidsPromo(e){
+    e.preventDefault();
+    const form = e.target;
+    const card = form.closest('.kids-promo-card');
+    const emailInput = form.querySelector('.kids-promo-email');
+    const btn = form.querySelector('button[type=submit]');
+    const email = emailInput.value.trim();
+    if (!email || !email.includes('@')) return;
+    btn.disabled = true;
+    btn.textContent = 'שולח...';
+    try {
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email, source: 'kids_waitlist' })
+      });
+      if (!res.ok) throw new Error();
+      const wrap = card.querySelector('.kids-promo-form-wrap');
+      wrap.innerHTML = '<p class="kids-promo-success">✓ נרשמת בהצלחה! נעדכן אותך ברגע שזה מוכן.</p>';
+      localStorage.setItem('kidsPromoDismissed','1');
+      // אם קיים מופע נוסף (דסקטופ/מובייל) — מסתירים אותו כדי לא להציג בקשה כפולה
+      document.querySelectorAll('.kids-promo-card').forEach(c => { if (c !== card) c.style.display = 'none'; });
+    } catch(err) {
+      btn.disabled = false;
+      btn.textContent = 'עדכנו אותי';
+      alert('משהו השתבש, אפשר לנסות שוב');
+    }
+  }
+  (function initKidsPromo(){
+    if (localStorage.getItem('kidsPromoDismissed') === '1') return;
+    document.querySelectorAll('.kids-promo-card').forEach(c => c.style.display = '');
+    // הבאנר במובייל (fixed בתחתית) נחשף רק אחרי גלילה — לא מטריד בטעינה הראשונה
+    const mobileCard = document.querySelector('.kids-promo-mobile');
+    if (!mobileCard) return;
+    const SCROLL_THRESHOLD = 500; // בערך כמה שורות מוצרים
+    let revealed = false;
+    function checkScroll(){
+      if (revealed) return;
+      if (window.scrollY > SCROLL_THRESHOLD) {
+        mobileCard.classList.add('kids-promo-scrolled');
+        document.body.classList.add('kids-promo-bar-active');
+        revealed = true;
+        window.removeEventListener('scroll', checkScroll);
+      }
+    }
+    window.addEventListener('scroll', checkScroll, { passive: true });
+    checkScroll();
+  })();
+
   // ===== IMAGE AVAILABILITY FILTER (נטפרי) =====
   // בדיקת תמונות מבוססת-משתמשות הוסרה לגמרי (הוסכם: אין דיווח מגלישה רגילה).
   // הבדיקה היחידה נעשית ידנית ע"י מנהלת האתר דרך admin_image_scan.html, ומשפיעה
@@ -3597,7 +4067,9 @@ document.addEventListener('click', e => {
       if (cb && cb !== source) cb.checked = on;
     });
     updateNetfreeStatusUI(on);
-    runRegularSearch();
+    checkHideHero();
+    if(lastImageAnalysis){ reRunImageSearchForNetfree(); }
+    else { runRegularSearch(); }
   }
   (function initSafeImagesToggle(){
     const isOn = localStorage.getItem('safeImagesMode') === '1';
@@ -3635,6 +4107,7 @@ document.addEventListener('click', e => {
       document.querySelectorAll('.card.sponsored').forEach(el => el.remove());
       const params = new URLSearchParams();
       if (query) params.set('q', query);
+      if (localStorage.getItem('safeImagesMode')==='1') params.set('safeImages','1');
       const res = await fetch('/api/sponsored?' + params.toString());
       if (!res.ok) return;
       const raw = await res.json();
@@ -3728,7 +4201,8 @@ document.addEventListener('click', e => {
     try {
       const res = await fetch('/api/sidebar-ads');
       const { ads } = res.ok ? await res.json() : { ads: [] };
-      sidebar.innerHTML = '';
+      // מנקים רק את המודעות הדינמיות — לא נוגעים בכרטיסיית "בקרוב" הסטטית
+      sidebar.querySelectorAll(':scope > *:not(.kids-promo-card)').forEach(el => el.remove());
 
       // הסף הותאם ל-1024px (במקום 1300) כדי לחפוף לנקודת השבירה האמיתית של הגריד עצמו
       // (ה-CSS כבר עובר ל-3 טורים מ-1200px ומטה) — כך שבלפטופים/מסכים בינוניים יוצג הלוח
@@ -3865,12 +4339,15 @@ document.addEventListener('click', e => {
 
         // ── בחירת צבע אם יש כמה צבעים ──
         const colorSizes = p.color_sizes || {};
+        // מיפוי צבע-פנימי -> מלל אמיתי מהחנות, לתצוגה בלבד (השם הפנימי נשאר value לחיפוש)
+        const colorRawLabelFor = {};
+        (p.colors || []).forEach((c, i) => { colorRawLabelFor[c] = p.color_raw_labels?.[i] || c; });
         // השתמש ב-p.colors לכל הצבעים (כולל אלו שנגמרו מהמלאי)
         const allProductColors = (p.colors || Object.keys(colorSizes)).filter(Boolean);
         const colors = allProductColors.length > 1 ? allProductColors
           : Object.keys(colorSizes).filter(c => colorSizes[c]?.length > 0);
         if (colors.length > 1 && colorRow) {
-          colorSel.innerHTML = colors.map(c => `<option value="${c}">${c}</option>`).join('');
+          colorSel.innerHTML = colors.map(c => `<option value="${c}">${colorRawLabelFor[c] || c}</option>`).join('');
           colorRow.style.display = 'none'; // יוצג רק בלחיצה על הצ'קבוקס
           // עדכן מידות לפי צבע ראשון
           const updateBySel = () => {

@@ -771,6 +771,7 @@
     .auth-btn svg{width:16px;height:16px;flex-shrink:0}
     .auth-btn .auth-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     #stylistNavBtn .auth-name{max-width:none;overflow:visible;text-overflow:clip}
+    #whatsNewNavBtn .auth-name{max-width:none;overflow:visible;text-overflow:clip}
 
     /* ===== AUTH MODAL ===== */
     .auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
@@ -808,8 +809,17 @@
     .wn-modal-head p{margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px}
     .wn-modal-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
     .wn-modal-close:hover{background:rgba(255,255,255,.32)}
-    .wn-controls{padding:20px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:#fafafa}
-    .wn-pill-group{display:flex;gap:8px}
+    .wn-controls{padding:18px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:22px;align-items:center;background:#fafafa}
+    .wn-type-tabs{display:flex;border-bottom:1px solid #eee}
+    .wn-type-tab{flex:1;padding:18px;text-align:center;font-size:16px;font-weight:800;cursor:pointer;background:#f5f5f5;color:#999;border:none;border-bottom:3px solid transparent;transition:all .15s;font-family:inherit}
+    .wn-type-tab:hover:not(.active){background:#eee;color:#777}
+    .wn-type-tab.active{background:#fff;color:var(--accent-dark);border-bottom-color:var(--accent)}
+    .wn-week-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .wn-store-controls{display:flex;align-items:center;gap:10px;padding-right:22px;border-right:1.5px solid #ddd}
+    @media(max-width:768px){
+      .wn-type-tab{padding:14px;font-size:14px}
+      .wn-store-controls{border-right:none;padding-right:0;border-top:1px solid #ddd;padding-top:14px;width:100%}
+    }
     .wn-pill{padding:9px 18px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#666;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
     .wn-pill.active{border-color:var(--accent);background:var(--accent);color:#fff}
     .wn-select{padding:9px 14px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#444;font-size:13px;font-weight:600;cursor:pointer;outline:none}
@@ -992,9 +1002,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span id="savedNavCount"></span>
         </button>
-        <button class="auth-btn" id="whatsNewNavBtn" onclick="openWhatsNew()" title="מוצרים חדשים">
+        <button class="auth-btn" id="whatsNewNavBtn" onclick="openWhatsNew()" title="מה חדש">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>
-          <span class="auth-name">מוצרים חדשים</span>
+          <span class="auth-name">מה חדש</span>
         </button>
         <button class="auth-btn stylist-nav-btn" id="stylistNavBtn" onclick="openStylistUpload()" title="סטייליסטית AI">
           <img src="/סטייליסטית.png" alt="" style="width:30px;height:30px;object-fit:contain;flex-shrink:0">
@@ -1671,7 +1681,7 @@ function toggleMobileNav(){
     menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);visibility:hidden;transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
     menu.innerHTML = `
       <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">דף הבית</a>
-      <a href="#" onclick="event.preventDefault();toggleMobileNav();openWhatsNew()" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🆕 מוצרים חדשים</a>
+      <a href="#" onclick="event.preventDefault();toggleMobileNav();openWhatsNew()" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🆕 מה חדש</a>
       <a href="/about" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">אודות</a>
       <a href="/contact" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">צור קשר</a>
     `;
@@ -2264,11 +2274,11 @@ function setWhatsNewType(type){
 }
 
 function renderWhatsNewControls(){
-  const toggle = document.getElementById('wnTypeToggle');
-  if (toggle) {
-    toggle.innerHTML = `
-      <button class="wn-pill${wnCurrentType==='new'?' active':''}" onclick="setWhatsNewType('new')">🆕 מוצרים חדשים</button>
-      <button class="wn-pill${wnCurrentType==='deals'?' active':''}" onclick="setWhatsNewType('deals')">🏷️ מבצעים</button>
+  const tabs = document.getElementById('wnTypeTabs');
+  if (tabs) {
+    tabs.innerHTML = `
+      <button class="wn-type-tab${wnCurrentType==='new'?' active':''}" onclick="setWhatsNewType('new')">🆕 מוצרים חדשים</button>
+      <button class="wn-type-tab${wnCurrentType==='deals'?' active':''}" onclick="setWhatsNewType('deals')">🏷️ מבצעים</button>
     `;
   }
   const thisWeekBtn = document.getElementById('wnThisWeekBtn');
@@ -3456,26 +3466,29 @@ document.addEventListener('click', e => {
         </div>
         <button class="wn-modal-close" onclick="closeWhatsNewModal()">✕</button>
       </div>
+      <div class="wn-type-tabs" id="wnTypeTabs"></div>
       <div class="wn-controls">
-        <div class="wn-pill-group" id="wnTypeToggle"></div>
-        <select class="wn-select" id="wnStoreFilter" onchange="onWhatsNewControlsChange()">
-          <option value="">כל החנויות</option>
-          <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-          <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-          <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-          <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-        </select>
-        <div class="wn-pill-group">
-          <button class="wn-pill" id="wnThisWeekBtn" onclick="openWhatsNewRange('thisWeek')">השבוע</button>
+        <div class="wn-week-controls">
+          <button class="wn-pill" id="wnThisWeekBtn" onclick="openWhatsNewRange('thisWeek')">שבוע אחרון</button>
+          <select class="wn-select" id="wnOlderSelect" onchange="onWhatsNewOlderSelect()">
+            <option value="">טווח ארוך יותר...</option>
+            <option value="1">שבועיים אחרונים 🔒</option>
+            <option value="2">3 השבועות האחרונים 🔒</option>
+            <option value="3">החודש האחרון 🔒</option>
+            <option value="4">חודש וחצי אחרונים 🔒</option>
+            <option value="5">חודשיים אחרונים 🔒</option>
+          </select>
         </div>
-        <select class="wn-select" id="wnOlderSelect" onchange="onWhatsNewOlderSelect()">
-          <option value="">שבועות ישנים יותר...</option>
-          <option value="1">לפני שבועיים 🔒</option>
-          <option value="2">לפני 3 שבועות 🔒</option>
-          <option value="3">לפני חודש 🔒</option>
-          <option value="4">לפני חודש וחצי 🔒</option>
-          <option value="5">לפני חודשיים 🔒</option>
-        </select>
+        <div class="wn-store-controls">
+          <span style="font-size:12.5px;color:#888;font-weight:600;white-space:nowrap">סינון לפי חנות:</span>
+          <select class="wn-select" id="wnStoreFilter" onchange="onWhatsNewControlsChange()">
+            <option value="">כל החנויות</option>
+            <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+            <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+            <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+            <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+          </select>
+        </div>
       </div>
       <div class="wn-modal-body">
         <div class="grid" id="whatsNewGrid"></div>

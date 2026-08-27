@@ -1003,9 +1003,9 @@ app.get("/api/products", async (req, res) => {
 // מחדל) משתמש ב-first_seen, type=deals משתמש ב-price_dropped_at + הנחה 10%+ -
 // אותה לוגיקה בדיוק כמו /api/cron/new-products-email ו-/api/cron/price-drop-email.
 // שני השדות קבועים לכל מוצר - אין צורך לשמור תמונות מצב נפרדות.
-// week=0 = 14 הימים האחרונים (שבוע נוכחי+קודם מאוחדים) - פתוח לכולם.
-// week=1-5 = דלי של 7 ימים כל אחד, החל מיום 14 והלאה (עד כ-2 חודשים אחורה) -
-// דורש חשבון מחובר באתר (לא ניוזלטר - מערכת חשבונות נפרדת) כתמריץ להרשמה.
+// week=0 = 7 הימים האחרונים - פתוח לכולם.
+// week=1-5 = טווחים מצטברים מעכשיו אחורה (14/21/30/45/60 יום) - דורש חשבון
+// מחובר באתר (לא ניוזלטר - מערכת חשבונות נפרדת) כתמריץ להרשמה.
 app.get('/api/whats-new', async (req, res) => {
   try {
     const weekOffset = Math.max(0, Math.min(parseInt(req.query.week) || 0, 5));
@@ -1022,9 +1022,12 @@ app.get('/api/whats-new', async (req, res) => {
       }
     }
 
-    // week=0: 0-14 ימים (מאוחד). week=N (N>=1): (14+7N) עד (14+7(N-1)) ימים אחורה
-    const daysAgoStart = weekOffset === 0 ? 14 : 14 + weekOffset * 7;
-    const daysAgoEnd = weekOffset === 0 ? 0 : 14 + (weekOffset - 1) * 7;
+    // כל הטווחים מצטברים מעכשיו אחורה (לא "דליים" נפרדים) - מי שבוחר "3 השבועות
+    // האחרונים" רואה את כל מה שהיה מעכשיו ועד 21 יום אחורה, לא רק את יום 14-21.
+    // week=0: 7 ימים אחרונים (פתוח לכולם). week=1-5: 14/21/30/45/60 ימים (דורש חשבון)
+    const WN_DAYS_BACK = [7, 14, 21, 30, 45, 60];
+    const daysAgoStart = WN_DAYS_BACK[weekOffset];
+    const daysAgoEnd = 0;
     const dateField = type === 'deals' ? 'price_dropped_at' : 'first_seen';
     const dealsCondition = type === 'deals'
       ? ` AND original_price IS NOT NULL AND original_price > 0 AND price > 0 AND original_price > price * 1.10`
@@ -4979,16 +4982,18 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
       (r.aliases||[]).forEach(a => { colorAliasMap[a.toLowerCase()] = r.name; });
     });
 
-    if (Object.keys(colorAliasMap).length) {
-      // derived_tags map: { type: { name: { field: [values] } } } — נטען מוקדם כדי שגם color יוכל להשתמש בו
-      const derivedMap = {};
-      cfgRows.rows.forEach(r => {
-        if (r.derived_tags && Object.keys(r.derived_tags).length) {
-          if (!derivedMap[r.type]) derivedMap[r.type] = {};
-          derivedMap[r.type][r.name] = r.derived_tags;
-        }
-      });
+    // derived_tags map: { type: { name: { field: [values] } } } — נטען פעם אחת
+    // ברמת הפונקציה (לא בתוך ה-if של הצבעים) כי גם לולאת "שאר השדות" למטה
+    // צריכה גישה אליו - היה באג שגרם ל-500 כשהמשתנה היה חבוי בתוך ה-if
+    const derivedMap = {};
+    cfgRows.rows.forEach(r => {
+      if (r.derived_tags && Object.keys(r.derived_tags).length) {
+        if (!derivedMap[r.type]) derivedMap[r.type] = {};
+        derivedMap[r.type][r.name] = r.derived_tags;
+      }
+    });
 
+    if (Object.keys(colorAliasMap).length) {
       // מוצרים שהצבע שלהם לא נעול — ננסה לזהות מחדש מהכותרת
       const colorProds = await pool.query(
         `SELECT id, title, color FROM products

@@ -296,15 +296,11 @@ function render(data, periodLabel) {
         <div class="card-legend">
           <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>כניסות</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>קליקים לחנויות</div>
-          <div class="legend-item"><div class="legend-dot" style="background:var(--yellow);border-radius:0;height:2px;align-self:center"></div>משתמשים ייחודיים</div>
         </div>
       </div>
-      <div id="dailyAvgSummary" style="display:flex;gap:20px;font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+      <div id="dailyAvgSummary" style="display:flex;gap:12px;margin-bottom:14px"></div>
       <div id="dayDetailPanel" style="display:none;background:var(--bg2,rgba(255,255,255,.04));border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px"></div>
-      <div style="position:relative">
-        <svg id="usersLineOverlay" style="position:absolute;top:0;left:0;width:100%;height:148px;pointer-events:none" preserveAspectRatio="none"></svg>
-        <div class="chart-wrap" id="chartWrap"></div>
-      </div>
+      <div class="chart-wrap" id="chartWrap"></div>
     </div>
 
     <!-- Stores + Products -->
@@ -396,8 +392,16 @@ function renderDailyAvgSummary(daily) {
   const avgUsers = daily.reduce((s, d) => s + (d.users || 0), 0) / daily.length;
   const avgDuration = daily.reduce((s, d) => s + (d.avgDuration || 0), 0) / daily.length;
   el.innerHTML = `
-    <div><b style="color:var(--text)">${Math.round(avgUsers)}</b> משתמשים ייחודיים בממוצע ליום</div>
-    <div><b style="color:var(--text)">${formatDuration(avgDuration)}</b> זמן גלישה ממוצע ליום</div>
+    <div class="kpi" style="flex:1;padding:14px 16px">
+      <div class="kpi-glow" style="background:var(--yellow)"></div>
+      <div class="kpi-label" style="font-size:11px">משתמשים ייחודיים בממוצע ליום</div>
+      <div class="kpi-value" style="font-size:22px;color:var(--yellow)">${Math.round(avgUsers)}</div>
+    </div>
+    <div class="kpi" style="flex:1;padding:14px 16px">
+      <div class="kpi-glow" style="background:var(--accent2)"></div>
+      <div class="kpi-label" style="font-size:11px">זמן גלישה ממוצע ליום</div>
+      <div class="kpi-value" style="font-size:22px;color:var(--accent2)">${formatDuration(avgDuration)}</div>
+    </div>
   `;
 }
 
@@ -415,29 +419,6 @@ function showDayDetail(dateStr) {
       <div>⏱️ <b style="color:var(--text)">${formatDuration(d.avgDuration)}</b> זמן גלישה ממוצע</div>
     </div>`;
   document.querySelectorAll('.bar-col').forEach(el => el.classList.toggle('selected', el.dataset.date === dateStr));
-}
-
-function drawUsersLine(daily) {
-  const svg = document.getElementById('usersLineOverlay');
-  if (!svg) return;
-  const maxU = Math.max(...daily.map(d => d.users || 0), 1);
-  const N = daily.length;
-  const H = 148;
-  // x בטווח 0-100 (אחוזים, תואם viewBox) - מרכז כל עמודה. y בפיקסלים אמיתיים (0-148)
-  const points = daily.map((d, i) => {
-    const x = (i + 0.5) / N * 100;
-    const y = H - ((d.users || 0) / maxU * (H - 8)) - 4; // שוליים קטנים מלמעלה ומלמטה
-    return `${x},${y}`;
-  });
-  svg.setAttribute('viewBox', `0 0 100 ${H}`);
-  const circles = daily.map((d, i) => {
-    const [x, y] = points[i].split(',');
-    return `<circle cx="${x}" cy="${y}" r="1.2" fill="var(--yellow)" />`;
-  }).join('');
-  svg.innerHTML = `
-    <polyline points="${points.join(' ')}" fill="none" stroke="var(--yellow)" stroke-width="1.5" vector-effect="non-scaling-stroke" opacity="0.9" />
-    ${circles}
-  `;
 }
 
 function drawChart(daily) {
@@ -461,7 +442,6 @@ function drawChart(daily) {
       <div class="bar-label">${label}</div>
     </div>`;
   }).join('');
-  drawUsersLine(daily);
   // ברירת מחדל: מציג את היום האחרון (העדכני ביותר) בפאנל הפירוט מיד, בלי צורך בלחיצה
   showDayDetail(daily[daily.length - 1].date);
 }

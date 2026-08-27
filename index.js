@@ -461,6 +461,11 @@ app.get("/img", async (req, res) => {
 
 const validColors = ['שחור', 'לבן', 'שמנת', 'כחול', 'תכלת', 'נייבי', 'אדום', 'בורדו', 'ירוק', 'זית', 'חאקי', 'חום', 'קאמל', 'בז׳', 'ניוד', 'אפור', 'ורוד', 'סגול', 'לילך', 'צהוב', 'חרדל', 'כתום', 'זהב', 'כסף', 'פרחוני', 'צבעוני', 'מנטה', 'אפרסק', 'אבן', 'בהיר', 'אחר'];
 
+// קטגוריות שלא בגדים (תכשיטים/אביזרים/נעליים) - מוסתרות כברירת מחדל מתוצאות
+// חיפוש (פחות "מרשימות" בתמונה מול בגדים), אבל תמיד נשארות ניתנות לבחירה מפורשת
+// בסינון קטגוריה בסיידבר. מקור אמת יחיד בשימוש בכל נקודות הסינון בקובץ הזה.
+const ACCESSORY_CATEGORIES = ['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'נעליים'];
+
 const shippingInfo = {
   'MEKIMI': { cost: 25, threshold: 300 },
   'LICHI': { cost: 30, threshold: 350 },
@@ -752,9 +757,14 @@ app.get("/api/products", async (req, res) => {
     const params = [];
     let i = 1;
 
-    // סינון אקססוריז - לא מציגים גומיות שיער וכדומה
-    sql += ` AND (category IS NULL OR category NOT IN ('גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים'))`;
-    sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
+    // סינון אקססוריז/תכשיטים/נעליים - מוסתרים כברירת מחדל, אבל לא אם המשתמשת
+    // בחרה במפורש אחת מהקטגוריות האלה בסינון (category=תכשיטים וכו')
+    const requestedCats = category ? category.split(',').filter(Boolean) : [];
+    const explicitAccessoryFilter = requestedCats.some(c => ACCESSORY_CATEGORIES.includes(c));
+    if (!explicitAccessoryFilter) {
+      sql += ` AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))`;
+      sql += ` AND title NOT ILIKE '%גומי%שיער%' AND title NOT ILIKE '%גומיי%'`;
+    }
 
     if (q) {
       const qLower = q.toLowerCase().trim();
@@ -946,17 +956,21 @@ app.get("/api/products", async (req, res) => {
     const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
 
+    // דחיקת מוצרי low_priority לסוף - חלה על כל אפשרויות המיון (ברירת מחדל/מחיר/פופולרי/חיפוש),
+    // כמפתח המיון הראשון תמיד, בלי לשנות את סדר המיון הפנימי הקיים בכל branch
+    const lowPriorityOrderKey = `(CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END)`;
     if (sort === 'price_asc') {
+      sql += ` ORDER BY ${lowPriorityOrderKey}`;
     } else if (sort === 'price_desc') {
-      sql += ` ORDER BY price DESC`;
+      sql += ` ORDER BY ${lowPriorityOrderKey}, price DESC`;
     } else if (sort === 'popular') {
-      sql += ` ORDER BY (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
+      sql += ` ORDER BY ${lowPriorityOrderKey}, (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
     } else if (isAliasMatch && q) {
       // ווריאנט: עם המילה המדויקת בכותרת קודם, אח"כ שאר הצבע/קטגוריה לפי id
-      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
+      sql += ` ORDER BY ${lowPriorityOrderKey}, (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
       params.push(`%${q}%`); i++;
     } else {
-      sql += ` ORDER BY (id % 7), id DESC`;
+      sql += ` ORDER BY ${lowPriorityOrderKey}, (id % 7), id DESC`;
     }
 
     // עימוד אמיתי — limit/offset מהפרונט, עם הגבלת ביטחון (מקסימום 100 בבקשה אחת)
@@ -1184,6 +1198,14 @@ app.post("/api/ai-search", async (req, res) => {
     const params = [];
     let i = 1;
 
+    // סינון אקססוריז/תכשיטים/נעליים - מוסתר כברירת מחדל, אלא אם ה-AI זיהה
+    // מפורשות שהשאילתה מבקשת אחת מהקטגוריות האלה
+    const analysisCats = analysis.categories?.length ? analysis.categories : (analysis.category ? [analysis.category] : []);
+    const explicitAccessoryQuery = analysisCats.some(c => ACCESSORY_CATEGORIES.includes(c));
+    if (!explicitAccessoryQuery) {
+      sql += ` AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))`;
+    }
+
     if (analysis.keywords.length > 0) { sql += ` AND title ILIKE $${i++}`; params.push(`%${analysis.keywords.join(' ')}%`); }
     if (analysis.store) { sql += ` AND store = $${i++}`; params.push(analysis.store); }
     
@@ -1232,14 +1254,14 @@ app.post("/api/ai-search", async (req, res) => {
     if (analysis.maxPrice) { sql += ` AND price <= $${i++}`; params.push(analysis.maxPrice); }
     if (analysis.minDiscount) { sql += ` AND original_price > 0 AND ((original_price - price) / original_price * 100) >= $${i++}`; params.push(analysis.minDiscount); }
 
-    // מיון: ווריאנט מדויק בכותרת קודם
+    // מיון: ווריאנט מדויק בכותרת קודם, ותמיד עם דחיקת low_priority לסוף
     const originalQuery = query.trim();
     const hasAlias = SEARCH_ALIASES[originalQuery.toLowerCase()];
     if (hasAlias) {
-      sql += ` ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 5000`;
+      sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 5000`;
       params.push(`%${originalQuery}%`); i++;
     } else {
-      sql += ` ORDER BY id DESC LIMIT 5000`;
+      sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), id DESC LIMIT 5000`;
     }
     const result = await pool.query(sql, params);
     let rows = result.rows;
@@ -1401,12 +1423,13 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
       analysis.style || null,
     ];
     const safeImagesSql = wantSafeImagesImg ? ' AND has_valid_image = true AND reviewed_at IS NOT NULL' : '';
+    const accessoryExclusionSql = ` AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))`;
     const sql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,valid_image_urls,
       ${scoreExpr} AS match_score
       FROM products
-      WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0${safeImagesSql}
+      WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0${safeImagesSql}${accessoryExclusionSql}
       AND ${scoreExpr} > 0
-      ORDER BY match_score DESC, RANDOM() LIMIT 60`;
+      ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), match_score DESC, RANDOM() LIMIT 60`;
     const result = await pool.query(sql, params);
     let rows = result.rows;
 
@@ -1419,8 +1442,8 @@ app.post("/api/search-by-image", authMiddleware, async (req, res) => {
       const fallbackSql = `SELECT id,title,price,original_price,image_url,images,sizes,color,colors,style,fit,fits,category,store,source_url,description,pattern,fabric,design_details,color_sizes,image_size_bytes,valid_image_urls,
         ${scoreExpr} AS match_score
         FROM products
-        WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0${safeImagesSql}
-        ORDER BY match_score DESC, RANDOM() LIMIT $8`;
+        WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND array_length(sizes,1)>0${safeImagesSql}${accessoryExclusionSql}
+        ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), match_score DESC, RANDOM() LIMIT $8`;
       const fallbackResult = await pool.query(fallbackSql, [...params, MIN_RESULTS]);
       for (const r of fallbackResult.rows) {
         if (rows.length >= MIN_RESULTS) break;
@@ -3259,6 +3282,50 @@ app.get('/api/admin/image-review/search', adminAuth, async (req, res) => {
   }
 });
 
+app.get('/api/admin/image-review/reviewed', adminAuth, async (req, res) => {
+  try {
+    // מוצרים שכבר נסקרו ויש להם לפחות תמונה פתוחה אחת - לגלריית "כל התמונות הפתוחות".
+    // תומך בסינון לפי חנות, ובסינון להצגת מוצרי low_priority בלבד (כדי לבדוק/לבטל מה שכבר סומן)
+    const storeList = req.query.store ? req.query.store.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const onlyLowPriority = req.query.lowPriorityOnly === '1';
+    const limit = Math.min(parseInt(req.query.limit) || 40, 100);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    let sql = `SELECT id, title, store, image_url, images, valid_image_urls, low_priority, reviewed_at FROM products
+               WHERE reviewed_at IS NOT NULL AND has_valid_image = true
+               AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)`;
+    const params = [];
+    if (storeList.length) { params.push(storeList); sql += ` AND store = ANY($${params.length}::text[])`; }
+    if (onlyLowPriority) { sql += ` AND low_priority IS TRUE`; }
+    params.push(limit, offset);
+    sql += ` ORDER BY reviewed_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const { rows } = await pool.query(sql, params);
+
+    let countSql = `SELECT COUNT(*) c FROM products WHERE reviewed_at IS NOT NULL AND has_valid_image = true
+                     AND (banned IS NULL OR banned=false) AND (hidden_stale IS NULL OR hidden_stale=false)`;
+    const countParams = [];
+    if (storeList.length) { countParams.push(storeList); countSql += ` AND store = ANY($${countParams.length}::text[])`; }
+    if (onlyLowPriority) { countSql += ` AND low_priority IS TRUE`; }
+    const totalRes = await pool.query(countSql, countParams);
+
+    res.json({ products: rows, total: parseInt(totalRes.rows[0].c) });
+  } catch (err) {
+    console.error('image-review reviewed GET error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/admin/low-priority', adminAuth, async (req, res) => {
+  try {
+    const { id, lowPriority } = req.body;
+    if (!id) return res.status(400).json({ error: 'חסר id' });
+    await pool.query(`UPDATE products SET low_priority=$1 WHERE id=$2`, [!!lowPriority, id]);
+    res.json({ ok: true, lowPriority: !!lowPriority });
+  } catch (err) {
+    console.error('low-priority POST error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
 app.get('/api/admin/image-review', adminAuth, async (req, res) => {
   try {
     // תומך גם בחנות בודדת וגם ברשימה מופרדת בפסיקים (קבוצת חנויות)
@@ -5014,6 +5081,9 @@ app.listen(PORT, async () => {
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS has_valid_image BOOLEAN DEFAULT true`);
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP DEFAULT NULL`);
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS valid_image_urls TEXT[] DEFAULT NULL`);
+      // low_priority - דגל ידני (נקבע בכלי סקירת התמונות) למוצר שהתמונות הפתוחות
+      // שלו קיימות אך לא "מרשימות" - מוצג עדיין באתר, אבל תמיד אחרון (בגלישה כללית ובחיפוש)
+      await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS low_priority BOOLEAN DEFAULT false`);
       // מעקב פסיבי: אילו תמונות נבדקו בפועל בדפדפן של גולשות (תקין/חסום), נאסף אוטומטית תוך כדי גלישה רגילה
       await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_check_results JSONB DEFAULT '{}'::jsonb`);
       // "פרופיל" לומד-מעצמו לכל חנות: הגודל הממוצע (KB) של תמונות שכבר אושרו כתקינות בה.

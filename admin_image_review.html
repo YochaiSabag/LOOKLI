@@ -58,6 +58,7 @@
     <button class="tab-btn active" id="tabGallery" onclick="switchTab('gallery')">🖼️ גלריית תמונות מהירה</button>
     <button class="tab-btn" id="tabCards" onclick="switchTab('cards')">📇 לפי מוצר (מפורט)</button>
     <button class="tab-btn" id="tabSearch" onclick="switchTab('search')">🔍 חיפוש ותיקון מוצר</button>
+    <button class="tab-btn" id="tabAllOpen" onclick="switchTab('allOpen')">📌 כל התמונות הפתוחות</button>
   </div>
 
   <div id="galleryView">
@@ -141,15 +142,44 @@
     <div id="searchResultsContainer"></div>
   </div>
 
+  <div id="allOpenView" style="display:none">
+    <h1 style="margin-bottom:12px">📌 כל התמונות הפתוחות</h1>
+    <div style="font-size:13px;color:#7A4A63;margin-bottom:16px;line-height:1.6">
+      כל מוצר שכבר נסקר, עם התמונות שסומנו כ<b>פתוחות/תקינות</b> אצלו כרגע (ככה בדיוק הן מוצגות באתר).
+      אם התמונות הפתוחות של מוצר <b>לא מרשימות</b> (למשל אין תמונת מודל טובה, רק תמונת פריט שטוח) —
+      אפשר ללחוץ <b>"הצג אחרון באתר"</b> כדי שהמוצר עדיין יופיע, אבל תמיד בסוף התוצאות (גם בגלישה כללית וגם בחיפוש).
+      אפשר לבטל בכל רגע באותו כפתור.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <select id="allOpenStore" onchange="reloadAllOpen()" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
+        <option value="">כל החנויות</option>
+        <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+        <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+        <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+        <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+      </select>
+      <label style="font-size:13px;color:#4A2F3D;display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="allOpenOnlyLowPriority" onchange="reloadAllOpen()"/> הצג רק מוצרים שכבר מוגדרים "אחרון באתר"
+      </label>
+      <div class="remaining" id="allOpenCountBox">טוען...</div>
+    </div>
+    <div id="allOpenContainer"></div>
+    <div id="allOpenEmptyState" class="empty-state" style="display:none">אין מוצרים תואמים לסינון הזה</div>
+    <button id="allOpenLoadMoreBtn" class="load-more" style="display:none" onclick="loadAllOpenBatch()">טעני עוד</button>
+  </div>
+
 <script>
 function switchTab(tab) {
   document.getElementById('galleryView').style.display = tab === 'gallery' ? 'block' : 'none';
   document.getElementById('cardsView').style.display = tab === 'cards' ? 'block' : 'none';
   document.getElementById('searchView').style.display = tab === 'search' ? 'block' : 'none';
+  document.getElementById('allOpenView').style.display = tab === 'allOpen' ? 'block' : 'none';
   document.getElementById('tabGallery').classList.toggle('active', tab === 'gallery');
   document.getElementById('tabCards').classList.toggle('active', tab === 'cards');
   document.getElementById('tabSearch').classList.toggle('active', tab === 'search');
+  document.getElementById('tabAllOpen').classList.toggle('active', tab === 'allOpen');
   if (tab === 'cards' && !document.getElementById('cardsContainer').children.length) loadBatch();
+  if (tab === 'allOpen' && !document.getElementById('allOpenContainer').children.length) loadAllOpenBatch();
 }
 
 let galleryImages = [];
@@ -659,6 +689,97 @@ async function submitSearchReview(id, validUrls, blockedUrls, store) {
   } catch (e) {
     tag.textContent = 'שגיאה, נסי שוב';
     tag.style.color = '#dc2626';
+  }
+}
+</script>
+
+<script>
+let allOpenOffset = 0;
+const allOpenLimit = 40;
+let allOpenTotal = 0;
+
+function reloadAllOpen() {
+  document.getElementById('allOpenContainer').innerHTML = '';
+  allOpenOffset = 0;
+  loadAllOpenBatch();
+}
+
+async function loadAllOpenBatch() {
+  const store = document.getElementById('allOpenStore').value;
+  const onlyLowPriority = document.getElementById('allOpenOnlyLowPriority').checked ? '1' : '0';
+  const countBox = document.getElementById('allOpenCountBox');
+  const loadMoreBtn = document.getElementById('allOpenLoadMoreBtn');
+  loadMoreBtn.style.display = 'none';
+  countBox.textContent = 'טוענת...';
+  try {
+    const params = new URLSearchParams({ limit: allOpenLimit, offset: allOpenOffset, lowPriorityOnly: onlyLowPriority });
+    if (store) params.set('store', store);
+    const res = await fetch('/api/admin/image-review/reviewed?' + params, { credentials: 'include' });
+    const data = await res.json();
+    const products = data.products || [];
+    allOpenTotal = data.total || 0;
+    products.forEach(renderAllOpenCard);
+    allOpenOffset += products.length;
+    countBox.textContent = `${Math.min(allOpenOffset, allOpenTotal)} מתוך ${allOpenTotal}`;
+    document.getElementById('allOpenEmptyState').style.display = (!products.length && allOpenOffset === 0) ? 'block' : 'none';
+    loadMoreBtn.style.display = (allOpenOffset < allOpenTotal) ? 'block' : 'none';
+  } catch (e) {
+    countBox.textContent = 'שגיאה בטעינה';
+  }
+}
+
+function renderAllOpenCard(p) {
+  const validImages = p.valid_image_urls || [];
+  const container = document.getElementById('allOpenContainer');
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'aocard-' + p.id;
+
+  const thumbsHTML = validImages.map((img, i) => `
+    <div class="thumb-wrap selected" style="cursor:default">
+      <img src="${img}" loading="lazy" onerror="this.parentElement.style.opacity='0.3'"/>
+      <div class="thumb-num">${i+1}</div>
+    </div>`).join('');
+
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-title">${escapeHtml(p.title || '(ללא כותרת)')}</div>
+      <div class="card-store">${p.store || ''}</div>
+    </div>
+    <div class="ao-status" style="font-size:12px;color:#7A4A63;margin-bottom:10px">
+      ${validImages.length} תמונות פתוחות כרגע${p.low_priority ? ' · <b style="color:#dc2626">מוגדר כרגע: אחרון באתר</b>' : ''}
+    </div>
+    <div class="thumbs-scroll">${thumbsHTML || '<div style="color:#999;font-size:13px">אין תמונות פתוחות</div>'}</div>
+    <div class="card-actions">
+      <button class="btn" id="aobtn-${p.id}" style="background:${p.low_priority ? '#16a34a' : '#dc2626'};color:#fff" onclick="toggleLowPriority(${p.id})">
+        ${p.low_priority ? '✅ מוצג אחרון - לחצי לביטול' : '🔻 הצג אחרון באתר'}
+      </button>
+    </div>`;
+  container.appendChild(card);
+}
+
+async function toggleLowPriority(id) {
+  const card = document.getElementById('aocard-' + id);
+  const btn = document.getElementById('aobtn-' + id);
+  const currentlyLow = btn.textContent.includes('לחצי לביטול');
+  const newValue = !currentlyLow;
+  btn.disabled = true;
+  try {
+    await fetch('/api/admin/low-priority', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id, lowPriority: newValue })
+    });
+    btn.style.background = newValue ? '#16a34a' : '#dc2626';
+    btn.textContent = newValue ? '✅ מוצג אחרון - לחצי לביטול' : '🔻 הצג אחרון באתר';
+    const statusEl = card.querySelector('.ao-status');
+    const baseText = statusEl.textContent.split(' · ')[0];
+    statusEl.innerHTML = baseText + (newValue ? ' · <b style="color:#dc2626">מוגדר כרגע: אחרון באתר</b>' : '');
+  } catch (e) {
+    alert('שגיאה בשמירה, נסי שוב');
+  } finally {
+    btn.disabled = false;
   }
 }
 </script>

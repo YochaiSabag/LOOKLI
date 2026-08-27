@@ -799,6 +799,30 @@
     .auth-logout-btn{width:100%;background:#f9fafb;color:#ef4444;border:1.5px solid #fecaca;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;transition:all .2s}
     .auth-logout-btn:hover{background:#fef2f2}
 
+    /* ===== מודל מוצרים חדשים/מבצעים - חלון גדול נפרד, לא מתערבב עם עמוד החיפוש ===== */
+    .wn-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto}
+    .wn-modal-bg.open{display:flex}
+    .wn-modal{background:#fff;border-radius:20px;width:100%;max-width:1400px;margin:0 auto 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;position:relative}
+    .wn-modal-head{background:var(--header-gradient);padding:26px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+    .wn-modal-head h2{margin:0;color:#fff;font-size:24px;font-weight:800}
+    .wn-modal-head p{margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px}
+    .wn-modal-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+    .wn-modal-close:hover{background:rgba(255,255,255,.32)}
+    .wn-controls{padding:20px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:#fafafa}
+    .wn-pill-group{display:flex;gap:8px}
+    .wn-pill{padding:9px 18px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#666;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .wn-pill.active{border-color:var(--accent);background:var(--accent);color:#fff}
+    .wn-select{padding:9px 14px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#444;font-size:13px;font-weight:600;cursor:pointer;outline:none}
+    .wn-modal-body{padding:28px 32px;min-height:340px}
+    @media(max-width:768px){
+      .wn-modal-bg{padding:0}
+      .wn-modal{border-radius:0;max-width:100%;min-height:100vh;margin:0}
+      .wn-modal-head{padding:18px 18px}
+      .wn-modal-head h2{font-size:19px}
+      .wn-controls{padding:14px 18px}
+      .wn-modal-body{padding:16px 18px}
+    }
+
     /* ===== SAVED PANEL ===== */
     .saved-panel-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:900;justify-content:flex-start}
     .saved-panel-bg.open{display:flex}
@@ -968,7 +992,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span id="savedNavCount"></span>
         </button>
-        <button class="auth-btn" id="whatsNewNavBtn" onclick="openWhatsNew(0)" title="מוצרים חדשים">
+        <button class="auth-btn" id="whatsNewNavBtn" onclick="openWhatsNew()" title="מוצרים חדשים">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>
           <span class="auth-name">מוצרים חדשים</span>
         </button>
@@ -1241,7 +1265,6 @@
         </div>
         <span class="kids-promo-arrow">▾</span>
       </div>
-      <div id="whatsNewTabs" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
       <div class="grid" id="grid"></div>
     </main>
     
@@ -1648,7 +1671,7 @@ function toggleMobileNav(){
     menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);visibility:hidden;transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
     menu.innerHTML = `
       <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">דף הבית</a>
-      <a href="#" onclick="event.preventDefault();toggleMobileNav();openWhatsNew(0)" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🆕 מוצרים חדשים</a>
+      <a href="#" onclick="event.preventDefault();toggleMobileNav();openWhatsNew()" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🆕 מוצרים חדשים</a>
       <a href="/about" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">אודות</a>
       <a href="/contact" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">צור קשר</a>
     `;
@@ -2189,65 +2212,117 @@ async function runAISearch(){
 
 var skipScrollOnSearch=false;
 
-// ===== מוצרים חדשים (whats-new) - state עצמאי, לא נוגע ב-state של החיפוש הרגיל =====
+// ===== מוצרים חדשים / מבצעים - מודל גדול נפרד, לא מתערבב עם עמוד החיפוש =====
+// "השבוע" (week=0) בשרת כולל את 14 הימים האחרונים (שבוע נוכחי + שבוע קודם
+// ביחד) ופתוח לכולם. הדרופדאון לשבועות ישנים יותר (week=1-5) דורש חשבון.
 let wnCurrentWeek = 0;
 let wnCurrentType = 'new';
+let wnCurrentStore = '';
 let wnProducts = [];
 let wnTotal = 0;
-const WN_WEEK_LABELS = ['השבוע','לפני שבוע','לפני שבועיים','לפני 3 שבועות','לפני חודש','לפני 5 שבועות','לפני 6 שבועות','לפני חודשיים'];
 
-async function openWhatsNew(week, type){
-  wnCurrentWeek = week;
-  if (type) wnCurrentType = type;
-  const oldBtn = document.getElementById('loadMoreBtn'); if (oldBtn) oldBtn.remove();
-  setLoading();
-  document.getElementById("aiAnalysis").classList.remove("active");
-  window.scrollTo({top:0,behavior:'smooth'});
-  const params = new URLSearchParams({ week, type: wnCurrentType, limit: itemsPerPage, offset: 0 });
+function openWhatsNewModal(){
+  document.getElementById('wnModalBg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderWhatsNewControls();
+  fetchWhatsNew();
+}
+
+function closeWhatsNewModal(){
+  document.getElementById('wnModalBg').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// נקודת כניסה מהכפתורים בהדר/תפריט מובייל - תמיד פותחת ב"השבוע"
+function openWhatsNew(){
+  openWhatsNewModal();
+}
+
+function openWhatsNewRange(kind){
+  wnCurrentWeek = 0;
+  document.getElementById('wnOlderSelect').value = '';
+  fetchWhatsNew();
+}
+
+function onWhatsNewOlderSelect(){
+  const sel = document.getElementById('wnOlderSelect');
+  const val = sel.value;
+  if (!val) return;
+  wnCurrentWeek = parseInt(val);
+  fetchWhatsNew();
+}
+
+function onWhatsNewControlsChange(){
+  wnCurrentStore = document.getElementById('wnStoreFilter').value;
+  fetchWhatsNew();
+}
+
+function setWhatsNewType(type){
+  wnCurrentType = type;
+  renderWhatsNewControls();
+  fetchWhatsNew();
+}
+
+function renderWhatsNewControls(){
+  const toggle = document.getElementById('wnTypeToggle');
+  if (toggle) {
+    toggle.innerHTML = `
+      <button class="wn-pill${wnCurrentType==='new'?' active':''}" onclick="setWhatsNewType('new')">🆕 מוצרים חדשים</button>
+      <button class="wn-pill${wnCurrentType==='deals'?' active':''}" onclick="setWhatsNewType('deals')">🏷️ מבצעים</button>
+    `;
+  }
+  const thisWeekBtn = document.getElementById('wnThisWeekBtn');
+  if (thisWeekBtn) thisWeekBtn.classList.toggle('active', wnCurrentWeek === 0);
+  const olderSelect = document.getElementById('wnOlderSelect');
+  if (olderSelect) olderSelect.value = wnCurrentWeek > 0 ? String(wnCurrentWeek) : '';
+}
+
+async function fetchWhatsNew(){
+  const oldBtn = document.getElementById('wnLoadMoreBtn'); if (oldBtn) oldBtn.remove();
+  const grid = document.getElementById('whatsNewGrid');
+  const emptyState = document.getElementById('wnEmptyState');
+  emptyState.style.display = 'none';
+  grid.innerHTML = '<div class="card"><div class="img-wrap"></div><div class="card-body"><div style="height:16px;background:#f3f4f6;border-radius:8px;width:80%"></div></div></div>'.repeat(8);
+  renderWhatsNewControls();
+
+  const params = new URLSearchParams({ week: wnCurrentWeek, type: wnCurrentType, limit: itemsPerPage, offset: 0 });
+  if (wnCurrentStore) params.set('store', wnCurrentStore);
   const headers = {};
   if (typeof authToken !== 'undefined' && authToken) headers.Authorization = 'Bearer ' + authToken;
+
   let res, data;
   try {
     res = await fetch('/api/whats-new?' + params, { headers });
     data = await res.json();
   } catch(e) {
-    document.getElementById('grid').innerHTML = '<div class="empty">שגיאה בטעינה, נסי שוב</div>';
+    grid.innerHTML = '';
+    emptyState.textContent = 'שגיאה בטעינה, נסי שוב';
+    emptyState.style.display = 'block';
     return;
   }
-  renderWhatsNewTabs(week);
+
   if (res.status === 401 && data.requiresAuth) {
+    document.getElementById('wnOlderSelect').value = '';
+    wnCurrentWeek = 0;
+    closeWhatsNewModal();
     openAuthModal('whats-new');
-    document.getElementById('grid').innerHTML = '<div class="empty">השבוע הזה דורש חשבון - התחברי או הירשמי כדי לצפות</div>';
-    document.getElementById('metaToolbar').textContent = '';
     return;
   }
+
   wnProducts = data.results || [];
   wnTotal = data.total || 0;
-  renderProducts(wnProducts, false);
-  const typeLabel = wnCurrentType === 'deals' ? 'מבצעים' : 'מוצרים חדשים';
-  document.getElementById('metaToolbar').textContent = wnTotal
-    ? `${wnTotal} ${typeLabel} מ-${data.storeCount||0} חנויות`
-    : `אין ${typeLabel} בשבוע הזה`;
-  updateWhatsNewLoadMoreButton();
-  history.pushState({whatsNew:week}, '', '/?view=new&week=' + week + '&type=' + wnCurrentType);
-}
+  grid.innerHTML = '';
+  if (!wnProducts.length) {
+    emptyState.textContent = wnCurrentType === 'deals' ? 'אין מבצעים בטווח הזה' : 'אין מוצרים חדשים בטווח הזה';
+    emptyState.style.display = 'block';
+  } else {
+    renderProducts(wnProducts, false, 'whatsNewGrid');
+  }
 
-function renderWhatsNewTabs(activeWeek){
-  const wrap = document.getElementById('whatsNewTabs');
-  if (!wrap) return;
-  wrap.style.display = 'flex';
-  wrap.style.flexDirection = 'column';
-  wrap.style.gap = '10px';
-  const typeToggleHTML = `<div style="display:flex;gap:8px">
-    <button onclick="openWhatsNew(wnCurrentWeek,'new')" style="padding:8px 16px;border-radius:20px;border:1.5px solid ${wnCurrentType==='new'?'var(--accent)':'#ddd'};background:${wnCurrentType==='new'?'var(--accent)':'#fff'};color:${wnCurrentType==='new'?'#fff':'#666'};font-size:13px;font-weight:700;cursor:pointer">🆕 מוצרים חדשים</button>
-    <button onclick="openWhatsNew(wnCurrentWeek,'deals')" style="padding:8px 16px;border-radius:20px;border:1.5px solid ${wnCurrentType==='deals'?'var(--accent)':'#ddd'};background:${wnCurrentType==='deals'?'var(--accent)':'#fff'};color:${wnCurrentType==='deals'?'#fff':'#666'};font-size:13px;font-weight:700;cursor:pointer">🏷️ מבצעים</button>
-  </div>`;
-  const weekTabsHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px">` + WN_WEEK_LABELS.map((label, idx) => {
-    const locked = idx >= 2 && (typeof currentUser === 'undefined' || !currentUser);
-    const active = idx === activeWeek;
-    return `<button onclick="openWhatsNew(${idx})" style="padding:8px 16px;border-radius:20px;border:1.5px solid ${active?'var(--accent)':'#ddd'};background:${active?'var(--accent)':'#fff'};color:${active?'#fff':'#666'};font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">${label}${locked?' 🔒':''}</button>`;
-  }).join('') + `</div>`;
-  wrap.innerHTML = typeToggleHTML + weekTabsHTML;
+  const typeLabel = wnCurrentType === 'deals' ? 'מבצעים' : 'מוצרים חדשים';
+  document.getElementById('wnModalTitle').textContent = typeLabel;
+  document.getElementById('wnModalMeta').textContent = wnTotal ? `${wnTotal} תוצאות מ-${data.storeCount||0} חנויות` : '';
+  updateWhatsNewLoadMoreButton();
 }
 
 async function whatsNewLoadMore(){
@@ -2255,6 +2330,7 @@ async function whatsNewLoadMore(){
   isLoading = true;
   try {
     const params = new URLSearchParams({ week: wnCurrentWeek, type: wnCurrentType, limit: itemsPerPage, offset: wnProducts.length });
+    if (wnCurrentStore) params.set('store', wnCurrentStore);
     const headers = {};
     if (typeof authToken !== 'undefined' && authToken) headers.Authorization = 'Bearer ' + authToken;
     const res = await fetch('/api/whats-new?' + params, { headers });
@@ -2262,30 +2338,24 @@ async function whatsNewLoadMore(){
     const newBatch = data.results || [];
     wnProducts = wnProducts.concat(newBatch);
     wnTotal = data.total || wnTotal;
-    renderProducts(newBatch, true);
+    renderProducts(newBatch, true, 'whatsNewGrid');
     updateWhatsNewLoadMoreButton();
   } catch(e) { console.error(e); }
   finally { isLoading = false; }
 }
 
 function updateWhatsNewLoadMoreButton(){
-  let btn = document.getElementById('loadMoreBtn');
+  let btn = document.getElementById('wnLoadMoreBtn');
   if (wnProducts.length >= wnTotal) {
     if (btn) btn.remove();
   } else {
-    if (!btn) { btn = document.createElement('button'); btn.id = 'loadMoreBtn'; document.getElementById('grid').after(btn); }
+    if (!btn) { btn = document.createElement('button'); btn.id = 'wnLoadMoreBtn'; btn.className='load-more'; document.getElementById('whatsNewGrid').after(btn); }
     btn.onclick = whatsNewLoadMore;
     btn.textContent = 'טען עוד';
   }
 }
 
-function closeWhatsNewView(){
-  const wrap = document.getElementById('whatsNewTabs');
-  if (wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
-}
-
 async function runRegularSearch(){
-  closeWhatsNewView();
   lastImageAnalysis=null;
   setLoading();document.getElementById("aiAnalysis").classList.remove("active");
   if(!skipScrollOnSearch){window.scrollTo({top:0,behavior:'smooth'})}
@@ -2416,8 +2486,8 @@ function updateLoadMoreButton(){
 // Infinite scroll - טעינה אוטומטית בגלילה
 // גלילה: טען עוד רק בלחיצה על הכפתור
 
-function renderProducts(products,append=false){
-  const grid=document.getElementById("grid");
+function renderProducts(products,append=false,containerId='grid'){
+  const grid=document.getElementById(containerId);
   if(!append)grid.innerHTML="";
   if(!products?.length&&!append){grid.innerHTML='<div class="empty">לא נמצאו תוצאות</div>';return}
   let cardIndex = append ? grid.children.length : 0;
@@ -2949,9 +3019,14 @@ document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")
     window.addEventListener('DOMContentLoaded', () => { if (typeof openStylistUpload === 'function') openStylistUpload(); });
   }
   if (params.get('view') === 'new') {
-    const wk = Math.max(0, Math.min(parseInt(params.get('week')) || 0, 7));
+    const wk = Math.max(0, Math.min(parseInt(params.get('week')) || 0, 5));
     const tp = params.get('type') === 'deals' ? 'deals' : 'new';
-    window.addEventListener('DOMContentLoaded', () => { if (typeof openWhatsNew === 'function') openWhatsNew(wk, tp); });
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof openWhatsNewModal !== 'function') return;
+      wnCurrentType = tp;
+      wnCurrentWeek = wk;
+      openWhatsNewModal();
+    });
   }
 })();
 
@@ -3367,6 +3442,44 @@ document.addEventListener('click', e => {
       <div class="alert-popup-actions">
         <button class="alert-cancel-btn" onclick="closeAlertPopup()">ביטול</button>
         <button class="alert-save-btn" id="alertSaveBtn" onclick="saveAlert()">שמור</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- מודל מוצרים חדשים / מבצעים - חלון גדול נפרד -->
+  <div class="wn-modal-bg" id="wnModalBg" onclick="if(event.target===this)closeWhatsNewModal()">
+    <div class="wn-modal">
+      <div class="wn-modal-head">
+        <div>
+          <h2 id="wnModalTitle">מוצרים חדשים</h2>
+          <p id="wnModalMeta"></p>
+        </div>
+        <button class="wn-modal-close" onclick="closeWhatsNewModal()">✕</button>
+      </div>
+      <div class="wn-controls">
+        <div class="wn-pill-group" id="wnTypeToggle"></div>
+        <select class="wn-select" id="wnStoreFilter" onchange="onWhatsNewControlsChange()">
+          <option value="">כל החנויות</option>
+          <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
+          <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
+          <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
+          <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
+        </select>
+        <div class="wn-pill-group">
+          <button class="wn-pill" id="wnThisWeekBtn" onclick="openWhatsNewRange('thisWeek')">השבוע</button>
+        </div>
+        <select class="wn-select" id="wnOlderSelect" onchange="onWhatsNewOlderSelect()">
+          <option value="">שבועות ישנים יותר...</option>
+          <option value="1">לפני שבועיים 🔒</option>
+          <option value="2">לפני 3 שבועות 🔒</option>
+          <option value="3">לפני חודש 🔒</option>
+          <option value="4">לפני חודש וחצי 🔒</option>
+          <option value="5">לפני חודשיים 🔒</option>
+        </select>
+      </div>
+      <div class="wn-modal-body">
+        <div class="grid" id="whatsNewGrid"></div>
+        <div id="wnEmptyState" style="display:none;text-align:center;padding:60px 20px;color:#999"></div>
       </div>
     </div>
   </div>

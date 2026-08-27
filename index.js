@@ -998,23 +998,20 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-// API — "מוצרים חדשים" (whats-new) - עמוד באתר שמראה בדיוק את מה שהמייל השבועי
-// מראה, לפי שבוע נבחר. משתמש ב-first_seen (קבוע לכל מוצר) לחלוקה לשבועות -
-// אין צורך לשמור תמונות מצב נפרדות, כל שבוע הוא פשוט טווח תאריכים על אותו שדה.
-// שבועות 0-1 (השבוע ולפני שבוע) פתוחים לכולם; שבוע 2 ומעלה דורש חשבון מחובר באתר
-// (לא ניוזלטר - מערכת חשבונות נפרדת) כתמריץ להרשמה.
-// API — "מוצרים חדשים" (whats-new) - עמוד באתר שמראה בדיוק את מה ששני המיילים
-// השבועיים הנפרדים מראים (מוצרים חדשים / מבצעים), לפי שבוע נבחר. type=new (ברירת
+// API — "מוצרים חדשים" (whats-new) - מוצג במודל גדול נפרד באתר, מראה בדיוק את מה
+// ששני המיילים השבועיים הנפרדים מראים (מוצרים חדשים / מבצעים). type=new (ברירת
 // מחדל) משתמש ב-first_seen, type=deals משתמש ב-price_dropped_at + הנחה 10%+ -
 // אותה לוגיקה בדיוק כמו /api/cron/new-products-email ו-/api/cron/price-drop-email.
-// שני השדות קבועים לכל מוצר - אין צורך לשמור תמונות מצב נפרדות, כל שבוע הוא
-// פשוט טווח תאריכים. שבועות 0-1 (השבוע ולפני שבוע) פתוחים לכולם; שבוע 2 ומעלה
+// שני השדות קבועים לכל מוצר - אין צורך לשמור תמונות מצב נפרדות.
+// week=0 = 14 הימים האחרונים (שבוע נוכחי+קודם מאוחדים) - פתוח לכולם.
+// week=1-5 = דלי של 7 ימים כל אחד, החל מיום 14 והלאה (עד כ-2 חודשים אחורה) -
 // דורש חשבון מחובר באתר (לא ניוזלטר - מערכת חשבונות נפרדת) כתמריץ להרשמה.
 app.get('/api/whats-new', async (req, res) => {
   try {
-    const weekOffset = Math.max(0, Math.min(parseInt(req.query.week) || 0, 7)); // מקסימום 8 שבועות אחורה (כ-2 חודשים)
+    const weekOffset = Math.max(0, Math.min(parseInt(req.query.week) || 0, 5));
     const type = req.query.type === 'deals' ? 'deals' : 'new';
-    const requiresAuth = weekOffset >= 2;
+    const store = (req.query.store || '').trim().slice(0, 40) || null;
+    const requiresAuth = weekOffset >= 1;
 
     if (requiresAuth) {
       const auth = req.headers.authorization || '';
@@ -1025,8 +1022,9 @@ app.get('/api/whats-new', async (req, res) => {
       }
     }
 
-    const daysAgoStart = (weekOffset + 1) * 7;
-    const daysAgoEnd = weekOffset * 7;
+    // week=0: 0-14 ימים (מאוחד). week=N (N>=1): (14+7N) עד (14+7(N-1)) ימים אחורה
+    const daysAgoStart = weekOffset === 0 ? 14 : 14 + weekOffset * 7;
+    const daysAgoEnd = weekOffset === 0 ? 0 : 14 + (weekOffset - 1) * 7;
     const dateField = type === 'deals' ? 'price_dropped_at' : 'first_seen';
     const dealsCondition = type === 'deals'
       ? ` AND original_price IS NOT NULL AND original_price > 0 AND price > 0 AND original_price > price * 1.10`
@@ -1039,6 +1037,7 @@ app.get('/api/whats-new', async (req, res) => {
                AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))${dealsCondition}`;
     const params = [daysAgoStart, daysAgoEnd];
     let i = 3;
+    if (store) { sql += ` AND store = $${i++}`; params.push(store); }
 
     const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
@@ -1053,7 +1052,7 @@ app.get('/api/whats-new', async (req, res) => {
     const result = await pool.query(sql, params);
     const wantSafeImages = req.query.safeImages === '1';
 
-    // כמה חנויות שונות תרמו מוצרים/מבצעים השבוע הזה - לכותרת
+    // כמה חנויות שונות תרמו מוצרים/מבצעים בטווח הזה - לכותרת (לפני סינון לפי חנות ספציפית)
     const storesRes = await pool.query(
       `SELECT COUNT(DISTINCT store) AS c FROM products
        WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)

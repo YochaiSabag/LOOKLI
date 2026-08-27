@@ -968,6 +968,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span id="savedNavCount"></span>
         </button>
+        <button class="auth-btn" id="whatsNewNavBtn" onclick="openWhatsNew(0)" title="מוצרים חדשים">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>
+          <span class="auth-name">מוצרים חדשים</span>
+        </button>
         <button class="auth-btn stylist-nav-btn" id="stylistNavBtn" onclick="openStylistUpload()" title="סטייליסטית AI">
           <img src="/סטייליסטית.png" alt="" style="width:30px;height:30px;object-fit:contain;flex-shrink:0">
           <span class="auth-name">סטייליסטית AI</span>
@@ -1197,7 +1201,7 @@
         <div class="toolbar-right-group">
           <label class="filter-toggle-label netfree-box" id="safeImagesToggleWrap">
             <span style="display:flex;align-items:center;gap:6px">
-              <span>לאתר מסונן</span>
+              <span>לאתר מסונן - נטפרי</span>
               <span class="netfree-status" id="netfreeStatusDesktop" style="margin-top:0">כבוי</span>
               <span class="info-tooltip-icon netfree-info" data-tooltip="כשמופעל, מוצגים רק מוצרים עם תמונות פתוחות שנבדקו ואושרו לצפייה באתר המסונן נטפרי" onclick="event.preventDefault();event.stopPropagation()">?</span>
             </span>
@@ -1237,6 +1241,7 @@
         </div>
         <span class="kids-promo-arrow">▾</span>
       </div>
+      <div id="whatsNewTabs" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
       <div class="grid" id="grid"></div>
     </main>
     
@@ -1643,6 +1648,7 @@ function toggleMobileNav(){
     menu.style.cssText = 'position:fixed;top:60px;right:0;left:0;background:linear-gradient(135deg,#d191b0,#c48cb3);z-index:200;padding:16px;direction:rtl;transform:translateY(-110%);visibility:hidden;transition:transform .25s;box-shadow:0 8px 30px rgba(0,0,0,.2)';
     menu.innerHTML = `
       <a href="/" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">דף הבית</a>
+      <a href="#" onclick="event.preventDefault();toggleMobileNav();openWhatsNew(0)" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">🆕 מוצרים חדשים</a>
       <a href="/about" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none;margin-bottom:4px">אודות</a>
       <a href="/contact" style="display:block;color:#fff;font-size:15px;font-weight:700;padding:12px 16px;border-radius:8px;text-decoration:none">צור קשר</a>
     `;
@@ -2183,7 +2189,103 @@ async function runAISearch(){
 
 var skipScrollOnSearch=false;
 
+// ===== מוצרים חדשים (whats-new) - state עצמאי, לא נוגע ב-state של החיפוש הרגיל =====
+let wnCurrentWeek = 0;
+let wnCurrentType = 'new';
+let wnProducts = [];
+let wnTotal = 0;
+const WN_WEEK_LABELS = ['השבוע','לפני שבוע','לפני שבועיים','לפני 3 שבועות','לפני חודש','לפני 5 שבועות','לפני 6 שבועות','לפני חודשיים'];
+
+async function openWhatsNew(week, type){
+  wnCurrentWeek = week;
+  if (type) wnCurrentType = type;
+  const oldBtn = document.getElementById('loadMoreBtn'); if (oldBtn) oldBtn.remove();
+  setLoading();
+  document.getElementById("aiAnalysis").classList.remove("active");
+  window.scrollTo({top:0,behavior:'smooth'});
+  const params = new URLSearchParams({ week, type: wnCurrentType, limit: itemsPerPage, offset: 0 });
+  const headers = {};
+  if (typeof authToken !== 'undefined' && authToken) headers.Authorization = 'Bearer ' + authToken;
+  let res, data;
+  try {
+    res = await fetch('/api/whats-new?' + params, { headers });
+    data = await res.json();
+  } catch(e) {
+    document.getElementById('grid').innerHTML = '<div class="empty">שגיאה בטעינה, נסי שוב</div>';
+    return;
+  }
+  renderWhatsNewTabs(week);
+  if (res.status === 401 && data.requiresAuth) {
+    openAuthModal('whats-new');
+    document.getElementById('grid').innerHTML = '<div class="empty">השבוע הזה דורש חשבון - התחברי או הירשמי כדי לצפות</div>';
+    document.getElementById('metaToolbar').textContent = '';
+    return;
+  }
+  wnProducts = data.results || [];
+  wnTotal = data.total || 0;
+  renderProducts(wnProducts, false);
+  const typeLabel = wnCurrentType === 'deals' ? 'מבצעים' : 'מוצרים חדשים';
+  document.getElementById('metaToolbar').textContent = wnTotal
+    ? `${wnTotal} ${typeLabel} מ-${data.storeCount||0} חנויות`
+    : `אין ${typeLabel} בשבוע הזה`;
+  updateWhatsNewLoadMoreButton();
+  history.pushState({whatsNew:week}, '', '/?view=new&week=' + week + '&type=' + wnCurrentType);
+}
+
+function renderWhatsNewTabs(activeWeek){
+  const wrap = document.getElementById('whatsNewTabs');
+  if (!wrap) return;
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '10px';
+  const typeToggleHTML = `<div style="display:flex;gap:8px">
+    <button onclick="openWhatsNew(wnCurrentWeek,'new')" style="padding:8px 16px;border-radius:20px;border:1.5px solid ${wnCurrentType==='new'?'var(--accent)':'#ddd'};background:${wnCurrentType==='new'?'var(--accent)':'#fff'};color:${wnCurrentType==='new'?'#fff':'#666'};font-size:13px;font-weight:700;cursor:pointer">🆕 מוצרים חדשים</button>
+    <button onclick="openWhatsNew(wnCurrentWeek,'deals')" style="padding:8px 16px;border-radius:20px;border:1.5px solid ${wnCurrentType==='deals'?'var(--accent)':'#ddd'};background:${wnCurrentType==='deals'?'var(--accent)':'#fff'};color:${wnCurrentType==='deals'?'#fff':'#666'};font-size:13px;font-weight:700;cursor:pointer">🏷️ מבצעים</button>
+  </div>`;
+  const weekTabsHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px">` + WN_WEEK_LABELS.map((label, idx) => {
+    const locked = idx >= 2 && (typeof currentUser === 'undefined' || !currentUser);
+    const active = idx === activeWeek;
+    return `<button onclick="openWhatsNew(${idx})" style="padding:8px 16px;border-radius:20px;border:1.5px solid ${active?'var(--accent)':'#ddd'};background:${active?'var(--accent)':'#fff'};color:${active?'#fff':'#666'};font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">${label}${locked?' 🔒':''}</button>`;
+  }).join('') + `</div>`;
+  wrap.innerHTML = typeToggleHTML + weekTabsHTML;
+}
+
+async function whatsNewLoadMore(){
+  if (isLoading || wnProducts.length >= wnTotal) return;
+  isLoading = true;
+  try {
+    const params = new URLSearchParams({ week: wnCurrentWeek, type: wnCurrentType, limit: itemsPerPage, offset: wnProducts.length });
+    const headers = {};
+    if (typeof authToken !== 'undefined' && authToken) headers.Authorization = 'Bearer ' + authToken;
+    const res = await fetch('/api/whats-new?' + params, { headers });
+    const data = await res.json();
+    const newBatch = data.results || [];
+    wnProducts = wnProducts.concat(newBatch);
+    wnTotal = data.total || wnTotal;
+    renderProducts(newBatch, true);
+    updateWhatsNewLoadMoreButton();
+  } catch(e) { console.error(e); }
+  finally { isLoading = false; }
+}
+
+function updateWhatsNewLoadMoreButton(){
+  let btn = document.getElementById('loadMoreBtn');
+  if (wnProducts.length >= wnTotal) {
+    if (btn) btn.remove();
+  } else {
+    if (!btn) { btn = document.createElement('button'); btn.id = 'loadMoreBtn'; document.getElementById('grid').after(btn); }
+    btn.onclick = whatsNewLoadMore;
+    btn.textContent = 'טען עוד';
+  }
+}
+
+function closeWhatsNewView(){
+  const wrap = document.getElementById('whatsNewTabs');
+  if (wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
+}
+
 async function runRegularSearch(){
+  closeWhatsNewView();
   lastImageAnalysis=null;
   setLoading();document.getElementById("aiAnalysis").classList.remove("active");
   if(!skipScrollOnSearch){window.scrollTo({top:0,behavior:'smooth'})}
@@ -2846,6 +2948,11 @@ document.getElementById("q").addEventListener("keypress",e=>{if(e.key==="Enter")
   if (params.get('openStylist') === '1') {
     window.addEventListener('DOMContentLoaded', () => { if (typeof openStylistUpload === 'function') openStylistUpload(); });
   }
+  if (params.get('view') === 'new') {
+    const wk = Math.max(0, Math.min(parseInt(params.get('week')) || 0, 7));
+    const tp = params.get('type') === 'deals' ? 'deals' : 'new';
+    window.addEventListener('DOMContentLoaded', () => { if (typeof openWhatsNew === 'function') openWhatsNew(wk, tp); });
+  }
 })();
 
 // ===== Typewriter placeholder =====
@@ -3498,6 +3605,10 @@ document.addEventListener('click', e => {
     } else if (reason === 'image-search') {
       titleText = 'רגע לפני שמוצאים את הפריט';
       subText = 'חיפוש לפי תמונה זמין בחינם למשתמשות רשומות - הרשמה לוקחת פחות מדקה';
+      tab = 'register';
+    } else if (reason === 'whats-new') {
+      titleText = 'לצפייה בשבועות ישנים יותר';
+      subText = 'חשבון חינמי פותח גישה לכל ההיסטוריה של המוצרים החדשים - הרשמה לוקחת פחות מדקה';
       tab = 'register';
     } else {
       titleText = 'ברוכה הבאה ל-LOOKLI';

@@ -998,7 +998,83 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-// API — מוצרי ילדים בלבד (is_kids=true) - עמוד/קטגוריה נפרדת. רזה בכוונה: לא כל
+// API — "מוצרים חדשים" (whats-new) - עמוד באתר שמראה בדיוק את מה שהמייל השבועי
+// מראה, לפי שבוע נבחר. משתמש ב-first_seen (קבוע לכל מוצר) לחלוקה לשבועות -
+// אין צורך לשמור תמונות מצב נפרדות, כל שבוע הוא פשוט טווח תאריכים על אותו שדה.
+// שבועות 0-1 (השבוע ולפני שבוע) פתוחים לכולם; שבוע 2 ומעלה דורש חשבון מחובר באתר
+// (לא ניוזלטר - מערכת חשבונות נפרדת) כתמריץ להרשמה.
+// API — "מוצרים חדשים" (whats-new) - עמוד באתר שמראה בדיוק את מה ששני המיילים
+// השבועיים הנפרדים מראים (מוצרים חדשים / מבצעים), לפי שבוע נבחר. type=new (ברירת
+// מחדל) משתמש ב-first_seen, type=deals משתמש ב-price_dropped_at + הנחה 10%+ -
+// אותה לוגיקה בדיוק כמו /api/cron/new-products-email ו-/api/cron/price-drop-email.
+// שני השדות קבועים לכל מוצר - אין צורך לשמור תמונות מצב נפרדות, כל שבוע הוא
+// פשוט טווח תאריכים. שבועות 0-1 (השבוע ולפני שבוע) פתוחים לכולם; שבוע 2 ומעלה
+// דורש חשבון מחובר באתר (לא ניוזלטר - מערכת חשבונות נפרדת) כתמריץ להרשמה.
+app.get('/api/whats-new', async (req, res) => {
+  try {
+    const weekOffset = Math.max(0, Math.min(parseInt(req.query.week) || 0, 7)); // מקסימום 8 שבועות אחורה (כ-2 חודשים)
+    const type = req.query.type === 'deals' ? 'deals' : 'new';
+    const requiresAuth = weekOffset >= 2;
+
+    if (requiresAuth) {
+      const auth = req.headers.authorization || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+      const data = token ? verifyToken(token) : null;
+      if (!data) {
+        return res.status(401).json({ error: 'נדרש חשבון באתר כדי לצפות בשבועות ישנים יותר', requiresAuth: true });
+      }
+    }
+
+    const daysAgoStart = (weekOffset + 1) * 7;
+    const daysAgoEnd = weekOffset * 7;
+    const dateField = type === 'deals' ? 'price_dropped_at' : 'first_seen';
+    const dealsCondition = type === 'deals'
+      ? ` AND original_price IS NOT NULL AND original_price > 0 AND price > 0 AND original_price > price * 1.10`
+      : '';
+
+    let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, ${dateField}
+               FROM products
+               WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false)
+               AND ${dateField} >= NOW() - ($1 || ' days')::interval AND ${dateField} < NOW() - ($2 || ' days')::interval
+               AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))${dealsCondition}`;
+    const params = [daysAgoStart, daysAgoEnd];
+    let i = 3;
+
+    const countResult = await pool.query(`SELECT COUNT(*) AS total FROM (${sql}) AS sub`, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), ${dateField} DESC`;
+
+    const limit = Math.min(parseInt(req.query.limit) || 40, 100);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    sql += ` LIMIT $${i} OFFSET $${i + 1}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(sql, params);
+    const wantSafeImages = req.query.safeImages === '1';
+
+    // כמה חנויות שונות תרמו מוצרים/מבצעים השבוע הזה - לכותרת
+    const storesRes = await pool.query(
+      `SELECT COUNT(DISTINCT store) AS c FROM products
+       WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)
+       AND ${dateField} >= NOW() - ($1 || ' days')::interval AND ${dateField} < NOW() - ($2 || ' days')::interval${dealsCondition}`,
+      [daysAgoStart, daysAgoEnd]
+    );
+
+    res.json({
+      results: result.rows.map(p => ({ ...applySafeImages(p, wantSafeImages), shipping: calculateShipping(p.store, p.price) })),
+      total,
+      week: weekOffset,
+      type,
+      storeCount: parseInt(storesRes.rows[0]?.c || 0)
+    });
+  } catch (err) {
+    console.error("whats-new error:", err.message);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+
 // הפילטרים המורכבים של מבוגרים (style/fit/pattern/fabric), רק מה שרלוונטי בפועל לילדים
 // שאילתת מוצרי ילדים משותפת - בשימוש גם מ-/api/kids-products וגם מהענף המקביל
 // בתוך /api/products. נפרדת בכוונה מהבנאי המורכב של /api/products הרגיל (שם יש

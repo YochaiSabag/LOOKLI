@@ -256,6 +256,7 @@
       .logo img{height:36px}
       .header-nav{display:none}
       .auth-name{display:none}
+      #whatsNewNavBtn{display:none}
       .auth-btn{padding:8px;min-width:unset}
       .stylist-nav-btn{padding:2px}
       .header-auth{gap:4px}
@@ -811,14 +812,18 @@
     .wn-modal-close:hover{background:rgba(255,255,255,.32)}
     .wn-controls{padding:18px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:22px;align-items:center;background:#fafafa}
     .wn-type-tabs{display:flex;border-bottom:1px solid #eee}
-    .wn-type-tab{flex:1;padding:18px;text-align:center;font-size:16px;font-weight:800;cursor:pointer;background:#f5f5f5;color:#999;border:none;border-bottom:3px solid transparent;transition:all .15s;font-family:inherit}
-    .wn-type-tab:hover:not(.active){background:#eee;color:#777}
-    .wn-type-tab.active{background:#fff;color:var(--accent-dark);border-bottom-color:var(--accent)}
+    .wn-type-tab{flex:1;padding:18px;text-align:center;font-size:16px;font-weight:800;cursor:pointer;background:#f5f5f5;color:#555;border:none;border-bottom:3px solid transparent;transition:all .15s;font-family:inherit}
+    .wn-type-tab:hover:not(.active){background:#ececec;color:#333}
+    .wn-type-tab.active{background:var(--header-gradient);color:#fff;border-bottom-color:transparent}
     .wn-week-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .wn-store-controls{display:flex;align-items:center;gap:10px;padding-right:22px;border-right:1.5px solid #ddd}
     @media(max-width:768px){
       .wn-type-tab{padding:14px;font-size:14px}
-      .wn-store-controls{border-right:none;padding-right:0;border-top:1px solid #ddd;padding-top:14px;width:100%}
+      .wn-controls{flex-direction:column;align-items:stretch;gap:14px;padding:16px 18px}
+      .wn-week-controls{width:100%;flex-direction:column;align-items:stretch}
+      .wn-week-controls .wn-pill{width:100%;text-align:center;box-sizing:border-box}
+      .wn-select{width:100%;box-sizing:border-box}
+      .wn-store-controls{border-right:none;padding-right:0;border-top:1px solid #ddd;padding-top:14px;width:100%;flex-direction:column;align-items:stretch;gap:8px}
     }
     .wn-pill{padding:9px 18px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#666;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
     .wn-pill.active{border-color:var(--accent);background:var(--accent);color:#fff}
@@ -829,7 +834,6 @@
       .wn-modal{border-radius:0;max-width:100%;min-height:100vh;margin:0}
       .wn-modal-head{padding:18px 18px}
       .wn-modal-head h2{font-size:19px}
-      .wn-controls{padding:14px 18px}
       .wn-modal-body{padding:16px 18px}
     }
 

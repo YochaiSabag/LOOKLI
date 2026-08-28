@@ -53,7 +53,7 @@ async function runHealthCheck() {
       store,
       COUNT(*)                                                         AS total,
       COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 days')  AS fresh,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '8 hours') AS current_run,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '24 hours') AS current_run,
       MAX(last_seen)                                                   AS last_seen,
       COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
       COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,
@@ -182,7 +182,7 @@ async function runHealthCheck() {
         <thead>
           <tr style="background:#f9fafb;font-size:12px;color:#6b7280">
             <th style="padding:10px 8px;text-align:right">חנות</th>
-            <th style="text-align:center">הרצה נוכחית</th>
+            <th style="text-align:center">24 שעות אחרונות</th>
             <th style="text-align:center">סה"כ</th>
             <th style="text-align:center">עדכון אחרון</th>
             <th style="text-align:center">🖼️ תמונה</th>
@@ -208,7 +208,7 @@ async function runHealthCheck() {
         ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מסה"כ מוצרי החנות<br/>🙈 הוסתרו = מוצרים שלא נמצאו 3 הרצות רצופות — מוסתרים מהאתר אך לא נמחקו
       </div>
       <div style="margin-top:12px;background:#f0fdf4;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d;font-weight:600;display:inline-block">
-        🏃 הרצה נוכחית: ${totalCurrent} / ${totalAll} מוצרים עודכנו
+        🏃 24 שעות אחרונות: ${totalCurrent} / ${totalAll} מוצרים עודכנו
       </div>
     </div>
     ${noColorSection}

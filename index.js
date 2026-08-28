@@ -1055,20 +1055,25 @@ app.get('/api/whats-new', async (req, res) => {
     const result = await pool.query(sql, params);
     const wantSafeImages = req.query.safeImages === '1';
 
-    // כמה חנויות שונות תרמו מוצרים/מבצעים בטווח הזה - לכותרת (לפני סינון לפי חנות ספציפית)
+    // אילו חנויות בפועל תרמו מוצרים/מבצעים בטווח הזה (לפני סינון לפי חנות ספציפית) -
+    // כדי שבורר החנות יציג רק חנויות רלוונטיות, לא את כל 16 החנויות תמיד
     const storesRes = await pool.query(
-      `SELECT COUNT(DISTINCT store) AS c FROM products
-       WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false)
-       AND ${dateField} >= NOW() - ($1 || ' days')::interval AND ${dateField} < NOW() - ($2 || ' days')::interval${dealsCondition}`,
+      `SELECT DISTINCT store FROM products
+       WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false)
+       AND ${dateField} >= NOW() - ($1 || ' days')::interval AND ${dateField} < NOW() - ($2 || ' days')::interval
+       AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))${dealsCondition}
+       ORDER BY store`,
       [daysAgoStart, daysAgoEnd]
     );
+    const availableStores = storesRes.rows.map(r => r.store).filter(Boolean);
 
     res.json({
       results: result.rows.map(p => ({ ...applySafeImages(p, wantSafeImages), shipping: calculateShipping(p.store, p.price) })),
       total,
       week: weekOffset,
       type,
-      storeCount: parseInt(storesRes.rows[0]?.c || 0)
+      storeCount: availableStores.length,
+      stores: availableStores
     });
   } catch (err) {
     console.error("whats-new error:", err.message);
@@ -4962,11 +4967,25 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
     const maps = { category:{}, style:{}, fit:{}, fabric:{}, pattern:{} };
     cfgRows.rows.forEach(r => { if (maps[r.type]) maps[r.type][r.name] = (r.aliases||[]).map(a=>a.toLowerCase()); });
 
-    // פונקציית זיהוי לפי כותרת
-    function detect(text, map) {
+    // פירוק טקסט למילים שלמות (לא תת-מחרוזות) - זהה ללוגיקה ב-scraper_utils.js.
+    // מונע התאמות שגויות כמו 'וסט' בתוך 'לקוסט' (Lacoste) או 'תיק' בתוך 'תיקון'.
+    // גם מטפל בקידומות עבריות (ל/ב/מ/ש/כ) כדי לתפוס גם "בחולצה" למשל.
+    function tokenize(text) {
       const t = (text||'').toLowerCase();
+      const rawWords = t.split(/[^\u05d0-\u05eaa-z0-9\u05f3]+/).filter(Boolean);
+      const words = new Set();
+      for (const w of rawWords) {
+        words.add(w);
+        if (/^[לבמשכ][\u05d0-\u05ea]/.test(w) && w.length > 2) words.add(w.slice(1));
+      }
+      return words;
+    }
+
+    // פונקציית זיהוי לפי כותרת - התאמת מילה שלמה בלבד
+    function detect(text, map) {
+      const words = tokenize(text);
       for (const [name, aliases] of Object.entries(map)) {
-        if (aliases.some(a => t.includes(a))) return name;
+        if (aliases.some(a => words.has(a))) return name;
       }
       return null;
     }
@@ -5000,10 +5019,10 @@ app.post('/api/admin/retag-products', adminAuth, async (req, res) => {
          WHERE NOT ('color' = ANY(COALESCE(tagged_fields, '{}')))`
       );
       for (const p of colorProds.rows) {
-        const t = (p.title || '').toLowerCase();
+        const words = tokenize(p.title || '');
         let found = null;
         for (const [alias, name] of Object.entries(colorAliasMap)) {
-          if (alias.length >= 2 && t.includes(alias)) { found = name; break; }
+          if (alias.length >= 2 && words.has(alias)) { found = name; break; }
         }
         if (found) {
           if (found !== p.color) {

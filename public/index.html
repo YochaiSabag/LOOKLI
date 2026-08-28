@@ -810,42 +810,45 @@
     .wn-modal-head p{margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px;font-family:inherit}
     .wn-modal-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
     .wn-modal-close:hover{background:rgba(255,255,255,.32)}
-    .wn-controls{padding:18px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:22px;align-items:center;background:#fafafa}
+    .wn-controls{padding:18px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:22px;align-items:center;justify-content:space-between;background:#fafafa}
     .wn-type-tabs-wrap{background:#e6e6e6;padding:16px 28px 0;display:flex;align-items:flex-end;gap:0}
-    .wn-type-tab{flex:1;padding:15px 18px;text-align:center;font-size:15.5px;font-weight:700;cursor:pointer;background:#d8d8d8;color:#8d8d8d;border:none;transition:all .22s cubic-bezier(.4,0,.2,1);font-family:inherit;position:relative}
-    .wn-type-tab:first-child{border-radius:0 16px 0 0}
-    .wn-type-tab:last-child{border-radius:16px 0 0 0}
+    .wn-type-tab{flex:1;margin:0;padding:15px 18px;text-align:center;font-size:15.5px;font-weight:700;cursor:pointer;background:#d8d8d8;color:#8d8d8d;border:none;border-radius:0;transition:all .22s cubic-bezier(.4,0,.2,1);font-family:inherit;position:relative}
     .wn-type-tab:hover:not(.active){background:#cacaca;color:#666}
-    .wn-type-tab.active{background:var(--header-gradient);color:#fff;padding-top:19px;padding-bottom:19px;box-shadow:0 -8px 20px rgba(0,0,0,.16);z-index:2}
-    /* "שפיץ" מקצועי - הכרטיסייה הפעילה נראית כאילו היא עולה ומתחברת חלק לתוך
-       הלא-פעילה, בדיוק כמו טאבים בדפדפן. הפינה החיצונית (קצה הקבוצה) נשארת
-       מעוגלת רגיל; רק הצד הפנימי (שנוגע בכרטיסייה השנייה) מקבל את אפקט העקומה. */
-    .wn-type-tab.active:first-child{border-radius:0 18px 0 0}
-    .wn-type-tab.active:last-child{border-radius:18px 0 0 0}
+    .wn-type-tab.active{background:var(--header-gradient);color:#fff;padding-top:19px;padding-bottom:19px;box-shadow:0 -6px 14px rgba(0,0,0,.14);position:relative;z-index:2}
+    /* עיגול חזק בקצה החיצוני, עיגול עדין יותר בפינה הפנימית-עליונה (לא מרובעת
+       לגמרי, אבל פחות מהחיצונית) - הלא-פעילה תמיד מרובעת לגמרי משני הצדדים.
+       שתי הכרטיסיות נצמדות באמצע בקו 0 בדיוק. בנוסף: שפיץ קטן ועדין בפינה
+       הפנימית-תחתונה של הפעילה - יושב ממש מעל הלא-פעילה (z-index) לא לידה,
+       בצבע שממשיך בדיוק את הגרדיאנט באותה נקודה - עקומה קעורה שנותנת תחושה
+       שהמשך המסך זורם ממנה, בדיוק כמו טאבים בדפדפן כרום. */
+    .wn-type-tab.active:first-child{border-radius:5px 16px 0 0}
+    .wn-type-tab.active:last-child{border-radius:16px 5px 0 0}
     .wn-type-tab.active:first-child::after,
-    .wn-type-tab.active:last-child::before{content:'';position:absolute;bottom:0;width:18px;height:18px;pointer-events:none}
-    .wn-type-tab.active:first-child::after{left:-18px;border-radius:0 0 18px 0;box-shadow:9px 9px 0 9px var(--accent-dark)}
-    .wn-type-tab.active:last-child::before{right:-18px;border-radius:0 0 0 18px;box-shadow:-9px 9px 0 9px var(--accent-dark)}
+    .wn-type-tab.active:last-child::before{content:'';position:absolute;bottom:0;width:14px;height:14px;pointer-events:none;z-index:3}
+    .wn-type-tab.active:first-child::after{left:-14px;background:radial-gradient(circle at top left, transparent 14px, #d191b0 14px)}
+    .wn-type-tab.active:last-child::before{right:-14px;background:radial-gradient(circle at top right, transparent 14px, #c48cb3 14px)}
     .wn-meta-line{padding:10px 32px 0;font-size:12.5px;color:#999;font-weight:600}
     @media(max-width:768px){.wn-meta-line{padding:8px 18px 0}}
     .wn-week-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-    .wn-store-controls{display:flex;align-items:center;gap:10px;padding-right:22px;border-right:1.5px solid #ddd}
+    .wn-store-controls{display:flex;align-items:center;gap:10px}
     @media(max-width:768px){
       .wn-type-tabs-wrap{padding:10px 12px 0;align-items:flex-end}
       .wn-type-tab{padding:12px 8px;font-size:13.5px}
       .wn-type-tab.active{padding-top:15px;padding-bottom:15px}
-      .wn-type-tab.active:first-child::after,.wn-type-tab.active:last-child::before{width:13px;height:13px}
-      .wn-type-tab.active:first-child::after{left:-13px;box-shadow:6.5px 6.5px 0 6.5px var(--accent-dark)}
-      .wn-type-tab.active:last-child::before{right:-13px;box-shadow:-6.5px 6.5px 0 6.5px var(--accent-dark)}
+      .wn-type-tab.active:first-child{border-radius:4px 12px 0 0}
+      .wn-type-tab.active:last-child{border-radius:12px 4px 0 0}
+      .wn-type-tab.active:first-child::after,.wn-type-tab.active:last-child::before{width:10px;height:10px}
+      .wn-type-tab.active:first-child::after{left:-10px;background:radial-gradient(circle at top left, transparent 10px, #d191b0 10px)}
+      .wn-type-tab.active:last-child::before{right:-10px;background:radial-gradient(circle at top right, transparent 10px, #c48cb3 10px)}
       .wn-controls{flex-direction:column;align-items:stretch;gap:14px;padding:16px 18px}
       .wn-week-controls{width:100%;flex-direction:column;align-items:stretch}
       .wn-week-controls .wn-pill{width:100%;text-align:center;box-sizing:border-box}
       .wn-select{width:100%;box-sizing:border-box}
-      .wn-store-controls{border-right:none;padding-right:0;border-top:1px solid #ddd;padding-top:14px;width:100%;flex-direction:column;align-items:stretch;gap:8px}
+      .wn-store-controls{border-top:1px solid #ddd;padding-top:14px;width:100%;flex-direction:column;align-items:stretch;gap:8px}
     }
     .wn-pill{padding:9px 18px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#666;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
     .wn-pill.active{border-color:var(--accent);background:var(--accent);color:#fff}
-    .wn-select{padding:9px 14px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#444;font-size:13px;font-weight:600;cursor:pointer;outline:none}
+    .wn-select{padding:9px 34px 9px 14px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#444;font-size:13px;font-weight:600;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;-moz-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 12px center;background-size:12px}
     .wn-modal-body{padding:28px 32px;min-height:340px}
     @media(max-width:768px){
       .wn-modal-bg{padding:0}
@@ -1415,6 +1418,7 @@
       <div class="footer-section">
         <h4>ניווט</h4>
         <a href="/">דף הבית</a>
+        <a href="#" onclick="event.preventDefault();openWhatsNew()">מה חדש</a>
         <a href="/about">אודות</a>
         <a href="/contact">צור קשר</a>
         <a href="/contact?type=bug">דיווח על בעיה</a>
@@ -3492,12 +3496,12 @@ document.addEventListener('click', e => {
       <div class="wn-modal-head">
         <div>
           <h2>מה חדש באופנה שלנו</h2>
-          <p>המבצעים החדשים והמוצרים שנחתו על המדף - במקום אחד</p>
+          <p>המבצעים החמים והמוצרים שממש נחתו על המדף</p>
         </div>
         <button class="wn-modal-close" onclick="closeWhatsNewModal()">✕</button>
       </div>
       <div class="wn-type-tabs-wrap">
-        <div id="wnTypeTabs" style="display:flex;gap:10px;flex:1"></div>
+        <div id="wnTypeTabs" style="display:flex;gap:0;flex:1"></div>
       </div>
       <div id="wnModalMeta" class="wn-meta-line"></div>
       <div class="wn-controls">
@@ -3513,7 +3517,6 @@ document.addEventListener('click', e => {
           </select>
         </div>
         <div class="wn-store-controls">
-          <span style="font-size:12.5px;color:#888;font-weight:600;white-space:nowrap">סינון לפי חנות:</span>
           <select class="wn-select" id="wnStoreFilter" onchange="onWhatsNewControlsChange()">
             <option value="">כל החנויות</option>
             <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>

@@ -830,7 +830,15 @@
     .wn-meta-line{padding:10px 32px 0;font-size:12.5px;color:#999;font-weight:600}
     @media(max-width:768px){.wn-meta-line{padding:8px 18px 0}}
     .wn-week-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-    .wn-store-controls{display:flex;align-items:center;gap:10px}
+    .wn-store-controls{display:flex;align-items:center;gap:10px;position:relative}
+    .wn-store-trigger{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#444;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+    .wn-store-trigger:hover{border-color:#bbb}
+    .wn-store-popup{display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:20;background:#fff;border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.18);padding:14px;width:260px;max-height:320px;overflow-y:auto}
+    .wn-store-popup.open{display:block}
+    .wn-store-popup .store-opts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    @media(max-width:768px){
+      .wn-store-popup{right:auto;left:0;width:100%;max-width:280px}
+    }
     @media(max-width:768px){
       .wn-type-tabs-wrap{padding:10px 12px 0;align-items:flex-end}
       .wn-type-tab{padding:12px 8px;font-size:13.5px}
@@ -2296,8 +2304,47 @@ function onWhatsNewOlderSelect(){
   fetchWhatsNew();
 }
 
-function onWhatsNewControlsChange(){
-  wnCurrentStore = document.getElementById('wnStoreFilter').value;
+const WN_STORES_LIST = ['AVIVIT','AVIYAH','CHEMISE','CHEN','EUROPISRAEL','LEAA','LICHI','MEKIMI','MIMA','MODA','MYME','ORDMAN','RARE','SALINA','SHEBELLO','ST-FASHION'];
+
+function toggleWnStorePicker(e){
+  e.stopPropagation();
+  const popup = document.getElementById('wnStorePopup');
+  const isOpening = !popup.classList.contains('open');
+  popup.classList.toggle('open');
+  if (isOpening && !popup.dataset.rendered) {
+    renderWnStoreLogos();
+    popup.dataset.rendered = '1';
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const popup = document.getElementById('wnStorePopup');
+  const controls = document.getElementById('wnStoreTrigger');
+  if (popup && popup.classList.contains('open') && !popup.contains(e.target) && e.target !== controls && !controls.contains(e.target)) {
+    popup.classList.remove('open');
+  }
+});
+
+function renderWnStoreLogos(){
+  const wrap = document.getElementById('wnStoreLogos');
+  if (!wrap) return;
+  const localOnly = new Set(['CHEN','ORDMAN']);
+  wrap.innerHTML = WN_STORES_LIST.map(s => {
+    const fallback = storeLogos[s] || '';
+    const bgStyle = (typeof darkBgStores !== 'undefined' && darkBgStores.has(s)) ? 'style="background:#1a1a2e"' : '';
+    const src = localOnly.has(s) ? `/${s.toLowerCase()}-logo.png` : fallback;
+    const displayName = (typeof storeDisplayNames !== 'undefined' && storeDisplayNames[s]) || s;
+    const img = src ? `<img src="${src}" alt="${s}"${localOnly.has(s) ? ` onerror="this.src='${fallback}'"` : ''}>` : `<span>${s.substring(0,3)}</span>`;
+    return `<div class="store-opt${wnCurrentStore===s?' active':''}" data-store="${s}" data-tooltip="${displayName}" onclick="selectWnStore('${s}')" ${bgStyle}>${img}</div>`;
+  }).join('');
+}
+
+function selectWnStore(s){
+  wnCurrentStore = (wnCurrentStore === s) ? '' : s;
+  const displayName = (typeof storeDisplayNames !== 'undefined' && storeDisplayNames[wnCurrentStore]) || wnCurrentStore;
+  document.getElementById('wnStoreTriggerLabel').textContent = wnCurrentStore ? displayName : 'כל החנויות';
+  document.querySelectorAll('#wnStoreLogos .store-opt').forEach(el => el.classList.toggle('active', el.dataset.store === wnCurrentStore));
+  document.getElementById('wnStorePopup').classList.remove('open');
   fetchWhatsNew();
 }
 
@@ -2361,7 +2408,7 @@ async function fetchWhatsNew(){
     emptyState.textContent = wnCurrentType === 'deals' ? 'אין מבצעים בטווח הזה' : 'אין מוצרים חדשים בטווח הזה';
     emptyState.style.display = 'block';
   } else {
-    renderProducts(wnProducts, false, 'whatsNewGrid');
+    renderProducts(interleaveByStore(wnProducts), false, 'whatsNewGrid');
   }
 
   const typeLabel = wnCurrentType === 'deals' ? 'מבצעים' : 'מוצרים חדשים';
@@ -2382,7 +2429,7 @@ async function whatsNewLoadMore(){
     const newBatch = data.results || [];
     wnProducts = wnProducts.concat(newBatch);
     wnTotal = data.total || wnTotal;
-    renderProducts(newBatch, true, 'whatsNewGrid');
+    renderProducts(interleaveByStore(newBatch), true, 'whatsNewGrid');
     updateWhatsNewLoadMoreButton();
   } catch(e) { console.error(e); }
   finally { isLoading = false; }
@@ -3517,13 +3564,13 @@ document.addEventListener('click', e => {
           </select>
         </div>
         <div class="wn-store-controls">
-          <select class="wn-select" id="wnStoreFilter" onchange="onWhatsNewControlsChange()">
-            <option value="">כל החנויות</option>
-            <option>AVIVIT</option><option>AVIYAH</option><option>CHEMISE</option><option>CHEN</option>
-            <option>EUROPISRAEL</option><option>LEAA</option><option>LICHI</option><option>MEKIMI</option>
-            <option>MIMA</option><option>MODA</option><option>MYME</option><option>ORDMAN</option>
-            <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
-          </select>
+          <button type="button" class="wn-store-trigger" id="wnStoreTrigger" onclick="toggleWnStorePicker(event)">
+            <span id="wnStoreTriggerLabel">כל החנויות</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><image width="12" height="12" href="data:image/webp;base64,UklGRkYBAABXRUJQVlA4WAoAAAAYAAAACwAACwAAQUxQSDAAAAABN6CgbRumd/BHuTQiIrD6fjDINtIUXuEUTuEUTuH9MT5PENH/CbAlu91t5yUkcAFWUDggLgAAALABAJ0BKgwADAACADQlpAAC50VaNAAA/vUH//w8/53B/+MlA50CsQ/9LjAAAABFWElGugAAAEV4aWYAAElJKgAIAAAABgASAQMAAQAAAAEAAAAaAQUAAQAAAFYAAAAbAQUAAQAAAF4AAAAoAQMAAQAAAAIAAAATAgMAAQAAAAEAAABphwQAAQAAAGYAAAAAAAAASAAAAAEAAABIAAAAAQAAAAYAAJAHAAQAAAAwMjEwAZEHAAQAAAABAgMAAKAHAAQAAAAwMTAwAaADAAEAAAD//wAAAqAEAAEAAAAMAAAAA6AEAAEAAAAMAAAAAAAAAA=="/></svg>
+          </button>
+          <div class="wn-store-popup" id="wnStorePopup">
+            <div class="store-opts" id="wnStoreLogos"></div>
+          </div>
         </div>
       </div>
       <div class="wn-modal-body">

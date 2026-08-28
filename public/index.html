@@ -811,14 +811,18 @@
     .wn-modal-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
     .wn-modal-close:hover{background:rgba(255,255,255,.32)}
     .wn-controls{padding:18px 32px;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:22px;align-items:center;background:#fafafa}
-    .wn-type-tabs{display:flex;border-bottom:1px solid #eee}
-    .wn-type-tab{flex:1;padding:18px;text-align:center;font-size:16px;font-weight:800;cursor:pointer;background:#f5f5f5;color:#555;border:none;border-bottom:3px solid transparent;transition:all .15s;font-family:inherit}
-    .wn-type-tab:hover:not(.active){background:#ececec;color:#333}
-    .wn-type-tab.active{background:var(--header-gradient);color:#fff;border-bottom-color:transparent}
+    .wn-type-tabs-wrap{background:#e6e6e6;padding:16px 28px 0;display:flex;align-items:flex-end;gap:0}
+    .wn-type-tab{flex:1;padding:15px 18px;text-align:center;font-size:15.5px;font-weight:800;cursor:pointer;background:#d8d8d8;color:#8d8d8d;border:none;border-radius:14px 14px 0 0;transition:all .22s cubic-bezier(.4,0,.2,1);font-family:inherit;position:relative}
+    .wn-type-tab:hover:not(.active){background:#cacaca;color:#666}
+    .wn-type-tab.active{background:var(--header-gradient);color:#fff;padding-top:19px;padding-bottom:19px;border-radius:16px 16px 0 0;box-shadow:0 -8px 20px rgba(0,0,0,.16);z-index:2}
+    .wn-meta-line{padding:10px 32px 0;font-size:12.5px;color:#999;font-weight:600}
+    @media(max-width:768px){.wn-meta-line{padding:8px 18px 0}}
     .wn-week-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .wn-store-controls{display:flex;align-items:center;gap:10px;padding-right:22px;border-right:1.5px solid #ddd}
     @media(max-width:768px){
-      .wn-type-tab{padding:14px;font-size:14px}
+      .wn-type-tabs-wrap{padding:10px 12px 0;align-items:flex-end}
+      .wn-type-tab{padding:12px 8px;font-size:13.5px;border-radius:11px 11px 0 0}
+      .wn-type-tab.active{padding-top:15px;padding-bottom:15px;border-radius:13px 13px 0 0}
       .wn-controls{flex-direction:column;align-items:stretch;gap:14px;padding:16px 18px}
       .wn-week-controls{width:100%;flex-direction:column;align-items:stretch}
       .wn-week-controls .wn-pill{width:100%;text-align:center;box-sizing:border-box}
@@ -2234,6 +2238,7 @@ let wnCurrentType = 'new';
 let wnCurrentStore = '';
 let wnProducts = [];
 let wnTotal = 0;
+let wnPendingWeek = null; // שבוע שהמשתמשת ביקשה אבל נדרשת התחברות - כדי להמשיך בדיוק משם אחרי הרשמה/כניסה
 
 function openWhatsNewModal(){
   document.getElementById('wnModalBg').classList.add('open');
@@ -2262,7 +2267,16 @@ function onWhatsNewOlderSelect(){
   const sel = document.getElementById('wnOlderSelect');
   const val = sel.value;
   if (!val) return;
-  wnCurrentWeek = parseInt(val);
+  const weekNum = parseInt(val);
+  // בדיקה מוקדמת בלקוח - אם לא מחוברת, ישר בקשת התחברות בלי קריאת API מיותרת
+  // שממילא תיכשל. החלון נשאר פתוח ברקע - אחרי הרשמה/כניסה ממשיכים בדיוק מכאן
+  if (weekNum >= 1 && (typeof currentUser === 'undefined' || !currentUser)) {
+    wnPendingWeek = weekNum;
+    sel.value = wnCurrentWeek > 0 ? String(wnCurrentWeek) : '';
+    openAuthModal('whats-new');
+    return;
+  }
+  wnCurrentWeek = weekNum;
   fetchWhatsNew();
 }
 
@@ -2316,9 +2330,10 @@ async function fetchWhatsNew(){
   }
 
   if (res.status === 401 && data.requiresAuth) {
-    document.getElementById('wnOlderSelect').value = '';
-    wnCurrentWeek = 0;
-    closeWhatsNewModal();
+    wnPendingWeek = wnCurrentWeek;
+    document.getElementById('whatsNewGrid').innerHTML = '';
+    emptyState.textContent = 'התחברי או הירשמי כדי לצפות בטווח הזה - ממשיכים בדיוק מכאן אחרי ההתחברות';
+    emptyState.style.display = 'block';
     openAuthModal('whats-new');
     return;
   }
@@ -2334,8 +2349,7 @@ async function fetchWhatsNew(){
   }
 
   const typeLabel = wnCurrentType === 'deals' ? 'מבצעים' : 'מוצרים חדשים';
-  document.getElementById('wnModalTitle').textContent = typeLabel;
-  document.getElementById('wnModalMeta').textContent = wnTotal ? `${wnTotal} תוצאות מ-${data.storeCount||0} חנויות` : '';
+  document.getElementById('wnModalMeta').textContent = wnTotal ? `${wnTotal} ${typeLabel} · מ-${data.storeCount||0} חנויות` : '';
   updateWhatsNewLoadMoreButton();
 }
 
@@ -3465,12 +3479,15 @@ document.addEventListener('click', e => {
     <div class="wn-modal">
       <div class="wn-modal-head">
         <div>
-          <h2 id="wnModalTitle">מוצרים חדשים</h2>
-          <p id="wnModalMeta"></p>
+          <h2>מה חדש באופנה שלנו</h2>
+          <p>המבצעים החדשים והמוצרים שנחתו על המדף - במקום אחד</p>
         </div>
         <button class="wn-modal-close" onclick="closeWhatsNewModal()">✕</button>
       </div>
-      <div class="wn-type-tabs" id="wnTypeTabs"></div>
+      <div class="wn-type-tabs-wrap">
+        <div id="wnTypeTabs" style="display:flex;gap:10px;flex:1"></div>
+      </div>
+      <div id="wnModalMeta" class="wn-meta-line"></div>
       <div class="wn-controls">
         <div class="wn-week-controls">
           <button class="wn-pill" id="wnThisWeekBtn" onclick="openWhatsNewRange('thisWeek')">שבוע אחרון</button>
@@ -3696,6 +3713,20 @@ document.addEventListener('click', e => {
       if (savedBtn) savedBtn.style.display = 'none';
     }
     refreshSavedState();
+    // המשך אוטומטי ל"מוצרים חדשים" - אם המשתמשת ביקשה טווח נעול והתבקשה
+    // להתחבר, אחרי הרשמה/כניסה מוצלחת ממשיכים בדיוק מאותו טווח, בלי לאבד מקום
+    if (user && typeof wnPendingWeek !== 'undefined' && wnPendingWeek !== null) {
+      const pending = wnPendingWeek;
+      wnPendingWeek = null;
+      if (typeof closeAuthModal === 'function') closeAuthModal();
+      wnCurrentWeek = pending;
+      const wnBg = document.getElementById('wnModalBg');
+      if (wnBg && !wnBg.classList.contains('open')) {
+        wnBg.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+      if (typeof fetchWhatsNew === 'function') fetchWhatsNew();
+    }
   }
 
   async function refreshSavedState() {

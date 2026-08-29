@@ -212,7 +212,7 @@ async function loadData() {
 }
 
 function render(data, periodLabel) {
-  const { totals, daily, stores, topProducts, devices, sources } = data;
+  const { totals, daily, stores, topProducts, devices, sources, detailedSources } = data;
   const totalDev = Object.values(devices||{}).reduce((a,b)=>a+b,0) || 1;
   const mobile  = devices?.mobile  || 0;
   const desktop = devices?.desktop || 0;
@@ -235,11 +235,22 @@ function render(data, periodLabel) {
     'Organic Video': 'וידאו אורגני',
     'Display': 'באנרים',
   };
+  // דומיינים מדויקים תחת כל קטגוריה - כדי לדעת בדיוק איזה אתר הפנה, לא רק "הפניה מאתר אחר" כללי
+  const detailedByChannel = {};
+  (detailedSources||[]).forEach(d => {
+    if (!detailedByChannel[d.channel]) detailedByChannel[d.channel] = [];
+    detailedByChannel[d.channel].push(d);
+  });
   const sourceRows = (sources||[]).length ? (sources||[]).map(s => {
     const pctVal = pct(s.sessions, totalSrc);
     const label = SOURCE_LABELS[s.name] || s.name;
+    const detail = (detailedByChannel[s.name] || []).slice(0, 6);
+    const detailHtml = detail.length ? `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          ${detail.map(d => `<span style="background:var(--surface2,#f1f1f1);border-radius:12px;padding:3px 10px;font-size:11.5px;color:var(--muted)">${esc(d.source)} · ${fmt(d.sessions)}</span>`).join('')}
+        </div>` : '';
     return `
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
           <span style="font-weight:600;color:var(--text)">${esc(label)}</span>
           <span style="color:var(--muted)">${fmt(s.sessions)} כניסות · ${pctVal}%</span>
@@ -247,6 +258,7 @@ function render(data, periodLabel) {
         <div style="background:var(--surface2,#f1f1f1);border-radius:6px;height:8px;overflow:hidden">
           <div style="width:${pctVal}%;height:100%;background:var(--accent);border-radius:6px"></div>
         </div>
+        ${detailHtml}
       </div>`;
   }).join('') : `<div style="color:var(--muted);font-size:13px;padding:8px 0">אין נתוני מקור תנועה בטווח הזה</div>`;
 

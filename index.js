@@ -3495,7 +3495,7 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
       : { startDate: `${days}daysAgo`, endDate: 'today' }];
     const token = await getGA4Token();
 
-    const [overview, daily, outbound, deviceData, sourceData] = await Promise.all([
+    const [overview, daily, outbound, deviceData, sourceData, detailedSourceData] = await Promise.all([
       ga4Query(token, {
         dateRanges: dateRange,
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'newUsers' }, { name: 'screenPageViews' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }]
@@ -3522,6 +3522,14 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
+      }),
+      // דומיין/מקור מדויק (לא רק קטגוריה כללית) - כדי לדעת בדיוק איזה אתר הפנה
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'sessionDefaultChannelGroup' }, { name: 'sessionSource' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 25
       })
     ]);
 
@@ -3615,7 +3623,15 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
       users: parseInt(r.metricValues[1]?.value || 0)
     }));
 
-    res.json({ totals, daily: dailyMerged, stores, topProducts: dbTopProducts, devices: deviceMap, sources });
+    // אותו דבר, אבל עם הדומיין/מקור המדויק (למשל facebook.com, google, אתר ספציפי
+    // שהפנה) - כדי לדעת בדיוק איזה אתר, לא רק את הקטגוריה הכללית שלו
+    const detailedSources = (detailedSourceData.rows || []).map(r => ({
+      channel: r.dimensionValues[0]?.value || '(לא ידוע)',
+      source: r.dimensionValues[1]?.value || '(direct)',
+      sessions: parseInt(r.metricValues[0]?.value || 0)
+    }));
+
+    res.json({ totals, daily: dailyMerged, stores, topProducts: dbTopProducts, devices: deviceMap, sources, detailedSources });
   } catch(e) {
     console.error('[analytics]', e.message);
     res.status(500).json({ error: e.message });

@@ -212,13 +212,43 @@ async function loadData() {
 }
 
 function render(data, periodLabel) {
-  const { totals, daily, stores, topProducts, devices } = data;
+  const { totals, daily, stores, topProducts, devices, sources } = data;
   const totalDev = Object.values(devices||{}).reduce((a,b)=>a+b,0) || 1;
   const mobile  = devices?.mobile  || 0;
   const desktop = devices?.desktop || 0;
   const tablet  = devices?.tablet  || 0;
   const avgMin  = totals.avgDuration ? Math.floor(totals.avgDuration/60)+'m '+Math.floor(totals.avgDuration%60)+'s' : '—';
   const bounceP = totals.bounceRate ? Math.round(totals.bounceRate*100)+'%' : '—';
+
+  // מקורות תנועה - "שם הערוץ" של GA4 (Organic Search / Direct / Email / Referral וכו') כבר
+  // בעברית-מתורגמת חלקית בממשק, פה משאירים כמו שה-API מחזיר. פס-אחוז בצבע אחיד, בלי אימוג'ים
+  const totalSrc = (sources||[]).reduce((a,s)=>a+s.sessions,0) || 1;
+  const SOURCE_LABELS = {
+    'Organic Search': 'חיפוש אורגני (גוגל וכו\')',
+    'Direct': 'ישיר (הקלדת כתובת/מועדפים)',
+    'Referral': 'הפניה מאתר אחר',
+    'Email': 'מייל',
+    'Organic Social': 'רשתות חברתיות (אורגני)',
+    'Paid Social': 'רשתות חברתיות (ממומן)',
+    'Paid Search': 'חיפוש ממומן',
+    'Unassigned': 'לא משויך',
+    'Organic Video': 'וידאו אורגני',
+    'Display': 'באנרים',
+  };
+  const sourceRows = (sources||[]).length ? (sources||[]).map(s => {
+    const pctVal = pct(s.sessions, totalSrc);
+    const label = SOURCE_LABELS[s.name] || s.name;
+    return `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span style="font-weight:600;color:var(--text)">${esc(label)}</span>
+          <span style="color:var(--muted)">${fmt(s.sessions)} כניסות · ${pctVal}%</span>
+        </div>
+        <div style="background:var(--surface2,#f1f1f1);border-radius:6px;height:8px;overflow:hidden">
+          <div style="width:${pctVal}%;height:100%;background:var(--accent);border-radius:6px"></div>
+        </div>
+      </div>`;
+  }).join('') : `<div style="color:var(--muted);font-size:13px;padding:8px 0">אין נתוני מקור תנועה בטווח הזה</div>`;
 
   document.getElementById('content').innerHTML = `
     <!-- KPIs -->
@@ -233,7 +263,13 @@ function render(data, periodLabel) {
         <div class="kpi-glow" style="background:var(--green)"></div>
         <div class="kpi-label">משתמשים ייחודיים</div>
         <div class="kpi-value" style="color:var(--green)">${fmt(totals.users)}</div>
-        <div class="kpi-sub">גולשים שונים</div>
+        <div class="kpi-sub">כל הגולשים בטווח (כולל חוזרים)</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-glow" style="background:var(--accent2)"></div>
+        <div class="kpi-label">משתמשים חדשים לגמרי</div>
+        <div class="kpi-value" style="color:var(--accent2)">${fmt(totals.newUsers)}</div>
+        <div class="kpi-sub">מעולם לא ביקרו קודם</div>
       </div>
       <div class="kpi">
         <div class="kpi-glow" style="background:var(--pink)"></div>
@@ -287,6 +323,14 @@ function render(data, periodLabel) {
           <div class="device-pct">${pct(tablet,totalDev)}% מהכניסות</div>
         </div>
       </div>
+    </div>
+
+    <!-- Traffic sources -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">מקורות תנועה</div>
+      </div>
+      <div id="sourcesBreakdown">${sourceRows}</div>
     </div>
 
     <!-- Chart -->

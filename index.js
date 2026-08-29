@@ -3497,10 +3497,10 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
       : { startDate: `${days}daysAgo`, endDate: 'today' }];
     const token = await getGA4Token();
 
-    const [overview, daily, outbound, deviceData] = await Promise.all([
+    const [overview, daily, outbound, deviceData, sourceData] = await Promise.all([
       ga4Query(token, {
         dateRanges: dateRange,
-        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'screenPageViews' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }]
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'newUsers' }, { name: 'screenPageViews' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }]
       }),
       ga4Query(token, {
         dateRanges: dateRange,
@@ -3518,15 +3518,22 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
         dateRanges: dateRange,
         dimensions: [{ name: 'deviceCategory' }],
         metrics: [{ name: 'sessions' }, { name: 'totalUsers' }]
+      }),
+      ga4Query(token, {
+        dateRanges: dateRange,
+        dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
       })
     ]);
 
     const totals = {
       sessions:    parseInt(overview.rows?.[0]?.metricValues?.[0]?.value || 0),
       users:       parseInt(overview.rows?.[0]?.metricValues?.[1]?.value || 0),
-      pageViews:   parseInt(overview.rows?.[0]?.metricValues?.[2]?.value || 0),
-      bounceRate:  parseFloat(overview.rows?.[0]?.metricValues?.[3]?.value || 0),
-      avgDuration: parseFloat(overview.rows?.[0]?.metricValues?.[4]?.value || 0),
+      newUsers:    parseInt(overview.rows?.[0]?.metricValues?.[2]?.value || 0),
+      pageViews:   parseInt(overview.rows?.[0]?.metricValues?.[3]?.value || 0),
+      bounceRate:  parseFloat(overview.rows?.[0]?.metricValues?.[4]?.value || 0),
+      avgDuration: parseFloat(overview.rows?.[0]?.metricValues?.[5]?.value || 0),
       outboundClicks: 0
     };
 
@@ -3602,7 +3609,15 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
       return { ...d, clicks: dbDay?.clicks || 0 };
     });
 
-    res.json({ totals, daily: dailyMerged, stores, topProducts: dbTopProducts, devices: deviceMap });
+    // מקורות תנועה (חיפוש אורגני / ישיר / מייל / רשתות חברתיות וכו') -
+    // sessionDefaultChannelGroup זו הקטגוריזציה הרשמית של GA4, לא צריך למפות ידנית
+    const sources = (sourceData.rows || []).map(r => ({
+      name: r.dimensionValues[0]?.value || '(לא ידוע)',
+      sessions: parseInt(r.metricValues[0]?.value || 0),
+      users: parseInt(r.metricValues[1]?.value || 0)
+    }));
+
+    res.json({ totals, daily: dailyMerged, stores, topProducts: dbTopProducts, devices: deviceMap, sources });
   } catch(e) {
     console.error('[analytics]', e.message);
     res.status(500).json({ error: e.message });

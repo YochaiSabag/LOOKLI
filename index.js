@@ -363,8 +363,6 @@ app.get("/product/:slug", async (req, res) => {
     const img = safeEncodeUrl((product.images?.[0]) || product.image_url || '');
     const url = `${base}/product/${encodeURIComponent(slug)}`;
 
-    const html = await res.sendFile(path.join(__dirname, "public", "index.html"), {}, async (err) => {});
-
     // קרא את ה-index.html והזרק meta tags
     const fs = await import('fs');
     let indexHtml = fs.readFileSync(path.join(__dirname, "public", "index.html"), 'utf8');

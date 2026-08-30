@@ -118,10 +118,10 @@ async function getAllProductUrls(page) {
   // ===== TEST MODE =====
   // כדי לבדוק מוצר בודד בלבד (למשל לוודא שעדכון המידות/הצבעים עובד) —
   // הסירי את ה-// משתי השורות הבאות, הריצי, ואז תחזירי אותן בחזרה (// לפני return)
-   TEST_MODE_ACTIVE = true; return [
-     'https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%98-%d7%a9%d7%9e%d7%99%d7%96/',
-     'https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a9%d7%9e%d7%99%d7%96-%d7%a8%d7%99%d7%91/',
-   ];
+  // TEST_MODE_ACTIVE = true; return [
+  //   'https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a1%d7%a8%d7%98-%d7%a9%d7%9e%d7%99%d7%96/',
+  //   'https://chemise.co.il/product/%d7%97%d7%95%d7%9c%d7%a6%d7%aa-%d7%a9%d7%9e%d7%99%d7%96-%d7%a8%d7%99%d7%91/',
+  // ];
   // ===== END TEST MODE =====
 
   console.log('\n📂 איסוף קישורים...\n');

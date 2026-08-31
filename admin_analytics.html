@@ -58,19 +58,22 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
 .legend-dot{width:8px;height:8px;border-radius:50%}
 
-.chart-wrap{height:170px;overflow:visible}
-.line-chart-svg{width:100%;height:140px;overflow:visible;display:block}
+.chart-scroll{overflow-x:auto;overflow-y:hidden;direction:ltr}
+.chart-wrap{height:210px}
+.line-chart-svg{height:170px;display:block}
 .line-path{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .line-path.sessions{stroke:var(--accent)}
-.line-path.newUsers{stroke:var(--accent2)}
-.line-path.clicks{stroke:var(--green)}
+.line-path.newUsers{stroke:var(--accent2);stroke-dasharray:6 3}
+.line-path.clicks{stroke:var(--green);stroke-dasharray:1.5 3.5}
+.line-path.avgDuration{stroke:var(--yellow);stroke-dasharray:9 2 2 2}
 .line-dot{stroke:var(--surface);stroke-width:1.5;cursor:pointer;transition:r .15s}
 .line-dot.sessions{fill:var(--accent)}
 .line-dot.newUsers{fill:var(--accent2)}
 .line-dot.clicks{fill:var(--green)}
+.line-dot.avgDuration{fill:var(--yellow)}
 .line-dot:hover,.line-dot.selected{r:5}
-.chart-labels{display:flex;justify-content:space-between;margin-top:6px}
-.chart-label-item{font-size:9px;color:var(--muted);flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart-labels{display:flex;margin-top:6px}
+.chart-label-item{font-size:9px;color:var(--muted);text-align:center;white-space:nowrap;flex-shrink:0}
 .chart-label-item.selected{color:var(--text);font-weight:700}
 
 /* Stores */
@@ -358,11 +361,14 @@ function render(data, periodLabel) {
           <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>כניסות</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>משתמשים חדשים</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>קליקים לחנויות</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>זמן גלישה ממוצע</div>
         </div>
       </div>
       <div id="dailyAvgSummary" style="display:flex;gap:12px;margin-bottom:14px"></div>
       <div id="dayDetailPanel" style="display:none;background:var(--bg2,rgba(255,255,255,.04));border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px"></div>
-      <div class="chart-wrap" id="chartWrap"></div>
+      <div class="chart-scroll" id="chartScroll">
+        <div class="chart-wrap" id="chartWrap"></div>
+      </div>
     </div>
 
     <!-- Stores + Products -->
@@ -451,20 +457,18 @@ function formatDuration(seconds) {
 function renderDailyAvgSummary(daily) {
   const el = document.getElementById('dailyAvgSummary');
   if (!el || !daily?.length) { if (el) el.innerHTML = ''; return; }
-  const avgUsers = daily.reduce((s, d) => s + (d.users || 0), 0) / daily.length;
-  const avgDuration = daily.reduce((s, d) => s + (d.avgDuration || 0), 0) / daily.length;
-  el.innerHTML = `
+  const avg = key => daily.reduce((s,d) => s + (d[key] || 0), 0) / daily.length;
+  const box = (label, value, color) => `
     <div class="kpi" style="flex:1;padding:14px 16px">
-      <div class="kpi-glow" style="background:var(--yellow)"></div>
-      <div class="kpi-label" style="font-size:11px">משתמשים ייחודיים בממוצע ליום</div>
-      <div class="kpi-value" style="font-size:22px;color:var(--yellow)">${Math.round(avgUsers)}</div>
-    </div>
-    <div class="kpi" style="flex:1;padding:14px 16px">
-      <div class="kpi-glow" style="background:var(--accent2)"></div>
-      <div class="kpi-label" style="font-size:11px">זמן גלישה ממוצע ליום</div>
-      <div class="kpi-value" style="font-size:22px;color:var(--accent2)">${formatDuration(avgDuration)}</div>
-    </div>
-  `;
+      <div class="kpi-glow" style="background:${color}"></div>
+      <div class="kpi-label" style="font-size:11px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block"></span>${label}</div>
+      <div class="kpi-value" style="font-size:22px;color:${color}">${value}</div>
+    </div>`;
+  el.innerHTML =
+    box('כניסות בממוצע ליום', Math.round(avg('sessions')), 'var(--accent)') +
+    box('משתמשים חדשים בממוצע ליום', Math.round(avg('newUsers')), 'var(--accent2)') +
+    box('קליקים לחנויות בממוצע ליום', Math.round(avg('clicks')), 'var(--green)') +
+    box('זמן גלישה ממוצע ליום', formatDuration(avg('avgDuration')), 'var(--yellow)');
 }
 
 function showDayDetail(dateStr) {
@@ -486,16 +490,19 @@ function showDayDetail(dateStr) {
 }
 
 function drawChart(daily) {
+  const scrollEl = document.getElementById('chartScroll');
   const wrap = document.getElementById('chartWrap');
   if (!wrap || !daily?.length) return;
   _dailyDataRef = daily;
   renderDailyAvgSummary(daily);
   const n = daily.length;
-  const W = 1000, H = 140, PAD = 8;
+  const DAY_W = 34, H = 170, PAD = 10;
+  const W = Math.max(n * DAY_W, 300);
   const maxS = Math.max(...daily.map(d=>d.sessions), 1);
   const maxN = Math.max(...daily.map(d=>d.newUsers||0), 1);
   const maxC = Math.max(...daily.map(d=>d.clicks||0), 1);
-  const xAt = i => n > 1 ? (i/(n-1))*W : W/2;
+  const maxD = Math.max(...daily.map(d=>d.avgDuration||0), 1);
+  const xAt = i => n > 1 ? (i/(n-1)) * (W - DAY_W) + DAY_W/2 : W/2;
   const yAt = (v,max) => H - PAD - (v/max)*(H-PAD*2);
   const linePts = (key,max) => daily.map((d,i)=>`${xAt(i)},${yAt(d[key]||0,max)}`).join(' ');
   const dotsFor = (key,max,cls,titleFn) => daily.map((d,i) => {
@@ -503,18 +510,21 @@ function drawChart(daily) {
     return `<circle class="line-dot ${cls}" data-date="${d.date}" cx="${x}" cy="${y}" r="3" onclick="showDayDetail('${d.date}')"><title>${titleFn(d)}</title></circle>`;
   }).join('');
   wrap.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="line-chart-svg">
+    <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="line-chart-svg">
       <polyline class="line-path sessions" points="${linePts('sessions',maxS)}"/>
       <polyline class="line-path newUsers" points="${linePts('newUsers',maxN)}"/>
       <polyline class="line-path clicks" points="${linePts('clicks',maxC)}"/>
+      <polyline class="line-path avgDuration" points="${linePts('avgDuration',maxD)}"/>
       ${dotsFor('sessions',maxS,'sessions', d=>`${d.date}: ${d.sessions} כניסות · ${d.users ?? '—'} משתמשים ייחודיים · זמן גלישה ממוצע: ${formatDuration(d.avgDuration)}`)}
       ${dotsFor('newUsers',maxN,'newUsers', d=>`${d.date}: ${d.newUsers||0} משתמשים חדשים לגמרי`)}
       ${dotsFor('clicks',maxC,'clicks', d=>`${d.date}: ${d.clicks||0} קליקים`)}
+      ${dotsFor('avgDuration',maxD,'avgDuration', d=>`${d.date}: זמן גלישה ממוצע ${formatDuration(d.avgDuration)}`)}
     </svg>
-    <div class="chart-labels">${daily.map(d=>`<div class="chart-label-item" data-date="${d.date}">${d.date?.slice(5) || ''}</div>`).join('')}</div>
+    <div class="chart-labels" style="width:${W}px">${daily.map(d=>`<div class="chart-label-item" data-date="${d.date}" style="width:${DAY_W}px">${d.date?.slice(5) || ''}</div>`).join('')}</div>
   `;
-  // ברירת מחדל: מציג את היום האחרון (העדכני ביותר) בפאנל הפירוט מיד, בלי צורך בלחיצה
+  // ברירת מחדל: מציג את היום האחרון (העדכני ביותר) בפאנל הפירוט, וגולל את הגרף אליו
   showDayDetail(daily[daily.length - 1].date);
+  if (scrollEl) scrollEl.scrollLeft = scrollEl.scrollWidth;
 }
 
 function fmt(n) { return n ? Number(n).toLocaleString('he-IL') : '0'; }

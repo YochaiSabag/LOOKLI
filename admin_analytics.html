@@ -65,6 +65,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .bar-seg:hover{opacity:.75}
 .bar-col.selected .bar-stack{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 .bar-seg.sessions{background:linear-gradient(180deg,var(--accent),var(--accent2))}
+.bar-seg.newUsers{background:linear-gradient(180deg,var(--accent2),#6366f1)}
 .bar-seg.clicks{background:linear-gradient(180deg,var(--green),#059669)}
 .bar-label{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
 
@@ -351,6 +352,7 @@ function render(data, periodLabel) {
         <div class="card-title">פעילות יומית</div>
         <div class="card-legend">
           <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>כניסות</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>משתמשים חדשים</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>קליקים לחנויות</div>
         </div>
       </div>
@@ -483,16 +485,19 @@ function drawChart(daily) {
   _dailyDataRef = daily;
   renderDailyAvgSummary(daily);
   const maxS = Math.max(...daily.map(d=>d.sessions), 1);
+  const maxN = Math.max(...daily.map(d=>d.newUsers||0), 1);
   const maxC = Math.max(...daily.map(d=>d.clicks||0), 1);
   const H = 144;
   wrap.innerHTML = daily.map(d => {
     const sh = Math.max(3, Math.round(d.sessions/maxS*H));
+    const nh = Math.max(0, Math.round((d.newUsers||0)/maxN*(H*0.5)));
     const ch = Math.max(0, Math.round((d.clicks||0)/maxC*(H*0.5)));
     const label = d.date?.slice(5) || '';
     const sessionsTitle = `${d.date}: ${d.sessions} כניסות · ${d.users ?? '—'} משתמשים ייחודיים · זמן גלישה ממוצע: ${formatDuration(d.avgDuration)}`;
     return `<div class="bar-col" data-date="${d.date}" onclick="showDayDetail('${d.date}')" style="cursor:pointer">
       <div class="bar-stack">
         <div class="bar-seg sessions" style="height:${sh}px" title="${sessionsTitle}"></div>
+        ${nh ? `<div class="bar-seg newUsers" style="height:${nh}px" title="${d.date}: ${d.newUsers} משתמשים חדשים לגמרי"></div>` : ''}
         ${ch ? `<div class="bar-seg clicks" style="height:${ch}px" title="${d.date}: ${d.clicks} קליקים"></div>` : ''}
       </div>
       <div class="bar-label">${label}</div>

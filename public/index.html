@@ -768,6 +768,8 @@
     .auth-btn{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;backdrop-filter:blur(4px)}
     /* אייקון הסטייליסטית גדול יותר מהאייקונים האחרים (18px), אז מצמצמים padding כדי שהקוביה תישאר באותו גודל חיצוני */
     .stylist-nav-btn{padding:2px 12px}
+    @keyframes stylistWiggle{0%,100%{transform:rotate(0deg)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
+    #stylistNavBtn img{animation:stylistWiggle 2.6s ease-in-out infinite;transform-origin:50% 85%}
     .auth-btn:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.7)}
     .auth-btn svg{width:16px;height:16px;flex-shrink:0}
     .auth-btn .auth-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -802,6 +804,8 @@
     .auth-logout-btn:hover{background:#fef2f2}
     @keyframes wnSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     #whatsNewNavBtn.spin svg{animation:wnSpin .55s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes wnAutoSpin{0%,85%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    #whatsNewNavBtn svg{animation:wnAutoSpin 4s ease-in-out infinite}
 
     /* ===== מודל מוצרים חדשים/מבצעים - חלון גדול נפרד, לא מתערבב עם עמוד החיפוש ===== */
     .wn-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto}
@@ -1030,15 +1034,15 @@
       </nav>
       <div class="header-auth">
         <button class="auth-btn" id="authNavBtn" onclick="openAuthModal()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg data-r="1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <span class="auth-name" id="authNavLabel">התחברות</span>
         </button>
         <button class="auth-btn" id="savedNavBtn" onclick="openSavedPanel()" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg data-r="2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <span id="savedNavCount"></span>
         </button>
         <button class="auth-btn" id="whatsNewNavBtn" onclick="openWhatsNew()" title="מה חדש">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>
+          <svg data-r="3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>
           <span class="auth-name">מה חדש</span>
         </button>
         <button class="auth-btn stylist-nav-btn" id="stylistNavBtn" onclick="openStylistUpload()" title="סטייליסטית AI">
@@ -1054,10 +1058,10 @@
         <div class="searchbar">
           <input id="q" placeholder=''/>
           <button class="btn" onclick="runAISearch()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <svg data-r="4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </button>
           <button class="btn" id="imgSearchBtn" onclick="triggerImageSearch()" title="חיפוש לפי תמונה" style="position:relative">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <svg data-r="5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <span class="info-tooltip-icon camera-limit-badge" id="cameraLimitBadge" data-tooltip="חיפוש לפי תמונה מוגבל למספר פעמים בשבוע" title="" onclick="event.preventDefault();event.stopPropagation()"></span>
           </button>
           <input id="imgSearchInput" type="file" accept="image/*" style="display:none" onchange="searchByImage(event)"/>
@@ -1083,7 +1087,7 @@
 
   <div class="hero-teaser" id="heroTeaser" onclick="openHeroTeaser()">
     <span>רוצה לבחור שלב שלב?</span>
-    <svg class="hero-teaser-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    <svg data-r="6" class="hero-teaser-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </div>
 
   <div class="hero-discover hidden" id="heroDiscover">
@@ -1124,7 +1128,7 @@
 
       <div class="filter-section open" id="storeSection">
         <div class="filter-header" data-tooltip="חנות" onclick="toggleFilter('storeSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
+          <span class="filter-icon"><svg data-r="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
           <span>חנות</span>
           <span class="arrow">▲</span>
         </div>
@@ -1135,7 +1139,7 @@
       
       <div class="filter-section open" id="categorySection">
         <div class="filter-header" data-tooltip="סוג מוצר" onclick="toggleFilter('categorySection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+          <span class="filter-icon"><svg data-r="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
           <span>סוג מוצר</span>
           <span class="arrow">▲</span>
         </div>
@@ -1146,7 +1150,7 @@
       
       <div class="filter-section" id="colorSection">
         <div class="filter-header" data-tooltip="צבע" onclick="toggleFilter('colorSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 18 9a6 6 0 1 1-12 0z"/></svg></span>
+          <span class="filter-icon"><svg data-r="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 18 9a6 6 0 1 1-12 0z"/></svg></span>
           <span>צבע</span>
           <span class="arrow">▼</span>
         </div>
@@ -1157,7 +1161,7 @@
       
       <div class="filter-section" id="sizeSection">
         <div class="filter-header" data-tooltip="מידה" onclick="toggleFilter('sizeSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10.5 8v3M14.5 8v3M18.5 8v3"/></svg></span>
+          <span class="filter-icon"><svg data-r="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10.5 8v3M14.5 8v3M18.5 8v3"/></svg></span>
           <span>מידה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1168,7 +1172,7 @@
       
       <div class="filter-section" id="priceSection">
         <div class="filter-header" data-tooltip="מחיר" onclick="toggleFilter('priceSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12.01V2h10.01l8.58 8.58a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
+          <span class="filter-icon"><svg data-r="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12.01V2h10.01l8.58 8.58a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
           <span>מחיר</span>
           <span class="arrow">▼</span>
         </div>
@@ -1184,7 +1188,7 @@
       
       <div class="filter-section" id="styleSection">
         <div class="filter-header" data-tooltip="סגנון" onclick="toggleFilter('styleSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 1 0-2 2"/><path d="M12 5v3"/><path d="M4.2 18.3 12 9.5l7.8 8.8a1 1 0 0 1-.8 1.7H5a1 1 0 0 1-.8-1.7Z"/><path d="M4 21h16"/></svg></span>
+          <span class="filter-icon"><svg data-r="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 1 0-2 2"/><path d="M12 5v3"/><path d="M4.2 18.3 12 9.5l7.8 8.8a1 1 0 0 1-.8 1.7H5a1 1 0 0 1-.8-1.7Z"/><path d="M4 21h16"/></svg></span>
           <span>סגנון</span>
           <span class="arrow">▼</span>
         </div>
@@ -1195,7 +1199,7 @@
       
       <div class="filter-section" id="fitSection">
         <div class="filter-header" data-tooltip="גיזרה" onclick="toggleFilter('fitSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/></svg></span>
+          <span class="filter-icon"><svg data-r="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/></svg></span>
           <span>גיזרה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1206,7 +1210,7 @@
       
       <div class="filter-section" id="fabricSection">
         <div class="filter-header" data-tooltip="סוג בד" onclick="toggleFilter('fabricSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
+          <span class="filter-icon"><svg data-r="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
           <span>סוג בד</span>
           <span class="arrow">▼</span>
         </div>
@@ -1217,7 +1221,7 @@
       
       <div class="filter-section" id="patternSection">
         <div class="filter-header" data-tooltip="דוגמא" onclick="toggleFilter('patternSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.7"/><circle cx="12" cy="6" r="1.7"/><circle cx="18" cy="6" r="1.7"/><circle cx="6" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18" cy="12" r="1.7"/><circle cx="6" cy="18" r="1.7"/><circle cx="12" cy="18" r="1.7"/><circle cx="18" cy="18" r="1.7"/></svg></span>
+          <span class="filter-icon"><svg data-r="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.7"/><circle cx="12" cy="6" r="1.7"/><circle cx="18" cy="6" r="1.7"/><circle cx="6" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18" cy="12" r="1.7"/><circle cx="6" cy="18" r="1.7"/><circle cx="12" cy="18" r="1.7"/><circle cx="18" cy="18" r="1.7"/></svg></span>
           <span>דוגמא</span>
           <span class="arrow">▼</span>
         </div>
@@ -1228,7 +1232,7 @@
       
       <div class="filter-section" id="designSection">
         <div class="filter-header" data-tooltip="עיצוב" onclick="toggleFilter('designSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+          <span class="filter-icon"><svg data-r="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
           <span>עיצוב</span>
           <span class="arrow">▼</span>
         </div>
@@ -1239,7 +1243,7 @@
       
       <div class="filter-section" id="discountSection">
         <div class="filter-header" data-tooltip="הנחה" onclick="toggleFilter('discountSection')">
-          <span class="filter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></span>
+          <span class="filter-icon"><svg data-r="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></span>
           <span>הנחה</span>
           <span class="arrow">▼</span>
         </div>
@@ -1256,7 +1260,7 @@
     <!-- כפתור כיווץ/הרחבת סיידבר - חיצוני, צמוד ממש לגבול הסיידבר, סטיקי -->
     <div class="sidebar-toggle-col">
       <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleDesktopSidebar()" aria-label="כווץ/הרחב תפריט">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        <svg data-r="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
     </div>
 
@@ -1282,7 +1286,7 @@
           <div class="sort-wrap" id="sortWrap">
             <button class="sort-btn" id="sortBtn" onclick="toggleSortMenu()">
               <span id="sortLabel">חדש → ישן</span>
-              <span class="sort-arrow"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
+              <span class="sort-arrow"><svg data-r="19" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
             </button>
             <div class="sort-menu" id="sortMenu">
               <div class="sort-item active" data-val="new" onclick="selectSort('new','חדש → ישן',this)">חדש → ישן</div>
@@ -1380,9 +1384,9 @@
           </div>
           <div class="buy-big">
             <div style="display:flex;gap:8px;align-items:stretch">
-              <a id="modalBuy" href="#" target="_blank" onclick="trackOutClick(this)" style="flex:1"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>לרכישה באתר</a>
+              <a id="modalBuy" href="#" target="_blank" onclick="trackOutClick(this)" style="flex:1"><svg data-r="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>לרכישה באתר</a>
               <button onclick="shareProduct()" title="שתפי בוואצאפ" style="padding:0 16px;border-radius:12px;border:none;background:#25D366;color:#fff;cursor:pointer;font-size:20px;transition:opacity .2s" onmouseenter="this.style.opacity='.85'" onmouseleave="this.style.opacity='1'">
-                <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;display:block"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                <svg data-r="21" viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;display:block"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               </button>
             </div>
           </div>
@@ -1414,7 +1418,7 @@
 
   <!-- WhatsApp Button -->
   <a href="https://wa.me/972532424941?text=שלום, פניתי מאתר LOOKLI" target="_blank" class="whatsapp-btn" title="שלחו לנו הודעה בוואטסאפ">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    <svg data-r="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
   </a>
   
   <footer>
@@ -1559,7 +1563,7 @@ function patternLeopard(){
     const rot=(i*37)%360;
     spots+=`<g transform="rotate(${rot} ${x} ${y})"><path d="M ${x-rx} ${y} q ${rx*0.3} ${-ry*1.3} ${rx} 0 q ${rx*0.3} ${ry*1.3} ${-rx} 0 0" fill="none" stroke="#2e1c10" stroke-width="2"/><ellipse cx="${x+0.5}" cy="${y-0.3}" rx="${rx*0.45}" ry="${ry*0.4}" fill="#8a5a32"/></g>`;
   });
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#C9A06A"/>${spots}</svg>`;
+  const svg=`<svg data-r="23" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#C9A06A"/>${spots}</svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}") center/cover`;
 }
 function patternFloral(){
@@ -1580,7 +1584,7 @@ function patternFloral(){
       out+=flower(x,y,0.85+((idx%3)*0.1),colors[idx%colors.length]);
     }
   }
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#FEFCE8"/>${out}</svg>`;
+  const svg=`<svg data-r="24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#FEFCE8"/>${out}</svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}") center/cover`;
 }
 function patternDenim(){
@@ -1591,7 +1595,7 @@ function patternDenim(){
   for(let i=-20;i<140;i+=6){
     lines+=`<line x1="${i}" y1="100" x2="${i+100}" y2="0" stroke="#5a9bc4" stroke-width="1" opacity="0.35"/>`;
   }
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#4A7FA5"/>${lines}</svg>`;
+  const svg=`<svg data-r="25" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#4A7FA5"/>${lines}</svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}") center/cover`;
 }
 
@@ -1691,7 +1695,7 @@ function buildSaveBtn(url, title, price, image, store, isSaved, hasSale) {
   const im = image.replace(/"/g,'&quot;');
   const st = store.replace(/"/g,'&quot;');
   return '<button class="'+cls+'" data-url="'+u+'" data-title="'+t+'" data-price="'+price+'" data-image="'+im+'" data-store="'+st+'" title="שמרי מוצר" style="top:'+topPos+'" onclick="event.stopPropagation();handleSaveClick(this)">'
-    + '<svg viewBox="0 0 24 24" fill="'+fill+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<svg data-r="26" viewBox="0 0 24 24" fill="'+fill+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
     + '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'
     + '</svg></button>';
 }
@@ -3211,19 +3215,19 @@ function heroIconHtml(name,svgFB){
 }
 
 // Minimal SVG fallbacks (only used if no .png in /icons/)
-var defaultSvg='<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="14" y="14" width="36" height="36" rx="8"/></svg>';
+var defaultSvg='<svg data-r="27" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="14" y="14" width="36" height="36" rx="8"/></svg>';
 var catSvg={
-'שמלה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 6h16l3 10-7 4v34H28V20l-7-4 3-10z"/><path d="M24 6c-1 0-3 1-4 3l-6 11 7 4"/><path d="M40 6c1 0 3 1 4 3l6 11-7 4"/></svg>',
-'חולצה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20v4l2 2v34H20V14l2-2V8z"/><path d="M22 8l-8 6-4 12h6l4-6"/><path d="M42 8l8 6 4 12h-6l-4-6"/><path d="M28 8a4 4 0 008 0"/></svg>',
-'חצאית':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v4l4 38H16l4-38v-4z"/><line x1="20" y1="16" x2="44" y2="16"/></svg>',
-'סט':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 6h20l2 2v18H20V8l2-2z"/><path d="M22 6l-6 5-3 9h5l4-5"/><path d="M42 6l6 5 3 9h-5l-4-5"/><path d="M20 30h24v4l3 24H17l3-24v-4z"/></svg>',
-'בייסיק':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v40H20V12z" rx="2"/><path d="M20 12l-6 5v22l6 3"/><path d="M44 12l6 5v22l-6 3"/></svg>',
-'קרדיגן':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M32 8v44"/><path d="M22 8h10v44H18V16z"/><path d="M42 8H32v44h14V16z"/><path d="M22 8l-8 6-4 16h6l4-8"/><path d="M42 8l8 6 4 16h-6l-4-8"/></svg>',
-'מעיל':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20l2 2v42H20V10l2-2z"/><path d="M22 8l-9 6-5 18h8l4-8"/><path d="M42 8l9 6 5 18h-8l-4-8"/><path d="M32 8v44"/></svg>',
-'טוניקה':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 8h16l2 2v38c0 2-4 4-10 4s-10-2-10-4V10l2-2z"/><path d="M24 8l-7 5-3 14h5l3-6"/><path d="M40 8l7 5 3 14h-5l-3-6"/></svg>',
-'סוודר':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v34H20V14z" rx="2"/><path d="M20 14c0-3 5-6 12-6s12 3 12 6"/><path d="M20 16l-8 4v14l8 4"/><path d="M44 16l8 4v14l-8 4"/></svg>',
-'מכנסיים':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M18 10h28v8l-4 38h-8l-2-28-2 28h-8l-4-38v-8z"/><line x1="18" y1="14" x2="46" y2="14"/></svg>',
-'עליונית':'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v30H20V14z" rx="2"/><path d="M20 14l-7 4v10l7 4"/><path d="M44 14l7 4v10l-7 4"/></svg>',
+'שמלה':'<svg data-r="28" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 6h16l3 10-7 4v34H28V20l-7-4 3-10z"/><path d="M24 6c-1 0-3 1-4 3l-6 11 7 4"/><path d="M40 6c1 0 3 1 4 3l6 11-7 4"/></svg>',
+'חולצה':'<svg data-r="29" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20v4l2 2v34H20V14l2-2V8z"/><path d="M22 8l-8 6-4 12h6l4-6"/><path d="M42 8l8 6 4 12h-6l-4-6"/><path d="M28 8a4 4 0 008 0"/></svg>',
+'חצאית':'<svg data-r="30" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v4l4 38H16l4-38v-4z"/><line x1="20" y1="16" x2="44" y2="16"/></svg>',
+'סט':'<svg data-r="31" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 6h20l2 2v18H20V8l2-2z"/><path d="M22 6l-6 5-3 9h5l4-5"/><path d="M42 6l6 5 3 9h-5l-4-5"/><path d="M20 30h24v4l3 24H17l3-24v-4z"/></svg>',
+'בייסיק':'<svg data-r="32" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 12h24v40H20V12z" rx="2"/><path d="M20 12l-6 5v22l6 3"/><path d="M44 12l6 5v22l-6 3"/></svg>',
+'קרדיגן':'<svg data-r="33" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M32 8v44"/><path d="M22 8h10v44H18V16z"/><path d="M42 8H32v44h14V16z"/><path d="M22 8l-8 6-4 16h6l4-8"/><path d="M42 8l8 6 4 16h-6l-4-8"/></svg>',
+'מעיל':'<svg data-r="34" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M22 8h20l2 2v42H20V10l2-2z"/><path d="M22 8l-9 6-5 18h8l4-8"/><path d="M42 8l9 6 5 18h-8l-4-8"/><path d="M32 8v44"/></svg>',
+'טוניקה':'<svg data-r="35" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M24 8h16l2 2v38c0 2-4 4-10 4s-10-2-10-4V10l2-2z"/><path d="M24 8l-7 5-3 14h5l3-6"/><path d="M40 8l7 5 3 14h-5l-3-6"/></svg>',
+'סוודר':'<svg data-r="36" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v34H20V14z" rx="2"/><path d="M20 14c0-3 5-6 12-6s12 3 12 6"/><path d="M20 16l-8 4v14l8 4"/><path d="M44 16l8 4v14l-8 4"/></svg>',
+'מכנסיים':'<svg data-r="37" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M18 10h28v8l-4 38h-8l-2-28-2 28h-8l-4-38v-8z"/><line x1="18" y1="14" x2="46" y2="14"/></svg>',
+'עליונית':'<svg data-r="38" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 14h24v30H20V14z" rx="2"/><path d="M20 14l-7 4v10l7 4"/><path d="M44 14l7 4v10l-7 4"/></svg>',
 };
 function getSvg(name){return catSvg[name]||defaultSvg}
 
@@ -3585,7 +3589,7 @@ document.addEventListener('click', e => {
         <div class="wn-store-controls">
           <button type="button" class="wn-store-trigger" id="wnStoreTrigger" onclick="toggleWnStorePicker(event)">
             <span id="wnStoreTriggerLabel">כל החנויות</span>
-            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5 4.5 6 8 9.5 4.5"/></svg>
+            <svg data-r="39" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5 4.5 6 8 9.5 4.5"/></svg>
           </button>
           <div class="wn-store-popup" id="wnStorePopup">
             <div class="store-opts" id="wnStoreLogos"></div>
@@ -3664,7 +3668,7 @@ document.addEventListener('click', e => {
             <div style="margin-top:8px" id="profilePlanBadge"></div>
           </div>
           <button class="auth-submit" onclick="openSavedPanel();closeAuthModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <svg data-r="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             המוצרים השמורים שלי
           </button>
           <div style="margin-top:16px">
@@ -3694,7 +3698,7 @@ document.addEventListener('click', e => {
         </div>
         <!-- כפתורים -->
         <button class="auth-submit" style="margin-bottom:10px" onclick="closeProfilePanel();openSavedPanel()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg data-r="41" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-left:6px"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           המוצרים השמורים שלי
         </button>
         <!-- היסטוריית צפייה -->
@@ -3723,7 +3727,7 @@ document.addEventListener('click', e => {
       <div class="user-profile-bar" id="savedProfileBar"></div>
       <div class="saved-panel-body" id="savedPanelBody">
         <div class="saved-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg data-r="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <div>עדיין אין מוצרים שמורים</div>
           <div style="font-size:12px;margin-top:6px">לחצי על הלב על מוצר כדי לשמור אותו</div>
         </div>
@@ -3941,7 +3945,7 @@ document.addEventListener('click', e => {
             <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.title||'')}</div>
             <div style="font-size:12px;color:#9ca3af;margin-top:2px">${escapeHtml(p.store||'')} · ₪${p.price||''}</div>
           </div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg data-r="43" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg>
         </div>`).join('');
     } catch(e) {}
   }
@@ -4227,7 +4231,7 @@ document.addEventListener('click', e => {
       countEl.textContent = data.saved.length;
       if (data.saved.length === 0) {
         body.innerHTML = `<div class="saved-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg data-r="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <div>עדיין אין מוצרים שמורים</div>
           <div style="font-size:12px;margin-top:6px">לחצי על הלב על מוצר כדי לשמור</div>
         </div>`;
@@ -4241,7 +4245,7 @@ document.addEventListener('click', e => {
         (ad.alerts || []).forEach(a => { existingAlerts[a.product_source_url] = a; });
       } catch(_) {}
       const banner = `<div class="alerts-banner">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <svg data-r="45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span>לחצי על 🔔 להגדרת התראה כשמחיר יורד או מידה חוזרת</span>
       </div>`;
       body.innerHTML = banner + data.saved.map(s => {
@@ -4258,10 +4262,10 @@ document.addEventListener('click', e => {
           <div class="saved-item-actions">
             <button class="alert-btn${hasAlert?' active':''}" title="התראת מחיר ומלאי"
               onclick="openAlertPopup('${s.product_source_url.replace(/'/g,"\'")}','${(s.product_title||'').replace(/'/g,"\'")}',${s.product_price||0},this)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <svg data-r="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             </button>
             <button class="saved-item-remove" title="הסר" onclick="removeSaved('${s.product_source_url.replace(/'/g,"\'")}')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              <svg data-r="47" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
             </button>
             <a class="saved-item-buy" href="${s.product_source_url}" target="_blank">לרכישה</a>
           </div>
@@ -5027,7 +5031,7 @@ const JOINPOPUP_CONFIG = {
         <div class="joinpopup-divider"></div>
         <div class="joinpopup-sub">${JOINPOPUP_CONFIG.subtext}</div>
         <a class="joinpopup-cta" href="${JOINPOPUP_CONFIG.whatsappLink}" target="_blank" rel="noopener" onclick="dismissJoinPopup(true)">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          <svg data-r="48" width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           <span>${JOINPOPUP_CONFIG.ctaText}</span>
         </a>
         <button class="joinpopup-dismiss" onclick="dismissJoinPopup()">${JOINPOPUP_CONFIG.dismissText}</button>

@@ -58,16 +58,20 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
 .legend-dot{width:8px;height:8px;border-radius:50%}
 
-.chart-wrap{height:160px;display:flex;align-items:flex-end;gap:3px;overflow:hidden}
-.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
-.bar-stack{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;height:148px}
-.bar-seg{width:100%;border-radius:3px 3px 0 0;min-height:3px;cursor:pointer;transition:opacity .2s}
-.bar-seg:hover{opacity:.75}
-.bar-col.selected .bar-stack{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
-.bar-seg.sessions{background:linear-gradient(180deg,var(--accent),var(--accent2))}
-.bar-seg.newUsers{background:linear-gradient(180deg,var(--accent2),#6366f1)}
-.bar-seg.clicks{background:linear-gradient(180deg,var(--green),#059669)}
-.bar-label{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
+.chart-wrap{height:170px;overflow:visible}
+.line-chart-svg{width:100%;height:140px;overflow:visible;display:block}
+.line-path{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.line-path.sessions{stroke:var(--accent)}
+.line-path.newUsers{stroke:var(--accent2)}
+.line-path.clicks{stroke:var(--green)}
+.line-dot{stroke:var(--surface);stroke-width:1.5;cursor:pointer;transition:r .15s}
+.line-dot.sessions{fill:var(--accent)}
+.line-dot.newUsers{fill:var(--accent2)}
+.line-dot.clicks{fill:var(--green)}
+.line-dot:hover,.line-dot.selected{r:5}
+.chart-labels{display:flex;justify-content:space-between;margin-top:6px}
+.chart-label-item{font-size:9px;color:var(--muted);flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart-label-item.selected{color:var(--text);font-weight:700}
 
 /* Stores */
 .stores-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -473,10 +477,12 @@ function showDayDetail(dateStr) {
     <div style="display:flex;gap:20px;flex-wrap:wrap;color:var(--muted)">
       <div>👥 <b style="color:var(--text)">${d.sessions}</b> כניסות</div>
       <div>🙋 <b style="color:var(--text)">${d.users ?? '—'}</b> משתמשים ייחודיים</div>
+      <div><b style="color:var(--accent2)">${d.newUsers || 0}</b> משתמשים חדשים לגמרי</div>
       <div>🖱️ <b style="color:var(--text)">${d.clicks || 0}</b> קליקים לחנויות</div>
       <div>⏱️ <b style="color:var(--text)">${formatDuration(d.avgDuration)}</b> זמן גלישה ממוצע</div>
     </div>`;
-  document.querySelectorAll('.bar-col').forEach(el => el.classList.toggle('selected', el.dataset.date === dateStr));
+  document.querySelectorAll('.line-dot').forEach(el => el.classList.toggle('selected', el.dataset.date === dateStr));
+  document.querySelectorAll('.chart-label-item').forEach(el => el.classList.toggle('selected', el.dataset.date === dateStr));
 }
 
 function drawChart(daily) {
@@ -484,25 +490,29 @@ function drawChart(daily) {
   if (!wrap || !daily?.length) return;
   _dailyDataRef = daily;
   renderDailyAvgSummary(daily);
+  const n = daily.length;
+  const W = 1000, H = 140, PAD = 8;
   const maxS = Math.max(...daily.map(d=>d.sessions), 1);
   const maxN = Math.max(...daily.map(d=>d.newUsers||0), 1);
   const maxC = Math.max(...daily.map(d=>d.clicks||0), 1);
-  const H = 144;
-  wrap.innerHTML = daily.map(d => {
-    const sh = Math.max(3, Math.round(d.sessions/maxS*H));
-    const nh = Math.max(0, Math.round((d.newUsers||0)/maxN*(H*0.5)));
-    const ch = Math.max(0, Math.round((d.clicks||0)/maxC*(H*0.5)));
-    const label = d.date?.slice(5) || '';
-    const sessionsTitle = `${d.date}: ${d.sessions} כניסות · ${d.users ?? '—'} משתמשים ייחודיים · זמן גלישה ממוצע: ${formatDuration(d.avgDuration)}`;
-    return `<div class="bar-col" data-date="${d.date}" onclick="showDayDetail('${d.date}')" style="cursor:pointer">
-      <div class="bar-stack">
-        <div class="bar-seg sessions" style="height:${sh}px" title="${sessionsTitle}"></div>
-        ${nh ? `<div class="bar-seg newUsers" style="height:${nh}px" title="${d.date}: ${d.newUsers} משתמשים חדשים לגמרי"></div>` : ''}
-        ${ch ? `<div class="bar-seg clicks" style="height:${ch}px" title="${d.date}: ${d.clicks} קליקים"></div>` : ''}
-      </div>
-      <div class="bar-label">${label}</div>
-    </div>`;
+  const xAt = i => n > 1 ? (i/(n-1))*W : W/2;
+  const yAt = (v,max) => H - PAD - (v/max)*(H-PAD*2);
+  const linePts = (key,max) => daily.map((d,i)=>`${xAt(i)},${yAt(d[key]||0,max)}`).join(' ');
+  const dotsFor = (key,max,cls,titleFn) => daily.map((d,i) => {
+    const x = xAt(i), y = yAt(d[key]||0,max);
+    return `<circle class="line-dot ${cls}" data-date="${d.date}" cx="${x}" cy="${y}" r="3" onclick="showDayDetail('${d.date}')"><title>${titleFn(d)}</title></circle>`;
   }).join('');
+  wrap.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="line-chart-svg">
+      <polyline class="line-path sessions" points="${linePts('sessions',maxS)}"/>
+      <polyline class="line-path newUsers" points="${linePts('newUsers',maxN)}"/>
+      <polyline class="line-path clicks" points="${linePts('clicks',maxC)}"/>
+      ${dotsFor('sessions',maxS,'sessions', d=>`${d.date}: ${d.sessions} כניסות · ${d.users ?? '—'} משתמשים ייחודיים · זמן גלישה ממוצע: ${formatDuration(d.avgDuration)}`)}
+      ${dotsFor('newUsers',maxN,'newUsers', d=>`${d.date}: ${d.newUsers||0} משתמשים חדשים לגמרי`)}
+      ${dotsFor('clicks',maxC,'clicks', d=>`${d.date}: ${d.clicks||0} קליקים`)}
+    </svg>
+    <div class="chart-labels">${daily.map(d=>`<div class="chart-label-item" data-date="${d.date}">${d.date?.slice(5) || ''}</div>`).join('')}</div>
+  `;
   // ברירת מחדל: מציג את היום האחרון (העדכני ביותר) בפאנל הפירוט מיד, בלי צורך בלחיצה
   showDayDetail(daily[daily.length - 1].date);
 }

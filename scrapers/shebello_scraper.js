@@ -46,6 +46,14 @@ async function getAllProductUrls(page) {
       // וזמן קבוע קצר מדי גורם לעמוד ריק ולעצירה מיידית ("לפעמים כן לפעמים לא")
       await page.waitForSelector('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url], a[href*="/product/"]', { timeout: 10000 }).catch(() => {});
 
+      // === אבחון: מה השרת החזיר בפועל (עוזר לזהות חסימת בוט/Cloudflare) ===
+      try {
+        const diagTitle = await page.title();
+        const diagSnippet = await page.evaluate(() => (document.body?.innerText || '').trim().substring(0, 200));
+        console.log(`    🔍 כותרת עמוד: "${diagTitle}"`);
+        console.log(`    🔍 תחילת תוכן: "${diagSnippet.replace(/\n/g, ' ')}"`);
+      } catch(e) {}
+
       for (let i = 0; i < 3; i++) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
         await page.waitForTimeout(700);

@@ -55,6 +55,10 @@ async function getAllProductUrls(page) {
       // בדוק אם Cloudflare חוסם
       const pageTitle = await page.title();
       console.log(`    📄 כותרת: ${pageTitle.substring(0,60)}`);
+      try {
+        const diagSnippet = await page.evaluate(() => (document.body?.innerText || '').trim().substring(0, 200));
+        console.log(`    🔍 תחילת תוכן: "${diagSnippet.replace(/\n/g, ' ')}"`);
+      } catch(e) {}
       if (pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('checking')) {
         console.log(`    🚫 Cloudflare חוסם — מחכה...`);
         await page.waitForTimeout(8000);

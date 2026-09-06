@@ -49,6 +49,14 @@ async function getPageUrls(page, url) {
       await page.waitForTimeout(3000);
     }
 
+    // === אבחון: מה השרת החזיר בפועל (עוזר לזהות חסימת בוט/Cloudflare) ===
+    try {
+      const diagTitle = await page.title();
+      const diagSnippet = await page.evaluate(() => (document.body?.innerText || '').trim().substring(0, 200));
+      console.log(`    🔍 כותרת עמוד: "${diagTitle}"`);
+      console.log(`    🔍 תחילת תוכן: "${diagSnippet.replace(/\n/g, ' ')}"`);
+    } catch(e) {}
+
     // גלילה הדרגתית לטעינת lazy content
     const height = await page.evaluate(() => document.body?.scrollHeight || 0);
     for (let y = 0; y <= height; y += 300) {

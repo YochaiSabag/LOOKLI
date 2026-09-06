@@ -572,7 +572,7 @@
     
     /* ===== MODAL ===== */
     /* הbackdrop עצמו לא גולל — הגלילה בתוך הwrapper הפנימי */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;padding:16px;overflow:hidden;backdrop-filter:blur(4px);align-items:flex-start;justify-content:center}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:1050;padding:16px;overflow:hidden;backdrop-filter:blur(4px);align-items:flex-start;justify-content:center}
     .modal-backdrop.open{display:flex}
     #modalWrapper{max-height:calc(100vh - 32px);overflow-y:auto;overflow-x:hidden;border-radius:18px;scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
     #modalWrapper::-webkit-scrollbar{width:5px}

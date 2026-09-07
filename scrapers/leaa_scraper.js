@@ -301,18 +301,24 @@ async function runHealthCheck() {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const browser = await chromium.launch({
-  headless: true,
-  slowMo: 0,
-  args: [
-    '--no-sandbox', '--disable-setuid-sandbox',
-    '--disable-blink-features=AutomationControlled',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run', '--no-zygote',
-    '--lang=he-IL,he,en-US,en',
-  ],
-});
+const LAUNCH_ARGS = [
+  '--no-sandbox', '--disable-setuid-sandbox',
+  '--disable-blink-features=AutomationControlled',
+  '--disable-dev-shm-usage',
+  '--disable-accelerated-2d-canvas',
+  '--no-first-run', '--no-zygote',
+  '--lang=he-IL,he,en-US,en',
+];
+let browser;
+try {
+  // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי,
+  // ולכן לא נחסם ע"י הגנות WAF שמזהות את Chromium הפנימי של Playwright
+  browser = await chromium.launch({ headless: true, slowMo: 0, channel: 'chrome', args: LAUNCH_ARGS });
+  console.log('  🌐 משתמש ב-Chrome האמיתי');
+} catch (e) {
+  console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
+  browser = await chromium.launch({ headless: true, slowMo: 0, args: LAUNCH_ARGS });
+}
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   viewport: { width: 1440, height: 900 },

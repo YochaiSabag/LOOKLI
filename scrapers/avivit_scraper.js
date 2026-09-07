@@ -516,10 +516,16 @@ async function saveProduct(product) {
 // הרצה ראשית
 // ======================================================================
 async function launchBrowser() {
-  const browser = await chromium.launch({ 
-    headless: true,
-    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
-  });
+  const AVIVIT_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled', '--no-sandbox'];
+  let browser;
+  try {
+    // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי
+    browser = await chromium.launch({ headless: true, channel: 'chrome', args: AVIVIT_LAUNCH_ARGS });
+    console.log('  🌐 משתמש ב-Chrome האמיתי');
+  } catch (e) {
+    console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
+    browser = await chromium.launch({ headless: true, args: AVIVIT_LAUNCH_ARGS });
+  }
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     viewport: { width: 1440, height: 900 },

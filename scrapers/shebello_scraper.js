@@ -300,6 +300,7 @@ try {
   browser = await chromium.launch({ headless: true, slowMo: 30, args: SHEBELLO_LAUNCH_ARGS, proxy: getProxyConfig() });
 }
 const context = await browser.newContext({
+  ignoreHTTPSErrors: true, // נדרש לתאימות עם פרוקסי שמפענח HTTPS בעצמו (למשל ScrapingBee)
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   viewport: { width: 1920, height: 1080 },
   locale: 'he-IL',

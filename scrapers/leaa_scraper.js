@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Client } = pkg;
@@ -310,6 +310,11 @@ const LAUNCH_ARGS = [
   '--lang=he-IL,he,en-US,en',
 ];
 let browser;
+if (process.env.SCRAPER_ENGINE === 'firefox') {
+  // מצב בדיקה: Firefox לא משתמש ב-CDP בכלל, ולכן עוקף זיהוי אוטומציה שמזהה את פרוטוקול Chromium
+  browser = await firefox.launch({ headless: true, args: [] });
+  console.log('  🦊 משתמש ב-Firefox (בדיקת עקיפת CDP)');
+} else
 try {
   // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי,
   // ולכן לא נחסם ע"י הגנות WAF שמזהות את Chromium הפנימי של Playwright

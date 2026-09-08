@@ -340,6 +340,17 @@ await context.addInitScript(() => {
 });
 const page = await context.newPage();
 
+// בדיקה: ביקור בדף הבית קודם + השהיה אנושית, לפני ניווט לחנות (ייתכן שהחסימה קשורה לניווט ישיר בלי הקשר גלישה)
+try {
+  console.log('  🏠 מבקר בדף הבית קודם...');
+  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const homeTitle = await page.title();
+  console.log(`    🔍 כותרת דף הבית: "${homeTitle}"`);
+  await page.waitForTimeout(2500 + Math.random() * 2000);
+} catch (e) {
+  console.log('  ⚠️ ביקור בדף הבית נכשל:', e.message);
+}
+
 try {
   const urls = await getAllProductUrls(page);
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);

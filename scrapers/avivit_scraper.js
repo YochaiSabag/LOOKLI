@@ -17,7 +17,7 @@ await db.connect();
 console.log('🚀 Avivit Weizman Scraper');
 
 // טוען config מ-DB דרך scraper_utils
-import { loadScraperConfig } from './scraper_utils.js';
+import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, normalizeColorFromTitle, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
 const sizeMapping = {
@@ -520,11 +520,11 @@ async function launchBrowser() {
   let browser;
   try {
     // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי
-    browser = await chromium.launch({ headless: true, channel: 'chrome', args: AVIVIT_LAUNCH_ARGS });
+    browser = await chromium.launch({ headless: true, channel: 'chrome', args: AVIVIT_LAUNCH_ARGS, proxy: getProxyConfig() });
     console.log('  🌐 משתמש ב-Chrome האמיתי');
   } catch (e) {
     console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
-    browser = await chromium.launch({ headless: true, args: AVIVIT_LAUNCH_ARGS });
+    browser = await chromium.launch({ headless: true, args: AVIVIT_LAUNCH_ARGS, proxy: getProxyConfig() });
   }
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -548,6 +548,9 @@ async function launchBrowser() {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     window.chrome = { runtime: {} };
+  });
+  await context.route('**/*', route => {
+    return route.request().resourceType() === 'image' ? route.abort() : route.continue();
   });
   const page = await context.newPage();
   return { browser, context, page };

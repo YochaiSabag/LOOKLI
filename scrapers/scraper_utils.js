@@ -367,3 +367,16 @@ export async function loadScraperConfig(db) {
     },
   };
 }
+
+// ======================================================================
+// הגדרות פרוקסי (אופציונלי) - לשימוש כשAtar חוסם לפי IP
+// מוגדר דרך משתני סביבה: PROXY_SERVER, PROXY_USERNAME, PROXY_PASSWORD
+// אם PROXY_SERVER לא מוגדר - מחזיר undefined ושום דבר לא משתנה בהתנהגות הקיימת
+// ======================================================================
+export function getProxyConfig() {
+  if (!process.env.PROXY_SERVER) return undefined;
+  const cfg = { server: process.env.PROXY_SERVER };
+  if (process.env.PROXY_USERNAME) cfg.username = process.env.PROXY_USERNAME;
+  if (process.env.PROXY_PASSWORD) cfg.password = process.env.PROXY_PASSWORD;
+  return cfg;
+}

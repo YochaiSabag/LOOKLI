@@ -15,7 +15,7 @@ const db = new Client({
 await db.connect();
 console.log('🚀 Leaa (ליידיס) Scraper');
 
-import { loadScraperConfig } from './scraper_utils.js';
+import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 
 const STORE = 'LEAA';
@@ -312,17 +312,17 @@ const LAUNCH_ARGS = [
 let browser;
 if (process.env.SCRAPER_ENGINE === 'firefox') {
   // מצב בדיקה: Firefox לא משתמש ב-CDP בכלל, ולכן עוקף זיהוי אוטומציה שמזהה את פרוטוקול Chromium
-  browser = await firefox.launch({ headless: true, args: [] });
+  browser = await firefox.launch({ headless: true, args: [], proxy: getProxyConfig() });
   console.log('  🦊 משתמש ב-Firefox (בדיקת עקיפת CDP)');
 } else
 try {
   // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי,
   // ולכן לא נחסם ע"י הגנות WAF שמזהות את Chromium הפנימי של Playwright
-  browser = await chromium.launch({ headless: true, slowMo: 0, channel: 'chrome', args: LAUNCH_ARGS });
+  browser = await chromium.launch({ headless: true, slowMo: 0, channel: 'chrome', args: LAUNCH_ARGS, proxy: getProxyConfig() });
   console.log('  🌐 משתמש ב-Chrome האמיתי');
 } catch (e) {
   console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
-  browser = await chromium.launch({ headless: true, slowMo: 0, args: LAUNCH_ARGS });
+  browser = await chromium.launch({ headless: true, slowMo: 0, args: LAUNCH_ARGS, proxy: getProxyConfig() });
 }
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -337,6 +337,11 @@ const context = await browser.newContext({
 // הסתר navigator.webdriver
 await context.addInitScript(() => {
   Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+});
+// חסימת טעינת תמונות בפועל - חוסך תעבורת נתונים (חשוב כשמשתמשים בפרוקסי בתשלום לפי GB).
+// כתובות ה-URL של התמונות עדיין נשלפות מה-HTML כרגיל (src/data-src הן תכונות טקסט בקוד, לא תלויות בטעינה בפועל)
+await context.route('**/*', route => {
+  return route.request().resourceType() === 'image' ? route.abort() : route.continue();
 });
 const page = await context.newPage();
 

@@ -18,7 +18,7 @@ db.on('error', (err) => {
 
 console.log('🚀 Shebello Scraper');
 
-import { loadScraperConfig } from './scraper_utils.js';
+import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 
 const STORE = 'SHEBELLO';
@@ -293,17 +293,20 @@ const SHEBELLO_LAUNCH_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--dis
 let browser;
 try {
   // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי
-  browser = await chromium.launch({ headless: true, slowMo: 30, channel: 'chrome', args: SHEBELLO_LAUNCH_ARGS });
+  browser = await chromium.launch({ headless: true, slowMo: 30, channel: 'chrome', args: SHEBELLO_LAUNCH_ARGS, proxy: getProxyConfig() });
   console.log('  🌐 משתמש ב-Chrome האמיתי');
 } catch (e) {
   console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
-  browser = await chromium.launch({ headless: true, slowMo: 30, args: SHEBELLO_LAUNCH_ARGS });
+  browser = await chromium.launch({ headless: true, slowMo: 30, args: SHEBELLO_LAUNCH_ARGS, proxy: getProxyConfig() });
 }
 const context = await browser.newContext({
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   viewport: { width: 1920, height: 1080 },
   locale: 'he-IL',
   timezoneId: 'Asia/Jerusalem',
+});
+await context.route('**/*', route => {
+  return route.request().resourceType() === 'image' ? route.abort() : route.continue();
 });
 const page = await context.newPage();
 

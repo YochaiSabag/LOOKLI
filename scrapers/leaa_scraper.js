@@ -310,6 +310,12 @@ const LAUNCH_ARGS = [
   '--lang=he-IL,he,en-US,en',
 ];
 let browser;
+const __proxyDiag = getProxyConfig();
+if (__proxyDiag) {
+  console.log(`  🧭 פרוקסי זוהה: ${__proxyDiag.server} (username: ${__proxyDiag.username ? __proxyDiag.username.substring(0,15) + '...' : 'ללא'})`);
+} else {
+  console.log('  🧭 לא זוהה פרוקסי (PROXY_SERVER לא מוגדר) - רץ ישירות');
+}
 if (process.env.SCRAPER_ENGINE === 'firefox') {
   // מצב בדיקה: Firefox לא משתמש ב-CDP בכלל, ולכן עוקף זיהוי אוטומציה שמזהה את פרוטוקול Chromium
   browser = await firefox.launch({ headless: true, args: [], proxy: getProxyConfig() });

@@ -346,10 +346,12 @@ const context = await browser.newContext({
 await context.addInitScript(() => {
   Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
 });
-// חסימת טעינת תמונות בפועל - חוסך תעבורת נתונים (חשוב כשמשתמשים בפרוקסי בתשלום לפי GB).
-// כתובות ה-URL של התמונות עדיין נשלפות מה-HTML כרגיל (src/data-src הן תכונות טקסט בקוד, לא תלויות בטעינה בפועל)
+// חסימת משאבים לא-חיוניים (תמונות, CSS, פונטים, מדיה) - קריטי כשמשתמשים בפרוקסי בתשלום לפי בקשה,
+// כי כל קובץ נפרד (כולל CSS/פונטים) נספר כבקשה מחויבת נפרדת. את קישורי המוצרים שולפים מה-HTML הגולמי,
+// שלא תלוי בטעינת העיצוב/גופנים בפועל. JS נשאר פתוח כי חלק מהעמודים עשויים להזדקק לו.
+const BLOCKED_RESOURCE_TYPES = new Set(['image', 'stylesheet', 'font', 'media']);
 await context.route('**/*', route => {
-  return route.request().resourceType() === 'image' ? route.abort() : route.continue();
+  return BLOCKED_RESOURCE_TYPES.has(route.request().resourceType()) ? route.abort() : route.continue();
 });
 const page = await context.newPage();
 

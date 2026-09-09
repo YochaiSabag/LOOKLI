@@ -308,6 +308,7 @@ const LAUNCH_ARGS = [
   '--disable-accelerated-2d-canvas',
   '--no-first-run', '--no-zygote',
   '--lang=he-IL,he,en-US,en',
+  '--disable-http2', // curl הצליח דרך אותו פרוקסי כשנפל ל-HTTP/1.1 - ה-proxy כנראה לא מתמודד טוב עם HTTP/2
 ];
 let browser;
 const __proxyDiag = getProxyConfig();

@@ -43,9 +43,9 @@ const SKIP_PARAGRAPHS = ['מרכך','כביסה','לכבס','לשמור על צ�
 async function getPageUrls(page, url) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
     } catch {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
       await page.waitForTimeout(3000);
     }
 
@@ -127,9 +127,9 @@ async function scrapeProduct(page, url) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       try {
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
       } catch {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
         await page.waitForTimeout(2000);
       }
 
@@ -355,7 +355,7 @@ const page = await context.newPage();
 // בדיקה: ביקור בדף הבית קודם + השהיה אנושית, לפני ניווט לחנות (ייתכן שהחסימה קשורה לניווט ישיר בלי הקשר גלישה)
 try {
   console.log('  🏠 מבקר בדף הבית קודם...');
-  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 90000 });
   const homeTitle = await page.title();
   console.log(`    🔍 כותרת דף הבית: "${homeTitle}"`);
   await page.waitForTimeout(2500 + Math.random() * 2000);

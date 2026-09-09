@@ -58,7 +58,8 @@ async function run() {
       if (size > 0 && size < MIN_VALID_BYTES) {
         hasSuspect = true;
         suspectImages++;
-        console.log(`  ⚠️ ${p.title.substring(0,40)} — תמונה חשודה (${size} bytes): ${imgUrl.substring(0,70)}`);
+        console.log(`  ⚠️ ${p.title.substring(0,40)} — תמונה חשודה (${size} bytes):`);
+        console.log(`      ${imgUrl}`);
       }
     }
     if (hasSuspect) {

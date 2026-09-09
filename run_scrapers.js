@@ -26,6 +26,7 @@ const SCRAPERS = {
   'europisrael':'./scrapers/europisrael_scraper.js',
   'moda':       './scrapers/moda_scraper.js',
   'leaa':       './scrapers/leaa_scraper.js',
+  'test-proxy': './scrapers/_test_proxy.js', // כלי אבחון חד-פעמי - לא סקרייפר אמיתי, בודק חיבור פרוקסי בלי Playwright
 };
 
 const MAX_RETRIES = 2;        // כמה פעמים לנסות מחדש אחרי כישלון

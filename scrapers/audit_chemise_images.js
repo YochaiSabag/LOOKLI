@@ -23,13 +23,18 @@ const db = new Client({ connectionString: connStr, ssl: useSSL ? { rejectUnautho
 
 function getContentLength(url) {
   return new Promise((resolve) => {
-    const req = https.request(url, { method: 'HEAD', timeout: 15000 }, (res) => {
-      const len = parseInt(res.headers['content-length'] || '0');
-      resolve(res.statusCode === 200 ? len : 0);
-    });
-    req.on('timeout', () => { req.destroy(); resolve(0); });
-    req.on('error', () => resolve(0));
-    req.end();
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) { resolve(0); return; }
+    try {
+      const req = https.request(url, { method: 'HEAD', timeout: 15000 }, (res) => {
+        const len = parseInt(res.headers['content-length'] || '0');
+        resolve(res.statusCode === 200 ? len : 0);
+      });
+      req.on('timeout', () => { req.destroy(); resolve(0); });
+      req.on('error', () => resolve(0));
+      req.end();
+    } catch (e) {
+      resolve(0);
+    }
   });
 }
 

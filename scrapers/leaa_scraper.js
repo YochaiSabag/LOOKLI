@@ -1,5 +1,7 @@
 import 'dotenv/config';
-import { chromium, firefox } from 'playwright';
+import https from 'https';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as cheerio from 'cheerio';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Client } = pkg;
@@ -13,13 +15,51 @@ const db = new Client({
 });
 
 await db.connect();
-console.log('🚀 Leaa (ליידיס) Scraper');
+console.log('🚀 Leaa (ליידיס) Scraper — גרסת HTTP ישיר דרך פרוקסי (בלי Playwright)');
 
 import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 
 const STORE = 'LEAA';
 const BASE  = 'https://leaa.co.il';
+
+// ======================================================================
+// תשתית HTTP דרך פרוקסי (מחליפה את Playwright - האתר חוסם דפדפן אוטומטי,
+// אבל מתיר בקשת HTTP ישירה. ראה תיעוד ב-scraper_utils.js / getProxyConfig)
+// ======================================================================
+const __proxyDiag = getProxyConfig();
+let proxyAgent = null;
+if (__proxyDiag) {
+  console.log(`  🧭 פרוקסי זוהה: ${__proxyDiag.server} (username: ${__proxyDiag.username ? __proxyDiag.username.substring(0,15) + '...' : 'ללא'})`);
+  const [scheme, rest] = __proxyDiag.server.split('://');
+  const user = encodeURIComponent(__proxyDiag.username || '');
+  const pass = encodeURIComponent(__proxyDiag.password || '');
+  proxyAgent = new HttpsProxyAgent(`${scheme}://${user}:${pass}@${rest}`);
+} else {
+  console.log('  🧭 לא זוהה פרוקסי (PROXY_SERVER לא מוגדר) - רץ ישירות');
+}
+
+function fetchHTML(url, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const opts = { timeout: 60000, rejectUnauthorized: false };
+    if (proxyAgent) opts.agent = proxyAgent;
+    const req = https.get(url, opts, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        const nextUrl = new URL(res.headers.location, url).toString();
+        fetchHTML(nextUrl, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        resolve({ status: res.statusCode, html: Buffer.concat(chunks).toString('utf-8') });
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Timeout אחרי 60 שניות')));
+    req.on('error', reject);
+  });
+}
 
 // ממיר מידות מספריות לאותיות
 const sizeMapping = {
@@ -40,65 +80,53 @@ const SKIP_PARAGRAPHS = ['מרכך','כביסה','לכבס','לשמור על צ�
 // ======================================================================
 // איסוף קישורים
 // ======================================================================
-async function getPageUrls(page, url) {
+async function getPageUrls(url) {
   for (let attempt = 1; attempt <= 3; attempt++) {
+    let html = '';
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
-    } catch {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
-      await page.waitForTimeout(3000);
+      const res = await fetchHTML(url);
+      console.log(`    🔍 סטטוס: ${res.status}, אורך: ${res.html.length}`);
+      if (res.status === 200) html = res.html;
+    } catch (e) {
+      console.log(`    ⚠️ שגיאת בקשה: ${e.message}`);
     }
 
-    // === אבחון: מה השרת החזיר בפועל (עוזר לזהות חסימת בוט/Cloudflare) ===
-    try {
-      const diagTitle = await page.title();
-      const diagSnippet = await page.evaluate(() => (document.body?.innerText || '').trim().substring(0, 200));
-      console.log(`    🔍 כותרת עמוד: "${diagTitle}"`);
-      console.log(`    🔍 תחילת תוכן: "${diagSnippet.replace(/\n/g, ' ')}"`);
-    } catch(e) {}
-
-    // גלילה הדרגתית לטעינת lazy content
-    const height = await page.evaluate(() => document.body?.scrollHeight || 0);
-    for (let y = 0; y <= height; y += 300) {
-      await page.evaluate(y => window.scrollTo(0, y), y);
-      await page.waitForTimeout(150);
+    const $ = cheerio.load(html || '');
+    const found = new Set();
+    const selectors = [
+      'a.woocommerce-LoopProduct-link',
+      '.products .product a[href]',
+      'li.product a[href]',
+      '.product-item a[href]',
+      'a[href*="/product/"]',
+    ];
+    for (const sel of selectors) {
+      $(sel).each((_, el) => {
+        let h = $(el).attr('href') || '';
+        h = h.split('?')[0];
+        if (!h) return;
+        try { h = new URL(h, BASE).href; } catch { return; }
+        if (h.includes(BASE) && h.includes('/product') &&
+            !h.endsWith('/shop/') && !h.includes('/page/') &&
+            !h.includes('/product-category/') && h !== BASE + '/') {
+          found.add(h);
+        }
+      });
     }
-    await page.waitForTimeout(1500);
 
-    const urls = await page.evaluate((base) => {
-      const selectors = [
-        'a.woocommerce-LoopProduct-link',
-        '.products .product a[href]',
-        'li.product a[href]',
-        '.product-item a[href]',
-        'a[href*="/product/"]',
-      ];
-      const found = new Set();
-      for (const sel of selectors) {
-        document.querySelectorAll(sel).forEach(a => {
-          const h = (a.href || '').split('?')[0];
-          if (h.includes(base) && h.includes('/product') &&
-              !h.endsWith('/shop/') && !h.includes('/page/') &&
-              !h.includes('/product-category/') && h !== base + '/') {
-            found.add(h);
-          }
-        });
-      }
-      return [...found];
-    }, BASE);
-
+    const urls = [...found];
     if (urls.length > 0) return urls;
 
     if (attempt < 3) {
       console.log(`    ⚠️ ניסיון ${attempt} — 0 קישורים, מנסה שוב...`);
-      await page.waitForTimeout(3000 * attempt);
+      await new Promise(r => setTimeout(r, 3000 * attempt));
     }
   }
   return [];
 }
 
-async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-leaa.co.il...\n');
+async function getAllProductUrls() {
+  console.log('\n📂 איסוף קישורים מ-leaa.co.il (HTTP ישיר דרך פרוקסי)...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
@@ -106,13 +134,12 @@ async function getAllProductUrls(page) {
     const url = p === 1 ? `${BASE}/shop/` : `${BASE}/shop/page/${p}/`;
     console.log(`  → עמוד ${p}`);
 
-    const urls = await getPageUrls(page, url);
+    const urls = await getPageUrls(url);
 
     if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
 
     urls.forEach(u => allUrls.add(u));
     console.log(`    ✓ ${urls.length} קישורים`);
-    await page.waitForTimeout(500);
   }
 
   const result = [...allUrls];
@@ -123,104 +150,98 @@ async function getAllProductUrls(page) {
 // ======================================================================
 // גירוד מוצר
 // ======================================================================
-async function scrapeProduct(page, url) {
+async function scrapeProduct(url) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      try {
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
-      } catch {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
-        await page.waitForTimeout(2000);
-      }
+      const res = await fetchHTML(url);
+      if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+      const $ = cheerio.load(res.html);
 
-    // כותרת — הסר "חדש:" בתחילה
-    const rawTitle = await page.$eval(
-      'h1.elementor-heading-title, h1.product_title, h1.entry-title',
-      el => el.textContent.trim()
-    ).catch(() => '');
-    const title = rawTitle.replace(/^חדש[:\s]+/i, '').trim();
-    if (!title) return null;
-    if (shouldSkip(title)) { console.log(`  ⏭ מדלג: ${title.substring(0, 40)}`); return null; }
+      // כותרת — הסר "חדש:" בתחילה
+      const rawTitle = (
+        $('h1.elementor-heading-title').first().text() ||
+        $('h1.product_title').first().text() ||
+        $('h1.entry-title').first().text() || ''
+      ).trim();
+      const title = rawTitle.replace(/^חדש[:\s]+/i, '').trim();
+      if (!title) return null;
+      if (shouldSkip(title)) { console.log(`  ⏭ מדלג: ${title.substring(0, 40)}`); return null; }
 
-    // מחיר — מ-elementor heading עם del/ins, או מ-.price רגיל
-    const priceData = await page.evaluate(() => {
+      // מחיר — מ-elementor heading עם del/ins, או מ-.price רגיל
       const clean = t => parseFloat((t || '').replace(/[^\d.]/g, '')) || 0;
-      // נסה מ-elementor heading
-      const heading = document.querySelector('.elementor-heading-title');
-      const ins = heading?.querySelector('ins .woocommerce-Price-amount, ins .amount')
-                || document.querySelector('.price ins .amount, .price ins .woocommerce-Price-amount');
-      const del = heading?.querySelector('del .woocommerce-Price-amount, del .amount')
-                || document.querySelector('.price del .amount, .price del .woocommerce-Price-amount');
-      const single = heading?.querySelector('.woocommerce-Price-amount, .amount')
-                   || document.querySelector('.price .woocommerce-Price-amount, .price .amount');
-      if (ins) return { price: clean(ins.textContent), original: del ? clean(del.textContent) : 0 };
-      return { price: clean(single?.textContent), original: 0 };
-    });
-    if (!priceData.price) return null;
+      const heading = $('.elementor-heading-title').first();
+      let ins = heading.find('ins .woocommerce-Price-amount, ins .amount').first();
+      if (!ins.length) ins = $('.price ins .amount, .price ins .woocommerce-Price-amount').first();
+      let del = heading.find('del .woocommerce-Price-amount, del .amount').first();
+      if (!del.length) del = $('.price del .amount, .price del .woocommerce-Price-amount').first();
+      let single = heading.find('.woocommerce-Price-amount, .amount').first();
+      if (!single.length) single = $('.price .woocommerce-Price-amount, .price .amount').first();
 
-    // תיאור — סנן פסקאות טיפול ופסקאות ריקות
-    const skipKw = SKIP_PARAGRAPHS;
-    const allParagraphs = await page.evaluate((skipKw) =>
-      [...document.querySelectorAll('.woocommerce-product-details__short-description p')]
-        .map(p => p.textContent.trim())
-        .filter(t => t && !skipKw.some(kw => t.includes(kw)))
-    , skipKw);
+      let priceData;
+      if (ins.length) {
+        priceData = { price: clean(ins.text()), original: del.length ? clean(del.text()) : 0 };
+      } else {
+        priceData = { price: clean(single.text()), original: 0 };
+      }
+      if (!priceData.price) return null;
 
-    const firstParagraph = allParagraphs[0] || '';
-    const description    = allParagraphs.slice(0, 3).join(' '); // 3 פסקאות ראשונות רלוונטיות
+      // תיאור — סנן פסקאות טיפול ופסקאות ריקות
+      const skipKw = SKIP_PARAGRAPHS;
+      const allParagraphs = $('.woocommerce-product-details__short-description p')
+        .map((_, p) => $(p).text().trim()).get()
+        .filter(t => t && !skipKw.some(kw => t.includes(kw)));
 
-    // מידות — כל div.vi-wpvs-option-wrap שמופיע = במלאי
-    const sizes = await page.evaluate(() =>
-      [...document.querySelectorAll('div.vi-wpvs-option-wrap[data-attribute_value]')]
-        .map(d => (d.getAttribute('data-attribute_label') || d.getAttribute('data-attribute_value') || '').trim())
+      const firstParagraph = allParagraphs[0] || '';
+      const description    = allParagraphs.slice(0, 3).join(' '); // 3 פסקאות ראשונות רלוונטיות
+
+      // מידות — כל div.vi-wpvs-option-wrap שמופיע = במלאי
+      const sizes = $('div.vi-wpvs-option-wrap[data-attribute_value]')
+        .map((_, d) => ($(d).attr('data-attribute_label') || $(d).attr('data-attribute_value') || '').trim())
+        .get().filter(Boolean);
+
+      // בדיקת אזל מלאי כולל (badge)
+      const fullyOos = $('.outofstock-badge, .out-of-stock').length > 0;
+
+      // תמונות - עדיפות לגרסה המוקטנת (src של ה-img בפועל, למשל -400x600.webp),
+      // כי href של ה-a מצביע על התמונה המקורית הענקית (לזום), בלי סיומת מידה בכלל -
+      // מה שגורם ל-thumbUrl() בפרונט לא לזהות אותה ולהעלות את המקור הענק כמו שהוא
+      const images = $('.woocommerce-product-gallery__image a, .product-images a')
+        .map((_, a) => {
+          const $a = $(a);
+          const img = $a.find('img').first();
+          const resized = img.attr('src') || img.attr('data-src');
+          return resized || $a.attr('href') || $a.attr('data-src');
+        }).get().filter(Boolean)
+        .map(u => { try { return new URL(u, BASE).href; } catch { return null; } })
         .filter(Boolean)
-    );
+        .filter((v, i, arr) => arr.indexOf(v) === i);
 
-    // בדיקת אזל מלאי כולל (badge)
-    const fullyOos = await page.evaluate(() =>
-      !!document.querySelector('.outofstock-badge, .out-of-stock')
-    );
+      // צבע — מהפסקה הראשונה בלבד
+      const mainColor     = normalizeColor(firstParagraph) || normalizeColor(title);
+      const category      = detectCategory(title, description);
+      const style         = detectStyle(title, description);
+      const fit           = detectFit(title, description);
+      const pattern       = detectPattern(title, description);
+      const fabric        = detectFabric(title, description);
+      const designDetails = detectDesignDetails(title, description);
 
-    // תמונות - עדיפות לגרסה המוקטנת (src של ה-img בפועל, למשל -400x600.webp),
-    // כי href של ה-a מצביע על התמונה המקורית הענקית (לזום), בלי סיומת מידה בכלל -
-    // מה שגורם ל-thumbUrl() בפרונט לא לזהות אותה ולהעלות את המקור הענק כמו שהוא
-    const images = await page.evaluate(() =>
-      [...document.querySelectorAll('.woocommerce-product-gallery__image a, .product-images a')]
-        .map(a => {
-          const img = a.querySelector('img');
-          const resized = img?.getAttribute('src') || img?.getAttribute('data-src');
-          return resized || a.getAttribute('href') || a.getAttribute('data-src');
-        })
-        .filter(Boolean)
-        .filter((v, i, a) => a.indexOf(v) === i)
-    );
+      const uniqueSizes    = fullyOos ? [] : [...new Set(sizes.flatMap(s => normalizeSize(s)))];
+      const allUniqueSizes = [...new Set(sizes.flatMap(s => normalizeSize(s)))];
 
-    // צבע — מהפסקה הראשונה בלבד
-    const mainColor     = normalizeColor(firstParagraph) || normalizeColor(title);
-    const category      = detectCategory(title, description);
-    const style         = detectStyle(title, description);
-    const fit           = detectFit(title, description);
-    const pattern       = detectPattern(title, description);
-    const fabric        = detectFabric(title, description);
-    const designDetails = detectDesignDetails(title, description);
+      console.log(`  ✓ ${title.substring(0, 40)}`);
+      console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);
 
-    const uniqueSizes    = fullyOos ? [] : [...new Set(sizes.flatMap(s => normalizeSize(s)))];
-    const allUniqueSizes = [...new Set(sizes.flatMap(s => normalizeSize(s)))];
-
-    console.log(`  ✓ ${title.substring(0, 40)}`);
-    console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);
-
-    return {
-      title, price: priceData.price, originalPrice: priceData.original || null,
-      images, sizes: uniqueSizes, allSizes: allUniqueSizes,
-      mainColor, colors: mainColor ? [mainColor] : [],
-      colorSizes: {}, category, style, fit, pattern, fabric, designDetails,
-      description, url,
-    };
+      return {
+        title, price: priceData.price, originalPrice: priceData.original || null,
+        images, sizes: uniqueSizes, allSizes: allUniqueSizes,
+        mainColor, colors: mainColor ? [mainColor] : [],
+        colorSizes: {}, category, style, fit, pattern, fabric, designDetails,
+        description, url,
+      };
     } catch(err) {
       if (attempt < 2) {
         console.log(`    ⚠️ ניסיון ${attempt} נכשל: ${err.message.substring(0,40)}, מנסה שוב...`);
-        await page.waitForTimeout(3000);
+        await new Promise(r => setTimeout(r, 3000));
         continue;
       }
       console.log(`  ✗ ${err.message.substring(0, 60)}`);
@@ -301,73 +322,8 @@ async function runHealthCheck() {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const LAUNCH_ARGS = [
-  '--no-sandbox', '--disable-setuid-sandbox',
-  '--disable-blink-features=AutomationControlled',
-  '--disable-dev-shm-usage',
-  '--disable-accelerated-2d-canvas',
-  '--no-first-run', '--no-zygote',
-  '--lang=he-IL,he,en-US,en',
-  '--disable-http2', // curl הצליח דרך אותו פרוקסי כשנפל ל-HTTP/1.1 - ה-proxy כנראה לא מתמודד טוב עם HTTP/2
-];
-let browser;
-const __proxyDiag = getProxyConfig();
-if (__proxyDiag) {
-  console.log(`  🧭 פרוקסי זוהה: ${__proxyDiag.server} (username: ${__proxyDiag.username ? __proxyDiag.username.substring(0,15) + '...' : 'ללא'})`);
-} else {
-  console.log('  🧭 לא זוהה פרוקסי (PROXY_SERVER לא מוגדר) - רץ ישירות');
-}
-if (process.env.SCRAPER_ENGINE === 'firefox') {
-  // מצב בדיקה: Firefox לא משתמש ב-CDP בכלל, ולכן עוקף זיהוי אוטומציה שמזהה את פרוטוקול Chromium
-  browser = await firefox.launch({ headless: true, args: [], proxy: getProxyConfig() });
-  console.log('  🦊 משתמש ב-Firefox (בדיקת עקיפת CDP)');
-} else
 try {
-  // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי,
-  // ולכן לא נחסם ע"י הגנות WAF שמזהות את Chromium הפנימי של Playwright
-  browser = await chromium.launch({ headless: true, slowMo: 0, channel: 'chrome', args: LAUNCH_ARGS, proxy: getProxyConfig() });
-  console.log('  🌐 משתמש ב-Chrome האמיתי');
-} catch (e) {
-  console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
-  browser = await chromium.launch({ headless: true, slowMo: 0, args: LAUNCH_ARGS, proxy: getProxyConfig() });
-}
-const context = await browser.newContext({
-  ignoreHTTPSErrors: true, // נדרש לתאימות עם פרוקסי שמפענח HTTPS בעצמו (למשל ScrapingBee)
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  viewport: { width: 1440, height: 900 },
-  locale: 'he-IL',
-  timezoneId: 'Asia/Jerusalem',
-  extraHTTPHeaders: {
-    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-  },
-});
-// הסתר navigator.webdriver
-await context.addInitScript(() => {
-  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-});
-// חסימת משאבים לא-חיוניים (תמונות, CSS, פונטים, מדיה) - קריטי כשמשתמשים בפרוקסי בתשלום לפי בקשה,
-// כי כל קובץ נפרד (כולל CSS/פונטים) נספר כבקשה מחויבת נפרדת. את קישורי המוצרים שולפים מה-HTML הגולמי,
-// שלא תלוי בטעינת העיצוב/גופנים בפועל. JS נשאר פתוח כי חלק מהעמודים עשויים להזדקק לו.
-const BLOCKED_RESOURCE_TYPES = new Set(['image', 'stylesheet', 'font', 'media']);
-await context.route('**/*', route => {
-  return BLOCKED_RESOURCE_TYPES.has(route.request().resourceType()) ? route.abort() : route.continue();
-});
-const page = await context.newPage();
-
-// בדיקה: ביקור בדף הבית קודם + השהיה אנושית, לפני ניווט לחנות (ייתכן שהחסימה קשורה לניווט ישיר בלי הקשר גלישה)
-try {
-  console.log('  🏠 מבקר בדף הבית קודם...');
-  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 90000 });
-  const homeTitle = await page.title();
-  console.log(`    🔍 כותרת דף הבית: "${homeTitle}"`);
-  await page.waitForTimeout(2500 + Math.random() * 2000);
-} catch (e) {
-  console.log('  ⚠️ ביקור בדף הבית נכשל:', e.message);
-}
-
-try {
-  const urls = await getAllProductUrls(page);
+  const urls = await getAllProductUrls();
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
 
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
@@ -375,9 +331,9 @@ try {
 
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     console.log(`\n[${i + 1}/${Math.min(urls.length, MAX_PRODUCTS)}]`);
-    const p = await scrapeProduct(page, urls[i]);
+    const p = await scrapeProduct(urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(500);
+    await new Promise(r => setTimeout(r, 300)); // השהיה קלה בין בקשות
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
@@ -393,6 +349,5 @@ try {
   await runHealthCheck();
 
 } finally {
-  await browser.close();
   await db.end();
 }

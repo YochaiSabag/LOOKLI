@@ -21,11 +21,17 @@ function isCloudinaryQuotaError(e) {
     msg.includes('insufficient credit') || msg.includes('quota') || msg.includes('rate limit') || msg.includes('plan limit');
 }
 
+// גודל מינימלי לתמונה תקינה - תמונות שנטפרי חוסם/מפקסל נוטות להיות קטנות בהרבה
+// (אותו סף שכבר בשימוש ב-check_netfree_images.js). רשת ביטחון נוספת מעבר לפרוקסי -
+// גם אם מסיבה כלשהי הבקשה כן עברה דרך חיבור מסונן, לא נעלה תמונה חשודה ל-Cloudinary לצמיתות
+const MIN_VALID_IMAGE_BYTES = 15000;
+
 async function uploadToCloudinary(imageUrl) {
   if (cloudinaryQuotaExceeded) return null; // כבר ידוע שהמכסה נגמרה - לא מבזבזים fetch+upload על ניסיון שייכשל בוודאות
   try {
-    // שלב 1: קחת את התמונה עם headers מתאימים
-    const resp = await fetch(imageUrl, {
+    // שלב 1: קחת את התמונה עם headers מתאימים - דרך הפרוקסי אם מוגדר, כדי לא לעבור
+    // דרך חיבור מסונן (נטפרי) שעלול להחזיר גרסה חסומה/מפוקסלת של התמונה במקום המקור
+    const resp = await proxyFetch(imageUrl, {
       headers: {
         'Referer': 'https://chemise.co.il/',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -34,6 +40,12 @@ async function uploadToCloudinary(imageUrl) {
     if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
     const arrayBuffer = await resp.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // רשת ביטחון: תמונה קטנה בצורה חשודה כנראה חסומה (נטפרי או אחר) - לא מעלים אותה
+    if (buffer.length < MIN_VALID_IMAGE_BYTES) {
+      console.log(`    ⚠ תמונה חשודה כחסומה (${buffer.length} bytes < ${MIN_VALID_IMAGE_BYTES}) - מדלג על העלאה: ${imageUrl.substring(0,60)}`);
+      return null;
+    }
 
     // שלב 2: העלה ל-Cloudinary כ-data URI (base64)
     const base64 = buffer.toString('base64');
@@ -61,11 +73,17 @@ async function uploadToCloudinary(imageUrl) {
   }
 }
 
-// fetch דרך proxy אם מוגדר SCRAPER_PROXY_URL
+// fetch דרך פרוקסי - קודם כל בודק את getProxyConfig המשותף (PROXY_SERVER/PROXY_USERNAME/PROXY_PASSWORD,
+// אותם משתנים שכל שאר הסקרייפרים משתמשים בהם), עם תמיכה ב-SCRAPER_PROXY_URL הישן לאחור-תאימות
 function proxyFetch(url, options = {}) {
-  const proxyUrl = process.env.SCRAPER_PROXY_URL;
-  if (proxyUrl) {
-    options.agent = new HttpsProxyAgent(proxyUrl);
+  const cfg = getProxyConfig();
+  if (cfg) {
+    const [scheme, rest] = cfg.server.split('://');
+    const user = encodeURIComponent(cfg.username || '');
+    const pass = encodeURIComponent(cfg.password || '');
+    options.agent = new HttpsProxyAgent(`${scheme}://${user}:${pass}@${rest}`);
+  } else if (process.env.SCRAPER_PROXY_URL) {
+    options.agent = new HttpsProxyAgent(process.env.SCRAPER_PROXY_URL);
   }
   return fetch(url, options);
 }
@@ -93,7 +111,7 @@ console.log('🚀 Chemise Scraper');
 // מיפוי צבעים
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
-import { loadScraperConfig } from './scraper_utils.js';
+import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, isKidsSizeOnly, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],

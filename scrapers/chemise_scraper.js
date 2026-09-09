@@ -24,7 +24,7 @@ function isCloudinaryQuotaError(e) {
 // גודל מינימלי לתמונה תקינה - תמונות שנטפרי חוסם/מפקסל נוטות להיות קטנות בהרבה
 // (אותו סף שכבר בשימוש ב-check_netfree_images.js). רשת ביטחון נוספת מעבר לפרוקסי -
 // גם אם מסיבה כלשהי הבקשה כן עברה דרך חיבור מסונן, לא נעלה תמונה חשודה ל-Cloudinary לצמיתות
-const MIN_VALID_IMAGE_BYTES = 15000;
+const MIN_VALID_IMAGE_BYTES = 9500; // עודכן לפי בדיקה ידנית של תמונות אמיתיות בשמיז - 15000 היה תופס תמונות תקינות בטעות
 
 async function uploadToCloudinary(imageUrl) {
   if (cloudinaryQuotaExceeded) return null; // כבר ידוע שהמכסה נגמרה - לא מבזבזים fetch+upload על ניסיון שייכשל בוודאות

@@ -15,7 +15,7 @@ import https from 'https';
 import pkg from 'pg';
 const { Client } = pkg;
 
-const MIN_VALID_BYTES = 15000; // אותו סף כמו check_netfree_images.js ו-chemise_scraper.js
+const MIN_VALID_BYTES = 9500; // עודכן לפי בדיקה ידנית של תמונות אמיתיות בשמיז - 15000 היה תופס תמונות תקינות בטעות
 
 const connStr = process.env.DATABASE_URL;
 const useSSL = connStr && (connStr.includes('rlwy.net') || connStr.includes('amazonaws.com') || connStr.includes('supabase'));

@@ -376,7 +376,10 @@ export async function loadScraperConfig(db) {
 export function getProxyConfig() {
   if (!process.env.PROXY_SERVER) return undefined;
   const cfg = { server: process.env.PROXY_SERVER };
-  if (process.env.PROXY_USERNAME) cfg.username = process.env.PROXY_USERNAME;
-  if (process.env.PROXY_PASSWORD) cfg.password = process.env.PROXY_PASSWORD;
+  if (process.env.PROXY_USERNAME) {
+    cfg.username = process.env.PROXY_USERNAME;
+    // חלק משירותי פרוקסי (כמו Crawlbase) דורשים שדה password קיים גם אם ריק - בלעדיו האימות נתקע
+    cfg.password = process.env.PROXY_PASSWORD || '';
+  }
   return cfg;
 }

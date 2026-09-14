@@ -1,5 +1,7 @@
 import 'dotenv/config';
-import { chromium } from 'playwright';
+import https from 'https';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as cheerio from 'cheerio';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Pool } = pkg;
@@ -16,7 +18,7 @@ db.on('error', (err) => {
   console.log(`  ⚠️ DB pool error (חיבור לא פעיל נזרק, לא קורס): ${err.message}`);
 });
 
-console.log('🚀 Shebello Scraper');
+console.log('🚀 Shebello Scraper — גרסת HTTP ישיר דרך פרוקסי (בלי Playwright)');
 
 import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
@@ -25,14 +27,52 @@ const STORE = 'SHEBELLO';
 const BASE  = 'https://shebello.co.il';
 
 // ======================================================================
+// תשתית HTTP דרך פרוקסי (מחליפה את Playwright - האתר חוסם דפדפן אוטומטי,
+// אבל מתיר בקשת HTTP ישירה. ראה תיעוד ב-scraper_utils.js / getProxyConfig)
+// ======================================================================
+const __proxyDiag = getProxyConfig();
+let proxyAgent = null;
+if (__proxyDiag) {
+  console.log(`  🧭 פרוקסי זוהה: ${__proxyDiag.server} (username: ${__proxyDiag.username ? __proxyDiag.username.substring(0,15) + '...' : 'ללא'})`);
+  const [scheme, rest] = __proxyDiag.server.split('://');
+  const user = encodeURIComponent(__proxyDiag.username || '');
+  const pass = encodeURIComponent(__proxyDiag.password || '');
+  proxyAgent = new HttpsProxyAgent(`${scheme}://${user}:${pass}@${rest}`);
+} else {
+  console.log('  🧭 לא זוהה פרוקסי (PROXY_SERVER לא מוגדר) - רץ ישירות');
+}
+
+function fetchHTML(url, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const opts = { timeout: 60000, rejectUnauthorized: false };
+    if (proxyAgent) opts.agent = proxyAgent;
+    const req = https.get(url, opts, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        const nextUrl = new URL(res.headers.location, url).toString();
+        fetchHTML(nextUrl, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        resolve({ status: res.statusCode, html: Buffer.concat(chunks).toString('utf-8') });
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Timeout אחרי 60 שניות')));
+    req.on('error', reject);
+  });
+}
+
+// ======================================================================
 // איסוף קישורים
 // ======================================================================
-async function getAllProductUrls(page) {
+async function getAllProductUrls() {
   // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
   //console.log('\n🧪 TEST MODE — מוצר בודד\n');
   //return ['https://shebello.co.il/product/%d7%97%d7%a6%d7%90%d7%99%d7%aa-%d7%99%d7%a8%d7%95%d7%a7-%d7%91%d7%a7%d7%91%d7%95%d7%a7/'];
   // ===== END TEST MODE =====
-  console.log('\n📂 איסוף קישורים מ-shebello.co.il...\n');
+  console.log('\n📂 איסוף קישורים מ-shebello.co.il (HTTP ישיר דרך פרוקסי)...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
@@ -41,37 +81,26 @@ async function getAllProductUrls(page) {
     console.log(`  → עמוד ${p}`);
 
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      // המתנה דינמית לתוכן ה-AJAX (JetEngine) במקום זמן קבוע — הזמן הזה משתנה בין הרצות,
-      // וזמן קבוע קצר מדי גורם לעמוד ריק ולעצירה מיידית ("לפעמים כן לפעמים לא")
-      await page.waitForSelector('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url], a[href*="/product/"]', { timeout: 10000 }).catch(() => {});
+      const res = await fetchHTML(url);
+      console.log(`    🔍 סטטוס: ${res.status}, אורך: ${res.html.length}`);
+      if (res.status !== 200) { console.log(`    ⏹ סטטוס לא תקין — עוצר`); break; }
 
-      // === אבחון: מה השרת החזיר בפועל (עוזר לזהות חסימת בוט/Cloudflare) ===
-      try {
-        const diagTitle = await page.title();
-        const diagSnippet = await page.evaluate(() => (document.body?.innerText || '').trim().substring(0, 200));
-        console.log(`    🔍 כותרת עמוד: "${diagTitle}"`);
-        console.log(`    🔍 תחילת תוכן: "${diagSnippet.replace(/\n/g, ' ')}"`);
-      } catch(e) {}
+      const $ = cheerio.load(res.html);
+      const found = new Set();
+      $('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url], a[href*="/product/"]').each((_, el) => {
+        const $el = $(el);
+        let h = ($el.attr('href') || $el.attr('data-url') || '').split('?')[0];
+        if (!h) return;
+        try { h = new URL(h, BASE).href; } catch { return; }
+        if (h.includes(BASE) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/') && h !== BASE + '/') {
+          found.add(h);
+        }
+      });
 
-      for (let i = 0; i < 3; i++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
-        await page.waitForTimeout(700);
-      }
-      await page.waitForTimeout(500);
-
-      const urls = await page.evaluate((base) =>
-        [...document.querySelectorAll('a.jet-engine-listing-overlay-link, .jet-engine-listing-overlay-wrap[data-url], a[href*="/product/"]')]
-          .map(el => el.getAttribute('href') || el.getAttribute('data-url'))
-          .map(h => (h || '').split('?')[0])
-          .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/') && h !== base + '/')
-          .filter((v, i, a) => a.indexOf(v) === i)
-      , BASE).catch(() => []);
-
+      const urls = [...found];
       if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
       urls.forEach(u => allUrls.add(u));
       console.log(`    ✓ ${urls.length} קישורים`);
-      await page.waitForTimeout(800);
     } catch(e) {
       console.log(`    ⚠ שגיאה בעמוד ${p}: ${e.message.substring(0,60)} — ממשיך`);
     }
@@ -85,49 +114,48 @@ async function getAllProductUrls(page) {
 // ======================================================================
 // גירוד מוצר
 // ======================================================================
-async function scrapeProduct(page, url) {
+async function scrapeProduct(url) {
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    const res = await fetchHTML(url);
+    if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+    const $ = cheerio.load(res.html);
 
     // כותרת
-    const title = await page.$eval('h1.product_title, h1.entry-title', el => el.textContent.trim()).catch(() => '');
+    const title = ($('h1.product_title').first().text() || $('h1.entry-title').first().text() || '').trim();
     if (!title) return null;
 
     if (shouldSkip(title)) { console.log(`  ⏭ מדלג: ${title.substring(0, 40)}`); return null; }
 
     // מחיר
-    const priceData = await page.evaluate(() => {
-      const clean = t => parseFloat((t || '').replace(/[^\d.]/g, '')) || 0;
-      const ins = document.querySelector('.price ins .woocommerce-Price-amount bdi, .price ins .amount bdi');
-      const del = document.querySelector('.price del .woocommerce-Price-amount bdi, .price del .amount bdi');
-      const single = document.querySelector('.price .woocommerce-Price-amount bdi, .price .amount bdi');
-      if (ins) return { price: clean(ins.textContent), original: del ? clean(del.textContent) : 0 };
-      return { price: clean(single?.textContent), original: 0 };
-    });
+    const clean = t => parseFloat((t || '').replace(/[^\d.]/g, '')) || 0;
+    const ins = $('.price ins .woocommerce-Price-amount bdi, .price ins .amount bdi').first();
+    const del = $('.price del .woocommerce-Price-amount bdi, .price del .amount bdi').first();
+    const single = $('.price .woocommerce-Price-amount bdi, .price .amount bdi').first();
 
+    let priceData;
+    if (ins.length) {
+      priceData = { price: clean(ins.text()), original: del.length ? clean(del.text()) : 0 };
+    } else {
+      priceData = { price: clean(single.text()), original: 0 };
+    }
     if (!priceData.price) return null;
 
     // בדיקת אזל מלאי כולל — רק מטקסט מפורש
-    const fullyOos = await page.evaluate(() =>
-      !![...document.querySelectorAll('.elementor-heading-title')]
-        .find(el => el.textContent.includes('אזל מהמלאי'))
-    );
+    const fullyOos = $('.elementor-heading-title').filter((_, el) => $(el).text().includes('אזל מהמלאי')).length > 0;
 
     // דלג על סטים עם select "פריט" (חולצה/חצאית) — מלאי לא ניתן לבדיקה אמינה
-    const isSetWithItems = await page.evaluate(() =>
-      [...document.querySelectorAll('select[name^="attribute_"] option')]
-        .some(o => ['חולצה','חצאית','מכנסיים'].includes(o.textContent.trim()))
-    );
+    const isSetWithItems = $('select[name^="attribute_"] option').filter((_, o) =>
+      ['חולצה','חצאית','מכנסיים'].includes($(o).text().trim())
+    ).length > 0;
     if (isSetWithItems) { console.log(`  ⏭ מדלג — סט עם בחירת פריט`); return null; }
 
     // מידות זמינות — מ-WooCommerce variation JSON (המקור האמין ביותר)
-    const sizes = fullyOos ? [] : await page.evaluate(() => {
-      // נסה לקרוא מ-variation JSON
+    let sizes = [];
+    if (!fullyOos) {
       try {
-        const form = document.querySelector('form.variations_form');
-        if (form) {
-          const json = JSON.parse(form.getAttribute('data-product_variations') || '[]');
+        const form = $('form.variations_form').first();
+        if (form.length) {
+          const json = JSON.parse(form.attr('data-product_variations') || '[]');
           if (json.length > 0) {
             const inStock = new Set();
             for (const v of json) {
@@ -135,60 +163,63 @@ async function scrapeProduct(page, url) {
               for (const [key, val] of Object.entries(v.attributes || {})) {
                 if (!key.includes('size') && !key.includes('skirt') && !key.includes('shirt') && !key.includes('pa_')) continue;
                 // val הוא slug — חפש את ה-data-title המתאים
-                const li = document.querySelector(`li.variable-item[data-value="${val}"]`);
-                const title = li?.getAttribute('data-title') || val;
-                if (title) inStock.add(title);
+                const li = $(`li.variable-item[data-value="${val}"]`).first();
+                const t = li.attr('data-title') || val;
+                if (t) inStock.add(t);
               }
             }
-            if (inStock.size > 0) return [...inStock];
+            if (inStock.size > 0) sizes = [...inStock];
           }
         }
       } catch(e) {}
       // fallback — select
-      const sel = document.querySelector('select[name^="attribute_pa_"]');
-      if (sel) {
-        return [...sel.options]
-          .filter(o => o.value && o.className.includes('enabled'))
-          .map(o => o.getAttribute('data-title') || o.textContent.trim())
-          .filter(Boolean);
+      if (sizes.length === 0) {
+        const sel = $('select[name^="attribute_pa_"]').first();
+        if (sel.length) {
+          sizes = sel.find('option')
+            .filter((_, o) => $(o).attr('value') && ($(o).attr('class') || '').includes('enabled'))
+            .map((_, o) => $(o).attr('data-title') || $(o).text().trim())
+            .get().filter(Boolean);
+        }
       }
-      return [];
-    });
+    }
 
     // כל המידות (כולל אזל) — מ-li elements
-    const allSizes = await page.evaluate(() => {
-      const sel = document.querySelector('select[name^="attribute_pa_"]');
-      if (sel) {
-        return [...sel.options]
-          .filter(o => o.value)
-          .map(o => {
-            const li = document.querySelector(`li.variable-item[data-value="${o.value}"]`);
-            return li?.getAttribute('data-title') || o.textContent.trim();
-          })
-          .filter(Boolean);
-      }
-      return [...document.querySelectorAll('li.variable-item[data-title]')]
-        .map(li => li.getAttribute('data-title') || li.textContent.trim())
-        .filter(Boolean);
-    });
+    let allSizes = [];
+    const sel = $('select[name^="attribute_pa_"]').first();
+    if (sel.length) {
+      allSizes = sel.find('option')
+        .filter((_, o) => $(o).attr('value'))
+        .map((_, o) => {
+          const val = $(o).attr('value');
+          const li = $(`li.variable-item[data-value="${val}"]`).first();
+          return li.attr('data-title') || $(o).text().trim();
+        })
+        .get().filter(Boolean);
+    } else {
+      allSizes = $('li.variable-item[data-title]')
+        .map((_, li) => $(li).attr('data-title') || $(li).text().trim())
+        .get().filter(Boolean);
+    }
 
     if (!allSizes.length && !sizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
 
     console.log(`    🔍 DEBUG sizes: [${sizes.join(',')}] allSizes: [${allSizes.join(',')}]`);
 
     // תמונות
-    const images = await page.evaluate(() =>
-      [...document.querySelectorAll('.woocommerce-product-gallery__image a')]
-        .map(a => a.getAttribute('href'))
-        .filter(Boolean)
-        .filter((v, i, a) => a.indexOf(v) === i)
-    );
+    const images = $('.woocommerce-product-gallery__image a')
+      .map((_, a) => $(a).attr('href'))
+      .get().filter(Boolean)
+      .map(u => { try { return new URL(u, BASE).href; } catch { return null; } })
+      .filter(Boolean)
+      .filter((v, i, arr) => arr.indexOf(v) === i);
 
     // תיאור
-    const description = await page.$eval(
-      '.jet-single-content p, .woocommerce-product-details__short-description p, .elementor-jet-single-content p',
-      el => el.textContent.trim()
-    ).catch(() => '');
+    const description = (
+      $('.jet-single-content p').first().text() ||
+      $('.woocommerce-product-details__short-description p').first().text() ||
+      $('.elementor-jet-single-content p').first().text() || ''
+    ).trim();
 
     // צבע, קטגוריה, סגנון
     const mainColor    = normalizeColor(title + ' ' + description);
@@ -289,30 +320,8 @@ async function runHealthCheck() {
 // ======================================================================
 // הרצה ראשית
 // ======================================================================
-const SHEBELLO_LAUNCH_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled', '--lang=he-IL,he,en-US,en'];
-let browser;
 try {
-  // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי
-  browser = await chromium.launch({ headless: true, slowMo: 30, channel: 'chrome', args: SHEBELLO_LAUNCH_ARGS, proxy: getProxyConfig() });
-  console.log('  🌐 משתמש ב-Chrome האמיתי');
-} catch (e) {
-  console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
-  browser = await chromium.launch({ headless: true, slowMo: 30, args: SHEBELLO_LAUNCH_ARGS, proxy: getProxyConfig() });
-}
-const context = await browser.newContext({
-  ignoreHTTPSErrors: true, // נדרש לתאימות עם פרוקסי שמפענח HTTPS בעצמו (למשל ScrapingBee)
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  viewport: { width: 1920, height: 1080 },
-  locale: 'he-IL',
-  timezoneId: 'Asia/Jerusalem',
-});
-await context.route('**/*', route => {
-  return route.request().resourceType() === 'image' ? route.abort() : route.continue();
-});
-const page = await context.newPage();
-
-try {
-  const urls = await getAllProductUrls(page);
+  const urls = await getAllProductUrls();
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
 
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
@@ -320,9 +329,9 @@ try {
 
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     console.log(`\n[${i + 1}/${Math.min(urls.length, MAX_PRODUCTS)}]`);
-    const p = await scrapeProduct(page, urls[i]);
+    const p = await scrapeProduct(urls[i]);
     if (p) { await saveProduct(p); ok++; } else fail++;
-    await page.waitForTimeout(500);
+    await new Promise(r => setTimeout(r, 300)); // השהיה קלה בין בקשות
   }
 
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
@@ -338,6 +347,5 @@ try {
   await runHealthCheck();
 
 } finally {
-  await browser.close();
   await db.end();
 }

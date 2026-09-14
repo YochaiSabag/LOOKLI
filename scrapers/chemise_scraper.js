@@ -839,13 +839,17 @@ async function saveProduct(product) {
 // ======================================================================
 // הרצה
 // ======================================================================
-// Proxy — אם מוגדר SCRAPER_PROXY_URL, משתמש בו (מאפשר הרצה מ-Railway)
-// פורמט: http://user:pass@host:port  או  http://host:port
-const proxyUrl = process.env.SCRAPER_PROXY_URL;
+// Proxy — משתמש באותו getProxyConfig המשותף (PROXY_SERVER/PROXY_USERNAME/PROXY_PASSWORD)
+// כמו כל שאר הסקרייפרים בפרויקט, במקום SCRAPER_PROXY_URL הנפרד. שומר תמיכה ב-SCRAPER_PROXY_URL
+// הישן לאחור-תאימות אם מישהו עדיין מגדיר אותו.
+const __chemiseProxyCfg = getProxyConfig();
 const launchOptions = { headless: true, slowMo: 0 };
-if (proxyUrl) {
-  launchOptions.proxy = { server: proxyUrl };
-  console.log(`🔀 proxy: ${proxyUrl.replace(/:[^:@]+@/, ':***@')}`);
+if (__chemiseProxyCfg) {
+  launchOptions.proxy = __chemiseProxyCfg;
+  console.log(`🔀 proxy: ${__chemiseProxyCfg.server}`);
+} else if (process.env.SCRAPER_PROXY_URL) {
+  launchOptions.proxy = { server: process.env.SCRAPER_PROXY_URL };
+  console.log(`🔀 proxy (legacy SCRAPER_PROXY_URL): ${process.env.SCRAPER_PROXY_URL.replace(/:[^:@]+@/, ':***@')}`);
 }
 const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({

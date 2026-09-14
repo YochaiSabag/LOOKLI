@@ -1,5 +1,7 @@
 import 'dotenv/config';
-import { chromium } from 'playwright';
+import https from 'https';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as cheerio from 'cheerio';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
 const { Client } = pkg;
@@ -14,11 +16,13 @@ const db = new Client({
 
 await db.connect();
 
-console.log('🚀 Avivit Weizman Scraper');
+console.log('🚀 Avivit Weizman Scraper — גרסת HTTP ישיר דרך פרוקסי (בלי Playwright)');
 
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 const { normalizeColor, normalizeColorFromTitle, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+
+const BASE = 'https://avivit-weizman.co.il';
 
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
@@ -33,121 +37,88 @@ function normalizeSize(s) {
   return [];
 }
 
-async function getAllProductUrls(page) {
+// ======================================================================
+// תשתית HTTP דרך פרוקסי (מחליפה את Playwright - האתר חוסם דפדפן אוטומטי,
+// אבל מתיר בקשת HTTP ישירה. ראה תיעוד ב-scraper_utils.js / getProxyConfig)
+// ======================================================================
+const __proxyDiag = getProxyConfig();
+let proxyAgent = null;
+if (__proxyDiag) {
+  console.log(`  🧭 פרוקסי זוהה: ${__proxyDiag.server} (username: ${__proxyDiag.username ? __proxyDiag.username.substring(0,15) + '...' : 'ללא'})`);
+  const [scheme, rest] = __proxyDiag.server.split('://');
+  const user = encodeURIComponent(__proxyDiag.username || '');
+  const pass = encodeURIComponent(__proxyDiag.password || '');
+  proxyAgent = new HttpsProxyAgent(`${scheme}://${user}:${pass}@${rest}`);
+} else {
+  console.log('  🧭 לא זוהה פרוקסי (PROXY_SERVER לא מוגדר) - רץ ישירות');
+}
+
+function fetchHTML(url, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const opts = { timeout: 60000, rejectUnauthorized: false };
+    if (proxyAgent) opts.agent = proxyAgent;
+    const req = https.get(url, opts, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        const nextUrl = new URL(res.headers.location, url).toString();
+        fetchHTML(nextUrl, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        resolve({ status: res.statusCode, html: Buffer.concat(chunks).toString('utf-8') });
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Timeout אחרי 60 שניות')));
+    req.on('error', reject);
+  });
+}
+
+// ======================================================================
+// איסוף קישורים
+// ======================================================================
+async function getAllProductUrls() {
   // ===== TEST MODE — הסר את השורות הבאות להחזרה לרגיל =====
   //console.log('\n🧪 TEST MODE — מוצר בודד\n');
   //return ['https://avivit-weizman.co.il/product/%d7%a9%d7%9e%d7%9c%d7%aa-%d7%91%d7%99%d7%99%d7%9c%d7%99-%d7%a0%d7%a7%d7%95%d7%93%d7%95%d7%aa/'];
   // ===== END TEST MODE =====
   console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il/shop/ (כל המוצרים, לא לפי קטגוריה)...\n');
-  // עברנו מרשימת קטגוריות ידנית קבועה לעמוד "כל המוצרים" הכללי - זה מונע מצב שבו
-  // קטגוריה חדשה (למשל "נעליים") או קטגוריה שהוחלפה (עונת אביב → עונת סתיו) פשוט
-  // נעדרת מהרשימה בלי שאף אחד שם לב. /shop/ מציג את כל 136 המוצרים בחנות במפורש.
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
   for (let p = 1; p <= MAX_PAGES; p++) {
-    const url = p === 1 ? 'https://avivit-weizman.co.il/shop/' : `https://avivit-weizman.co.il/shop/page/${p}/`;
+    const url = p === 1 ? `${BASE}/shop/` : `${BASE}/shop/page/${p}/`;
+    console.log(`  → page ${p}`);
+
+    let html = '';
     try {
-      console.log(`  → page ${p}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(4000);
-
-      // בדוק אם Cloudflare חוסם
-      const pageTitle = await page.title();
-      console.log(`    📄 כותרת: ${pageTitle.substring(0,60)}`);
-      try {
-        const diagSnippet = await page.evaluate(() => (document.body?.innerText || '').trim().substring(0, 200));
-        console.log(`    🔍 תחילת תוכן: "${diagSnippet.replace(/\n/g, ' ')}"`);
-      } catch(e) {}
-      if (pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('checking')) {
-        console.log(`    🚫 Cloudflare חוסם — מחכה...`);
-        await page.waitForTimeout(8000);
-      }
-
-      // גלילה למטה — האתר טוען עוד מוצרים בגלילה
-      let lastCount = 0;
-      for (let scroll = 0; scroll < 8; scroll++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(1500);
-        const count = await page.evaluate(() =>
-          document.querySelectorAll('a[href*="/product/"]').length
-        );
-        if (count === lastCount) break;
-        lastCount = count;
-      }
-
-      let urls = await page.evaluate(() =>
-        [...document.querySelectorAll('a[href*="/product/"]')]
-          .map(a => a.href.split('?')[0])
-          .filter(h => h.includes('avivit-weizman.co.il/product/'))
-          .filter((v, i, a) => a.indexOf(v) === i)
-      );
-
-      if (urls.length === 0) {
-        // לפני שמוותרים על העמוד - ממתינים עוד ומנסים שוב (גם למקרה של Cloudflare
-        // שעדיין לא סיים לאמת, וגם למקרה של עמוד שפשוט לא הספיק להיטען)
-        console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
-        await page.waitForTimeout(6000);
-        for (let scroll = 0; scroll < 4; scroll++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(1200);
-        }
-        urls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('avivit-weizman.co.il/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        if (urls.length === 0) { console.log(`    ⏹ עדיין ריק אחרי ניסיון נוסף - עוצר בוודאות`); break; }
-        console.log(`    ✓ ניסיון נוסף הצליח: ${urls.length}`);
-      }
-
-      const before = allUrls.size;
-      urls.forEach(u => allUrls.add(u));
-      console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
-
-      if (allUrls.size === before && p > 1) {
-        // כל התוצאות בעמוד הזה כבר נאספו - לפני שמוותרים, ננסה עוד פעם אחת
-        console.log(`    ⏳ אין URL-ים חדשים - ממתין ומנסה שוב לוודא`);
-        await page.waitForTimeout(5000);
-        const retryUrls = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('avivit-weizman.co.il/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        const before2 = allUrls.size;
-        retryUrls.forEach(u => allUrls.add(u));
-        if (allUrls.size === before2) {
-          console.log(`    ⏹ אושר - באמת אין עוד URL-ים חדשים, עוצר`);
-          break;
-        }
-        console.log(`    ✓ ניסיון נוסף מצא עוד: ${allUrls.size - before2} חדשים`);
-      }
+      const res = await fetchHTML(url);
+      console.log(`    📄 סטטוס: ${res.status}, אורך: ${res.html.length}`);
+      if (res.status === 200) html = res.html;
     } catch (e) {
-      // שגיאה חד-פעמית לא מפילה את כל התהליך - מנסים שוב פעם אחת
-      console.log(`    ⚠ שגיאה בעמוד ${p} - ${e.message.substring(0, 40)} - מנסה שוב`);
-      try {
-        await page.waitForTimeout(5000);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(4000);
-        const urls2 = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href*="/product/"]')]
-            .map(a => a.href.split('?')[0])
-            .filter(h => h.includes('avivit-weizman.co.il/product/'))
-            .filter((v, i, a) => a.indexOf(v) === i)
-        );
-        if (urls2.length > 0) {
-          urls2.forEach(u => allUrls.add(u));
-          console.log(`    ✓ ניסיון שני הצליח: ${urls2.length} (סה"כ: ${allUrls.size})`);
-        } else {
-          console.log(`    ⏹ ניסיון שני גם ריק - עוצר`);
-          break;
-        }
-      } catch (e2) {
-        console.log(`    ⏹ ניסיון שני נכשל - עוצר (${e2.message.substring(0, 30)})`);
-        break;
-      }
+      console.log(`    ⚠ שגיאה בעמוד ${p}: ${e.message.substring(0,50)}`);
+    }
+
+    const $ = cheerio.load(html || '');
+    const found = new Set();
+    $('a[href*="/product/"]').each((_, a) => {
+      let h = ($(a).attr('href') || '').split('?')[0];
+      if (!h) return;
+      try { h = new URL(h, BASE).href; } catch { return; }
+      if (h.includes(BASE + '/product/')) found.add(h);
+    });
+    const urls = [...found];
+
+    if (urls.length === 0) { console.log(`    ⏹ עמוד ריק — עוצר`); break; }
+
+    const before = allUrls.size;
+    urls.forEach(u => allUrls.add(u));
+    console.log(`    ✓ ${urls.length} (סה"כ: ${allUrls.size})`);
+
+    if (allUrls.size === before && p > 1) {
+      console.log(`    ⏹ אין URL-ים חדשים - עוצר`);
+      break;
     }
   }
 
@@ -159,139 +130,143 @@ async function getAllProductUrls(page) {
 // ======================================================================
 // סריקת מוצר בודד
 // ======================================================================
-async function scrapeProduct(page, url) {
+async function scrapeProduct(url) {
   const shortUrl = url.split('/product/')[1]?.substring(0, 40) || url.substring(0, 50);
   console.log(`\n🔍 ${shortUrl}...`);
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
-    await page.waitForTimeout(2500);
+    const res = await fetchHTML(url);
+    if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+    const $ = cheerio.load(res.html);
 
-    const data = await page.evaluate(() => {
-      // === כותרת — Elementor h2 ===
-      let title = document.querySelector('.elementor-widget-heading h1, .elementor-widget-heading h2, h1.product_title, h1')?.innerText?.trim() || '';
-      title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
+    // === כותרת — Elementor h2 ===
+    let title = (
+      $('.elementor-widget-heading h1').first().text() ||
+      $('.elementor-widget-heading h2').first().text() ||
+      $('h1.product_title').first().text() ||
+      $('h1').first().text() || ''
+    ).trim();
+    title = title.replace(/\s*W?\d{6,}\s*/gi, '').trim();
 
-      // === מחיר (WooCommerce del/ins) ===
-      let price = 0, originalPrice = null;
-      const priceContainer = document.querySelector('p.price');
-      if (priceContainer) {
-        const hasDel = priceContainer.querySelector('del');
-        const hasIns = priceContainer.querySelector('ins');
-        if (hasDel && hasIns) {
-          const t1 = hasDel.querySelector('bdi')?.textContent.replace(/[^\d.]/g, '');
-          const t2 = hasIns.querySelector('bdi')?.textContent.replace(/[^\d.]/g, '');
-          if (t1) originalPrice = parseFloat(t1);
-          if (t2) price = parseFloat(t2);
-        } else {
-          const bdi = priceContainer.querySelector('.woocommerce-Price-amount bdi');
-          if (bdi) { const t = bdi.textContent.replace(/[^\d.]/g, ''); if (t) price = parseFloat(t); }
+    // === מחיר (WooCommerce del/ins) ===
+    let price = 0, originalPrice = null;
+    const priceContainer = $('p.price').first();
+    if (priceContainer.length) {
+      const delEl = priceContainer.find('del').first();
+      const insEl = priceContainer.find('ins').first();
+      if (delEl.length && insEl.length) {
+        const t1 = (delEl.find('bdi').first().text() || '').replace(/[^\d.]/g, '');
+        const t2 = (insEl.find('bdi').first().text() || '').replace(/[^\d.]/g, '');
+        if (t1) originalPrice = parseFloat(t1);
+        if (t2) price = parseFloat(t2);
+      } else {
+        const bdi = priceContainer.find('.woocommerce-Price-amount bdi').first();
+        if (bdi.length) {
+          const t = (bdi.text() || '').replace(/[^\d.]/g, '');
+          if (t) price = parseFloat(t);
         }
       }
+    }
 
-      // === תמונות — JetWoo gallery ===
-      const images = [];
-
-      // תמונה ראשית
-      document.querySelectorAll('.jet-woo-product-gallery__image img').forEach(img => {
-        const src = img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.src || '';
-        if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
-      });
-
-      // תמונות משניות מ-swiper thumbs
-      document.querySelectorAll('.jet-woo-swiper-control-thumbs__item img').forEach(img => {
-        const src = img.getAttribute('data-large_image') || img.getAttribute('data-src') || '';
-        if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
-      });
-
-      // fallback: WooCommerce gallery
-      if (images.length === 0) {
-        document.querySelectorAll('.woocommerce-product-gallery__image a').forEach(a => {
-          if (a.href && a.href.includes('uploads') && !images.includes(a.href)) images.push(a.href);
-        });
-      }
-
-      // === תיאור ===
-      let description = '';
-      const descEl = document.querySelector('.woocommerce-product-details__short-description');
-      if (descEl) description = descEl.innerText?.trim() || '';
-
-      // === משלוח — מ-accordion ===
-      let shipping = null;
-      const tabContents = document.querySelectorAll('.wc-tab-inner, .elementor-tab-content');
-      for (const tab of tabContents) {
-        const text = tab.innerText || '';
-        if (text.includes('משלוח') || text.includes('שליח')) {
-          // חפש סכום וסף
-          const costMatch = text.match(/עלות\s*(\d+)/);
-          const thresholdMatch = text.match(/מעל\s*(\d+)/);
-          if (costMatch) {
-            const cost = parseInt(costMatch[1]);
-            const threshold = thresholdMatch ? parseInt(thresholdMatch[1]) : 300;
-            shipping = { cost, threshold };
-          }
-          break;
-        }
-      }
-
-      // === צבעים ומידות (WooCommerce variation swatches) ===
-      const rawColors = [];
-      const rawSizes = [];
-
-      document.querySelectorAll('.variable-items-wrapper li').forEach(el => {
-        const attrName = (
-          el.closest('[data-attribute_name]')?.getAttribute('data-attribute_name') ||
-          el.getAttribute('data-attribute_name') || ''
-        ).toLowerCase();
-        const title = el.getAttribute('data-title') || el.getAttribute('title') || '';
-        const isDisabled = el.classList.contains('disabled');
-        if (!title) return;
-
-        if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color')) {
-          rawColors.push({ name: title, disabled: isDisabled });
-        } else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('pa_size')) {
-          rawSizes.push({ name: title, disabled: isDisabled });
-        }
-      });
-
-      // fallback: select
-      if (rawColors.length === 0) {
-        document.querySelectorAll('select').forEach(sel => {
-          const name = (sel.name || sel.id || '').toLowerCase();
-          if (name.includes('color') || name.includes('pa_color') || name.includes('צבע')) {
-            Array.from(sel.options).forEach(opt => {
-              const val = opt.textContent?.trim();
-              if (!val || /בחירת|choose/i.test(val)) return;
-              rawColors.push({ name: val, disabled: opt.disabled });
-            });
-          }
-        });
-      }
-      if (rawSizes.length === 0) {
-        document.querySelectorAll('select').forEach(sel => {
-          const name = (sel.name || sel.id || '').toLowerCase();
-          if (name.includes('size') || name.includes('pa_size') || name.includes('מידה')) {
-            Array.from(sel.options).forEach(opt => {
-              const val = opt.textContent?.trim();
-              if (!val || /בחירת|choose/i.test(val)) return;
-              rawSizes.push({ name: val, disabled: opt.disabled });
-            });
-          }
-        });
-      }
-
-      // === Variations JSON ===
-      let variationsData = null;
-      const form = document.querySelector('form.variations_form');
-      if (form) {
-        try {
-          const json = form.getAttribute('data-product_variations');
-          if (json) variationsData = JSON.parse(json);
-        } catch(e) {}
-      }
-
-      return { title, price, originalPrice, images, description, shipping, rawColors, rawSizes, variationsData };
+    // === תמונות — JetWoo gallery ===
+    const images = [];
+    $('.jet-woo-product-gallery__image img').each((_, img) => {
+      const $img = $(img);
+      const src = $img.attr('data-large_image') || $img.attr('data-src') || $img.attr('src') || '';
+      if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
     });
+    $('.jet-woo-swiper-control-thumbs__item img').each((_, img) => {
+      const $img = $(img);
+      const src = $img.attr('data-large_image') || $img.attr('data-src') || '';
+      if (src && src.includes('uploads') && !images.includes(src)) images.push(src);
+    });
+    if (images.length === 0) {
+      $('.woocommerce-product-gallery__image a').each((_, a) => {
+        const href = $(a).attr('href') || '';
+        if (href && href.includes('uploads') && !images.includes(href)) images.push(href);
+      });
+    }
+    const absImages = images.map(u => { try { return new URL(u, BASE).href; } catch { return null; } }).filter(Boolean);
+
+    // === תיאור ===
+    const description = $('.woocommerce-product-details__short-description').first().text()?.trim() || '';
+
+    // === משלוח — מ-accordion ===
+    let shipping = null;
+    $('.wc-tab-inner, .elementor-tab-content').each((_, tab) => {
+      if (shipping) return;
+      const text = $(tab).text() || '';
+      if (text.includes('משלוח') || text.includes('שליח')) {
+        const costMatch = text.match(/עלות\s*(\d+)/);
+        const thresholdMatch = text.match(/מעל\s*(\d+)/);
+        if (costMatch) {
+          const cost = parseInt(costMatch[1]);
+          const threshold = thresholdMatch ? parseInt(thresholdMatch[1]) : 300;
+          shipping = { cost, threshold };
+        }
+      }
+    });
+
+    // === צבעים ומידות (WooCommerce variation swatches) ===
+    const rawColors = [];
+    const rawSizes = [];
+
+    $('.variable-items-wrapper li').each((_, el) => {
+      const $el = $(el);
+      const attrName = (
+        $el.closest('[data-attribute_name]').attr('data-attribute_name') ||
+        $el.attr('data-attribute_name') || ''
+      ).toLowerCase();
+      const t = $el.attr('data-title') || $el.attr('title') || '';
+      const isDisabled = ($el.attr('class') || '').includes('disabled');
+      if (!t) return;
+
+      if (attrName.includes('color') || attrName.includes('צבע') || attrName.includes('pa_color')) {
+        rawColors.push({ name: t, disabled: isDisabled });
+      } else if (attrName.includes('size') || attrName.includes('מידה') || attrName.includes('pa_size')) {
+        rawSizes.push({ name: t, disabled: isDisabled });
+      }
+    });
+
+    // fallback: select
+    if (rawColors.length === 0) {
+      $('select').each((_, sel) => {
+        const $sel = $(sel);
+        const name = ($sel.attr('name') || $sel.attr('id') || '').toLowerCase();
+        if (name.includes('color') || name.includes('pa_color') || name.includes('צבע')) {
+          $sel.find('option').each((_, opt) => {
+            const val = $(opt).text()?.trim();
+            if (!val || /בחירת|choose/i.test(val)) return;
+            rawColors.push({ name: val, disabled: $(opt).attr('disabled') !== undefined });
+          });
+        }
+      });
+    }
+    if (rawSizes.length === 0) {
+      $('select').each((_, sel) => {
+        const $sel = $(sel);
+        const name = ($sel.attr('name') || $sel.attr('id') || '').toLowerCase();
+        if (name.includes('size') || name.includes('pa_size') || name.includes('מידה')) {
+          $sel.find('option').each((_, opt) => {
+            const val = $(opt).text()?.trim();
+            if (!val || /בחירת|choose/i.test(val)) return;
+            rawSizes.push({ name: val, disabled: $(opt).attr('disabled') !== undefined });
+          });
+        }
+      });
+    }
+
+    // === Variations JSON ===
+    let variationsData = null;
+    const form = $('form.variations_form').first();
+    if (form.length) {
+      try {
+        const json = form.attr('data-product_variations');
+        if (json) variationsData = JSON.parse(json);
+      } catch(e) {}
+    }
+
+    const data = { title, price, originalPrice, images: absImages, description, shipping, rawColors, rawSizes, variationsData };
 
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
@@ -335,7 +310,6 @@ async function scrapeProduct(page, url) {
           }
           normColor = normalizeColor(displayColor);
         }
-        // אם אין צבע בווריאציה — נסה מהכותרת
         if (!normColor) {
           normColor = normalizeColorFromTitle(data.title);
         }
@@ -378,7 +352,6 @@ async function scrapeProduct(page, url) {
       }
       console.log(`    🔍 rawColors.length=${data.rawColors.length} rawColors=${JSON.stringify(data.rawColors.map(c=>c.name))}`);
       if (data.rawColors.length === 0) {
-        // fallback — חפש צבע בכותרת המוצר
         const colorFromTitle = normalizeColorFromTitle(data.title);
         console.log(`    🔍 colorFromTitle("${data.title}") = ${colorFromTitle}`);
         if (colorFromTitle) {
@@ -405,17 +378,14 @@ async function scrapeProduct(page, url) {
     const uniqueSizes = [...availableSizes];
     const mainColor = uniqueColors[0] || null;
 
-    // דלג על מוצרים ללא מידות
     if (uniqueSizes.length === 0) {
       console.log(`  ⚠️ אין מידות במלאי כרגע — שומר בכל זאת עם רשימת מידות ריקה`);
     }
 
-    // משלוח
     let shippingObj = null;
     if (data.shipping) {
       shippingObj = { cost: data.shipping.cost, threshold: data.shipping.threshold, isFree: false };
     } else {
-      // ברירת מחדל לפי האתר: 35 ש"ח, חינם מעל 399
       shippingObj = { cost: 35, threshold: 399, isFree: data.price >= 399 };
     }
 
@@ -455,21 +425,15 @@ async function scrapeProduct(page, url) {
 // שמירה ל-DB
 // ======================================================================
 // מחשב כותרת בסיס ללא ציון הצבע (לאיחוד ווריאנטים)
-// כותרות מהאתר הן בתבנית "<שם המוצר>- <צבע>" — הצבע יכול להיות מילה אחת
-// (אדום, שמנת) או ביטוי דו-מילתי (כחול רויאל). לכן קודם מנסים להסיר את כל
-// המקטע שאחרי המקף האחרון (גנרי, לא תלוי ברשימת צבעים), ורק אם אין מקף
-// בכותרת נופלים חזרה לסינון מילה-בודדת לפי mainColor המנורמל.
 function computeBaseTitle(title, mainColor) {
   if (!title) return title;
 
-  // ניסיון 1: הסר מקטע "- <צבע>" בסוף הכותרת (תומך בצבעים דו-מילתיים)
   const dashMatch = title.match(/^(.*\S)\s*-\s*\S.*$/);
   if (dashMatch) {
     const base = dashMatch[1].trim();
     if (base.length > 1) return base;
   }
 
-  // ניסיון 2 (fallback): אין מקף — סנן מילה בודדת שתואמת ל-mainColor המנורמל
   if (!mainColor || mainColor === 'אחר') return title;
   const variants = [mainColor, mainColor + 'ה', mainColor + 'ות', mainColor + 'ים',
                     mainColor + 'ת', mainColor.replace(/ה$/, '')].filter(v => v.length > 1);
@@ -513,117 +477,6 @@ async function saveProduct(product) {
 }
 
 // ======================================================================
-// הרצה ראשית
-// ======================================================================
-async function launchBrowser() {
-  const AVIVIT_LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled', '--no-sandbox'];
-  let browser;
-  try {
-    // עדיפות ל-Chrome האמיתי המותקן במחשב - יש לו טביעת אצבע TLS זהה למשתמש אמיתי
-    browser = await chromium.launch({ headless: true, channel: 'chrome', args: AVIVIT_LAUNCH_ARGS, proxy: getProxyConfig() });
-    console.log('  🌐 משתמש ב-Chrome האמיתי');
-  } catch (e) {
-    console.log('  ⚠️ Chrome אמיתי לא נמצא - חוזר ל-Chromium המובנה');
-    browser = await chromium.launch({ headless: true, args: AVIVIT_LAUNCH_ARGS, proxy: getProxyConfig() });
-  }
-  const context = await browser.newContext({
-    ignoreHTTPSErrors: true, // נדרש לתאימות עם פרוקסי שמפענח HTTPS בעצמו (למשל ScrapingBee)
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    viewport: { width: 1440, height: 900 },
-    locale: 'he-IL',
-    extraHTTPHeaders: {
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Cache-Control': 'max-age=0',
-      'Sec-Ch-Ua': '"Chromium";v="124", "Not(A:Brand";v="24", "Google Chrome";v="124"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"Windows"',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-      'Upgrade-Insecure-Requests': '1',
-    }
-  });
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    window.chrome = { runtime: {} };
-  });
-  await context.route('**/*', route => {
-    return route.request().resourceType() === 'image' ? route.abort() : route.continue();
-  });
-  const page = await context.newPage();
-  return { browser, context, page };
-}
-
-let { browser, context, page } = await launchBrowser();
-
-try {
-  // ביקור בדף הבית קודם — לבנות cookies ולהיראות אנושי
-  console.log('🌐 ביקור בדף הבית...');
-  await page.goto('https://avivit-weizman.co.il/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(3000);
-
-  const urls = await getAllProductUrls(page);
-  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
-
-  let ok = 0, fail = 0;
-  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
-
-  // שלב א: סרוק הכל לזיכרון
-  const rawProducts = [];
-  for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
-    if (i > 0 && i % 100 === 0) {
-      console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
-      await browser.close();
-      ({ browser, context, page } = await launchBrowser());
-    }
-    console.log(`\n[${i + 1}/${urls.length}]`);
-    const p = await scrapeProduct(page, urls[i]);
-    if (p) rawProducts.push(p); else fail++;
-    await page.waitForTimeout(400);
-  }
-
-  // שלב ב: מזג לפי base_title + price — ווריאנטים של אותו מוצר באותו מחיר → שורה אחת.
-  // אם יש הבדל במחיר בין צבעים (sale חל רק על חלק מהם) — לא מאחדים,
-  // כדי שלא "נבלע" הבדל מחיר אמיתי בין וריאנטים.
-  console.log(`\n🔀 מאחד ווריאנטים (${rawProducts.length} מוצרים)...`);
-  const grouped = new Map();
-  for (const p of rawProducts) {
-    const key = `${p.baseTitle || p.title}__${p.price || 0}`;
-    if (!grouped.has(key)) {
-      grouped.set(key, { ...p, colors: [...(p.colors || [])], colorSizes: { ...(p.colorSizes || {}) }, allSizes: [...(p.allSizes || [])] });
-    } else {
-      const ex = grouped.get(key);
-      // מזג צבעים
-      ex.colors = [...new Set([...ex.colors, ...(p.colors || [])])];
-      // מזג color_sizes
-      Object.assign(ex.colorSizes, p.colorSizes || {});
-      // מזג מידות
-      ex.sizes = [...new Set([...(ex.sizes || []), ...(p.sizes || [])])];
-      ex.allSizes = [...new Set([...(ex.allSizes || []), ...(p.allSizes || [])])];
-      // שמור תמונות של הווריאנט הראשון
-    }
-  }
-  const uniqueCount = grouped.size;
-  console.log(`  ✓ ${rawProducts.length} ווריאנטים → ${uniqueCount} מוצרים ייחודיים`);
-
-  // שלב ג: שמור מוצרים מאוחדים
-  for (const product of grouped.values()) {
-    await saveProduct(product);
-    ok++;
-  }
-
-  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
-  await runHealthCheck(ok, fail);
-
-} finally {
-  await browser.close();
-  await db.end();
-}
-
-// ======================================================================
 // בדיקת בריאות
 // ======================================================================
 async function runHealthCheck(scraped, failed) {
@@ -654,4 +507,54 @@ async function runHealthCheck(scraped, failed) {
   } else {
     console.log('\n✅ הכל תקין!');
   }
+}
+
+// ======================================================================
+// הרצה ראשית
+// ======================================================================
+try {
+  const urls = await getAllProductUrls();
+  console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
+
+  let ok = 0, fail = 0;
+  const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
+
+  // שלב א: סרוק הכל לזיכרון
+  const rawProducts = [];
+  for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
+    console.log(`\n[${i + 1}/${urls.length}]`);
+    const p = await scrapeProduct(urls[i]);
+    if (p) rawProducts.push(p); else fail++;
+    await new Promise(r => setTimeout(r, 300)); // השהיה קלה בין בקשות
+  }
+
+  // שלב ב: מזג לפי base_title + price — ווריאנטים של אותו מוצר באותו מחיר → שורה אחת.
+  console.log(`\n🔀 מאחד ווריאנטים (${rawProducts.length} מוצרים)...`);
+  const grouped = new Map();
+  for (const p of rawProducts) {
+    const key = `${p.baseTitle || p.title}__${p.price || 0}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, { ...p, colors: [...(p.colors || [])], colorSizes: { ...(p.colorSizes || {}) }, allSizes: [...(p.allSizes || [])] });
+    } else {
+      const ex = grouped.get(key);
+      ex.colors = [...new Set([...ex.colors, ...(p.colors || [])])];
+      Object.assign(ex.colorSizes, p.colorSizes || {});
+      ex.sizes = [...new Set([...(ex.sizes || []), ...(p.sizes || [])])];
+      ex.allSizes = [...new Set([...(ex.allSizes || []), ...(p.allSizes || [])])];
+    }
+  }
+  const uniqueCount = grouped.size;
+  console.log(`  ✓ ${rawProducts.length} ווריאנטים → ${uniqueCount} מוצרים ייחודיים`);
+
+  // שלב ג: שמור מוצרים מאוחדים
+  for (const product of grouped.values()) {
+    await saveProduct(product);
+    ok++;
+  }
+
+  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+  await runHealthCheck(ok, fail);
+
+} finally {
+  await db.end();
 }

@@ -140,25 +140,18 @@ async function scrapeProduct(url) {
     }
     if (!priceData.price) return null;
 
-    // בדיקת אזל מלאי כולל — רק מטקסט מפורש
-    const fullyOos = $('.elementor-heading-title').filter((_, el) => {
-      const $el = $(el);
-      if (!$el.text().includes('אזל מהמלאי')) return false;
-      // התעלם מהתאמות בתוך widget של "מוצרים דומים/מומלצים" (JetEngine listing) -
-      // אלה שייכות למוצרים אחרים המוצגים בעמוד, לא למוצר הנוכחי עצמו
-      if ($el.closest('.jet-engine-listing-overlay-wrap, [class*="jet-engine-listing"]').length > 0) return false;
-      return true;
-    }).length > 0;
-
     // דלג על סטים עם select "פריט" (חולצה/חצאית) — מלאי לא ניתן לבדיקה אמינה
     const isSetWithItems = $('select[name^="attribute_"] option').filter((_, o) =>
       ['חולצה','חצאית','מכנסיים'].includes($(o).text().trim())
     ).length > 0;
     if (isSetWithItems) { console.log(`  ⏭ מדלג — סט עם בחירת פריט`); return null; }
 
-    // מידות זמינות — מ-WooCommerce variation JSON (המקור האמין ביותר)
+    // מידות זמינות — מ-WooCommerce variation JSON (המקור האמין ביותר).
+    // אין יותר צורך לבדוק "אזל מהמלאי" בטקסט חופשי לפני זה: אם שום מידה אינה במלאי
+    // ב-JSON, sizes תצא ריקה ממילא - בדיקת טקסט חופשי בעמוד תפסה בטעות "אזל" ממוצרים
+    // אחרים לגמרי שמופיעים בווידג'טים שונים ("מוצרים דומים"/"עוד דגמים שתאהבי" וכו')
     let sizes = [];
-    if (!fullyOos) {
+    {
       try {
         const form = $('form.variations_form').first();
         if (form.length) {

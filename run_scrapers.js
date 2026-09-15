@@ -84,7 +84,8 @@ for (const name of toRun) {
   while (attempt <= MAX_RETRIES && !success) {
     if (attempt > 0) {
       console.log(`\n⏳ ממתין ${RETRY_DELAY_MS/1000}s לפני ניסיון ${attempt + 1}/${MAX_RETRIES + 1}...`);
-      execSync(`sleep ${RETRY_DELAY_MS/1000}`, { stdio: 'ignore' });
+      // sleep הוא פקודת Unix בלבד ולא קיימת ב-Windows - משתמשים ב-Node עצמו להמתנה, תמיד זמין ופועל בכל מערכת הפעלה
+      execSync(`node -e "setTimeout(()=>{}, ${RETRY_DELAY_MS})"`, { stdio: 'ignore' });
       console.log(`🔁 ניסיון חוזר: ${name.toUpperCase()} (${attempt}/${MAX_RETRIES})`);
       retried++;
     }

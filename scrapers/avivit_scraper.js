@@ -4,17 +4,20 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 import * as cheerio from 'cheerio';
 import pkg from 'pg';
 console.log("ENV DATABASE_URL =", process.env.DATABASE_URL ? "SET" : "MISSING");
-const { Client } = pkg;
+const { Pool } = pkg;
 
 const connStr = process.env.DATABASE_URL;
 const useSSL = connStr && (connStr.includes('rlwy.net') || connStr.includes('amazonaws.com') || connStr.includes('supabase'));
 
-const db = new Client({
+// Pool במקום Client בודד — חוסן מפני חיבור "שקט" שנסגר (AVIVIT סורקת הכל לזיכרון
+// לפני שהיא שומרת, מה שמשאיר את החיבור פתוח וריק לאורך זמן ארוך)
+const db = new Pool({
   connectionString: connStr,
   ssl: useSSL ? { rejectUnauthorized: false } : undefined,
 });
-
-await db.connect();
+db.on('error', (err) => {
+  console.log(`  ⚠️ DB pool error (חיבור לא פעיל נזרק, לא קורס): ${err.message}`);
+});
 
 console.log('🚀 Avivit Weizman Scraper — גרסת HTTP ישיר דרך פרוקסי (בלי Playwright)');
 

@@ -180,6 +180,13 @@ async function scrapeProduct(url) {
             .filter((_, o) => $(o).attr('value') && ($(o).attr('class') || '').includes('enabled'))
             .map((_, o) => $(o).attr('data-title') || $(o).text().trim())
             .get().filter(Boolean);
+        } else {
+          // fallback נוסף — אין select בכלל, רק li.variable-item (swatches) בלי JSON וריאציות תקין.
+          // מסנן לפי מחלקת disabled, באותה שיטה שכבר עובדת ב-AVIVIT עבור אותו סוג רכיב
+          sizes = $('li.variable-item[data-title]')
+            .filter((_, li) => !($(li).attr('class') || '').includes('disabled'))
+            .map((_, li) => $(li).attr('data-title') || $(li).text().trim())
+            .get().filter(Boolean);
         }
       }
     }

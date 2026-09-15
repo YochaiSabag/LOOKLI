@@ -141,19 +141,14 @@ async function scrapeProduct(url) {
     if (!priceData.price) return null;
 
     // בדיקת אזל מלאי כולל — רק מטקסט מפורש
-    const fullyOosMatches = $('.elementor-heading-title').filter((_, el) => {
+    const fullyOos = $('.elementor-heading-title').filter((_, el) => {
       const $el = $(el);
       if (!$el.text().includes('אזל מהמלאי')) return false;
-      if ($el.closest('.related, .upsells, .cross-sells, .up-sells').length > 0) return false;
+      // התעלם מהתאמות בתוך widget של "מוצרים דומים/מומלצים" (JetEngine listing) -
+      // אלה שייכות למוצרים אחרים המוצגים בעמוד, לא למוצר הנוכחי עצמו
+      if ($el.closest('.jet-engine-listing-overlay-wrap, [class*="jet-engine-listing"]').length > 0) return false;
       return true;
-    });
-    const fullyOos = fullyOosMatches.length > 0;
-    console.log(`    🔬 DEBUG fullyOos=${fullyOos} (${fullyOosMatches.length} אלמנטים)`);
-    fullyOosMatches.each((i, el) => {
-      const $el = $(el);
-      const parentClasses = $el.parents().slice(0, 6).map((_, p) => $(p).attr('class') || '').get().join(' <- ');
-      console.log(`    🔬 DEBUG match #${i}: text="${$el.text().trim().substring(0,30)}" parents="${parentClasses}"`);
-    });
+    }).length > 0;
 
     // דלג על סטים עם select "פריט" (חולצה/חצאית) — מלאי לא ניתן לבדיקה אמינה
     const isSetWithItems = $('select[name^="attribute_"] option').filter((_, o) =>

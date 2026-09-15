@@ -141,9 +141,15 @@ async function scrapeProduct(url) {
     if (!priceData.price) return null;
 
     // בדיקת אזל מלאי כולל — רק מטקסט מפורש
-    const fullyOosMatches = $('.elementor-heading-title').filter((_, el) => $(el).text().includes('אזל מהמלאי'));
+    const fullyOosMatches = $('.elementor-heading-title').filter((_, el) => {
+      const $el = $(el);
+      if (!$el.text().includes('אזל מהמלאי')) return false;
+      // התעלם מהתאמות בתוך "מוצרים דומים/נלווים" - אלה שייכות למוצר אחר בעמוד, לא לזה
+      if ($el.closest('.related, .upsells, .cross-sells, .up-sells').length > 0) return false;
+      return true;
+    });
     const fullyOos = fullyOosMatches.length > 0;
-    console.log(`    🔬 DEBUG fullyOos=${fullyOos} (${fullyOosMatches.length} אלמנטים תואמים בעמוד כולו)`);
+    console.log(`    🔬 DEBUG fullyOos=${fullyOos} (${fullyOosMatches.length} אלמנטים תואמים, אחרי סינון מוצרים דומים)`);
 
     // דלג על סטים עם select "פריט" (חולצה/חצאית) — מלאי לא ניתן לבדיקה אמינה
     const isSetWithItems = $('select[name^="attribute_"] option').filter((_, o) =>

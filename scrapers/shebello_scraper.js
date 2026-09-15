@@ -141,7 +141,9 @@ async function scrapeProduct(url) {
     if (!priceData.price) return null;
 
     // בדיקת אזל מלאי כולל — רק מטקסט מפורש
-    const fullyOos = $('.elementor-heading-title').filter((_, el) => $(el).text().includes('אזל מהמלאי')).length > 0;
+    const fullyOosMatches = $('.elementor-heading-title').filter((_, el) => $(el).text().includes('אזל מהמלאי'));
+    const fullyOos = fullyOosMatches.length > 0;
+    console.log(`    🔬 DEBUG fullyOos=${fullyOos} (${fullyOosMatches.length} אלמנטים תואמים בעמוד כולו)`);
 
     // דלג על סטים עם select "פריט" (חולצה/חצאית) — מלאי לא ניתן לבדיקה אמינה
     const isSetWithItems = $('select[name^="attribute_"] option').filter((_, o) =>

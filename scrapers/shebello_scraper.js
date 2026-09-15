@@ -161,10 +161,8 @@ async function scrapeProduct(url) {
     if (!fullyOos) {
       try {
         const form = $('form.variations_form').first();
-        console.log(`    🔬 DEBUG variations_form נמצא? ${form.length > 0}`);
         if (form.length) {
           const json = JSON.parse(form.attr('data-product_variations') || '[]');
-          console.log(`    🔬 DEBUG וריאציות ב-JSON: ${json.length}`);
           if (json.length > 0) {
             const inStock = new Set();
             for (const v of json) {
@@ -190,13 +188,8 @@ async function scrapeProduct(url) {
             .map((_, o) => $(o).attr('data-title') || $(o).text().trim())
             .get().filter(Boolean);
         } else {
-          // אבחון: הדפס את כל ה-class בפועל של כל li.variable-item, כדי לדעת בוודאות
-          // איזה קלאס מסמן "אזל" אצל שיבלו במקום לנחש (AVIVIT השתמש ב-"disabled" אבל זה
-          // כנראה שונה כאן, כי הפילטור לא שינה כלום בהרצה הקודמת)
-          const allLis = $('li.variable-item[data-title]');
-          console.log(`    🔬 DEBUG li classes: ${allLis.map((_, li) => `${$(li).attr('data-title')}="${$(li).attr('class') || ''}"`).get().join(' | ')}`);
-          // fallback נוסף — אין select בכלל, רק li.variable-item (swatches) בלי JSON וריאציות תקין.
-          sizes = allLis
+          // fallback נוסף — אין select בכלל, רק li.variable-item (swatches) בלי JSON וריאציות תקין
+          sizes = $('li.variable-item[data-title]')
             .filter((_, li) => !($(li).attr('class') || '').includes('disabled'))
             .map((_, li) => $(li).attr('data-title') || $(li).text().trim())
             .get().filter(Boolean);
@@ -223,8 +216,6 @@ async function scrapeProduct(url) {
     }
 
     if (!allSizes.length && !sizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
-
-    console.log(`    🔍 DEBUG sizes: [${sizes.join(',')}] allSizes: [${allSizes.join(',')}]`);
 
     // תמונות
     const images = $('.woocommerce-product-gallery__image a')

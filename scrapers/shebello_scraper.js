@@ -215,7 +215,7 @@ async function scrapeProduct(url) {
         .get().filter(Boolean);
     }
 
-    if (!allSizes.length && !sizes.length) { console.log(`  ⏭ מדלג — אין מידות`); return null; }
+    if (!allSizes.length && !sizes.length) { console.log(`  ⏭ מדלג — אין מידות: ${url}`); return null; }
 
     // תמונות
     const images = $('.woocommerce-product-gallery__image a')
@@ -245,6 +245,7 @@ async function scrapeProduct(url) {
     const allUniqueSizes = [...new Set(allSizes)];
 
     console.log(`  ✓ ${title.substring(0, 40)}`);
+    if (uniqueSizes.length === 0) console.log(`    🔗 ${url}`);
     console.log(`    💰 ₪${priceData.price}${priceData.original ? ` (מקור: ₪${priceData.original})` : ''} | 🎨 ${mainColor || '-'} | 📏 ${uniqueSizes.join(',') || '-'} | 🖼️ ${images.length}`);
 
     return {

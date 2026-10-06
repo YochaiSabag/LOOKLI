@@ -844,7 +844,7 @@ async function saveProduct(product) {
 // הישן לאחור-תאימות אם מישהו עדיין מגדיר אותו.
 const __chemiseProxyCfg = getProxyConfig();
 const launchOptions = { headless: true, slowMo: 0 };
-if (__chemiseProxyCfg) {
+if (__chemiseProxyCfg && process.env.CHEMISE_BROWSER_PROXY === 'true') {
   launchOptions.proxy = __chemiseProxyCfg;
   console.log(`🔀 proxy: ${__chemiseProxyCfg.server}`);
 } else if (process.env.SCRAPER_PROXY_URL) {
@@ -853,6 +853,7 @@ if (__chemiseProxyCfg) {
 }
 const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({
+  ignoreHTTPSErrors: true,
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   viewport: { width: 1280, height: 800 },
   extraHTTPHeaders: {

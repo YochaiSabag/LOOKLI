@@ -89,19 +89,33 @@ async function getAllProductUrls() {
   console.log('\n📂 איסוף קישורים מ-avivit-weizman.co.il/shop/ (כל המוצרים, לא לפי קטגוריה)...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
+  let failedPages = 0;
 
   for (let p = 1; p <= MAX_PAGES; p++) {
     const url = p === 1 ? `${BASE}/shop/` : `${BASE}/shop/page/${p}/`;
     console.log(`  → page ${p}`);
 
+    // ניסיונות חוזרים: Timeout/שגיאת רשת חד-פעמית לא אמורה להיחשב "סוף הקטלוג" (תיקון: איבדנו כך מעל 100 מוצרים)
     let html = '';
-    try {
-      const res = await fetchHTML(url);
-      console.log(`    📄 סטטוס: ${res.status}, אורך: ${res.html.length}`);
-      if (res.status === 200) html = res.html;
-    } catch (e) {
-      console.log(`    ⚠ שגיאה בעמוד ${p}: ${e.message.substring(0,50)}`);
+    let notFound = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetchHTML(url);
+        console.log(`    📄 סטטוס: ${res.status}, אורך: ${res.html.length}`);
+        if (res.status === 200) { html = res.html; break; }
+        if (res.status === 404) { notFound = true; break; } // עמוד מעבר לסוף הקטלוג
+      } catch (e) {
+        console.log(`    ⚠ שגיאה בעמוד ${p} (ניסיון ${attempt}/3): ${e.message.substring(0,50)}`);
+      }
+      if (attempt < 3) await new Promise(r => setTimeout(r, 5000 * attempt));
     }
+    if (!html && !notFound) {
+      failedPages++;
+      console.log(`    ⚠ עמוד ${p} נכשל אחרי 3 ניסיונות — מדלג (${failedPages} כשלונות רצופים)`);
+      if (failedPages >= 2) { console.log(`    ⏹ שני עמודים רצופים נכשלו — עוצר`); break; }
+      continue;
+    }
+    failedPages = 0;
 
     const $ = cheerio.load(html || '');
     const found = new Set();

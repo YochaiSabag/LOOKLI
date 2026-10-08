@@ -81,9 +81,22 @@ async function getAllProductUrls() {
     console.log(`  → עמוד ${p}`);
 
     try {
-      const res = await fetchHTML(url);
-      console.log(`    🔍 סטטוס: ${res.status}, אורך: ${res.html.length}`);
-      if (res.status !== 200) { console.log(`    ⏹ סטטוס לא תקין — עוצר`); break; }
+      // ניסיונות חוזרים: Timeout/שגיאת רשת חד-פעמית לא אמורה לגרום לאיבוד עמוד שלם של מוצרים
+      let res = null;
+      let notFound = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const r = await fetchHTML(url);
+          console.log(`    🔍 סטטוס: ${r.status}, אורך: ${r.html.length}`);
+          if (r.status === 200) { res = r; break; }
+          if (r.status === 404) { notFound = true; break; } // עמוד מעבר לסוף הקטלוג
+        } catch (e2) {
+          console.log(`    ⚠ שגיאה (ניסיון ${attempt}/3): ${e2.message.substring(0,50)}`);
+        }
+        if (attempt < 3) await new Promise(r => setTimeout(r, 5000 * attempt));
+      }
+      if (notFound) { console.log(`    ⏹ עמוד לא קיים (404) — סוף הקטלוג`); break; }
+      if (!res) { console.log(`    ⚠ עמוד ${p} נכשל אחרי 3 ניסיונות — מדלג`); continue; }
 
       const $ = cheerio.load(res.html);
       const found = new Set();

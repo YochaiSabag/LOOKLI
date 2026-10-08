@@ -19,7 +19,7 @@ import { loadScraperConfig } from './scraper_utils.js';
 const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
 
 const STORE = 'MODA';
-const BASE  = 'https://moda723.com';
+const BASE  = 'https://modafashion.co.il';
 
 const sizeMapping = {
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'],
@@ -40,7 +40,7 @@ function normalizeSize(s) {
 // איסוף קישורים
 // ======================================================================
 async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-moda723.com...\n');
+  console.log('\n📂 איסוף קישורים מ-modafashion.co.il...\n');
   const allUrls = new Set();
   const MAX_PAGES = parseInt(process.env.SCRAPER_MAX_PAGES) || 50;
 
@@ -58,7 +58,7 @@ async function getAllProductUrls(page) {
       }
 
       let urls = await page.evaluate((base) =>
-        [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
+        [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="modafashion.co.il"]')]
           .map(a => a.href.split('?')[0])
           .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
           .filter((v, i, a) => a.indexOf(v) === i)
@@ -70,7 +70,7 @@ async function getAllProductUrls(page) {
         console.log(`    ⏳ עמוד ריק - ממתין ומנסה שוב לפני שמוותר`);
         await page.waitForTimeout(4000);
         urls = await page.evaluate((base) =>
-          [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
+          [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="modafashion.co.il"]')]
             .map(a => a.href.split('?')[0])
             .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
             .filter((v, i, a) => a.indexOf(v) === i)
@@ -91,7 +91,7 @@ async function getAllProductUrls(page) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(2000);
         const urls2 = await page.evaluate((base) =>
-          [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="moda723.com"]')]
+          [...document.querySelectorAll('a.woocommerce-LoopProduct-link, .products .product a[href*="modafashion.co.il"]')]
             .map(a => a.href.split('?')[0])
             .filter(h => h.includes(base) && !h.endsWith('/shop/') && !h.includes('/page/') && !h.includes('/product-category/'))
             .filter((v, i, a) => a.indexOf(v) === i)

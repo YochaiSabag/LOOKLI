@@ -43,7 +43,7 @@ if (__proxyDiag) {
 function fetchHTML(url, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
     const opts = {
-      timeout: 60000,
+      timeout: 30000, // הוקטן מ-60 ל-30 שניות: בקשה תקועה מתחילה מחדש מהר יותר
       rejectUnauthorized: false,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -64,7 +64,7 @@ function fetchHTML(url, redirectsLeft = 5) {
         resolve({ status: res.statusCode, html: Buffer.concat(chunks).toString('utf-8') });
       });
     });
-    req.on('timeout', () => req.destroy(new Error('Timeout אחרי 60 שניות')));
+    req.on('timeout', () => req.destroy(new Error('Timeout אחרי 30 שניות')));
     req.on('error', reject);
   });
 }
@@ -152,7 +152,7 @@ async function getAllProductUrls() {
 // גירוד מוצר
 // ======================================================================
 async function scrapeProduct(url) {
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetchHTML(url);
       if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
@@ -210,7 +210,7 @@ async function scrapeProduct(url) {
         description, url,
       };
     } catch (err) {
-      if (attempt < 2) {
+      if (attempt < 3) {
         console.log(`  ⚠️ ניסיון ${attempt} נכשל (${err.message.substring(0, 50)}), מנסה שוב...`);
         await new Promise(r => setTimeout(r, 3000));
       } else {

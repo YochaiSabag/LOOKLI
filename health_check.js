@@ -39,6 +39,10 @@ async function sendEmail(toEmail, subject, htmlBody) {
   } catch(e) { console.error('  ❌ שגיאה:', e.message); return false; }
 }
 
+// סקרייפרים שרצים דרך פרוקסי - רצים פעמיים בשבוע (ראשון+רביעי) ולא כל יום,
+// ולכן נבדקים לפי חלון זמן ארוך יותר ומוצגים כקבוצה נפרדת
+const PROXY_STORES = ['LEAA', 'SHEBELLO', 'AVIVIT', 'CHEMISE', 'MODA'];
+
 // ─── לוגיקה ────────────────────────────────────────────
 async function runHealthCheck() {
   if (!ADMIN_EMAIL) {
@@ -52,8 +56,8 @@ async function runHealthCheck() {
     SELECT
       store,
       COUNT(*)                                                         AS total,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '3 days')  AS fresh,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '24 hours') AS current_run,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '6 days' ELSE INTERVAL '3 days' END))  AS fresh,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '24 hours' END)) AS current_run,
       MAX(last_seen)                                                   AS last_seen,
       COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
       COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,
@@ -62,14 +66,14 @@ async function runHealthCheck() {
                           OR array_length(sizes,1) = 0)               AS no_sizes,
       COUNT(*) FILTER (WHERE category IS NULL OR category = '')       AS no_category,
       COUNT(*) FILTER (WHERE price = 0 OR price IS NULL)             AS zero_price,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '1 day'
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '1 day' END)
                          AND (sizes IS NULL OR array_length(sizes,1) IS NULL
                               OR array_length(sizes,1) = 0))          AS new_no_stock,
       COUNT(*) FILTER (WHERE hidden_stale = true)                     AS hidden_count
     FROM products
     GROUP BY store
     ORDER BY store
-  `);
+  `, [PROXY_STORES]);
 
   function pct(n, total) {
     if (!total) return '0%';
@@ -144,7 +148,7 @@ async function runHealthCheck() {
   const totalCurrent = rows.reduce((s,r) => s + Number(r.current_run||0), 0);
   const totalAll     = rows.reduce((s,r) => s + Number(r.total||0), 0);
 
-  const tableRows = rows.map(r => {
+  const renderRow = (r) => {
     const lastDate = r.last_seen
       ? new Date(r.last_seen).toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
       : '—';
@@ -164,7 +168,16 @@ async function runHealthCheck() {
         <td style="text-align:center;color:${r.new_no_stock > 0 ? '#d97706' : '#16a34a'}">${r.new_no_stock > 0 ? r.new_no_stock : '✅'}</td>
         <td style="text-align:center;color:${r.hidden_count > 0 ? '#9333ea' : '#16a34a'}">${r.hidden_count > 0 ? r.hidden_count : '✅'}</td>
       </tr>`;
-  }).join('');
+  };
+
+  const regularRows = rows.filter(r => !PROXY_STORES.includes(r.store));
+  const proxyRows   = rows.filter(r => PROXY_STORES.includes(r.store));
+  const tableRows =
+    regularRows.map(renderRow).join('') +
+    (proxyRows.length ? `
+      <tr style="background:#eef2ff">
+        <td colspan="11" style="padding:8px;font-weight:700;color:#4338ca;font-size:12px">🌐 סקרייפרים בפרוקסי — רצים פעמיים בשבוע (ראשון+רביעי) · "עודכנו" נספר לפי 5 ימים אחרונים</td>
+      </tr>` + proxyRows.map(renderRow).join('') : '');
 
   const html = `<!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -204,7 +217,7 @@ async function runHealthCheck() {
         </tbody>
       </table>
       <div style="margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.9">
-        <strong>מקרא:</strong> 🟢 הכל תקין &nbsp;|&nbsp; 🟡 אזהרה &nbsp;|&nbsp; 🔴 קריטי — סקרייפר לא רץ 3+ ימים<br/>
+        <strong>מקרא:</strong> 🟢 הכל תקין &nbsp;|&nbsp; 🟡 אזהרה &nbsp;|&nbsp; 🔴 קריטי — סקרייפר לא רץ 3+ ימים (בפרוקסי: 6+ ימים)<br/>
         ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מסה"כ מוצרי החנות<br/>🙈 הוסתרו = מוצרים שלא נמצאו 3 הרצות רצופות — מוסתרים מהאתר אך לא נמחקו
       </div>
       <div style="margin-top:12px;background:#f0fdf4;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d;font-weight:600;display:inline-block">

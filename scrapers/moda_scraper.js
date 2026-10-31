@@ -19,7 +19,7 @@ console.log('🚀 Moda Fashion Scraper — גרסת HTTP ישיר דרך פרו�
 
 import { loadScraperConfig, getProxyConfig } from './scraper_utils.js';
 import { parseModaProduct } from './moda_parse.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
+const { normalizeColor, normalizeColorFromTitle, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 
 const STORE = 'MODA';
 const BASE  = 'https://modafashion.co.il';
@@ -174,9 +174,11 @@ async function scrapeProduct(url) {
 
       // צבעים: ממאפיין צבע אם קיים, אחרת משם המוצר / התיאור (כמו בגרסה הקודמת)
       const colorOptions = d.colorsRaw;
+      // בלי מאפיין צבע באתר: קודם מילת צבע בשם המוצר ("סט וולאן שחור"), אחר כך בפסקה הראשונה של התיאור.
+      // (בעבר normalizeColor על פסקה ריקה החזיר 'אחר' ולא הגיע לבדוק את השם)
       const mainColor = colorOptions.length > 0
         ? normalizeColor(colorOptions[0])
-        : (normalizeColor(d.firstParagraph) || normalizeColor(title));
+        : (normalizeColorFromTitle(title) || normalizeColorFromTitle((d.firstParagraph || '').slice(0, 150)) || 'אחר');
       const colors = colorOptions.length > 0
         ? [...new Set(colorOptions.map(c => normalizeColor(c)).filter(Boolean))]
         : (mainColor ? [mainColor] : []);

@@ -507,8 +507,12 @@ async function saveProduct(product) {
 async function launchBrowser() {
   const browser = await chromium.launch({ headless: true, slowMo: 30 });
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    viewport: { width: 1920, height: 1080 }
+    // UA מלא של Chrome + locale: ה-UA הקצר הקודם ('...AppleWebKit/537.36' בלבד) נראה כבוט — באבחון מ-Railway
+    // (31.10) דפדפן עם UA מלא קיבל 200 ו-48 מוצרים, ועם ה-UA הקצר העמודים חזרו ריקים
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 },
+    locale: 'he-IL',
+    extraHTTPHeaders: { 'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8' }
   });
   const page = await context.newPage();
   return { browser, context, page };

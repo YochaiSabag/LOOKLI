@@ -426,7 +426,7 @@ app.get("/img", async (req, res) => {
   if (!url) return res.status(400).send('Missing url');
   try {
     // וודא שה-URL מאתר מותר
-    const allowed = ['mekimi.co.il','lichi-shop.com','wixstatic.com','aviyahyosef.com',
+    const allowed = ['mekimi.co.il','lichi-shop.com','wixstatic.com','aviyahyosef.com','alora.co.il',
                      'chemise.co.il','ordman.co.il','rare.co.il','avivit-weizman.co.il',
                      'cdn.2all.co.il','amazonaws.com','wp-content'];
     const isAllowed = allowed.some(d => url.includes(d));
@@ -3563,7 +3563,7 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
     const DOMAIN_TO_STORE = {
       'mima.co.il': 'MIMA', 'mekimi.co.il': 'MEKIMI',
       'lichi.com': 'LICHI', 'lichi-shop.com': 'LICHI',
-      'aviyah.co.il': 'AVIYAH', 'aviyahyosef.com': 'AVIYAH',
+      'aviyah.co.il': 'AVIYAH', 'aviyahyosef.com': 'AVIYAH', 'alora.co.il': 'AVIYAH',
       'chemise.co.il': 'CHEMISE', 'chen.co.il': 'CHEN',
       'avivit-weizman.co.il': 'AVIVIT', 'avivit.co.il': 'AVIVIT',
       'rare.co.il': 'RARE', 'ordman.co.il': 'ORDMAN',

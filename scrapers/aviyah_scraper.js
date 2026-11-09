@@ -82,7 +82,7 @@ async function getAllProductUrls(page) {
       let urls = await page.evaluate(() => 
         [...document.querySelectorAll('a[href*="/product/"]')]
           .map(a => a.href)
-          .filter(h => h.includes('aviyahyosef.com/product/'))
+          .filter(h => /(aviyahyosef\.com|alora\.co\.il)\/product\//.test(h))
           .filter((v, i, a) => a.indexOf(v) === i)
       );
       
@@ -98,7 +98,7 @@ async function getAllProductUrls(page) {
         urls = await page.evaluate(() =>
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href)
-            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter(h => /(aviyahyosef\.com|alora\.co\.il)\/product\//.test(h))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
         if (urls.length === 0) {
@@ -119,7 +119,7 @@ async function getAllProductUrls(page) {
         const urls2 = await page.evaluate(() =>
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href)
-            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter(h => /(aviyahyosef\.com|alora\.co\.il)\/product\//.test(h))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
         if (urls2.length > 0) {
@@ -154,7 +154,7 @@ async function getAllProductUrls(page) {
         let urls = await page.evaluate(() => 
           [...document.querySelectorAll('a[href*="/product/"]')]
             .map(a => a.href)
-            .filter(h => h.includes('aviyahyosef.com/product/'))
+            .filter(h => /(aviyahyosef\.com|alora\.co\.il)\/product\//.test(h))
             .filter((v, i, a) => a.indexOf(v) === i)
         );
         
@@ -168,7 +168,7 @@ async function getAllProductUrls(page) {
           urls = await page.evaluate(() =>
             [...document.querySelectorAll('a[href*="/product/"]')]
               .map(a => a.href)
-              .filter(h => h.includes('aviyahyosef.com/product/'))
+              .filter(h => /(aviyahyosef\.com|alora\.co\.il)\/product\//.test(h))
               .filter((v, i, a) => a.indexOf(v) === i)
           );
           if (urls.length === 0) {
@@ -190,7 +190,7 @@ async function getAllProductUrls(page) {
           const urls2 = await page.evaluate(() =>
             [...document.querySelectorAll('a[href*="/product/"]')]
               .map(a => a.href)
-              .filter(h => h.includes('aviyahyosef.com/product/'))
+              .filter(h => /(aviyahyosef\.com|alora\.co\.il)\/product\//.test(h))
               .filter((v, i, a) => a.indexOf(v) === i)
           );
           if (urls2.length > 0) {
@@ -444,6 +444,15 @@ async function scrapeProduct(page, url, isEvening = false) {
 async function saveProduct(product) {
   if (!product) return;
   try {
+    // מעבר דומיין aviyahyosef.com → alora.co.il: מעדכנים את השורה הקיימת (אותו slug) במקום ליצור כפולה,
+    // כך נשמרים first_seen, היסטוריית מחיר וקליקים. אם אין שורה ישנה או שהחדשה כבר קיימת - לא קורה כלום.
+    if (/\/\/alora\.co\.il\//.test(product.url)) {
+      await db.query(
+        `UPDATE products SET source_url = $1 WHERE store = 'AVIYAH' AND source_url = $2
+           AND NOT EXISTS (SELECT 1 FROM products WHERE source_url = $1)`,
+        [product.url, product.url.replace('//alora.co.il/', '//aviyahyosef.com/')]
+      );
+    }
     await db.query(
       `INSERT INTO products (store, title, price, original_price, image_url, images, sizes, color, colors, style, fit, category, description, source_url, color_sizes, pattern, fabric, design_details, all_sizes, last_seen, first_seen)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())

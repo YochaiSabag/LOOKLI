@@ -137,7 +137,7 @@ async function getAllProductUrls(page) {
   // סריקת עמודים ראשיים - מקונן (קטגוריה מבחוץ, עמוד מבפנים) כדי ש-break על עמוד
   // ריק יעצור רק את הקטגוריה הנוכחית וימשיך לבאה בתור, לא יעצור את כל התהליך
   console.log('\n  📦 סורק קטגוריות ראשיות...');
-  for (const catBase of mainCategoryBases) {
+  for (const catBase of ['https://alora.co.il/shop/']) { // /shop/ = כל הקטלוג ב-14 עמודים (נבדק 11.11: 161 מוצרים) - במקום מעבר על 14 קטגוריות; mainCategoryBases נשאר כגיבוי
     console.log(`  📁 [${catBase}]`);
     for (let p = 1; p <= 30; p++) {
       const url = p === 1 ? catBase : `${catBase}page/${p}/`;

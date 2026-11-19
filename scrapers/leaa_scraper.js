@@ -214,6 +214,8 @@ async function scrapeProduct(url) {
         }).get().filter(Boolean)
         .map(u => { try { return new URL(u, BASE).href; } catch { return null; } })
         .filter(Boolean)
+        // מסננים תמונות "טבלת מידות" (שם הקובץ מכיל "מידות" / "טבלת מידה") - הן לא תמונות מוצר
+        .filter(u => { let f = u; try { f = decodeURIComponent(u); } catch {} return !/מידות|טבלת-?מידה/.test(f.split('/').pop()); })
         .filter((v, i, arr) => arr.indexOf(v) === i);
 
       // צבע — מהפסקה הראשונה בלבד

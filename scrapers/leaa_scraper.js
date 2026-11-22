@@ -22,6 +22,12 @@ const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, 
 
 const STORE = 'LEAA';
 const BASE  = 'https://leaa.co.il';
+// תמונות "מידע/טבלת מידות" משותפות שאושרו ידנית להסרה (שם הקובץ בלי סיומת מידה -WxH) - בנוסף לכלל "מידות" בשם
+const LEAA_INFO_IMAGES = new Set([
+  'כותונת-הנקה-כיתוב-שרוול-טורקיז-2.webp', 'חלוק-סרפן-כתפיות-קטיפה.webp', 'כותונת-כפתרה-נשרים-2.webp',
+  'להיט-זוג-גופיות-הנקה-שחור-2.webp', 'להיט-זוג-גופיות-הנקה-שחור-3.webp', 'להיט-זוג-גופיות-הנקה-שחור-4.webp',
+  'חצאית-שחורה-קלילה-אורך-מקסי-3.webp', 'חלוק-סרפן-טוליפ-כחול.webp', 'חלוק-סרפן-כתפיות-קטיפה-1.webp',
+]);
 
 // ======================================================================
 // תשתית HTTP דרך פרוקסי (מחליפה את Playwright - האתר חוסם דפדפן אוטומטי,
@@ -215,7 +221,7 @@ async function scrapeProduct(url) {
         .map(u => { try { return new URL(u, BASE).href; } catch { return null; } })
         .filter(Boolean)
         // מסננים תמונות "טבלת מידות" (שם הקובץ מכיל "מידות" / "טבלת מידה") - הן לא תמונות מוצר
-        .filter(u => { let f = u; try { f = decodeURIComponent(u); } catch {} return !/מידות|טבלת-?מידה/.test(f.split('/').pop()); })
+        .filter(u => { let f = u; try { f = decodeURIComponent(u); } catch {} const nm = f.split('/').pop(); return !/מידות|טבלת-?מידה/.test(nm) && !LEAA_INFO_IMAGES.has(nm.replace(/-\d+x\d+(\.\w+)$/, '$1')); })
         .filter((v, i, arr) => arr.indexOf(v) === i);
 
       // צבע — מהפסקה הראשונה בלבד

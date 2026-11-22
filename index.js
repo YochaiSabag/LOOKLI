@@ -469,7 +469,8 @@ const shippingInfo = {
   'LICHI': { cost: 30, threshold: 350 },
   'MIMA': { cost: 30, threshold: 450 },
   'AVIYAH': { cost: 30, threshold: 500 },
-  'CHEMISE': { cost: 30, threshold: 350 }
+  'CHEMISE': { cost: 30, threshold: 350 },
+  'LEAA': { cost: 30, threshold: 499 } // לפי האתר של LEAA: משלוח חינם מעל 499 ₪ (עלות המשלוח בפועל לא אומתה)
 };
 
 function calculateShipping(store, price) {

@@ -529,6 +529,19 @@ async function scrapeProduct(page, url) {
       }
     }
 
+    // סימני "האתר סגור להזמנות" (נבדק על עמוד אמיתי ב-22.11): בעמוד כזה אין מידות בכלל (רק צבע),
+    // ובלשונית "מידע נוסף" כתוב "זמין לרכישה בחנויות בלבד". הניסוח עשוי להשתנות, לכן regex רחב + בדיקת מידות שנעלמו.
+    const closure = await page.evaluate(() => {
+      const clone = document.body.cloneNode(true);
+      clone.querySelectorAll('script, style, noscript').forEach(e => e.remove());
+      const txt = (clone.textContent || '').replace(/\s+/g, ' ');
+      const m = txt.match(/(?:בחנות|בחנויות|בסניף|בסניפים)\s*בלבד|רכישה\s+ב(?:חנות|חנויות|סניף|סניפים)/);
+      const oos = !!document.querySelector('.stock.out-of-stock, .outofstock') || /אזל מהמלאי/.test(txt);
+      return { text: m ? m[0] : null, oos };
+    });
+    const noSizeAttr = data.rawSizes.length === 0 &&
+      !(variationsData || []).some(v => Object.keys(v.attributes || {}).some(k => /mydh|size|מידה/i.test(k)));
+
     const uniqueColors = [...availableColors];
     const uniqueSizes = [...availableSizes];
     const allUniqueSizes = [...allSizesSet];
@@ -555,6 +568,9 @@ async function scrapeProduct(page, url) {
       designDetails,
       description: data.description,
       colorSizes: colorSizesMap,
+      closureText: closure.text,
+      noSizeAttr,
+      oos: closure.oos,
       url
     };
 
@@ -580,18 +596,18 @@ async function saveProduct(product) {
          original_price = EXCLUDED.original_price,
          image_url      = EXCLUDED.image_url,
          images         = EXCLUDED.images,
-         sizes          = EXCLUDED.sizes,
+         sizes          = CASE WHEN $20 THEN products.sizes ELSE EXCLUDED.sizes END,
          color          = CASE WHEN products.tagged_fields @> ARRAY['color']          THEN products.color          ELSE EXCLUDED.color          END,
          colors         = EXCLUDED.colors,
          style          = CASE WHEN products.tagged_fields @> ARRAY['style']          THEN products.style          ELSE EXCLUDED.style          END,
          fit            = CASE WHEN products.tagged_fields @> ARRAY['fit']            THEN products.fit            ELSE EXCLUDED.fit            END,
          category       = CASE WHEN products.tagged_fields @> ARRAY['category']       THEN products.category       ELSE EXCLUDED.category       END,
          description    = EXCLUDED.description,
-         color_sizes    = EXCLUDED.color_sizes,
+         color_sizes    = CASE WHEN $20 THEN products.color_sizes ELSE EXCLUDED.color_sizes END,
          pattern        = CASE WHEN products.tagged_fields @> ARRAY['pattern']        THEN products.pattern        ELSE EXCLUDED.pattern        END,
          fabric         = CASE WHEN products.tagged_fields @> ARRAY['fabric']         THEN products.fabric         ELSE EXCLUDED.fabric         END,
          design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
-         all_sizes      = EXCLUDED.all_sizes,
+         all_sizes      = CASE WHEN $20 THEN products.all_sizes ELSE EXCLUDED.all_sizes END,
          last_seen      = NOW(),
          hidden_stale   = false,
          not_seen_count = 0,
@@ -619,7 +635,7 @@ async function saveProduct(product) {
        product.colors, product.style || null, product.fit || null, product.category,
        product.description || null, product.url, JSON.stringify(product.colorSizes),
        product.pattern || null, product.fabric || null, product.designDetails || [],
-       product.allSizes]
+       product.allSizes, !!product.lostSizes]
     );
     console.log('  💾 saved');
   } catch (err) {
@@ -649,6 +665,7 @@ try {
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
   
   let ok = 0, fail = 0;
+  const stats = { text: 0, lost: 0, hadSizes: 0 }; // לזיהוי סגירת הזמנות באתר
   for (let i = 0; i < urls.length; i++) {
     if (i > 0 && i % 100 === 0) {
       console.log(`\n🔄 מאתחל דפדפן (מוצר ${i + 1})...`);
@@ -657,11 +674,36 @@ try {
     }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
-    if (p) { await saveProduct(p); ok++; } else fail++;
+    if (p) {
+      // האם האתר "איבד" מידע שהכרנו (מידות), או מציג טקסט "בחנות בלבד"? (סימנים לסגירת הזמנות באתר)
+      try {
+        const prev = await db.query(`SELECT COALESCE(array_length(sizes, 1), 0) AS n FROM products WHERE source_url = $1`, [p.url]);
+        const prevHadSizes = (prev.rows[0]?.n || 0) > 0;
+        p.lostSizes = prevHadSizes && p.noSizeAttr && !p.oos && (p.sizes || []).length === 0;
+        if (prevHadSizes) stats.hadSizes++;
+        if (p.lostSizes) { stats.lost++; console.log('    🏬 המידות נעלמו מהעמוד - שומר את המידות הקודמות'); }
+        if (p.closureText) { stats.text++; console.log(`    🏬 נמצא טקסט: "${p.closureText}"`); }
+      } catch (e) { /* לא חוסם את השמירה */ }
+      await saveProduct(p); ok++;
+    } else fail++;
     await page.waitForTimeout(500);
   }
   
   console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+
+  // ── האם ליצ'י סגורה כרגע להזמנות באתר? שני סימנים: טקסט "בחנות בלבד" ברוב המוצרים, או מידות שנעלמו ברוב המוצרים שהיו להם מידות ──
+  try {
+    const closedRun = (ok >= 10 && stats.text / ok >= 0.5) ||
+                      (stats.lost >= 8 && stats.hadSizes > 0 && stats.lost / stats.hadSizes >= 0.6);
+    console.log(`\n🏬 מצב הזמנות באתר: ${closedRun ? 'סגור (רק בחנויות)' : 'פתוח'} | טקסט "בחנות בלבד": ${stats.text}/${ok} | מידות שנעלמו: ${stats.lost}/${stats.hadSizes}`);
+    await db.query(`CREATE TABLE IF NOT EXISTS store_status (store TEXT PRIMARY KEY, online_orders_closed BOOLEAN NOT NULL DEFAULT false, note TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())`);
+    if (ok >= 10) { // ריצה קטנה/כושלת לא משנה את הסטטוס
+      await db.query(
+        `INSERT INTO store_status (store, online_orders_closed, note, updated_at) VALUES ('LICHI', $1, $2, NOW())
+         ON CONFLICT (store) DO UPDATE SET online_orders_closed = $1, note = $2, updated_at = NOW()`,
+        [closedRun, `text ${stats.text}/${ok}, lost sizes ${stats.lost}/${stats.hadSizes}`]);
+    }
+  } catch (e) { console.log(`⚠️ עדכון סטטוס הזמנות נכשל: ${e.message.substring(0, 60)}`); }
 
   // ── דווח אילו מוצרים נמצאו — מסתיר מוצרים שירדו מהאתר אחרי 3 הרצות רצופות ──
   if (urls.length === 0) {

@@ -2647,6 +2647,7 @@ function renderProducts(products,append=false,containerId='grid'){
       if(p.shipping){
         if(p.shipping.isFree){shippingBadgeHTML=`<span class="shipping-badge free">משלוח חינם</span>`}
         else{shippingBadgeHTML=`<span class="shipping-badge">משלוח ₪${p.shipping.cost}</span>`}
+        if(p.shipping.storeOnly){shippingBadgeHTML=`<span class="shipping-badge" style="color:#b45309;background:#fef3c7">זמין לרכישה בחנות בלבד</span>`}
       }
 
       const logoBgClass = darkBgStores.has(store) ? 'style="background:#1a1a2e"' : '';
@@ -2956,6 +2957,7 @@ async function openProduct(id){
     if(p.sizes?.length)kpis.push(`<span>מידות: ${p.sizes.map(formatSize).join(', ')}</span>`);
     if(p.category)kpis.push(`<span>סוג: ${escapeHtml(p.category)}</span>`);
     if(p.shipping){if(p.shipping.isFree){kpis.push(`<span class="shipping-kpi free">משלוח חינם</span>`)}else{kpis.push(`<span class="shipping-kpi">משלוח ₪${p.shipping.cost} (חינם מעל ₪${p.shipping.threshold})</span>`)}}
+    if(p.shipping&&p.shipping.storeOnly){kpis.push('<span class="shipping-kpi" style="border-color:#b45309;color:#b45309;background:#fef3c7">זמנית לא ניתן להזמין באתר - זמין לרכישה בחנות בלבד</span>')}
     document.getElementById("modalKpi").innerHTML=kpis.join("");
 
     const colors=[...new Set(p.colors||(p.color?[p.color]:[]))];

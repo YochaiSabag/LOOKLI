@@ -473,10 +473,23 @@ const shippingInfo = {
   'LEAA': { cost: 30, threshold: 499 } // לפי האתר של LEAA: משלוח חינם מעל 499 ₪ (עלות המשלוח בפועל לא אומתה)
 };
 
+// חנויות שסגורות כרגע להזמנות באתר (רק בסניפים) - נכתב ע"י הסקרייפר לטבלה store_status, נטען מחדש כל 2 דקות
+let storeOnlyStores = {};
+async function refreshStoreStatus() {
+  try {
+    const r = await pool.query(`SELECT store FROM store_status WHERE online_orders_closed = true`);
+    const next = {};
+    r.rows.forEach(x => { next[x.store] = true; });
+    storeOnlyStores = next;
+  } catch (e) { /* הטבלה עוד לא קיימת או שגיאת DB - לא מציגים כלום */ }
+}
+setTimeout(refreshStoreStatus, 5000);
+setInterval(refreshStoreStatus, 2 * 60 * 1000);
+
 function calculateShipping(store, price) {
   const info = shippingInfo[store] || { cost: 30, threshold: 300 };
   const isFree = price >= info.threshold;
-  return { cost: isFree ? 0 : info.cost, isFree, threshold: info.threshold };
+  return { cost: isFree ? 0 : info.cost, isFree, threshold: info.threshold, storeOnly: !!storeOnlyStores[store] };
 }
 
 // ── סינון נטפרי — מחיל תמונות מאושרות בלבד על אובייקט מוצר יחיד ──

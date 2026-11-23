@@ -286,6 +286,7 @@ async function scrapeProduct(url) {
     const data = { title, price, originalPrice, images: absImages, description, shipping, rawColors, rawSizes, variationsData };
 
     if (!data.title) { console.log('  ✗ no title'); return null; }
+    if (/העמוד המבוקש לא נמצא|דף זה אינו קיים|page not found/i.test(data.title)) { console.log('  ⏭️ עמוד שגיאה (404) - מדלג'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
 
     const style = detectStyle(data.title, data.description);

@@ -73,8 +73,9 @@
           <option>RARE</option><option>SALINA</option><option>SHEBELLO</option><option value="ST-FASHION">ST-FASHION</option>
         </select>
         <select id="galleryBatchSize" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;font-size:14px">
-          <option value="100">100 תמונות</option>
-          <option value="200" selected>200 תמונות</option>
+          <option value="50">50 תמונות</option>
+          <option value="100" selected>100 תמונות</option>
+          <option value="200">200 תמונות</option>
           <option value="300">גם וגם (300)</option>
         </select>
       </div>
@@ -256,14 +257,38 @@ async function loadMoreGalleryImages() {
   }
 }
 
+// טעינת תמונות הגלריה בתור: מקסימום 8 במקביל (במקום מאות בבת אחת שנתקעות בתור של הדפדפן)
+let galleryQueueGen = 0;
+function galleryLoadQueue() {
+  const gen = ++galleryQueueGen;
+  const pending = [...document.querySelectorAll('#galleryGrid img[data-src]')];
+  const MAX = 8;
+  let idx = 0, active = 0;
+  const next = () => {
+    while (active < MAX && idx < pending.length) {
+      if (gen !== galleryQueueGen) return;
+      const img = pending[idx++];
+      if (!img.isConnected) continue;
+      active++;
+      const done = () => { active--; next(); };
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      img.src = img.dataset.src;
+      img.removeAttribute('data-src');
+    }
+  };
+  next();
+}
+
 function renderGallery() {
   const grid = document.getElementById('galleryGrid');
   grid.innerHTML = galleryImages.map((item, i) => `
     <div class="gallery-thumb${gallerySelected.has(i)?' selected':''}" id="gthumb-${i}" onclick="toggleGalleryItem(${i})">
-      <img src="${item.url}" loading="lazy" onerror="this.style.opacity='0.2'"/>
+      <img data-src="${item.url}" onerror="this.style.opacity='0.2'"/>
       <a class="zoom-link" href="${item.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔍</a>
       <div class="sel-check">✓</div>
     </div>`).join('');
+  galleryLoadQueue();
   const loadMoreBtn = document.getElementById('galleryLoadMoreBtn');
   loadMoreBtn.style.display = galleryHasMore ? 'inline-block' : 'none';
 }

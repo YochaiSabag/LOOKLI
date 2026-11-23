@@ -35,6 +35,7 @@ function normalizeSize(s) {
   if (!s) return [];
   const val = s.toString().toUpperCase().trim();
   if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(val)) return [val];
+  if (/^[2-4]XL$/.test(val)) return [val === '2XL' ? 'XXL' : 'XXXL']; // 2XL=XXL, 3XL/4XL=XXXL (כמו ב-CHEN)
   if (/ONE.?SIZE/i.test(val)) return ['ONE SIZE'];
   if (sizeMapping[val]) return sizeMapping[val];
   return [];

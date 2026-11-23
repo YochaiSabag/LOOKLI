@@ -42,6 +42,12 @@ async function sendEmail(toEmail, subject, htmlBody) {
 // סקרייפרים שרצים דרך פרוקסי - רצים פעמיים בשבוע (ראשון+רביעי) ולא כל יום,
 // ולכן נבדקים לפי חלון זמן ארוך יותר ומוצגים כקבוצה נפרדת
 const PROXY_STORES = ['LEAA', 'SHEBELLO', 'AVIVIT', 'CHEMISE', 'MODA'];
+// סקרייפרים שרצים ידנית מהבית (חסומים ב-Railway) - לא רצים אוטומטית כל יום, ולכן מוצגים כקבוצה נפרדת
+const MANUAL_STORES = ['ORDMAN'];
+// חנויות עם חלון זמן ארוך (5 ימים לעדכון / 6 ימים לקריטי)
+const LONG_WINDOW_STORES = [...PROXY_STORES, ...MANUAL_STORES];
+// מוצר "פעיל" = מוצר שמוצג באתר (לא מוסתר ולא חסום) - רק הוא נספר בבעיות ובאחוזים
+const LIVE = `(hidden_stale IS NOT TRUE AND banned IS NOT TRUE)`;
 
 // ─── לוגיקה ────────────────────────────────────────────
 async function runHealthCheck() {
@@ -55,25 +61,26 @@ async function runHealthCheck() {
   const { rows } = await pool.query(`
     SELECT
       store,
-      COUNT(*)                                                         AS total,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '6 days' ELSE INTERVAL '3 days' END))  AS fresh,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '24 hours' END)) AS current_run,
-      MAX(last_seen)                                                   AS last_seen,
-      COUNT(*) FILTER (WHERE image_url IS NULL OR image_url = '')     AS no_image,
-      COUNT(*) FILTER (WHERE color IS NULL OR color = '')             AS no_color,
-      COUNT(*) FILTER (WHERE sizes IS NULL
+      COUNT(*) FILTER (WHERE ${LIVE})                                  AS total,
+      COUNT(*)                                                         AS all_total,
+      COUNT(*) FILTER (WHERE ${LIVE} AND last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '6 days' ELSE INTERVAL '3 days' END))  AS fresh,
+      COUNT(*) FILTER (WHERE ${LIVE} AND last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '24 hours' END)) AS current_run,
+      MAX(last_seen) FILTER (WHERE ${LIVE})                            AS last_seen,
+      COUNT(*) FILTER (WHERE ${LIVE} AND (image_url IS NULL OR image_url = ''))     AS no_image,
+      COUNT(*) FILTER (WHERE ${LIVE} AND (color IS NULL OR color = ''))             AS no_color,
+      COUNT(*) FILTER (WHERE ${LIVE} AND (sizes IS NULL
                           OR array_length(sizes,1) IS NULL
-                          OR array_length(sizes,1) = 0)               AS no_sizes,
-      COUNT(*) FILTER (WHERE category IS NULL OR category = '')       AS no_category,
-      COUNT(*) FILTER (WHERE price = 0 OR price IS NULL)             AS zero_price,
-      COUNT(*) FILTER (WHERE last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '1 day' END)
+                          OR array_length(sizes,1) = 0))               AS no_sizes,
+      COUNT(*) FILTER (WHERE ${LIVE} AND (category IS NULL OR category = ''))       AS no_category,
+      COUNT(*) FILTER (WHERE ${LIVE} AND (price = 0 OR price IS NULL))             AS zero_price,
+      COUNT(*) FILTER (WHERE ${LIVE} AND last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '1 day' END)
                          AND (sizes IS NULL OR array_length(sizes,1) IS NULL
                               OR array_length(sizes,1) = 0))          AS new_no_stock,
       COUNT(*) FILTER (WHERE hidden_stale = true)                     AS hidden_count
     FROM products
     GROUP BY store
     ORDER BY store
-  `, [PROXY_STORES]);
+  `, [LONG_WINDOW_STORES]);
 
   function pct(n, total) {
     if (!total) return '0%';
@@ -87,11 +94,15 @@ async function runHealthCheck() {
     return `<td style="color:${color};font-weight:700;text-align:center">${val} (${pct(val,total)})</td>`;
   }
 
+  // סטטוס חנות: 🔴 סקרייפר לא רץ / אין מוצרים פעילים; 🟡 רק כשחריגה מהספים (אותם ספים של צבעי העמודות); אחרת 🟢
   function storeStatus(r) {
-    if (r.fresh == 0 && r.total > 0) return '🔴'; // סקרייפר לא רץ 3+ ימים
-    if (r.fresh < r.total) return '🟡';            // חלק לא עודכן
-    if (r.no_image > 0 || r.zero_price > 0) return '🟡';
-    if (r.no_color > 0 || r.no_sizes > 0 || r.no_category > 0 || r.new_no_stock > 0) return '🟡';
+    const total = Number(r.total);
+    if (total === 0) return Number(r.hidden_count) > 0 ? '🔴' : '🟢';
+    if (Number(r.fresh) === 0) return '🔴'; // סקרייפר לא רץ 3+ ימים (חלון ארוך: 6+)
+    const p = n => (Number(n) / total) * 100;
+    if (p(total - Number(r.fresh)) >= 10) return '🟡';   // 10%+ מהמוצרים הפעילים לא עודכנו
+    if (p(r.no_image) >= 5 || p(r.zero_price) >= 5) return '🟡';
+    if (p(r.no_sizes) >= 10 || p(r.no_color) >= 20 || p(r.no_category) >= 20) return '🟡';
     return '🟢';
   }
 
@@ -100,6 +111,7 @@ async function runHealthCheck() {
     SELECT store, title
     FROM products
     WHERE (color IS NULL OR color = '' OR color = 'אחר')
+      AND ${LIVE}
       AND last_seen >= NOW() - INTERVAL '3 days'
     ORDER BY store, title
     LIMIT 300
@@ -170,14 +182,19 @@ async function runHealthCheck() {
       </tr>`;
   };
 
-  const regularRows = rows.filter(r => !PROXY_STORES.includes(r.store));
+  const regularRows = rows.filter(r => !LONG_WINDOW_STORES.includes(r.store));
   const proxyRows   = rows.filter(r => PROXY_STORES.includes(r.store));
+  const manualRows  = rows.filter(r => MANUAL_STORES.includes(r.store));
   const tableRows =
     regularRows.map(renderRow).join('') +
     (proxyRows.length ? `
       <tr style="background:#eef2ff">
         <td colspan="11" style="padding:8px;font-weight:700;color:#4338ca;font-size:12px">🌐 סקרייפרים בפרוקסי — רצים פעמיים בשבוע (ראשון+רביעי) · "עודכנו" נספר לפי 5 ימים אחרונים</td>
-      </tr>` + proxyRows.map(renderRow).join('') : '');
+      </tr>` + proxyRows.map(renderRow).join('') : '') +
+    (manualRows.length ? `
+      <tr style="background:#fff7ed">
+        <td colspan="11" style="padding:8px;font-weight:700;color:#c2410c;font-size:12px">🏠 סקרייפרים ידניים (רצים מהבית) — "עודכנו" נספר לפי 5 ימים אחרונים</td>
+      </tr>` + manualRows.map(renderRow).join('') : '');
 
   const html = `<!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -195,8 +212,8 @@ async function runHealthCheck() {
         <thead>
           <tr style="background:#f9fafb;font-size:12px;color:#6b7280">
             <th style="padding:10px 8px;text-align:right">חנות</th>
-            <th style="text-align:center">24 שעות אחרונות</th>
-            <th style="text-align:center">סה"כ</th>
+            <th style="text-align:center">עודכנו / פעילים</th>
+            <th style="text-align:center">פעילים</th>
             <th style="text-align:center">עדכון אחרון</th>
             <th style="text-align:center">🖼️ תמונה</th>
             <th style="text-align:center">🎨 צבע</th>
@@ -217,11 +234,11 @@ async function runHealthCheck() {
         </tbody>
       </table>
       <div style="margin-top:18px;font-size:12px;color:#9ca3af;line-height:1.9">
-        <strong>מקרא:</strong> 🟢 הכל תקין &nbsp;|&nbsp; 🟡 אזהרה &nbsp;|&nbsp; 🔴 קריטי — סקרייפר לא רץ 3+ ימים (בפרוקסי: 6+ ימים)<br/>
-        ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מסה"כ מוצרי החנות<br/>🙈 הוסתרו = מוצרים שלא נמצאו 3 הרצות רצופות — מוסתרים מהאתר אך לא נמחקו
+        <strong>מקרא:</strong> 🟢 הכל תקין &nbsp;|&nbsp; 🟡 אזהרה &nbsp;|&nbsp; 🔴 קריטי — סקרייפר לא רץ 3+ ימים (בפרוקסי/ידני: 6+ ימים)<br/>
+        ✅ = אין בעיות &nbsp;|&nbsp; % = אחוז מהמוצרים הפעילים בחנות (לא כולל מוסתרים וחסומים)<br/>🆕 ללא מלאי = מוצרים פעילים שנראו לאחרונה וחסרות להם מידות (חלק מעמודת 📏)<br/>🙈 הוסתרו = מוצרים שלא נמצאו 3 הרצות רצופות — מוסתרים מהאתר אך לא נמחקו
       </div>
       <div style="margin-top:12px;background:#f0fdf4;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d;font-weight:600;display:inline-block">
-        🏃 24 שעות אחרונות: ${totalCurrent} / ${totalAll} מוצרים עודכנו
+        🏃 עודכנו: ${totalCurrent} / ${totalAll} מוצרים פעילים
       </div>
     </div>
     ${noColorSection}

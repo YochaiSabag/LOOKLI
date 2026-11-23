@@ -44,8 +44,29 @@ async function getAllProductUrls(page) {
   console.log('\n📂 איסוף קישורים מ-www.ordman.co.il...\n');
   const allUrls = new Set();
 
+  // מקור ראשי: sitemap של WooCommerce - רשימה מלאה של כל המוצרים (קטגוריה בודדת החזירה רק ~96 מתוך 670).
+  // הגנות: אם ה-sitemap קטן מדי או שהכתובות לא תואמות לכתובות שכבר ב-DB - חוזרים לאיסוף מקטגוריות (הדרך הישנה)
+  try {
+    const r = await page.goto('https://www.ordman.co.il/product-sitemap.xml', { waitUntil: 'domcontentloaded', timeout: 40000 });
+    const xml = r ? await r.text() : '';
+    const norm = u => { try { return encodeURI(decodeURI(u.split('?')[0])).replace(/%[0-9A-F]{2}/g, m => m.toLowerCase()); } catch { return u.split('?')[0]; } };
+    const fromMap = [...new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => norm(m[1])).filter(h => h.includes('www.ordman.co.il/product/')))];
+    const { rows: dbRows } = await db.query("SELECT source_url FROM products WHERE store='ORDMAN'");
+    const existing = new Set(dbRows.map(x => norm(x.source_url)));
+    const matched = fromMap.filter(u => existing.has(u)).length;
+    console.log(`  🗺️ sitemap: ${fromMap.length} קישורים | ${matched} כבר קיימים ב-DB (מתוך ${existing.size} ב-DB)`);
+    if (fromMap.length >= 100 && (existing.size < 100 || matched >= 0.5 * Math.min(existing.size, fromMap.length))) {
+      console.log(`  ✓ משתמש ב-sitemap: ${fromMap.length} קישורים\n`);
+      return fromMap;
+    }
+    console.log('  ⚠ sitemap קטן מדי או לא תואם לכתובות ב-DB - חוזר לאיסוף מקטגוריות');
+  } catch (e) {
+    console.log(`  ⚠ sitemap נכשל (${e.message.substring(0, 40)}) - חוזר לאיסוף מקטגוריות`);
+  }
+
   const categories = [
     { base: 'https://www.ordman.co.il/product-category/ordman/', label: 'ordman', maxPages: 50 },
+    { base: 'https://www.ordman.co.il/shop/', label: 'shop', maxPages: 15 },
   ];
 
   for (const cat of categories) {

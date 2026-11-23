@@ -22,7 +22,7 @@ console.log('🚀 Ordman Scraper');
 // ======================================================================
 // טוען config מ-DB דרך scraper_utils
 import { loadScraperConfig } from './scraper_utils.js';
-const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails } = await loadScraperConfig(db);
+const { normalizeColor, unknownColors, shouldSkip, detectCategory, detectStyle, detectFit, detectFabric, detectPattern, detectDesignDetails, reportScraperFinished } = await loadScraperConfig(db);
 const sizeMapping = {
   'Y': ['XS'], '0': ['S'], '1': ['M'], '2': ['L'], '3': ['XL'], '4': ['XXL'], '5': ['XXXL'],
   '34': ['XS'], '36': ['XS','S'], '38': ['S','M'], '40': ['M','L'], '42': ['L','XL'], '44': ['XL','XXL'], '46': ['XXL','XXXL'], '48': ['XXXL'], '50': ['XXXL']
@@ -40,11 +40,8 @@ function normalizeSize(s) {
 
 // איסוף קישורים
 // ======================================================================
-async function getAllProductUrls(page) {
-  console.log('\n📂 איסוף קישורים מ-www.ordman.co.il...\n');
-  const allUrls = new Set();
-
-  // מקור ראשי: sitemap של WooCommerce - רשימה מלאה של כל המוצרים (קטגוריה בודדת החזירה רק ~96 מתוך 670).
+async function getUrlsFromSitemap(page) {
+  // גיבוי: sitemap של WooCommerce - כולל גם מוצרים שאזלו (לא מוצגים ב-/shop/), ולכן משמש רק כשאיסוף מ-/shop/ נכשל.
   // הגנות: אם ה-sitemap קטן מדי או שהכתובות לא תואמות לכתובות שכבר ב-DB - חוזרים לאיסוף מקטגוריות (הדרך הישנה)
   try {
     const r = await page.goto('https://www.ordman.co.il/product-sitemap.xml', { waitUntil: 'domcontentloaded', timeout: 40000 });
@@ -59,14 +56,19 @@ async function getAllProductUrls(page) {
       console.log(`  ✓ משתמש ב-sitemap: ${fromMap.length} קישורים\n`);
       return fromMap;
     }
-    console.log('  ⚠ sitemap קטן מדי או לא תואם לכתובות ב-DB - חוזר לאיסוף מקטגוריות');
+    console.log('  ⚠ sitemap קטן מדי או לא תואם לכתובות ב-DB');
   } catch (e) {
-    console.log(`  ⚠ sitemap נכשל (${e.message.substring(0, 40)}) - חוזר לאיסוף מקטגוריות`);
+    console.log(`  ⚠ sitemap נכשל (${e.message.substring(0, 40)})`);
   }
+  return null;
+}
+
+async function getAllProductUrls(page) {
+  console.log('\n📂 איסוף קישורים מ-www.ordman.co.il...\n');
+  const allUrls = new Set();
 
   const categories = [
-    { base: 'https://www.ordman.co.il/product-category/ordman/', label: 'ordman', maxPages: 50 },
-    { base: 'https://www.ordman.co.il/shop/', label: 'shop', maxPages: 15 },
+    { base: 'https://www.ordman.co.il/shop/', label: 'shop', maxPages: 15 }, // /shop/ מציג רק מוצרים במלאי; קטגוריית ordman הבודדת החזירה רק חלק
   ];
 
   for (const cat of categories) {
@@ -162,6 +164,12 @@ async function getAllProductUrls(page) {
         }
       }
     }
+  }
+
+  if (allUrls.size < 150) {
+    console.log(`  ⚠ איסוף מ-/shop/ החזיר רק ${allUrls.size} - מנסה sitemap כגיבוי`);
+    const fromMap = await getUrlsFromSitemap(page);
+    if (fromMap) fromMap.forEach(u => allUrls.add(u));
   }
 
   const result = [...allUrls];
@@ -439,6 +447,8 @@ async function saveProduct(product) {
          design_details = CASE WHEN products.tagged_fields @> ARRAY['design_details'] THEN products.design_details ELSE EXCLUDED.design_details END,
          all_sizes      = EXCLUDED.all_sizes,
          last_seen      = NOW(),
+         hidden_stale   = false,
+         not_seen_count = 0,
          tagged_fields  = (
            SELECT COALESCE(array_agg(DISTINCT f), '{}') FROM unnest(
              COALESCE(products.tagged_fields, ARRAY[]::TEXT[]) ||
@@ -511,7 +521,8 @@ try {
   const urls = await getAllProductUrls(page);
   console.log(`\n${'='.repeat(50)}\n📊 Total: ${urls.length} products\n${'='.repeat(50)}`);
 
-  let ok = 0, fail = 0;
+  let ok = 0, fail = 0, skippedUnavail = 0;
+  const savedUrls = [];
   const MAX_PRODUCTS = parseInt(process.env.SCRAPER_MAX_PRODUCTS) || 99999;
   for (let i = 0; i < Math.min(urls.length, MAX_PRODUCTS); i++) {
     if (i > 0 && i % 100 === 0) {
@@ -521,11 +532,23 @@ try {
     }
     console.log(`\n[${i + 1}/${urls.length}]`);
     const p = await scrapeProduct(page, urls[i]);
-    if (p) { await saveProduct(p); ok++; } else fail++;
+    if (p && !(p.price > 0) && (!p.sizes || p.sizes.length === 0)) {
+      // אין מחיר ואין מידות = מוצר שאזל / לא זמין באתר - לא שומרים (כדי לא להציג באתר מוצר במחיר 0 ולא לדרוס מחיר קיים)
+      console.log('  ⏭️ לא זמין (אין מחיר ואין מידות) - לא נשמר');
+      skippedUnavail++;
+    } else if (p) { await saveProduct(p); ok++; savedUrls.push(p.url); } else fail++;
     await page.waitForTimeout(400);
   }
 
-  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ❌ ${fail}\n${'='.repeat(50)}`);
+  console.log(`\n${'='.repeat(50)}\n🏁 Done: ✅ ${ok} | ⏭️ לא זמינים: ${skippedUnavail} | ❌ ${fail}\n${'='.repeat(50)}`);
+  // הסתרת מוצרים שנעלמו מהחנות (3 הרצות רצופות) - רק אחרי ריצה מלאה ותקינה, כדי לא להסתיר בטעות
+  if (process.env.SCRAPER_MAX_PRODUCTS) {
+    console.log('🧪 SCRAPER_MAX_PRODUCTS פעיל - דילוג על reportScraperFinished');
+  } else if (urls.length === 0 || savedUrls.length < 100 || fail / urls.length > 0.15) {
+    console.log(`⚠️ ריצה חלקית (נשמרו ${savedUrls.length}, נכשלו ${fail}) - דילוג על reportScraperFinished למניעת הסתרה שגויה`);
+  } else {
+    await reportScraperFinished(db, 'ORDMAN', savedUrls);
+  }
   await runHealthCheck(ok, fail);
 
 } finally {

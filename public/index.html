@@ -1084,6 +1084,7 @@
   
   <!-- Hero Discovery Section -->
   <h1 class="hero-title hero-title-standalone">עשרות מותגים &bull; אלפי מוצרים &bull; חיפוש חכם אחד - LOOKLI לוקלי</h1>
+  <p class="hero-note" style="text-align:center;background:#fff;margin:0;padding:8px 24px 16px;font-size:15px;color:#4b5563;line-height:1.5">LOOKLI הוא מנוע חיפוש לאופנה צנועה: מוצאים כאן, ורוכשים ישירות באתר החנות המקורית.</p>
 
   <div class="hero-teaser" id="heroTeaser" onclick="openHeroTeaser()">
     <span>רוצה לבחור שלב שלב?</span>
@@ -1384,11 +1385,12 @@
           </div>
           <div class="buy-big">
             <div style="display:flex;gap:8px;align-items:stretch">
-              <a id="modalBuy" href="#" target="_blank" onclick="trackOutClick(this)" style="flex:1"><svg data-r="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>לרכישה באתר</a>
+              <a id="modalBuy" href="#" target="_blank" onclick="trackOutClick(this)" style="flex:1"><svg data-r="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;margin-left:8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span id="modalBuyLabel">לרכישה באתר החנות ↗</span></a>
               <button onclick="shareProduct()" title="שתפי בוואצאפ" style="padding:0 16px;border-radius:12px;border:none;background:#25D366;color:#fff;cursor:pointer;font-size:20px;transition:opacity .2s" onmouseenter="this.style.opacity='.85'" onmouseleave="this.style.opacity='1'">
                 <svg data-r="21" viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;display:block"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               </button>
             </div>
+            <div id="modalBuyNote" style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.5;text-align:center"></div>
           </div>
         </div>
       </div>
@@ -2927,6 +2929,7 @@ async function openProduct(id){
   document.getElementById("modalTitle").textContent="טוען…";
   document.getElementById("modalDesc").textContent="";
   document.getElementById("modalKpi").innerHTML="";
+  var _mbn=document.getElementById("modalBuyNote"); if(_mbn) _mbn.innerHTML="";
   document.getElementById("modalColors").innerHTML="";
   document.getElementById("modalThumbs").innerHTML="";
   document.getElementById("modalDots").innerHTML="";
@@ -2949,6 +2952,15 @@ async function openProduct(id){
     // שלב 1 — נתונים וכפתור רכישה (מיידי)
     document.getElementById("modalTitle").textContent=p.title||"מוצר";
     document.getElementById("modalBuy").href="/out/"+id;
+    // הבהרה שהרכישה מתבצעת באתר החנות המקורית (LOOKLI הוא מנוע חיפוש)
+    try{
+      const _bn=({'LEAA':'Ladies'})[p.store]||p.store||'';
+      let _dom=''; try{_dom=new URL(p.source_url).hostname.replace(/^www\./,'')}catch(e){}
+      const _lbl=document.getElementById("modalBuyLabel");
+      if(_lbl)_lbl.textContent=_bn?`לרכישה ב-${_bn} ↗`:'לרכישה באתר החנות ↗';
+      const _note=document.getElementById("modalBuyNote");
+      if(_note)_note.innerHTML=`LOOKLI הוא מנוע חיפוש. לחיצה תעביר אתכם לאתר החנות${_dom?` (<span dir="ltr">${escapeHtml(_dom)}</span>)`:''}, שם מתבצעת הרכישה והתשלום.`;
+    }catch(e){}
     document.getElementById("modalDesc").textContent=(p.description||"").replace(/\r\n/g,'\n').replace(/\r/g,'\n')||"אין תיאור נוסף";
 
     const kpis=[],isOnSale=p.original_price&&p.original_price>p.price,disc=calcDiscount(p.price,p.original_price);

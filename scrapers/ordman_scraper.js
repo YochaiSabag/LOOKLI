@@ -312,6 +312,7 @@ async function scrapeProduct(page, url) {
 
     if (!data.title) { console.log('  ✗ no title'); return null; }
     if (/העמוד המבוקש לא נמצא|דף זה אינו קיים|page not found/i.test(data.title)) { console.log('  ⏭️ עמוד שגיאה (404) - מדלג'); return null; }
+    if (/sc-join-membership/i.test(url) || /הצטרפות למועדון לקוחות/.test(data.title)) { console.log('  ⏭️ הצטרפות למועדון (לא מוצר) - מדלג'); return null; }
     if (shouldSkip(data.title)) { console.log(`  ⏭️ מדלג (לא רלוונטי): ${data.title.substring(0,30)}`); return null; }
 
     const style = detectStyle(data.title, data.description);

@@ -43,6 +43,9 @@ function normalizeSize(s) {
     const [letterPart, numPart] = val.split('-');
     if (/^(XS|S|M|L|XL|XXL|XXXL|3XL|4XL)$/i.test(letterPart))
       return [letterPart.replace('3XL','XXXL').replace('4XL','XXXL')];
+    // פורמט הפוך "42-XL", "46-3XL" (מספר-אות) - נמצא בפועל באתר
+    if (/^(XS|S|M|L|XL|XXL|XXXL|3XL|4XL)$/i.test(numPart))
+      return [numPart.replace('3XL','XXXL').replace('4XL','XXXL')];
     if (sizeMapping[numPart]) return sizeMapping[numPart];
   }
   return [];

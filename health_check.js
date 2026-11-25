@@ -48,6 +48,9 @@ const MANUAL_STORES = ['ORDMAN'];
 const LONG_WINDOW_STORES = [...PROXY_STORES, ...MANUAL_STORES];
 // מוצר "פעיל" = מוצר שמוצג באתר (לא מוסתר ולא חסום) - רק הוא נספר בבעיות ובאחוזים
 const LIVE = `(hidden_stale IS NOT TRUE AND banned IS NOT TRUE)`;
+// תכשיטים/חגורות/אביזרים אינם אמורים לכלול מידות - לא נספרים בפער המידות (אותה רשימה כמו ב-index.js)
+const ACC_CATS = ['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'נעליים'];
+const NOT_ACC = `(category IS NULL OR category NOT IN (${ACC_CATS.map(c => `'${c}'`).join(', ')}))`;
 
 // ─── לוגיקה ────────────────────────────────────────────
 async function runHealthCheck() {
@@ -68,12 +71,12 @@ async function runHealthCheck() {
       MAX(last_seen) FILTER (WHERE ${LIVE})                            AS last_seen,
       COUNT(*) FILTER (WHERE ${LIVE} AND (image_url IS NULL OR image_url = ''))     AS no_image,
       COUNT(*) FILTER (WHERE ${LIVE} AND (color IS NULL OR color = ''))             AS no_color,
-      COUNT(*) FILTER (WHERE ${LIVE} AND (sizes IS NULL
+      COUNT(*) FILTER (WHERE ${LIVE} AND ${NOT_ACC} AND (sizes IS NULL
                           OR array_length(sizes,1) IS NULL
                           OR array_length(sizes,1) = 0))               AS no_sizes,
       COUNT(*) FILTER (WHERE ${LIVE} AND (category IS NULL OR category = ''))       AS no_category,
       COUNT(*) FILTER (WHERE ${LIVE} AND (price = 0 OR price IS NULL))             AS zero_price,
-      COUNT(*) FILTER (WHERE ${LIVE} AND last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '1 day' END)
+      COUNT(*) FILTER (WHERE ${LIVE} AND ${NOT_ACC} AND last_seen >= NOW() - (CASE WHEN store = ANY($1) THEN INTERVAL '5 days' ELSE INTERVAL '1 day' END)
                          AND (sizes IS NULL OR array_length(sizes,1) IS NULL
                               OR array_length(sizes,1) = 0))          AS new_no_stock,
       COUNT(*) FILTER (WHERE hidden_stale = true)                     AS hidden_count

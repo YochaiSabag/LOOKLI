@@ -1363,10 +1363,12 @@ app.post("/api/ai-search", async (req, res) => {
     const originalQuery = query.trim();
     const hasAlias = SEARCH_ALIASES[originalQuery.toLowerCase()];
     if (hasAlias) {
-      sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC LIMIT 5000`;
+      // פיזור לפי חנויות: 2 מוצרים מכל חנות לסירוגין (התוצאות חוזרות בבת אחת לפרונט בלי ערבוב נוסף)
+      sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), ((ROW_NUMBER() OVER (PARTITION BY store ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC) + 1) / 2), store, id DESC LIMIT 5000`;
       params.push(`%${originalQuery}%`); i++;
     } else {
-      sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), id DESC LIMIT 5000`;
+      // פיזור לפי חנויות: 2 מוצרים מכל חנות לסירוגין (התוצאות חוזרות בבת אחת לפרונט בלי ערבוב נוסף)
+      sql += ` ORDER BY (CASE WHEN low_priority IS TRUE THEN 1 ELSE 0 END), ((ROW_NUMBER() OVER (PARTITION BY store ORDER BY id DESC) + 1) / 2), store, id DESC LIMIT 5000`;
     }
     const result = await pool.query(sql, params);
     let rows = result.rows;

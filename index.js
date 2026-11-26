@@ -463,6 +463,10 @@ const validColors = ['שחור', 'לבן', 'שמנת', 'כחול', 'תכלת', '
 // חיפוש (פחות "מרשימות" בתמונה מול בגדים), אבל תמיד נשארות ניתנות לבחירה מפורשת
 // בסינון קטגוריה בסיידבר. מקור אמת יחיד בשימוש בכל נקודות הסינון בקובץ הזה.
 const ACCESSORY_CATEGORIES = ['גומיות', 'גומייה', 'אקססוריז', 'אביזרים', 'תכשיטים', 'כובעים', 'צעיפים', 'תיקים', 'נעליים'];
+// מוצר שאזל בחנות (אין בו אף מידה) לא מוצג בחיפוש ובדפי הגילוי - אי אפשר לרכוש אותו.
+// חריגים: אביזרים (אין להם מידות מטבעם) ו-LICHI (הזמנות סגורות באתר - חסר מידע, לא אזל).
+// המוצר לא נמחק מה-DB וחוזר להופיע מעצמו כשחוזרת אליו מידה. עמודי מוצר, מועדפים והתראות לא מושפעים.
+const IN_STOCK_SQL = `(array_length(sizes,1) > 0 OR store = 'LICHI' OR category IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))`;
 
 const shippingInfo = {
   'MEKIMI': { cost: 25, threshold: 300 },
@@ -566,7 +570,7 @@ app.get("/api/filters", async (req, res) => {
     if (isDefaultState && filtersDefaultCache && (Date.now() - filtersDefaultCacheTime < FILTERS_CACHE_TTL_MS)) {
       return res.json(filtersDefaultCache);
     }
-    let baseWhere = '(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0';
+    let baseWhere = '(banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0 AND ' + IN_STOCK_SQL;
     const baseParams = [];
     let paramIndex = 1;
     
@@ -765,7 +769,7 @@ app.get("/api/products", async (req, res) => {
     }
 
     const { q, color, size, store, style, fit, category, maxPrice, sort, minDiscount, fabric, pattern, design } = req.query;
-    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, sizes, color, colors, style, styles, fit, fits, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, tagged_fields, has_valid_image, valid_image_urls FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0 AND ${IN_STOCK_SQL}`;
     const params = [];
     let i = 1;
 
@@ -1047,7 +1051,7 @@ app.get('/api/whats-new', async (req, res) => {
 
     let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes, ${dateField}
                FROM products
-               WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0
+               WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0 AND ${IN_STOCK_SQL}
                AND ${dateField} >= NOW() - ($1 || ' days')::interval AND ${dateField} < NOW() - ($2 || ' days')::interval
                AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))${dealsCondition}`;
     const params = [daysAgoStart, daysAgoEnd];
@@ -1071,7 +1075,7 @@ app.get('/api/whats-new', async (req, res) => {
     // כדי שבורר החנות יציג רק חנויות רלוונטיות, לא את כל 16 החנויות תמיד
     const storesRes = await pool.query(
       `SELECT DISTINCT store FROM products
-       WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0
+       WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0 AND ${IN_STOCK_SQL}
        AND ${dateField} >= NOW() - ($1 || ' days')::interval AND ${dateField} < NOW() - ($2 || ' days')::interval
        AND (category IS NULL OR category NOT IN (${ACCESSORY_CATEGORIES.map(c => `'${c.replace(/'/g,"''")}'`).join(', ')}))${dealsCondition}
        ORDER BY store`,
@@ -1288,7 +1292,7 @@ app.post("/api/ai-search", async (req, res) => {
     if (!query || query.trim().length < 2) return res.status(400).json({ error: "Query too short" });
     const analysis = analyzeQuery(query);
     
-    let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0`;
+    let sql = `SELECT id, title, price, original_price, image_url, images, valid_image_urls, sizes, color, colors, style, fit, category, store, source_url, description, pattern, fabric, design_details, color_sizes, image_size_bytes FROM products WHERE (banned IS NULL OR banned = false) AND (hidden_stale IS NULL OR hidden_stale = false) AND (is_kids IS NULL OR is_kids = false) AND price > 0 AND ${IN_STOCK_SQL}`;
     if (safeImages === true || safeImages === '1') { sql += ` AND has_valid_image = true AND reviewed_at IS NOT NULL`; }
     const params = [];
     let i = 1;

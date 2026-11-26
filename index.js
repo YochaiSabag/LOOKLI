@@ -983,10 +983,13 @@ app.get("/api/products", async (req, res) => {
       sql += ` ORDER BY ${lowPriorityOrderKey}, (SELECT COUNT(*) FROM clicks WHERE clicks.source_url = products.source_url) DESC, id DESC`;
     } else if (isAliasMatch && q) {
       // ווריאנט: עם המילה המדויקת בכותרת קודם, אח"כ שאר הצבע/קטגוריה לפי id
-      sql += ` ORDER BY ${lowPriorityOrderKey}, (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC`;
+      // פיזור לפי חנויות: 2 מוצרים מכל חנות לסירוגין (במקום כל החנות הראשונה ואז כל השנייה).
+      // הדירוג בתוך כל חנות שומר על הסדר הקודם (התאמת כותרת קודם, ואז id יורד)
+      sql += ` ORDER BY ${lowPriorityOrderKey}, (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), ((ROW_NUMBER() OVER (PARTITION BY store ORDER BY (CASE WHEN title ILIKE $${i} THEN 0 ELSE 1 END), id DESC) + 1) / 2), store, id DESC`;
       params.push(`%${q}%`); i++;
     } else {
-      sql += ` ORDER BY ${lowPriorityOrderKey}, (id % 7), id DESC`;
+      // פיזור לפי חנויות: 2 מוצרים מכל חנות לסירוגין, הסדר בתוך כל חנות נשאר כמו קודם
+      sql += ` ORDER BY ${lowPriorityOrderKey}, ((ROW_NUMBER() OVER (PARTITION BY store ORDER BY (id % 7), id DESC) + 1) / 2), store, (id % 7), id DESC`;
     }
 
     // עימוד אמיתי — limit/offset מהפרונט, עם הגבלת ביטחון (מקסימום 100 בבקשה אחת)

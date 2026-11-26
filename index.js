@@ -1292,6 +1292,29 @@ app.get("/api/similar/:id", async (req, res) => {
   }
 });
 
+// תיעוד חיפושי טקסט לניתוח. אנונימי: אין IP גולמי - מזהה מבקר = hash חד-כיווני של IP+דפדפן,
+// וכשהמשתמש/ת מחובר/ת נשמר גם user_id. חיפושי אדמין לא נרשמים. נכשל בשקט - לא משפיע על החיפוש.
+function logSearch(req, query, count) {
+  try {
+    const raw = String(query || '').trim().slice(0, 200);
+    if (!raw) return;
+    const cm = (req.headers.cookie || '').match(/admsess=([a-f0-9]+)/);
+    if (cm && cm[1] === makeAdminCookieToken()) return;
+    const ip = req.ip || '';
+    const ua = req.headers['user-agent'] || '';
+    const visitor = createHmac('sha256', process.env.SEARCH_LOG_SALT || 'lookli-search-log').update(ip + '|' + ua).digest('hex').slice(0, 16);
+    let userId = null;
+    const auth = req.headers.authorization || '';
+    if (auth.startsWith('Bearer ')) {
+      const d = verifyToken(auth.slice(7));
+      if (d && Number.isInteger(Number(d.sub))) userId = Number(d.sub);
+    }
+    const norm = raw.toLowerCase().replace(/\s+/g, ' ');
+    pool.query(`INSERT INTO search_log (query, query_norm, result_count, user_id, visitor_hash) VALUES ($1,$2,$3,$4,$5)`,
+      [raw, norm, count, userId, visitor]).catch(() => {});
+  } catch (e) { /* תיעוד חיפוש לעולם לא שובר חיפוש */ }
+}
+
 app.post("/api/ai-search", async (req, res) => {
   try {
     const { query, safeImages } = req.body;
@@ -1388,6 +1411,7 @@ app.post("/api/ai-search", async (req, res) => {
       });
     }
     
+    logSearch(req, query, rows.length);
     const wantSafeImagesAI = safeImages === true || safeImages === '1';
     res.json({ query, analysis, results: rows.map(p => ({ ...applySafeImages(p, wantSafeImagesAI), shipping: calculateShipping(p.store, p.price) })), count: rows.length });
   } catch (err) {
@@ -3666,6 +3690,30 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
 });
 
 app.get('/admin/analytics', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_analytics.html')));
+app.get('/admin/searches', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_searches.html')));
+
+// סטטיסטיקת חיפושי טקסט לאדמין (מבוסס טבלת search_log)
+app.get('/api/admin/search-stats', adminAuth, async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
+    const W = `created_at >= NOW() - ($1 || ' days')::interval`;
+    const IL = `(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jerusalem')`;
+    const q = (sql) => pool.query(sql, [days]).then(r => r.rows);
+    const [totals, top, zero, daily, hourly, visitors, recent] = await Promise.all([
+      q(`SELECT COUNT(*)::int AS searches, COUNT(DISTINCT visitor_hash)::int AS visitors, COUNT(*) FILTER (WHERE result_count = 0)::int AS zero FROM search_log WHERE ${W}`),
+      q(`SELECT query_norm AS q, COUNT(*)::int AS n, COUNT(DISTINCT visitor_hash)::int AS visitors, ROUND(AVG(result_count))::int AS avg_results FROM search_log WHERE ${W} GROUP BY query_norm ORDER BY n DESC, q LIMIT 50`),
+      q(`SELECT query_norm AS q, COUNT(*)::int AS n, COUNT(DISTINCT visitor_hash)::int AS visitors FROM search_log WHERE ${W} AND result_count = 0 GROUP BY query_norm ORDER BY n DESC, q LIMIT 30`),
+      q(`SELECT to_char(${IL}, 'YYYY-MM-DD') AS d, COUNT(*)::int AS n FROM search_log WHERE ${W} GROUP BY 1 ORDER BY 1`),
+      q(`SELECT EXTRACT(HOUR FROM ${IL})::int AS h, COUNT(*)::int AS n FROM search_log WHERE ${W} GROUP BY 1 ORDER BY 1`),
+      q(`SELECT LEFT(visitor_hash, 6) AS v, MAX(user_id) AS uid, COUNT(*)::int AS n, COUNT(DISTINCT query_norm)::int AS uq, to_char(MAX(${IL}), 'MM-DD HH24:MI') AS last FROM search_log WHERE ${W} AND visitor_hash IS NOT NULL GROUP BY visitor_hash ORDER BY n DESC LIMIT 20`),
+      q(`SELECT to_char(${IL}, 'MM-DD HH24:MI') AS t, query, result_count, LEFT(visitor_hash, 6) AS v FROM search_log WHERE ${W} ORDER BY id DESC LIMIT 60`)
+    ]);
+    res.json({ totals: totals[0], top, zero, daily, hourly, visitors, recent });
+  } catch (err) {
+    console.error('search-stats error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
 app.get('/admin/tasks', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tasks.html')));
 app.get('/admin/tagger', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_tagger.html')));
 app.get('/admin/config', adminAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin_config.html')));
@@ -5380,6 +5428,19 @@ app.listen(PORT, async () => {
       created_at TIMESTAMP DEFAULT NOW()
     )`).catch(()=>{});
     console.log('[init] ✅ טבלת interest_events מוכנה');
+    // ── search_log — תיעוד חיפושי טקסט לניתוח (חיפושים דומיננטיים, מתי, חיפושים בלי תוצאות) ──
+    await pool.query(`CREATE TABLE IF NOT EXISTS search_log (
+      id SERIAL PRIMARY KEY,
+      created_at TIMESTAMP DEFAULT NOW(),
+      query TEXT NOT NULL,
+      query_norm TEXT NOT NULL,
+      result_count INTEGER,
+      user_id INTEGER,
+      visitor_hash VARCHAR(32)
+    )`).catch(()=>{});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_search_log_created ON search_log(created_at DESC)`).catch(()=>{});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_search_log_norm ON search_log(query_norm)`).catch(()=>{});
+    console.log('[init] ✅ טבלת search_log מוכנה');
     await pool.query(`CREATE TABLE IF NOT EXISTS scraper_config (
       id SERIAL PRIMARY KEY,
       type VARCHAR(30) NOT NULL,

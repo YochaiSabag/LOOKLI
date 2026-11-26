@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOOKLI — חיפושים</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a26;--border:#2a2a3a;--accent:#c084fc;--accent2:#818cf8;--green:#34d399;--yellow:#fbbf24;--red:#f87171;--text:#f1f0ff;--muted:#6b7280}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.wrap{max-width:1200px;margin:0 auto;padding:32px 20px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.logo{font-size:24px;font-weight:900;letter-spacing:-1px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav{display:flex;gap:4px;flex-wrap:wrap}
+.nav a{padding:5px 11px;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;border:1px solid transparent}
+.nav a:hover{color:var(--text);border-color:var(--border)}
+.nav a.active{background:rgba(192,132,252,.12);color:var(--accent);border-color:rgba(192,132,252,.25)}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+select,button{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-family:inherit;font-size:13px;cursor:pointer}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.kpi .v{font-size:28px;font-weight:800}
+.kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;overflow:auto}
+.card h3{font-size:14px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--muted);font-weight:600;text-align:right;padding:6px 8px;border-bottom:1px solid var(--border)}
+td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04)}
+td.n,th.n{text-align:center}
+.bars{display:flex;align-items:flex-end;gap:3px;height:110px}
+.bar{flex:1;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.lbls{display:flex;gap:3px;font-size:10px;color:var(--muted);margin-top:4px}
+.lbls span{flex:1;text-align:center}
+.zero{color:var(--red)}
+.muted{color:var(--muted)}
+.note{font-size:12px;color:var(--muted);margin-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">LOOKLI</div>
+    <nav class="nav">
+      <a href="/admin/analytics">אנליטיקס</a>
+      <a href="/admin/searches" class="active">חיפושים</a>
+      <a href="/admin/sponsored">ממומן</a>
+      <a href="/admin/ads">מודעות</a>
+      <a href="/admin/tagger">טאגר</a>
+      <a href="/admin/tasks">משימות</a>
+      <a href="/admin/config">הגדרות</a>
+      <a href="/admin/newsletter">ניוזלטר</a>
+      <a href="/" target="_blank">אתר</a>
+    </nav>
+  </div>
+  <div class="toolbar">
+    <select id="days" onchange="load()">
+      <option value="7">7 ימים</option>
+      <option value="30" selected>30 ימים</option>
+      <option value="90">90 ימים</option>
+      <option value="365">שנה</option>
+    </select>
+    <button onclick="load()">רענן</button>
+    <span class="muted" id="status"></span>
+  </div>
+  <div id="content"><div class="muted">טוען...</div></div>
+  <div class="note">הנתונים נאספים מחיפושי טקסט באתר מרגע ההפעלה. המבקר מזוהה במזהה אנונימי (לא כתובת IP), ובמשתמשים מחוברים מוצג גם מספר משתמש. חיפושי אדמין לא נספרים.</div>
+</div>
+<script>
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmt(n){return Number(n||0).toLocaleString('he-IL')}
+function table(cols,rows){
+  if(!rows.length)return '<div class="muted">אין נתונים עדיין</div>';
+  return '<table><thead><tr>'+cols.map(c=>'<th class="'+(c.n?'n':'')+'">'+c.h+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr>'+cols.map(c=>'<td class="'+(c.n?'n':'')+'">'+c.f(r)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+}
+function bars(items,labelFn){
+  if(!items.length)return '<div class="muted">אין נתונים עדיין</div>';
+  const max=Math.max(...items.map(i=>i.v),1);
+  return '<div class="bars">'+items.map(i=>'<div class="bar" style="height:'+Math.round(i.v/max*100)+'%" title="'+esc(i.t)+': '+i.v+'"></div>').join('')+'</div>'+
+    '<div class="lbls">'+items.map(i=>'<span>'+esc(labelFn(i))+'</span>').join('')+'</div>';
+}
+async function load(){
+  const days=document.getElementById('days').value;
+  document.getElementById('status').textContent='טוען...';
+  try{
+    const r=await fetch('/api/admin/search-stats?days='+days);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const t=d.totals;
+    const zeroPct=t.searches?Math.round(t.zero/t.searches*100):0;
+    const perVisitor=t.visitors?(t.searches/t.visitors).toFixed(1):'0';
+    let h='<div class="kpis">'+
+      '<div class="kpi"><div class="v">'+fmt(t.searches)+'</div><div class="l">חיפושים</div></div>'+
+      '<div class="kpi"><div class="v">'+fmt(t.visitors)+'</div><div class="l">מבקרים מחפשים (אנונימי)</div></div>'+
+      '<div class="kpi"><div class="v">'+perVisitor+'</div><div class="l">חיפושים למבקר</div></div>'+
+      '<div class="kpi"><div class="v '+(zeroPct>=15?'zero':'')+'">'+zeroPct+'%</div><div class="l">חיפושים בלי תוצאות ('+fmt(t.zero)+')</div></div></div>';
+    h+='<div class="grid"><div class="card"><h3>חיפושים לפי יום</h3>'+bars(d.daily.map(x=>({t:x.d,v:Number(x.n)})),i=>i.t.slice(8))+'</div>'+
+       '<div class="card"><h3>חיפושים לפי שעה ביום (שעון ישראל)</h3>'+bars(d.hourly.map(x=>({t:x.h+':00',v:Number(x.n)})),i=>i.t.split(':')[0])+'</div></div>';
+    h+='<div class="grid"><div class="card"><h3>החיפושים הדומיננטיים</h3>'+table([
+      {h:'חיפוש',f:r=>esc(r.q)},{h:'פעמים',n:1,f:r=>fmt(r.n)},{h:'מבקרים',n:1,f:r=>fmt(r.visitors)},{h:'תוצאות (ממוצע)',n:1,f:r=>r.avg_results==null?'':fmt(r.avg_results)}],d.top)+'</div>'+
+      '<div class="card"><h3>חיפושים בלי תוצאות</h3>'+table([
+      {h:'חיפוש',f:r=>'<span class="zero">'+esc(r.q)+'</span>'},{h:'פעמים',n:1,f:r=>fmt(r.n)},{h:'מבקרים',n:1,f:r=>fmt(r.visitors)}],d.zero)+'</div></div>';
+    h+='<div class="grid"><div class="card"><h3>המבקרים שחיפשו הכי הרבה</h3>'+table([
+      {h:'מזהה',f:r=>'<span class="muted">'+esc(r.v)+'</span>'+(r.uid?' (משתמש '+esc(r.uid)+')':'')},{h:'חיפושים',n:1,f:r=>fmt(r.n)},{h:'חיפושים שונים',n:1,f:r=>fmt(r.uq)},{h:'אחרון',f:r=>esc(r.last)}],d.visitors)+'</div>'+
+      '<div class="card"><h3>החיפושים האחרונים</h3>'+table([
+      {h:'מתי',f:r=>esc(r.t)},{h:'חיפוש',f:r=>esc(r.query)},{h:'תוצאות',n:1,f:r=>r.result_count===0?'<span class="zero">0</span>':fmt(r.result_count)},{h:'מבקר',f:r=>'<span class="muted">'+esc(r.v)+'</span>'}],d.recent)+'</div></div>';
+    document.getElementById('content').innerHTML=h;
+    document.getElementById('status').textContent='';
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="zero">שגיאה בטעינה: '+esc(e.message)+'</div>';
+    document.getElementById('status').textContent='';
+  }
+}
+load();
+</script>
+</body>
+</html>

@@ -2236,7 +2236,7 @@ async function runAISearch(){
   setLoading();
   window.scrollTo({top:0,behavior:'smooth'});
   try{
-    const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q, safeImages: localStorage.getItem('safeImagesMode')==='1'})});
+    const res=await fetch("/api/ai-search",{method:"POST",headers:{"Content-Type":"application/json",...(typeof authToken!=="undefined"&&authToken?{Authorization:"Bearer "+authToken}:{})},body:JSON.stringify({query:q, safeImages: localStorage.getItem('safeImagesMode')==='1'})});
     const data=await res.json();
     lastSearchKeywords=data.analysis.keywords||[];
     // Clear all existing filters before applying AI results
